@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}{{ idv.idv_id }} – {{ idv.bezeichnung }}{% endblock %}
+{% block page_title %}
+  <span class="font-monospace text-muted me-2" style="font-size:.85rem">{{ idv.idv_id }}</span>
+  {{ idv.bezeichnung }}
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Header-Leiste ──────────────────────────────────────────────── -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <span class="badge badge-gda-{{ idv.gda_wert }} fs-6">GDA {{ idv.gda_wert }}</span>
+    <span class="badge status-{{ idv.status }} fs-6">{{ idv.status }}</span>
+    {% if idv.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span>{% endif %}
+    {% if idv.rechnungslegungsrelevant %}<span class="badge bg-info text-dark">RL-relevant</span>{% endif %}
+    {% if idv.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA-kritisch</span>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('idv.edit_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-pencil me-1"></i>Bearbeiten
+    </a>
+    <!-- Status-Workflow -->
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-arrow-right-circle me-1"></i>Status ändern
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        {% for s in ['Entwurf','In Prüfung','Genehmigt','Genehmigt mit Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
+        {% if s != idv.status %}
+        <li>
+          <form method="post" action="{{ url_for('idv.change_status_route', idv_db_id=idv.id) }}">
+            <input type="hidden" name="status" value="{{ s }}">
+            <button class="dropdown-item">→ {{ s }}</button>
+          </form>
+        </li>
+        {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+    <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Zurück
+    </a>
+  </div>
+</div>
+
+<!-- ══ 3-Spalten-Grid ═════════════════════════════════════════════ -->
+<div class="row g-4">
+
+  <!-- ── Linke Spalte: Kernfelder ─────────────────────────────── -->
+  <div class="col-lg-8">
+
+    <!-- Stammdaten -->
+    <div class="form-section">
+      <div class="form-section-title">Stammdaten</div>
+      <div class="row g-3">
+        <div class="col-sm-6"><div class="detail-label">IDV-ID</div><div class="detail-value font-monospace">{{ idv.idv_id }}</div></div>
+        <div class="col-sm-6"><div class="detail-label">Version</div><div class="detail-value">{{ idv.version }}</div></div>
+        <div class="col-12"><div class="detail-label">Bezeichnung</div><div class="detail-value">{{ idv.bezeichnung }}</div></div>
+        <div class="col-12"><div class="detail-label">Kurzbeschreibung</div><div>{{ idv.kurzbeschreibung or '–' }}</div></div>
+        <div class="col-sm-6"><div class="detail-label">IDV-Typ</div>
+          <div><span class="badge bg-light text-dark border">{{ idv.idv_typ }}</span></div>
+        </div>
+        <div class="col-sm-6"><div class="detail-label">Produktiv seit</div><div class="detail-value">{{ idv.produktiv_seit|datefmt }}</div></div>
+      </div>
+    </div>
+
+    <!-- Klassifizierung -->
+    <div class="form-section">
+      <div class="form-section-title">Klassifizierung (MaRisk / DORA)</div>
+      <div class="row g-3">
+        <div class="col-sm-3">
+          <div class="detail-label">GDA-Wert</div>
+          <div class="detail-value"><span class="badge badge-gda-{{ idv.gda_wert }} fs-6">{{ idv.gda_wert }}/4</span></div>
+        </div>
+        <div class="col-sm-9">
+          <div class="detail-label">GDA-Begründung</div>
+          <div>{{ idv.gda_begruendung or '–' }}</div>
+        </div>
+
+        <div class="col-sm-4">
+          <div class="detail-label">Steuerungsrelevant</div>
+          <div class="detail-value">{{ idv.steuerungsrelevant|yesno }}</div>
+        </div>
+        <div class="col-sm-8">
+          <div class="detail-label">Begründung</div>
+          <div>{{ idv.steuerungsrelevanz_begr or '–' }}</div>
+        </div>
+
+        <div class="col-sm-4">
+          <div class="detail-label">RL-relevant</div>
+          <div class="detail-value">{{ idv.rechnungslegungsrelevant|yesno }}</div>
+        </div>
+        <div class="col-sm-8">
+          <div class="detail-label">Begründung</div>
+          <div>{{ idv.rechnungslegungsrelevanz_begr or '–' }}</div>
+        </div>
+
+        <div class="col-sm-4">
+          <div class="detail-label">DORA-kritisch/wichtig</div>
+          <div class="detail-value">{{ idv.dora_kritisch_wichtig|yesno }}</div>
+        </div>
+        <div class="col-sm-8">
+          <div class="detail-label">DORA-Begründung</div>
+          <div>{{ idv.dora_begruendung or '–' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risikobewertung -->
+    <div class="form-section">
+      <div class="form-section-title">Risikobewertung</div>
+      <div class="row g-3 align-items-center">
+        {% for label, val in [
+          ('Verfügbarkeit',       idv.risiko_verfuegbarkeit),
+          ('Integrität',          idv.risiko_integritaet),
+          ('Vertraulichkeit',     idv.risiko_vertraulichkeit),
+          ('Nachvollziehbarkeit', idv.risiko_nachvollziehbarkeit),
+        ] %}
+        <div class="col-sm-6">
+          <div class="detail-label">{{ label }}</div>
+          <div class="d-flex align-items-center gap-2">
+            {% if val %}
+              {% for i in range(1,6) %}
+              <span style="width:14px;height:14px;border-radius:3px;display:inline-block;
+                background:{{ '#dc3545' if i <= val else '#dee2e6' }}"></span>
+              {% endfor %}
+              <span class="text-muted ms-1" style="font-size:.8rem">{{ val }}/5</span>
+            {% else %}
+              <span class="text-muted">–</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Technische Angaben -->
+    <div class="form-section">
+      <div class="form-section-title">Technische Angaben</div>
+      <div class="row g-3">
+        <div class="col-sm-4"><div class="detail-label">Programmiersprache</div><div class="detail-value">{{ idv.programmiersprache or '–' }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">DB-Anbindung</div><div class="detail-value">{{ idv.datenbankanbindung|yesno }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">Netzwerkzugriff</div><div class="detail-value">{{ idv.netzwerkzugriff|yesno }}</div></div>
+        {% if idv.datenbankanbindung %}
+        <div class="col-12"><div class="detail-label">DB-Beschreibung</div><div>{{ idv.datenbankanbindung_beschr or '–' }}</div></div>
+        {% endif %}
+        <div class="col-sm-4"><div class="detail-label">Dokumentation</div><div class="detail-value">{{ idv.dokumentation_vorhanden|yesno }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">Testkonzept</div><div class="detail-value">{{ idv.testkonzept_vorhanden|yesno }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">4-Augen-Prinzip</div><div class="detail-value">{{ idv.vier_augen_prinzip|yesno }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">Nutzungsfrequenz</div><div class="detail-value">{{ idv.nutzungsfrequenz or '–' }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">Nutzeranzahl</div><div class="detail-value">{{ idv.nutzeranzahl or '–' }}</div></div>
+      </div>
+    </div>
+
+    <!-- Verknüpfte Datei -->
+    {% if file %}
+    <div class="form-section">
+      <div class="form-section-title">Verknüpfte Datei (Scanner-Fund)</div>
+      <div class="row g-2">
+        <div class="col-12"><div class="detail-label">Pfad</div><div class="hash-mono">{{ file.full_path }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">SHA-256</div><div class="hash-mono">{{ file.file_hash[:16] }}…</div></div>
+        <div class="col-sm-4"><div class="detail-label">Größe</div><div>{{ file.size_bytes|mb }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">Zuletzt geändert</div><div>{{ file.modified_at|datefmt }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">Makros</div><div>{{ file.has_macros|yesno }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">Ext. Links</div><div>{{ file.has_external_links|yesno }}</div></div>
+        <div class="col-sm-4"><div class="detail-label">Tabellenblätter</div><div>{{ file.sheet_count or '–' }}</div></div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- /col-lg-8 -->
+
+  <!-- ── Rechte Spalte: Meta / History ────────────────────────── -->
+  <div class="col-lg-4">
+
+    <!-- Verantwortlichkeiten -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600"><i class="bi bi-people me-2"></i>Verantwortlichkeiten</div>
+      <ul class="list-group list-group-flush">
+        {% for label, val in [
+          ('Org.-Einheit',         idv.org_einheit),
+          ('Fachverantwortlicher', idv.fachverantwortlicher),
+          ('Entwickler',           idv.entwickler),
+        ] %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">{{ label }}</div>
+          <div class="fw-500">{{ val or '–' }}</div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Prüfung & Fristen -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600"><i class="bi bi-calendar-check me-2"></i>Prüffristen</div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Prüfintervall</div>
+          <div class="fw-500">{{ idv.pruefintervall_monate }} Monate</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Letzte Prüfung</div>
+          <div>{{ idv.letzte_pruefung|datefmt }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Nächste Prüfung</div>
+          <div class="fw-500 {{ 'text-danger' if idv.pruefstatus == 'ÜBERFÄLLIG' else '' }}">
+            {{ idv.naechste_pruefung|datefmt }}
+            {% if idv.pruefstatus != 'OK' %}
+            <span class="badge bg-danger ms-1">{{ idv.pruefstatus }}</span>
+            {% endif %}
+          </div>
+        </li>
+      </ul>
+      <div class="card-footer bg-white">
+        <a href="{{ url_for('reviews.new_review', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary w-100">
+          <i class="bi bi-plus me-1"></i>Prüfung anlegen
+        </a>
+      </div>
+    </div>
+
+    <!-- Maßnahmen -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600 d-flex justify-content-between">
+        <span><i class="bi bi-tools me-2"></i>Maßnahmen</span>
+        <span class="badge bg-warning text-dark">{{ massnahmen|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for m in massnahmen[:4] %}
+        <li class="list-group-item px-3 py-2">
+          <div class="d-flex justify-content-between">
+            <span style="font-size:.83rem;font-weight:500">{{ m.titel|truncate(30) }}</span>
+            <span class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' }}">{{ m.status }}</span>
+          </div>
+          <div class="text-muted" style="font-size:.75rem">fällig {{ m.faellig_am|datefmt }}</div>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted text-center py-3" style="font-size:.83rem">Keine Maßnahmen.</li>
+        {% endfor %}
+      </ul>
+      <div class="card-footer bg-white">
+        <a href="{{ url_for('measures.new_measure', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-warning w-100">
+          <i class="bi bi-plus me-1"></i>Maßnahme anlegen
+        </a>
+      </div>
+    </div>
+
+    <!-- Änderungshistorie -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-clock-history me-2"></i>Letzte Änderungen</div>
+      <ul class="list-group list-group-flush">
+        {% for h in history[:6] %}
+        <li class="list-group-item px-3 py-2">
+          <div class="d-flex gap-2">
+            <div class="timeline-dot mt-1"></div>
+            <div>
+              <div style="font-size:.82rem;font-weight:500">{{ h.aktion }}</div>
+              {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(50) }}</div>{% endif %}
+              <div class="text-muted" style="font-size:.75rem">{{ h.durchgefuehrt_am|datefmt('%d.%m.%Y %H:%M') }}</div>
+            </div>
+          </div>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted text-center py-3">Keine Einträge.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+  </div><!-- /col-lg-4 -->
+
+</div><!-- /row -->
+{% endblock %}

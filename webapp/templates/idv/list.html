@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}IDV-Grundgesamtheit{% endblock %}
+{% block page_title %}<i class="bi bi-table me-2"></i>IDV-Grundgesamtheit{% endblock %}
+
+{% block content %}
+
+<!-- ── Filter-Leiste ──────────────────────────────────────────────── -->
+<form method="get" class="card border-0 shadow-sm p-3 mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label form-label-sm">Suche</label>
+      <input type="text" name="q" value="{{ request.args.get('q','') }}"
+             class="form-control form-control-sm" placeholder="IDV-ID, Name, Beschreibung …">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label form-label-sm">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">Alle</option>
+        {% for s in ['Entwurf','In Prüfung','Genehmigt','Genehmigt mit Auflagen','Abgelehnt','Abgekündigt'] %}
+        <option {{ 'selected' if request.args.get('status') == s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label form-label-sm">GDA (min.)</label>
+      <select name="gda_min" class="form-select form-select-sm">
+        <option value="0">Alle</option>
+        {% for g in [1,2,3,4] %}
+        <option value="{{ g }}" {{ 'selected' if request.args.get('gda_min','0')|int == g }}>GDA {{ g }}+</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label form-label-sm">Filter</label>
+      <select name="filter" class="form-select form-select-sm">
+        <option value="">–</option>
+        <option value="kritisch"       {{ 'selected' if request.args.get('filter') == 'kritisch' }}>Kritische IDVs</option>
+        <option value="steuerung"      {{ 'selected' if request.args.get('filter') == 'steuerung' }}>Steuerungsrelevant</option>
+        <option value="dora"           {{ 'selected' if request.args.get('filter') == 'dora' }}>DORA-kritisch</option>
+        <option value="ueberfaellig"   {{ 'selected' if request.args.get('filter') == 'ueberfaellig' }}>Prüfung überfällig</option>
+        <option value="unvollstaendig" {{ 'selected' if request.args.get('filter') == 'unvollstaendig' }}>Unvollständig</option>
+      </select>
+    </div>
+    <div class="col-md-2 d-flex gap-2">
+      <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
+      <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x"></i></a>
+    </div>
+  </div>
+</form>
+
+<!-- ── Tabelle ────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-600"><i class="bi bi-list-ul me-2"></i>{{ idvs|length }} Einträge</span>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('idv.export_excel') }}" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
+      </a>
+      <a href="{{ url_for('idv.new_idv') }}" class="btn btn-sm btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Neue IDV
+      </a>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 table-idv">
+      <thead>
+        <tr>
+          <th>IDV-ID</th>
+          <th>Bezeichnung</th>
+          <th>Typ</th>
+          <th>GDA</th>
+          <th>Steuerung</th>
+          <th>DORA</th>
+          <th>Status</th>
+          <th>Fachverantwortlicher</th>
+          <th>Nächste Prüfung</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in idvs %}
+        <tr>
+          <td>
+            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
+               class="fw-500 text-decoration-none font-monospace" style="font-size:.82rem">
+              {{ r.idv_id }}
+            </a>
+          </td>
+          <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">
+            {{ r.bezeichnung }}
+          </td>
+          <td>
+            <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
+          </td>
+          <td>
+            <span class="badge badge-gda-{{ r.gda_wert }}">{{ r.gda_wert }} – {{ r.gda_bezeichnung }}</span>
+          </td>
+          <td class="text-center">
+            {% if r.steuerungsrelevant == 'Ja' %}
+              <i class="bi bi-check-circle-fill text-primary"></i>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if r.dora_kritisch == 'Ja' %}
+              <i class="bi bi-shield-fill-exclamation text-danger"></i>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge status-{{ r.status }}">{{ r.status }}</span>
+          </td>
+          <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+          <td style="font-size:.82rem">
+            {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
+              <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
+            {% elif r.pruefstatus == 'BALD FÄLLIG' %}
+              <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
+            {% else %}
+              {{ r.naechste_pruefung|datefmt }}
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
+                 class="btn btn-xs btn-outline-secondary" title="Detail">
+                <i class="bi bi-eye"></i>
+              </a>
+              <a href="{{ url_for('idv.edit_idv', idv_db_id=r.id) }}"
+                 class="btn btn-xs btn-outline-primary" title="Bearbeiten">
+                <i class="bi bi-pencil"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+            Keine IDVs gefunden. <a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.btn-xs { padding: .15rem .4rem; font-size: .75rem; }
+.fw-600 { font-weight: 600; }
+.fw-500 { font-weight: 500; }
+</style>
+{% endblock %}

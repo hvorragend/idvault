@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}{{ 'IDV bearbeiten' if idv else 'Neue IDV erfassen' }}{% endblock %}
+{% block page_title %}
+  <i class="bi bi-{{ 'pencil' if idv else 'plus-circle' }} me-2"></i>
+  {{ 'IDV bearbeiten: ' + idv.bezeichnung if idv else 'Neue IDV erfassen' }}
+{% endblock %}
+
+{% block content %}
+<form method="post" novalidate>
+
+  <!-- ── Schritt-Anzeige ──────────────────────────────────────── -->
+  <div class="d-flex gap-2 mb-4 flex-wrap">
+    {% for label in ['Stammdaten','Klassifizierung','Risiko','Technik & Betrieb','Verantwortliche'] %}
+    <div class="badge rounded-pill px-3 py-2"
+         style="background:{% if loop.index == 1 %}var(--idv-primary){% else %}#e2e8f0{% endif %};
+                color:{% if loop.index == 1 %}#fff{% else %}#475569{% endif %}">
+      {{ loop.index }}. {{ label }}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 1. STAMMDATEN                                              -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="form-section">
+    <div class="form-section-title">1. Stammdaten</div>
+    <div class="row g-3">
+
+      <div class="col-md-8">
+        <label class="form-label">Bezeichnung <span class="required-star">*</span></label>
+        <input type="text" name="bezeichnung" class="form-control" required
+               value="{{ idv.bezeichnung if idv else '' }}"
+               placeholder="z.B. GuV-Monatsabschluss Controlling">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Version</label>
+        <input type="text" name="version" class="form-control"
+               value="{{ idv.version if idv else '1.0' }}" placeholder="1.0">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">IDV-Typ <span class="required-star">*</span></label>
+        <select name="idv_typ" class="form-select" required>
+          {% for t in ['unklassifiziert','Excel-Tabelle','Excel-Makro','Excel-Modell',
+                       'Access-Datenbank','Python-Skript','SQL-Skript','Power-BI-Bericht','Sonstige'] %}
+          <option {{ 'selected' if (idv and idv.idv_typ == t) or (not idv and t == 'unklassifiziert') }}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Produktiv seit</label>
+        <input type="date" name="produktiv_seit" class="form-control"
+               value="{{ idv.produktiv_seit[:10] if idv and idv.produktiv_seit else '' }}">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Prüfintervall (Monate)</label>
+        <select name="pruefintervall_monate" class="form-select">
+          {% for m in [3,6,12,24] %}
+          <option value="{{ m }}" {{ 'selected' if idv and idv.pruefintervall_monate == m or (not idv and m == 12) }}>{{ m }} Monate</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Kurzbeschreibung</label>
+        <textarea name="kurzbeschreibung" class="form-control" rows="3"
+                  placeholder="Zweck, Datenquellen, Nutzerkreis …">{{ idv.kurzbeschreibung if idv else '' }}</textarea>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 2. KLASSIFIZIERUNG                                         -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="form-section">
+    <div class="form-section-title">2. Klassifizierung (MaRisk AT 7.2 / DORA)</div>
+
+    <!-- GDA -->
+    <div class="mb-4">
+      <label class="form-label fw-500">GDA – Grad der Abhängigkeit <span class="required-star">*</span></label>
+      <div class="row g-2">
+        {% set gda_labels = {
+          1: ('Unterstützend',      'Prozess läuft auch ohne IDV – mit Mehraufwand.'),
+          2: ('Relevant',           'Prozessunterstützung; manueller Alternativprozess vorhanden.'),
+          3: ('Wesentlich',         'Kernprozessunterstützung; kein vollständiger Ersatz möglich.'),
+          4: ('Vollständig abhängig','Prozess ohne IDV nicht durchführbar. → 2. Genehmigungsstufe'),
+        } %}
+        {% for val, (lbl, desc) in gda_labels.items() %}
+        <div class="col-md-6 col-xl-3">
+          <label class="d-block border rounded p-3 h-100 cursor-pointer
+            {{ 'border-danger bg-danger bg-opacity-10' if val == 4 else '' }}"
+            style="cursor:pointer">
+            <input type="radio" name="gda_wert" value="{{ val }}" class="form-check-input me-2"
+                   {{ 'checked' if (idv and idv.gda_wert == val) or (not idv and val == 1) }}>
+            <strong>GDA {{ val }} – {{ lbl }}</strong>
+            <div class="text-muted mt-1" style="font-size:.78rem">{{ desc }}</div>
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="mt-2">
+        <label class="form-label form-label-sm">GDA-Begründung <span class="required-star">*</span></label>
+        <textarea name="gda_begruendung" class="form-control form-control-sm" rows="2"
+                  placeholder="Warum dieser GDA-Wert?">{{ idv.gda_begruendung if idv else '' }}</textarea>
+      </div>
+    </div>
+
+    <!-- Relevanzfelder -->
+    <div class="row g-4">
+
+      <!-- Steuerungsrelevanz -->
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="steuerungsrelevant" value="1"
+                   id="sw_steuerung"
+                   {{ 'checked' if idv and idv.steuerungsrelevant }}>
+            <label class="form-check-label fw-500" for="sw_steuerung">Steuerungsrelevant</label>
+          </div>
+          <div class="text-muted mb-2" style="font-size:.78rem">Ergebnisse fließen in Steuerungsentscheidungen des Vorstands ein.</div>
+          <div class="row g-1">
+            {% for fname, flabel in [('relevant_guv','GuV'),('relevant_meldewesen','Meldewesen'),('relevant_risikomanagement','Risikomgmt.')] %}
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="{{ fname }}" value="1"
+                       {{ 'checked' if idv and idv[fname] }}>
+                <label class="form-check-label" style="font-size:.82rem">{{ flabel }}</label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <textarea name="steuerungsrelevanz_begr" class="form-control form-control-sm mt-2" rows="2"
+                    placeholder="Begründung (Pflicht wenn aktiv)">{{ idv.steuerungsrelevanz_begr if idv else '' }}</textarea>
+        </div>
+      </div>
+
+      <!-- RL-Relevanz -->
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="rechnungslegungsrelevant" value="1"
+                   id="sw_rl" {{ 'checked' if idv and idv.rechnungslegungsrelevant }}>
+            <label class="form-check-label fw-500" for="sw_rl">RL-relevant</label>
+          </div>
+          <div class="text-muted mb-2" style="font-size:.78rem">Relevant für HGB-Abschluss, Jahresabschluss oder Meldewesen.</div>
+          <textarea name="rechnungslegungsrelevanz_begr" class="form-control form-control-sm mt-2" rows="4"
+                    placeholder="Begründung (Pflicht wenn aktiv)">{{ idv.rechnungslegungsrelevanz_begr if idv else '' }}</textarea>
+        </div>
+      </div>
+
+      <!-- DORA -->
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100 border-danger border-opacity-50">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="dora_kritisch_wichtig" value="1"
+                   id="sw_dora" {{ 'checked' if idv and idv.dora_kritisch_wichtig }}>
+            <label class="form-check-label fw-500" for="sw_dora">DORA-kritisch/wichtig</label>
+          </div>
+          <div class="text-muted mb-2" style="font-size:.78rem">Kritische/wichtige Funktion i.S.v. DORA Art. 28 Abs. 2.</div>
+          <textarea name="dora_begruendung" class="form-control form-control-sm mt-2" rows="4"
+                    placeholder="DORA-Begründung">{{ idv.dora_begruendung if idv else '' }}</textarea>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 3. RISIKOBEWERTUNG                                         -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="form-section">
+    <div class="form-section-title">3. Risikobewertung</div>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Risikoklasse</label>
+        <select name="risikoklasse_id" class="form-select">
+          <option value="">– noch nicht bewertet –</option>
+          {% for rk in risikoklassen %}
+          <option value="{{ rk.id }}" {{ 'selected' if idv and idv.risikoklasse_id == rk.id }}>{{ rk.bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% for fname, flabel in [
+        ('risiko_verfuegbarkeit','Verfügbarkeit'),
+        ('risiko_integritaet','Integrität'),
+        ('risiko_vertraulichkeit','Vertraulichkeit'),
+        ('risiko_nachvollziehbarkeit','Nachvollziehbarkeit'),
+      ] %}
+      <div class="col-md-3">
+        <label class="form-label">{{ flabel }} (1–5)</label>
+        <select name="{{ fname }}" class="form-select">
+          <option value="">–</option>
+          {% for i in range(1,6) %}
+          <option value="{{ i }}" {{ 'selected' if idv and idv[fname] == i }}>{{ i }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 4. TECHNIK & BETRIEB                                       -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="form-section">
+    <div class="form-section-title">4. Technik & Betrieb</div>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Plattform</label>
+        <select name="plattform_id" class="form-select">
+          <option value="">–</option>
+          {% for p in plattformen %}
+          <option value="{{ p.id }}" {{ 'selected' if idv and idv.plattform_id == p.id }}>{{ p.bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Programmiersprache/Werkzeug</label>
+        <input type="text" name="programmiersprache" class="form-control"
+               value="{{ idv.programmiersprache if idv else '' }}" placeholder="VBA, Python, DAX …">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Nutzungsfrequenz</label>
+        <select name="nutzungsfrequenz" class="form-select">
+          {% for f in ['','täglich','wöchentlich','monatlich','quartalsweise','jährlich','anlassbezogen'] %}
+          <option {{ 'selected' if idv and idv.nutzungsfrequenz == f }}>{{ f }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Nutzeranzahl</label>
+        <input type="number" name="nutzeranzahl" class="form-control" min="1"
+               value="{{ idv.nutzeranzahl if idv else '' }}">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Datenquellen</label>
+        <input type="text" name="datenquellen" class="form-control"
+               value="{{ idv.datenquellen if idv else '' }}" placeholder="z.B. OSPlus-Export, Agree21 …">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Datenempfänger</label>
+        <input type="text" name="datenempfaenger" class="form-control"
+               value="{{ idv.datenempfaenger if idv else '' }}" placeholder="z.B. Vorstandsreporting …">
+      </div>
+
+      <!-- Checkboxen -->
+      <div class="col-12">
+        <div class="row g-2">
+          {% for fname, flabel in [
+            ('datenbankanbindung','Externe DB-Anbindung'),
+            ('netzwerkzugriff','Netzwerkzugriff / API'),
+            ('enthaelt_personendaten','Enthält Personendaten'),
+            ('dokumentation_vorhanden','Dokumentation vorhanden'),
+            ('testkonzept_vorhanden','Testkonzept vorhanden'),
+            ('versionskontrolle','Versionskontrolle (Git o.ä.)'),
+            ('zugriffsschutz','Zugriffsschutz aktiv'),
+            ('vier_augen_prinzip','4-Augen-Prinzip'),
+          ] %}
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="{{ fname }}" value="1"
+                     id="cb_{{ fname }}" {{ 'checked' if idv and idv[fname] }}>
+              <label class="form-check-label" for="cb_{{ fname }}">{{ flabel }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 5. VERANTWORTLICHE                                         -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="form-section">
+    <div class="form-section-title">5. Verantwortliche & Geschäftsprozess</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Organisationseinheit <span class="required-star">*</span></label>
+        <select name="org_unit_id" class="form-select" required>
+          <option value="">– bitte wählen –</option>
+          {% for ou in org_units %}
+          <option value="{{ ou.id }}" {{ 'selected' if idv and idv.org_unit_id == ou.id }}>{{ ou.kuerzel }} – {{ ou.bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Geschäftsprozess</label>
+        <select name="gp_id" class="form-select">
+          <option value="">– aus Katalog wählen –</option>
+          {% for gp in geschaeftsprozesse %}
+          <option value="{{ gp.id }}" {{ 'selected' if idv and idv.gp_id == gp.id }}>{{ gp.gp_nummer }} – {{ gp.bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Fachverantwortlicher <span class="required-star">*</span></label>
+        <select name="fachverantwortlicher_id" class="form-select" required>
+          <option value="">– bitte wählen –</option>
+          {% for p in persons %}
+          <option value="{{ p.id }}" {{ 'selected' if idv and idv.fachverantwortlicher_id == p.id }}>{{ p.nachname }}, {{ p.vorname }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Entwickler / Ersteller</label>
+        <select name="idv_entwickler_id" class="form-select">
+          <option value="">–</option>
+          {% for p in persons %}
+          <option value="{{ p.id }}" {{ 'selected' if idv and idv.idv_entwickler_id == p.id }}>{{ p.nachname }}, {{ p.vorname }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Speichern ─────────────────────────────────────────────── -->
+  <div class="d-flex justify-content-between">
+    <a href="{{ url_for('idv.list_idv') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Abbrechen
+    </a>
+    <div class="d-flex gap-2">
+      <button type="submit" name="save_action" value="save" class="btn btn-primary">
+        <i class="bi bi-floppy me-1"></i>Speichern
+      </button>
+      {% if not idv %}
+      <button type="submit" name="save_action" value="save_and_new" class="btn btn-outline-primary">
+        <i class="bi bi-plus-circle me-1"></i>Speichern &amp; weitere erfassen
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+</form>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Prüfung anlegen{% endblock %}
+{% block page_title %}<i class="bi bi-clipboard2-plus me-2"></i>Prüfung anlegen – {{ idv.bezeichnung }}{% endblock %}
+
+{% block content %}
+<form method="post">
+  <div class="row g-4">
+    <div class="col-lg-8">
+
+      <div class="form-section">
+        <div class="form-section-title">Prüfungsdetails</div>
+        <div class="row g-3">
+
+          <div class="col-md-4">
+            <label class="form-label">IDV</label>
+            <input type="text" class="form-control" value="{{ idv.idv_id }} – {{ idv.bezeichnung }}" disabled>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Prüfungsart <span class="required-star">*</span></label>
+            <select name="pruefungsart" class="form-select" required>
+              {% for art in ['Erstprüfung','Regelprüfung','Anlassprüfung','Revisionsprüfung'] %}
+              <option>{{ art }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Prüfungsdatum <span class="required-star">*</span></label>
+            <input type="date" name="pruefungsdatum" class="form-control" required
+                   value="{{ today }}">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Prüfer</label>
+            <select name="pruefer_id" class="form-select">
+              <option value="">–</option>
+              {% for p in persons %}
+              <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Ergebnis <span class="required-star">*</span></label>
+            <select name="ergebnis" class="form-select" required>
+              {% for e in ['Ohne Befund','Mit Befund','Kritischer Befund','Nicht bestanden'] %}
+              <option>{{ e }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Befunde / Feststellungen</label>
+            <textarea name="befunde" class="form-control" rows="4"
+                      placeholder="Beschreibung der Befunde (falls vorhanden) …"></textarea>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Nächste Prüfung</label>
+            <input type="date" name="naechste_pruefung" class="form-control">
+            <div class="form-text">Wird ins IDV-Register übernommen.</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Kommentar</label>
+            <textarea name="kommentar" class="form-control" rows="2"
+                      placeholder="Zusätzliche Hinweise …"></textarea>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between">
+        <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Abbrechen
+        </a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-floppy me-1"></i>Prüfung speichern
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Kontext-Box -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-600"><i class="bi bi-info-circle me-2"></i>IDV-Kontext</div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">IDV-ID</div>
+            <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
+          </li>
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">GDA</div>
+            <span class="badge badge-gda-{{ idv.gda_wert }}">GDA {{ idv.gda_wert }}</span>
+          </li>
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">Status</div>
+            <span class="badge status-{{ idv.status }}">{{ idv.status }}</span>
+          </li>
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">Prüfintervall</div>
+            <div>{{ idv.pruefintervall_monate }} Monate</div>
+          </li>
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">Letzte Prüfung</div>
+            <div>{{ idv.letzte_pruefung|datefmt }}</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

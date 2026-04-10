@@ -1,0 +1,14 @@
+# idvault – Python-Abhängigkeiten
+# pip install -r requirements.txt
+
+# Web-Framework
+flask>=3.0.0
+
+# Excel-Export
+openpyxl>=3.1.0
+
+# Produktion (optional)
+gunicorn>=21.0.0
+
+# Windows-Dateieigentümer im Scanner (nur Windows)
+# pywin32>=306

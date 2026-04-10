@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Administration{% endblock %}
+{% block page_title %}<i class="bi bi-gear me-2"></i>Administration – Stammdaten{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- ── Personen ──────────────────────────────────────────────── -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-people me-2"></i>Personen ({{ persons|length }})</div>
+      <div style="max-height:300px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light"><tr><th>Kürzel</th><th>Name</th><th>Rolle</th><th>OE</th></tr></thead>
+          <tbody>
+            {% for p in persons %}
+            <tr>
+              <td><code>{{ p.kuerzel }}</code></td>
+              <td>{{ p.nachname }}, {{ p.vorname }}</td>
+              <td style="font-size:.78rem">{{ p.rolle or '–' }}</td>
+              <td style="font-size:.78rem">{{ p.org or '–' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer bg-white">
+        <form method="post" action="{{ url_for('admin.new_person') }}" class="row g-2">
+          <div class="col-md-2">
+            <input type="text" name="kuerzel" class="form-control form-control-sm" placeholder="Kürzel" required>
+          </div>
+          <div class="col-md-3">
+            <input type="text" name="nachname" class="form-control form-control-sm" placeholder="Nachname" required>
+          </div>
+          <div class="col-md-3">
+            <input type="text" name="vorname" class="form-control form-control-sm" placeholder="Vorname" required>
+          </div>
+          <div class="col-md-3">
+            <input type="email" name="email" class="form-control form-control-sm" placeholder="E-Mail">
+          </div>
+          <div class="col-md-4">
+            <input type="text" name="rolle" class="form-control form-control-sm" placeholder="Rolle">
+          </div>
+          <div class="col-md-5">
+            <select name="org_unit_id" class="form-select form-select-sm">
+              <option value="">– OE wählen –</option>
+              {% for ou in org_units %}
+              <option value="{{ ou.id }}">{{ ou.kuerzel }} – {{ ou.bezeichnung }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary w-100">
+              <i class="bi bi-plus me-1"></i>Hinzufügen
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Organisationseinheiten ────────────────────────────────── -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-diagram-3 me-2"></i>Organisationseinheiten ({{ org_units|length }})</div>
+      <div style="max-height:300px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light"><tr><th>Kürzel</th><th>Bezeichnung</th><th>Ebene</th></tr></thead>
+          <tbody>
+            {% for ou in org_units %}
+            <tr>
+              <td><code>{{ ou.kuerzel }}</code></td>
+              <td>{{ ou.bezeichnung }}</td>
+              <td style="font-size:.78rem">{{ ou.ebene or '–' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Geschäftsprozesse ─────────────────────────────────────── -->
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-diagram-2 me-2"></i>Geschäftsprozesse ({{ geschaeftsprozesse|length }})</div>
+      <div style="max-height:280px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light"><tr><th>GP-Nr.</th><th>Bezeichnung</th><th>Bereich</th><th>Krit.</th><th>Wes.</th></tr></thead>
+          <tbody>
+            {% for gp in geschaeftsprozesse %}
+            <tr>
+              <td><code>{{ gp.gp_nummer }}</code></td>
+              <td>{{ gp.bezeichnung }}</td>
+              <td style="font-size:.78rem">{{ gp.bereich or '–' }}</td>
+              <td class="text-center">{{ '✓' if gp.ist_kritisch else '–' }}</td>
+              <td class="text-center">{{ '✓' if gp.ist_wesentlich else '–' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer bg-white">
+        <form method="post" action="{{ url_for('admin.new_gp') }}" class="row g-2">
+          <div class="col-md-3">
+            <input type="text" name="gp_nummer" class="form-control form-control-sm" placeholder="GP-XXX-001" required>
+          </div>
+          <div class="col-md-5">
+            <input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required>
+          </div>
+          <div class="col-md-4">
+            <select name="bereich" class="form-select form-select-sm">
+              <option value="">– Bereich –</option>
+              {% for b in ['Markt','Marktfolge','Steuerung','Betrieb'] %}
+              <option>{{ b }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" name="ist_kritisch" value="1" id="gp_krit">
+              <label class="form-check-label" for="gp_krit" style="font-size:.83rem">DORA-kritisch</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" name="ist_wesentlich" value="1" id="gp_wes">
+              <label class="form-check-label" for="gp_wes" style="font-size:.83rem">Wesentlich</label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary w-100">
+              <i class="bi bi-plus me-1"></i>Hinzufügen
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Plattformen ───────────────────────────────────────────── -->
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-display me-2"></i>Plattformen ({{ plattformen|length }})</div>
+      <div style="max-height:280px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light"><tr><th>Bezeichnung</th><th>Typ</th><th>Hersteller</th></tr></thead>
+          <tbody>
+            {% for p in plattformen %}
+            <tr>
+              <td>{{ p.bezeichnung }}</td>
+              <td style="font-size:.78rem">{{ p.typ or '–' }}</td>
+              <td style="font-size:.78rem">{{ p.hersteller or '–' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+<style>.fw-600{font-weight:600}</style>
+{% endblock %}

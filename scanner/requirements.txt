@@ -1,0 +1,10 @@
+# IDV-Scanner – Abhängigkeiten
+
+# Pflicht
+openpyxl>=3.1.0
+
+# Optional: Windows-Dateieigentümer auslesen (nur auf Windows)
+# pywin32>=306
+
+# Optional: Schnelleres Hashing großer Dateien
+# xxhash>=3.0.0

@@ -1,0 +1,30 @@
+{
+  "scan_paths": [
+    "\\\\server01\\freigabe",
+    "\\\\fileserver\\abteilungen",
+    "Z:\\"
+  ],
+  "extensions": [
+    ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
+    ".accdb", ".mdb", ".accde", ".accdr",
+    ".ida", ".idv",
+    ".bas", ".cls", ".frm",
+    ".pbix", ".pbit",
+    ".dotm", ".pptm",
+    ".py", ".r", ".rmd",
+    ".sql"
+  ],
+  "exclude_paths": [
+    "~$",
+    ".tmp",
+    "$RECYCLE.BIN",
+    "System Volume Information",
+    "AppData",
+    "\\temp\\",
+    "\\Temp\\",
+    "\\cache\\"
+  ],
+  "db_path": "C:\\IDV-Scanner\\idv_register.db",
+  "log_path": "C:\\IDV-Scanner\\idv_scanner.log",
+  "hash_size_limit_mb": 500
+}

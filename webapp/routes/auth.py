@@ -1,0 +1,55 @@
+from flask import Blueprint, render_template, request, session, redirect, url_for, flash
+
+bp = Blueprint("auth", __name__)
+
+# ---------------------------------------------------------------------------
+# Einfache Benutzerverwaltung ohne externe Deps.
+# Für Produktion: Azure AD / LDAP empfohlen.
+# ---------------------------------------------------------------------------
+
+DEMO_USERS = {
+    "admin": {
+        "password": "idvault2025",
+        "name": "Administrator",
+        "role": "IDV-Administrator",
+        "person_id": None,
+    },
+    "koordinator": {
+        "password": "demo",
+        "name": "Max Mustermann",
+        "role": "IDV-Koordinator",
+        "person_id": 1,
+    },
+    "fachverantwortlicher": {
+        "password": "demo",
+        "name": "Anna Beispiel",
+        "role": "Fachverantwortlicher",
+        "person_id": 2,
+    },
+}
+
+
+@bp.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        user = DEMO_USERS.get(username)
+        if user and user["password"] == password:
+            session.clear()
+            session["user_id"]    = username
+            session["user_name"]  = user["name"]
+            session["user_role"]  = user["role"]
+            session["person_id"]  = user.get("person_id")
+            return redirect(url_for("dashboard.index"))
+
+        flash("Benutzername oder Passwort falsch.", "error")
+
+    return render_template("auth/login.html")
+
+
+@bp.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("auth.login"))

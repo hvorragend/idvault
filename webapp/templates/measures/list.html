@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Maßnahmen{% endblock %}
+{% block page_title %}<i class="bi bi-exclamation-triangle me-2"></i>Maßnahmen{% endblock %}
+
+{% block content %}
+<div class="d-flex gap-2 mb-4">
+  <a href="{{ url_for('measures.list_measures') }}"
+     class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">Alle offenen</a>
+  <a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig"
+     class="btn btn-sm {{ 'btn-danger' if filt == 'ueberfaellig' else 'btn-outline-danger' }}">
+    <i class="bi bi-alarm me-1"></i>Überfällige
+  </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-tools me-2"></i>{{ massnahmen|length }} offene Maßnahmen
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 table-idv">
+      <thead>
+        <tr>
+          <th>IDV</th><th>Titel</th><th>Typ</th><th>Priorität</th>
+          <th>Verantwortlicher</th><th>Fällig am</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in massnahmen %}
+        <tr class="{{ 'table-danger' if m.faelligkeitsstatus == 'ÜBERFÄLLIG' else '' }}">
+          <td>
+            <a href="{{ url_for('idv.detail_idv', idv_db_id=m.idv_id) }}"
+               class="text-decoration-none fw-500 font-monospace" style="font-size:.82rem">
+              {{ m.idv_id }}
+            </a>
+          </td>
+          <td class="text-truncate" style="max-width:200px" title="{{ m.titel }}">{{ m.titel }}</td>
+          <td><span class="badge bg-light text-dark border">{{ m.massnahmentyp or '–' }}</span></td>
+          <td>
+            <span class="badge bg-{{ 'danger' if m.prioritaet == 'Kritisch' else 'warning text-dark' if m.prioritaet == 'Hoch' else 'secondary' }}">
+              {{ m.prioritaet }}
+            </span>
+          </td>
+          <td style="font-size:.82rem">{{ m.verantwortlicher or '–' }}</td>
+          <td style="font-size:.82rem">
+            {% if m.faelligkeitsstatus == 'ÜBERFÄLLIG' %}
+              <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ m.faellig_am|datefmt }}</span>
+            {% else %}
+              {{ m.faellig_am|datefmt }}
+            {% endif %}
+          </td>
+          <td><span class="badge bg-{{ 'secondary' if m.status == 'Offen' else 'primary' }}">{{ m.status }}</span></td>
+          <td>
+            <form method="post" action="{{ url_for('measures.complete_measure', m_id=m.id) }}" class="d-inline">
+              <button class="btn btn-xs btn-outline-success" title="Als erledigt markieren"
+                      onclick="return confirm('Maßnahme als erledigt markieren?')">
+                <i class="bi bi-check-lg"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-5">
+            <i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i>
+            Keine offenen Maßnahmen – alles erledigt!
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>.btn-xs { padding: .15rem .4rem; font-size: .75rem; } .fw-600 { font-weight:600; }</style>
+{% endblock %}
