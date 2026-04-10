@@ -202,9 +202,14 @@
   </div>
 
   <!-- ── Geschäftsprozesse ─────────────────────────────────────── -->
-  <div class="col-12">
+  <div class="col-12" id="geschaeftsprozesse">
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-600"><i class="bi bi-diagram-2 me-2"></i>Geschäftsprozesse ({{ geschaeftsprozesse|length }})</div>
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-600"><i class="bi bi-diagram-2 me-2"></i>Geschäftsprozesse ({{ geschaeftsprozesse|length }})</span>
+        <a href="{{ url_for('admin.import_gp_template') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-download me-1"></i>CSV-Vorlage
+        </a>
+      </div>
       <div style="max-height:280px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0">
           <thead class="table-light"><tr><th>GP-Nr.</th><th>Bezeichnung</th><th>Bereich</th><th>DORA</th><th>MaRisk</th><th>Aktiv</th><th></th></tr></thead>
@@ -251,6 +256,25 @@
               </div>
             </div>
             <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus me-1"></i>Hinzufügen</button></div>
+          </form>
+        </details>
+        <!-- GP CSV-Import -->
+        <details class="mt-2">
+          <summary class="text-success" style="cursor:pointer;font-size:.88rem">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Geschäftsprozesse aus CSV importieren
+          </summary>
+          <form method="post" action="{{ url_for('admin.import_geschaeftsprozesse') }}" enctype="multipart/form-data" class="row g-2 mt-2">
+            <div class="col-md-8">
+              <input type="file" name="csv_file" accept=".csv,.txt" class="form-control form-control-sm" required>
+              <div class="form-text">
+                Spalten: <code>gp_nummer; bezeichnung; bereich; ist_kritisch (0/1); ist_wesentlich (0/1); beschreibung</code>
+                &nbsp;·&nbsp; Trennzeichen: <code>;</code> oder <code>,</code>
+                &nbsp;·&nbsp; Bestehende GP-Nummern werden aktualisiert.
+              </div>
+            </div>
+            <div class="col-md-4">
+              <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-upload me-1"></i>Importieren</button>
+            </div>
           </form>
         </details>
       </div>
@@ -314,6 +338,105 @@
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Wesentlichkeitskriterien (konfigurierbar) ───────────────────────── -->
+  <div class="col-12" id="wesentlichkeit">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-check2-square me-2"></i>Weitere Wesentlichkeitskriterien
+        <span class="badge bg-secondary ms-2" style="font-weight:400;font-size:.75rem">konfigurierbar</span>
+        <span class="text-muted ms-2" style="font-weight:400;font-size:.78rem">
+          — ergänzen die fest vorgegebenen Kriterien (Steuerungsrelevanz, RL-Relevanz, DORA)
+        </span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:40px">#</th>
+              <th>Bezeichnung</th>
+              <th>Beschreibung / Hinweis</th>
+              <th style="width:110px">Begr. Pflicht</th>
+              <th style="width:80px">Aktiv</th>
+              <th style="width:70px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for k in wesentlichkeitskriterien %}
+            <tr class="{{ '' if k.aktiv else 'text-muted' }}">
+              <td class="text-muted" style="font-size:.78rem">{{ k.sort_order }}</td>
+              <td class="fw-500">{{ k.bezeichnung }}</td>
+              <td style="font-size:.78rem;color:#6c757d">{{ k.beschreibung or '–' }}</td>
+              <td class="text-center">
+                {% if k.begruendung_pflicht %}<span class="badge bg-warning text-dark">Ja</span>
+                {% else %}<span class="text-muted">–</span>{% endif %}
+              </td>
+              <td class="text-center">
+                {% if k.aktiv %}<span class="badge bg-success">Ja</span>
+                {% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('admin.edit_wesentlichkeitskriterium', kid=k.id) }}"
+                   class="btn btn-xs btn-outline-primary py-0 px-1" title="Bearbeiten">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post"
+                      action="{{ url_for('admin.delete_wesentlichkeitskriterium', kid=k.id) }}"
+                      class="d-inline"
+                      onsubmit="return confirm('Kriterium deaktivieren? Vorhandene Antworten bleiben erhalten.')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Deaktivieren">
+                    <i class="bi bi-dash-circle"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-3" style="font-size:.83rem">
+              Noch keine weiteren Kriterien konfiguriert.
+            </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <!-- Neues Kriterium hinzufügen -->
+        <div class="p-3 border-top bg-light">
+          <form method="post" action="{{ url_for('admin.new_wesentlichkeitskriterium') }}"
+                class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label form-label-sm">Bezeichnung <span class="text-danger">*</span></label>
+              <input type="text" name="bezeichnung" class="form-control form-control-sm"
+                     placeholder="z.B. Relevanz für Stresstests" required>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label form-label-sm">Beschreibung / Hinweistext (optional)</label>
+              <input type="text" name="beschreibung" class="form-control form-control-sm"
+                     placeholder="Erläuterung für den Erfasser">
+            </div>
+            <div class="col-md-2 d-flex align-items-end pb-1">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="begruendung_pflicht" value="1"
+                       id="wk_bpflicht">
+                <label class="form-check-label" for="wk_bpflicht" style="font-size:.83rem">Begründung Pflicht</label>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-sm btn-primary w-100">
+                <i class="bi bi-plus me-1"></i>Hinzufügen
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="p-3 border-top">
+          <div class="alert alert-info py-2 mb-0" style="font-size:.82rem">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Hinweis:</strong> Wird ein Kriterium deaktiviert, bleiben alle bisherigen Antworten in der Datenbank erhalten
+            und sind weiterhin in der Detailansicht sichtbar (mit Hinweis „inaktiv").
+            Neue IDVs und Bearbeitungen zeigen das Kriterium nicht mehr im Formular.
+            Wird es reaktiviert, werden die alten Antworten wieder angezeigt.
+          </div>
+        </div>
       </div>
     </div>
   </div>

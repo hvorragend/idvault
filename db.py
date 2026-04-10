@@ -34,8 +34,23 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
         raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
     sql = schema_path.read_text(encoding="utf-8")
     conn.executescript(sql)
+    _run_migrations(conn)
     conn.commit()
     return conn
+
+
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Fügt fehlende Spalten zu bestehenden Tabellen hinzu (idempotent)."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(idv_register)").fetchall()}
+    new_cols = [
+        ("gobd_relevant", "INTEGER NOT NULL DEFAULT 0"),
+        ("erstellt_fuer",  "TEXT"),
+        ("schnittstellen_beschr", "TEXT"),
+    ]
+    for col, definition in new_cols:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE idv_register ADD COLUMN {col} {definition}")
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +66,73 @@ def get_klassifizierungen(conn: sqlite3.Connection, bereich: str) -> list:
         WHERE bereich = ? AND aktiv = 1
         ORDER BY sort_order, wert
     """, (bereich,)).fetchall()
+
+
+# ---------------------------------------------------------------------------
+# Wesentlichkeitskriterien-Hilfsfunktionen
+# ---------------------------------------------------------------------------
+
+def get_wesentlichkeitskriterien(conn: sqlite3.Connection, nur_aktive: bool = True) -> list:
+    """Gibt alle (aktiven) konfigurierbaren Wesentlichkeitskriterien zurück."""
+    where = "WHERE aktiv = 1" if nur_aktive else ""
+    return conn.execute(f"""
+        SELECT id, bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv
+        FROM wesentlichkeitskriterien
+        {where}
+        ORDER BY sort_order, id
+    """).fetchall()
+
+
+def get_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int) -> list:
+    """
+    Gibt alle aktiven Kriterien inkl. der IDV-spezifischen Antwort zurück.
+    Inaktive Kriterien mit vorhandener Antwort werden ebenfalls geliefert
+    (für die Detailansicht), aktive ohne Antwort erscheinen mit erfuellt=0.
+    """
+    return conn.execute("""
+        SELECT k.id AS kriterium_id, k.bezeichnung, k.beschreibung,
+               k.begruendung_pflicht, k.aktiv AS kriterium_aktiv,
+               COALESCE(w.erfuellt, 0) AS erfuellt,
+               w.begruendung
+        FROM wesentlichkeitskriterien k
+        LEFT JOIN idv_wesentlichkeit w
+               ON w.idv_db_id = ? AND w.kriterium_id = k.id
+        WHERE k.aktiv = 1
+           OR w.idv_db_id IS NOT NULL          -- inaktiv aber bereits beantwortet
+        ORDER BY k.aktiv DESC, k.sort_order, k.id
+    """, (idv_db_id,)).fetchall()
+
+
+def save_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int,
+                             antworten: list) -> None:
+    """
+    Speichert die Antworten einer IDV auf konfigurierbare Kriterien (UPSERT).
+    antworten: [{kriterium_id, erfuellt, begruendung}]
+    Bereits vorhandene Antworten zu inaktiven Kriterien bleiben unberührt.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    for a in antworten:
+        conn.execute("""
+            INSERT INTO idv_wesentlichkeit
+                        (idv_db_id, kriterium_id, erfuellt, begruendung, geaendert_am)
+            VALUES      (?, ?, ?, ?, ?)
+            ON CONFLICT(idv_db_id, kriterium_id) DO UPDATE SET
+                erfuellt     = excluded.erfuellt,
+                begruendung  = excluded.begruendung,
+                geaendert_am = excluded.geaendert_am
+        """, (idv_db_id, a["kriterium_id"], int(a.get("erfuellt", 0)),
+              a.get("begruendung") or None, now))
+    conn.commit()
+
+
+def _compute_dora(conn: sqlite3.Connection, gp_id, gda_wert) -> int:
+    """Leitet dora_kritisch_wichtig aus GP-Klassifizierung und GDA ab."""
+    if not gp_id:
+        return 0
+    gp = conn.execute(
+        "SELECT ist_kritisch FROM geschaeftsprozesse WHERE id = ?", (gp_id,)
+    ).fetchone()
+    return 1 if (gp and gp["ist_kritisch"] and int(gda_wert or 1) == 4) else 0
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +168,9 @@ def create_idv(conn: sqlite3.Connection, data: dict,
     intervall = data.get("pruefintervall_monate", 12)
     naechste_pruefung = _add_months(date.today(), intervall).isoformat()
 
+    # DORA wird aus GP-Klassifizierung + GDA abgeleitet (nicht manuell gesetzt)
+    dora = _compute_dora(conn, data.get("gp_id"), data.get("gda_wert", 1))
+
     fields = {
         "idv_id":                    idv_id,
         "bezeichnung":               data["bezeichnung"],
@@ -104,7 +189,7 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "gda_begruendung":           data.get("gda_begruendung"),
         "gp_id":                     data.get("gp_id"),
         "gp_freitext":               data.get("gp_freitext"),
-        "dora_kritisch_wichtig":     int(data.get("dora_kritisch_wichtig", 0)),
+        "dora_kritisch_wichtig":     dora,
         "dora_begruendung":          data.get("dora_begruendung"),
         "risikoklasse_id":           data.get("risikoklasse_id"),
         "risiko_verfuegbarkeit":     data.get("risiko_verfuegbarkeit"),
@@ -136,6 +221,10 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "abloesung_geplant":         int(data.get("abloesung_geplant", 0)),
         "abloesung_zieldatum":       data.get("abloesung_zieldatum"),
         "abloesung_durch":           data.get("abloesung_durch"),
+        # Neue Felder
+        "gobd_relevant":             int(data.get("gobd_relevant", 0)),
+        "erstellt_fuer":             data.get("erstellt_fuer"),
+        "schnittstellen_beschr":     data.get("schnittstellen_beschr"),
         "status":                    "Entwurf",
         "pruefintervall_monate":     intervall,
         "naechste_pruefung":         naechste_pruefung,
@@ -174,12 +263,17 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
     if not old:
         return False
 
+    # DORA aus GP + GDA ableiten
+    gp_id   = data.get("gp_id", old["gp_id"])
+    gda_wert = data.get("gda_wert", old["gda_wert"])
+    data["dora_kritisch_wichtig"] = _compute_dora(conn, gp_id, gda_wert)
+
     # Änderungsprotokoll aufbauen
     tracked_fields = [
         "bezeichnung", "idv_typ", "gda_wert", "steuerungsrelevant",
         "rechnungslegungsrelevant", "dora_kritisch_wichtig", "status",
         "fachverantwortlicher_id", "gp_id", "risikoklasse_id",
-        "naechste_pruefung", "pruefintervall_monate"
+        "naechste_pruefung", "pruefintervall_monate", "gobd_relevant",
     ]
     changes = {}
     for f in tracked_fields:
@@ -206,7 +300,8 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
         "testkonzept_vorhanden", "versionskontrolle",
         "zugriffsschutz", "zugriffsschutz_beschr", "vier_augen_prinzip",
         "abloesung_geplant", "abloesung_zieldatum", "abloesung_durch",
-        "pruefintervall_monate", "naechste_pruefung", "interne_notizen", "tags"
+        "pruefintervall_monate", "naechste_pruefung", "interne_notizen", "tags",
+        "gobd_relevant", "erstellt_fuer", "schnittstellen_beschr",
     ]}
     update_fields["aktualisiert_am"] = now
 

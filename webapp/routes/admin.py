@@ -52,12 +52,18 @@ def index():
             SELECT * FROM klassifizierungen WHERE bereich=? ORDER BY sort_order, wert
         """, (bereich,)).fetchall()
 
+    # Konfigurierbare Wesentlichkeitskriterien (alle, inkl. inaktiv)
+    wesentlichkeitskriterien = db.execute("""
+        SELECT * FROM wesentlichkeitskriterien ORDER BY sort_order, id
+    """).fetchall()
+
     return render_template("admin/index.html",
         org_units=org_units, persons=persons,
         geschaeftsprozesse=geschaeftsprozesse, plattformen=plattformen,
         settings=settings,
         klassifizierungen=klassifizierungen,
-        klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE)
+        klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE,
+        wesentlichkeitskriterien=wesentlichkeitskriterien)
 
 
 # ── Personen ───────────────────────────────────────────────────────────────
@@ -507,3 +513,153 @@ def delete_klassifizierung(kid):
     flash("Eintrag deaktiviert.", "success")
     bereich = row["bereich"] if row else ""
     return redirect(url_for("admin.index") + f"#klass-{bereich}")
+
+
+# ── Wesentlichkeitskriterien ───────────────────────────────────────────────
+
+@bp.route("/wesentlichkeit/neu", methods=["POST"])
+@admin_required
+def new_wesentlichkeitskriterium():
+    db = get_db()
+    bezeichnung = request.form.get("bezeichnung", "").strip()
+    if not bezeichnung:
+        flash("Bezeichnung darf nicht leer sein.", "error")
+        return redirect(url_for("admin.index") + "#wesentlichkeit")
+
+    max_order = db.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) FROM wesentlichkeitskriterien"
+    ).fetchone()[0]
+
+    db.execute("""
+        INSERT INTO wesentlichkeitskriterien
+            (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
+        VALUES (?, ?, ?, ?, 1)
+    """, (
+        bezeichnung,
+        request.form.get("beschreibung") or None,
+        1 if request.form.get("begruendung_pflicht") else 0,
+        max_order + 1,
+    ))
+    db.commit()
+    flash(f"Kriterium '{bezeichnung}' angelegt.", "success")
+    return redirect(url_for("admin.index") + "#wesentlichkeit")
+
+
+@bp.route("/wesentlichkeit/<int:kid>/bearbeiten", methods=["GET", "POST"])
+@admin_required
+def edit_wesentlichkeitskriterium(kid):
+    db  = get_db()
+    row = db.execute("SELECT * FROM wesentlichkeitskriterien WHERE id=?", (kid,)).fetchone()
+    if not row:
+        flash("Kriterium nicht gefunden.", "error")
+        return redirect(url_for("admin.index") + "#wesentlichkeit")
+
+    if request.method == "POST":
+        db.execute("""
+            UPDATE wesentlichkeitskriterien
+            SET bezeichnung=?, beschreibung=?, begruendung_pflicht=?, sort_order=?, aktiv=?
+            WHERE id=?
+        """, (
+            request.form.get("bezeichnung", "").strip(),
+            request.form.get("beschreibung") or None,
+            1 if request.form.get("begruendung_pflicht") else 0,
+            int(request.form.get("sort_order", row["sort_order"])),
+            1 if request.form.get("aktiv") else 0,
+            kid,
+        ))
+        db.commit()
+        flash("Kriterium gespeichert.", "success")
+        return redirect(url_for("admin.index") + "#wesentlichkeit")
+
+    return render_template("admin/wesentlichkeit_edit.html", row=row)
+
+
+@bp.route("/wesentlichkeit/<int:kid>/loeschen", methods=["POST"])
+@admin_required
+def delete_wesentlichkeitskriterium(kid):
+    db = get_db()
+    db.execute("UPDATE wesentlichkeitskriterien SET aktiv=0 WHERE id=?", (kid,))
+    db.commit()
+    flash("Kriterium deaktiviert. Vorhandene Antworten bleiben erhalten.", "success")
+    return redirect(url_for("admin.index") + "#wesentlichkeit")
+
+
+# ── Geschäftsprozess-Import ────────────────────────────────────────────────
+
+@bp.route("/import/geschaeftsprozesse/vorlage")
+@login_required
+def import_gp_template():
+    """CSV-Vorlage für GP-Import herunterladen."""
+    content  = "gp_nummer;bezeichnung;bereich;ist_kritisch;ist_wesentlich;beschreibung\n"
+    content += "GP-XXX-001;Mein Prozess;Steuerung;1;1;Kurzbeschreibung\n"
+    return Response(
+        content,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=geschaeftsprozesse_vorlage.csv"}
+    )
+
+
+@bp.route("/import/geschaeftsprozesse", methods=["POST"])
+@admin_required
+def import_geschaeftsprozesse():
+    """
+    CSV-Import für Geschäftsprozesse.
+    Pflicht-Spalten: gp_nummer, bezeichnung
+    Optional: bereich, ist_kritisch (0/1), ist_wesentlich (0/1), beschreibung
+    """
+    f = request.files.get("csv_file")
+    if not f or not f.filename:
+        flash("Keine Datei ausgewählt.", "error")
+        return redirect(url_for("admin.index") + "#geschaeftsprozesse")
+
+    db      = get_db()
+    content = f.read().decode("utf-8-sig")
+    first_line = content.split("\n")[0]
+    delimiter  = ";" if first_line.count(";") >= first_line.count(",") else ","
+    reader     = csv.DictReader(io.StringIO(content), delimiter=delimiter)
+    created = updated = errors = 0
+    now     = _now()
+
+    for row in reader:
+        try:
+            r = {k.strip().lower(): (v or "").strip() for k, v in row.items()}
+            gp_nummer   = r.get("gp_nummer", "").strip()
+            bezeichnung = r.get("bezeichnung", "").strip()
+            if not gp_nummer or not bezeichnung:
+                errors += 1
+                continue
+
+            bereich       = r.get("bereich") or None
+            ist_kritisch  = 1 if r.get("ist_kritisch", "0") in ("1", "ja", "true", "x") else 0
+            ist_wesentlich = 1 if r.get("ist_wesentlich", "0") in ("1", "ja", "true", "x") else 0
+            beschreibung  = r.get("beschreibung") or None
+
+            existing = db.execute(
+                "SELECT id FROM geschaeftsprozesse WHERE gp_nummer=?", (gp_nummer,)
+            ).fetchone()
+
+            if existing:
+                db.execute("""
+                    UPDATE geschaeftsprozesse
+                    SET bezeichnung=?, bereich=COALESCE(?,bereich),
+                        ist_kritisch=?, ist_wesentlich=?,
+                        beschreibung=COALESCE(?,beschreibung), updated_at=?
+                    WHERE gp_nummer=?
+                """, (bezeichnung, bereich, ist_kritisch, ist_wesentlich,
+                      beschreibung, now, gp_nummer))
+                updated += 1
+            else:
+                db.execute("""
+                    INSERT INTO geschaeftsprozesse
+                        (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
+                         beschreibung, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?)
+                """, (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
+                      beschreibung, now, now))
+                created += 1
+        except Exception:
+            errors += 1
+
+    db.commit()
+    flash(f"GP-Import: {created} neu, {updated} aktualisiert, {errors} Fehler.", "success")
+    return redirect(url_for("admin.index") + "#geschaeftsprozesse")

@@ -28,7 +28,7 @@
 
   <!-- ── Schritt-Anzeige ──────────────────────────────────────── -->
   <div class="d-flex gap-2 mb-4 flex-wrap">
-    {% for label in ['Stammdaten','Klassifizierung','Risiko','Technik & Betrieb','Verantwortliche'] %}
+    {% for label in ['Stammdaten','Wesentlichkeit','Risiko','Technik & Betrieb','Weitere Angaben','Verantwortliche'] %}
     <div class="badge rounded-pill px-3 py-2"
          style="background:{% if loop.index == 1 %}var(--idv-primary){% else %}#e2e8f0{% endif %};
                 color:{% if loop.index == 1 %}#fff{% else %}#475569{% endif %}">
@@ -93,10 +93,10 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <!-- 2. KLASSIFIZIERUNG                                         -->
+  <!-- 2. WESENTLICHKEITSBEURTEILUNG                              -->
   <!-- ═══════════════════════════════════════════════════════════ -->
   <div class="form-section">
-    <div class="form-section-title">2. Klassifizierung (MaRisk AT 7.2 / DORA)</div>
+    <div class="form-section-title">2. Wesentlichkeitsbeurteilung (MaRisk AT 7.2 / DORA)</div>
 
     <!-- GDA -->
     <div class="mb-4">
@@ -105,10 +105,11 @@
         {% for stufe in gda_stufen %}
         {% set val = stufe.wert|int %}
         <div class="col-md-6 col-xl-3">
-          <label class="d-block border rounded p-3 h-100 cursor-pointer
+          <label class="d-block border rounded p-3 h-100
             {{ 'border-danger bg-danger bg-opacity-10' if val == 4 else '' }}"
             style="cursor:pointer">
             <input type="radio" name="gda_wert" value="{{ val }}" class="form-check-input me-2"
+                   id="gda_{{ val }}"
                    {{ 'checked' if (idv and idv.gda_wert == val) or (not idv and val == 1) }}>
             <strong>GDA {{ val }} – {{ stufe.bezeichnung }}</strong>
             <div class="text-muted mt-1" style="font-size:.78rem">{{ stufe.beschreibung or '' }}</div>
@@ -123,20 +124,26 @@
       </div>
     </div>
 
-    <!-- Relevanzfelder -->
-    <div class="row g-4">
+    <!-- Standard-Wesentlichkeitskriterien -->
+    <p class="text-muted mb-2" style="font-size:.82rem">
+      <strong>Standard-Wesentlichkeitskriterien</strong> (fest vorgegeben, Reihenfolge gemäß MaRisk AT 7.2 / DORA)
+    </p>
+    <div class="row g-4 mb-4">
 
-      <!-- Steuerungsrelevanz -->
+      <!-- 1. Steuerungsrelevanz -->
       <div class="col-md-4">
         <div class="border rounded p-3 h-100">
-          <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" name="steuerungsrelevant" value="1"
-                   id="sw_steuerung"
-                   {{ 'checked' if idv and idv.steuerungsrelevant }}>
-            <label class="form-check-label fw-500" for="sw_steuerung">Steuerungsrelevant</label>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-secondary" style="font-size:.65rem">1</span>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" name="steuerungsrelevant" value="1"
+                     id="sw_steuerung"
+                     {{ 'checked' if idv and idv.steuerungsrelevant }}>
+              <label class="form-check-label fw-500" for="sw_steuerung">Steuerungsrelevant</label>
+            </div>
           </div>
-          <div class="text-muted mb-2" style="font-size:.78rem">Ergebnisse fließen in Steuerungsentscheidungen des Vorstands ein.</div>
-          <div class="row g-1">
+          <div class="text-muted mb-2" style="font-size:.78rem">MaRisk AT 7.2: Ergebnisse fließen in Steuerungsentscheidungen ein.</div>
+          <div class="row g-1 mb-2">
             {% for fname, flabel in [('relevant_guv','GuV'),('relevant_meldewesen','Meldewesen'),('relevant_risikomanagement','Risikomgmt.')] %}
             <div class="col-12">
               <div class="form-check">
@@ -147,18 +154,21 @@
             </div>
             {% endfor %}
           </div>
-          <textarea name="steuerungsrelevanz_begr" class="form-control form-control-sm mt-2" rows="2"
+          <textarea name="steuerungsrelevanz_begr" class="form-control form-control-sm" rows="2"
                     placeholder="Begründung (Pflicht wenn aktiv)">{{ idv.steuerungsrelevanz_begr if idv else '' }}</textarea>
         </div>
       </div>
 
-      <!-- RL-Relevanz -->
+      <!-- 2. Rechnungslegungsrelevanz -->
       <div class="col-md-4">
         <div class="border rounded p-3 h-100">
-          <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" name="rechnungslegungsrelevant" value="1"
-                   id="sw_rl" {{ 'checked' if idv and idv.rechnungslegungsrelevant }}>
-            <label class="form-check-label fw-500" for="sw_rl">RL-relevant</label>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-secondary" style="font-size:.65rem">2</span>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" name="rechnungslegungsrelevant" value="1"
+                     id="sw_rl" {{ 'checked' if idv and idv.rechnungslegungsrelevant }}>
+              <label class="form-check-label fw-500" for="sw_rl">RL-relevant</label>
+            </div>
           </div>
           <div class="text-muted mb-2" style="font-size:.78rem">Relevant für HGB-Abschluss, Jahresabschluss oder Meldewesen.</div>
           <textarea name="rechnungslegungsrelevanz_begr" class="form-control form-control-sm mt-2" rows="4"
@@ -166,21 +176,67 @@
         </div>
       </div>
 
-      <!-- DORA -->
+      <!-- 3. DORA (abgeleitet) -->
       <div class="col-md-4">
         <div class="border rounded p-3 h-100 border-danger border-opacity-50">
-          <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" name="dora_kritisch_wichtig" value="1"
-                   id="sw_dora" {{ 'checked' if idv and idv.dora_kritisch_wichtig }}>
-            <label class="form-check-label fw-500" for="sw_dora">DORA-kritisch/wichtig</label>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-secondary" style="font-size:.65rem">3</span>
+            <span class="fw-500">DORA-kritisch/wichtig</span>
+            <span class="badge bg-light text-muted border ms-auto" style="font-size:.65rem">abgeleitet</span>
           </div>
-          <div class="text-muted mb-2" style="font-size:.78rem">Kritische/wichtige Funktion i.S.v. DORA Art. 28 Abs. 2.</div>
-          <textarea name="dora_begruendung" class="form-control form-control-sm mt-2" rows="4"
-                    placeholder="DORA-Begründung">{{ idv.dora_begruendung if idv else '' }}</textarea>
+          <div class="text-muted mb-2" style="font-size:.78rem">
+            Wird automatisch gesetzt wenn: Geschäftsprozess ist DORA-kritisch <strong>und</strong> GDA = 4 (vollständige Abhängigkeit). Kriterium gem. DORA Art. 28 Abs. 2.
+          </div>
+          <div id="dora_status_box" class="rounded p-2 mb-2"
+               style="font-size:.82rem;background:#f8f9fa;border:1px solid #dee2e6">
+            <!-- Aktuellen Status anzeigen -->
+            {% if idv and idv.dora_kritisch_wichtig %}
+            <span class="badge bg-danger"><i class="bi bi-shield-exclamation me-1"></i>DORA-kritisch/wichtig</span>
+            {% else %}
+            <span class="text-muted"><i class="bi bi-shield me-1"></i>Nicht DORA-kritisch/wichtig</span>
+            {% endif %}
+            <div class="text-muted mt-1" style="font-size:.75rem">
+              Wird beim Speichern aus Geschäftsprozess-Zuordnung (Schritt 5) und GDA neu berechnet.
+            </div>
+          </div>
+          <textarea name="dora_begruendung" class="form-control form-control-sm" rows="2"
+                    placeholder="Ergänzende Notiz (optional)">{{ idv.dora_begruendung if idv else '' }}</textarea>
         </div>
       </div>
 
     </div>
+
+    <!-- Weitere konfigurierbare Wesentlichkeitskriterien -->
+    {% if wesentlichkeitskriterien %}
+    <p class="text-muted mb-2" style="font-size:.82rem">
+      <strong>Weitere Wesentlichkeitskriterien</strong> (administrativ konfigurierbar)
+    </p>
+    <div class="row g-3">
+      {% for k in wesentlichkeitskriterien %}
+      {% set ant = wesentlichkeit_antworten.get(k.id, {}) %}
+      <div class="col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-secondary" style="font-size:.65rem">{{ loop.index + 3 }}</span>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox"
+                     name="kriterium_{{ k.id }}" value="1"
+                     id="sw_k{{ k.id }}"
+                     {{ 'checked' if ant.get('erfuellt') }}>
+              <label class="form-check-label fw-500" for="sw_k{{ k.id }}">{{ k.bezeichnung }}</label>
+            </div>
+          </div>
+          {% if k.beschreibung %}
+          <div class="text-muted mb-2" style="font-size:.78rem">{{ k.beschreibung }}</div>
+          {% endif %}
+          <textarea name="kriterium_begr_{{ k.id }}" class="form-control form-control-sm mt-1" rows="2"
+                    placeholder="Begründung{% if k.begruendung_pflicht %} (Pflicht wenn aktiv){% endif %}">{{ ant.get('begruendung', '') or '' }}</textarea>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════ -->
@@ -251,16 +307,7 @@
         <input type="number" name="nutzeranzahl" class="form-control" min="1"
                value="{{ idv.nutzeranzahl if idv else '' }}">
       </div>
-      <div class="col-md-5">
-        <label class="form-label">Datenquellen</label>
-        <input type="text" name="datenquellen" class="form-control"
-               value="{{ idv.datenquellen if idv else '' }}" placeholder="z.B. OSPlus-Export, Agree21 …">
-      </div>
-      <div class="col-md-5">
-        <label class="form-label">Datenempfänger</label>
-        <input type="text" name="datenempfaenger" class="form-control"
-               value="{{ idv.datenempfaenger if idv else '' }}" placeholder="z.B. Vorstandsreporting …">
-      </div>
+      {# Datenquellen, Datenempfänger und Schnittstellen: → Schritt 5 "Weitere Angaben" #}
 
       <!-- Checkboxen -->
       <div class="col-12">
@@ -289,10 +336,65 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <!-- 5. VERANTWORTLICHE                                         -->
+  <!-- 5. WEITERE ANGABEN (nicht Teil der Wesentlichkeit)         -->
   <!-- ═══════════════════════════════════════════════════════════ -->
   <div class="form-section">
-    <div class="form-section-title">5. Verantwortliche & Geschäftsprozess</div>
+    <div class="form-section-title">5. Weitere Angaben</div>
+    <p class="text-muted mb-3" style="font-size:.82rem">
+      Diese Angaben sind nicht Teil der Wesentlichkeitsbeurteilung, aber für die vollständige Dokumentation der IDV erforderlich.
+    </p>
+    <div class="row g-3">
+
+      <div class="col-md-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="gobd_relevant" value="1"
+                 id="cb_gobd" {{ 'checked' if idv and idv.gobd_relevant }}>
+          <label class="form-check-label" for="cb_gobd">
+            <strong>GoBD-relevant</strong>
+            <span class="text-muted ms-2" style="font-size:.82rem">Die Datei unterliegt den GoBD-Anforderungen (Buchführungspflicht, steuerrechtliche Aufbewahrung)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Datenquellen</label>
+        <input type="text" name="datenquellen" class="form-control"
+               value="{{ idv.datenquellen if idv else '' }}"
+               placeholder="z.B. OSPlus-Export, Agree21, manuelle Eingabe …">
+        <div class="form-text">Woher stammen die Eingangsdaten?</div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Schnittstellen zu anderen Anwendungen</label>
+        <input type="text" name="schnittstellen_beschr" class="form-control"
+               value="{{ idv.schnittstellen_beschr if idv else '' }}"
+               placeholder="z.B. API-Anbindung OSPlus, Excel-Import aus Agree21 …">
+        <div class="form-text">Schnittstellen zu anderen Systemen oder IDVs</div>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Datenempfänger</label>
+        <input type="text" name="datenempfaenger" class="form-control"
+               value="{{ idv.datenempfaenger if idv else '' }}"
+               placeholder="z.B. Vorstandsreporting, Bundesbank, Jahresabschluss …">
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Erstellt für / Verwendungszweck</label>
+        <input type="text" name="erstellt_fuer" class="form-control"
+               value="{{ idv.erstellt_fuer if idv else '' }}"
+               placeholder="z.B. Vorstand, Aufsichtsbehörde, Interne Revision …">
+        <div class="form-text">Für wen oder für welchen Zweck wird die Datei erstellt?</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- 6. VERANTWORTLICHE                                         -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="form-section">
+    <div class="form-section-title">6. Verantwortliche & Geschäftsprozess</div>
     <div class="row g-3">
       <div class="col-md-6">
         <label class="form-label">Organisationseinheit <span class="required-star">*</span></label>

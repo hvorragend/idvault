@@ -626,6 +626,34 @@ WHERE r.status NOT IN ('Archiviert')
     OR (r.steuerungsrelevant = 1 AND (r.steuerungsrelevanz_begr IS NULL OR r.steuerungsrelevanz_begr = ''))
   );
 
+-- -----------------------------------------------------------------------------
+-- 9. KONFIGURIERBARE WESENTLICHKEITSKRITERIEN (MaRisk AT 7.2 / DORA)
+-- -----------------------------------------------------------------------------
+
+-- Vom Administrator definierbare Zusatz-Wesentlichkeitskriterien
+CREATE TABLE IF NOT EXISTS wesentlichkeitskriterien (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    bezeichnung         TEXT NOT NULL,           -- Anzeigename
+    beschreibung        TEXT,                    -- Erläuterung / Hilfetext im Formular
+    begruendung_pflicht INTEGER NOT NULL DEFAULT 0, -- Begründung erforderlich wenn erfüllt?
+    sort_order          INTEGER NOT NULL DEFAULT 0,
+    aktiv               INTEGER NOT NULL DEFAULT 1,
+    erstellt_am         TEXT NOT NULL DEFAULT (datetime('now','utc'))
+);
+
+-- Antworten je IDV auf konfigurierbare Wesentlichkeitskriterien
+CREATE TABLE IF NOT EXISTS idv_wesentlichkeit (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    idv_db_id       INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+    kriterium_id    INTEGER NOT NULL REFERENCES wesentlichkeitskriterien(id),
+    erfuellt        INTEGER NOT NULL DEFAULT 0,   -- 0 = nein, 1 = ja
+    begruendung     TEXT,
+    geaendert_am    TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    UNIQUE (idv_db_id, kriterium_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wesentl_idv ON idv_wesentlichkeit(idv_db_id);
+
 -- Prüffälligkeiten nächste 90 Tage
 CREATE VIEW IF NOT EXISTS v_prueffaelligkeiten AS
 SELECT
