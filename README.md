@@ -374,15 +374,80 @@ Verwaltung der Stammdaten:
 
 ---
 
+## Technisches Datenmodell
+
+Das Schema liegt in `schema.sql` und wird beim Start automatisch initialisiert (`db.py`).
+
+### Drei Schichten
+
+| Schicht | Tabellen |
+|---|---|
+| **Stammdaten** | `org_units`, `persons`, `geschaeftsprozesse`, `plattformen`, `risikoklassen` |
+| **Kernregister** | `idv_register` — eine Zeile pro IDV, ~70 Attribute |
+| **Workflow & Audit** | `idv_history`, `pruefungen`, `massnahmen`, `genehmigungen` |
+
+### Schema-Überblick
+
+```
+org_units ─────────────────────────────────────────────┐
+persons ────────────────────────────────────────────┐  │
+geschaeftsprozesse ──────────────────────────────┐  │  │
+plattformen ─────────────────────────────────┐   │  │  │
+risikoklassen ───────────────────────────┐   │   │  │  │
+                                         │   │   │  │  │
+idv_files ──────────────────────────────► idv_register ◄┘
+                                              │
+              ┌───────────────────────────────┼──────────────────────┐
+              │                              │                      │
+         idv_history                     pruefungen           massnahmen
+```
+
+### GDA-Wert (Grad der Abhängigkeit)
+
+Abgeleitet aus der BAIT-Orientierungshilfe zur IDV-Risikoklassifizierung:
+
+| Wert | Bezeichnung | Bedeutung |
+|---|---|---|
+| 1 | Unterstützend | Prozess läuft auch ohne IDV, mit erhöhtem manuellem Aufwand |
+| 2 | Relevant | IDV unterstützt den Prozess; alternative Durchführung möglich |
+| 3 | Wesentlich | Kernprozessunterstützung; keine vollständige manuelle Alternative |
+| 4 | Vollständig abhängig | Prozess kann ohne diese IDV nicht ausgeführt werden |
+
+GDA = 4 löst die zweite Genehmigungsstufe und eine verpflichtende DORA-Bewertung aus.
+
+### Workflow-Status
+
+```
+Entwurf
+  │
+  ▼
+In Prüfung ──► Abgelehnt
+  │
+  ▼
+Genehmigt ◄── Genehmigt mit Auflagen
+  │
+  ▼
+Abgekündigt
+  │
+  ▼
+Archiviert
+```
+
+### Designentscheidungen
+
+- **SQLite im WAL-Modus** — keine eigene Infrastruktur; PostgreSQL-Migration möglich bei >50 gleichzeitigen Schreibern
+- **ISO 8601 für alle Datumsfelder** — timezone-sicher, Python- und OS-unabhängig
+- **JSON-Felder für strukturierte Listen** — `tags`, `schnittstellen`, `weitere_dateien` und History-Deltas
+- **Trennung Scanner / Register** — `idv_files` hält Rohdaten, `idv_register` die kuratierte Klassifizierung; Scanner kann unbeaufsichtigt laufen ohne das Register zu berühren
+
+---
+
 ## Komponenten
 
-| Verzeichnis | Inhalt |
+| Verzeichnis / Datei | Inhalt |
 |---|---|
 | `webapp/` | Flask-Webanwendung (Blueprints, Templates, DB-Schicht) |
 | `scanner/` | IDV-Scanner für Netzlaufwerke |
 | `schema.sql` | SQLite-Schema (IDV-Register, Workflow-Tabellen) |
 | `db.py` | Datenbankschicht (gemeinsam von Scanner und Webapp genutzt) |
 | `run.py` | Startskript für die Webapp |
-| `data_model/` | Datenmodell-Dokumentation |
-
-→ Technisches Datenmodell: [`data_model/README.md`](data_model/README.md)

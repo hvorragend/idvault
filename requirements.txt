@@ -9,6 +9,3 @@ openpyxl>=3.1.0
 
 # Produktion (optional)
 gunicorn>=21.0.0
-
-# Windows-Dateieigentümer im Scanner (nur Windows)
-# pywin32>=306
