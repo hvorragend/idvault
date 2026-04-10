@@ -100,6 +100,7 @@
           <th>{{ 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert' }}</th>
           <th>Autor</th>
           <th class="text-center">Makros</th>
+          <th class="text-center">Formeln</th>
           <th class="text-center">Blattschutz</th>
           <th>IDV-Status</th>
           {% if filt != 'archiv' %}<th></th>{% endif %}
@@ -131,6 +132,15 @@
           <td class="text-center">
             {% if f.has_macros %}
               <span class="badge bg-danger">VBA</span>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if f.formula_count %}
+              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              </span>
             {% else %}
               <i class="bi bi-dash text-muted"></i>
             {% endif %}
@@ -187,7 +197,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="10" class="text-center text-muted py-5">
+          <td colspan="11" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine Dateien gefunden.
           </td>

@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS idv_files (
     has_external_links      INTEGER DEFAULT 0,       -- 1 = externe Verknüpfungen
     sheet_count             INTEGER,                -- Anzahl Tabellenblätter (Excel)
     named_ranges_count      INTEGER,                -- Anzahl benannter Bereiche
-    -- Blattschutz-Erkennung (neu)
+    formula_count           INTEGER DEFAULT 0,       -- Anzahl Formelzellen (Excel)
     has_sheet_protection    INTEGER DEFAULT 0,       -- 1 = mind. 1 Blatt ist geschützt
     protected_sheets_count  INTEGER DEFAULT 0,       -- Anzahl geschützter Blätter
     sheet_protection_has_pw INTEGER DEFAULT 0,       -- 1 = mind. 1 Passwort-Hash gesetzt
@@ -174,31 +174,6 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
-    # Migration: neue Spalten für bestehende Datenbanken ergänzen
-    scan_runs_cols = [
-        "moved_files INTEGER DEFAULT 0",
-        "restored_files INTEGER DEFAULT 0",
-        "archived_files INTEGER DEFAULT 0",
-    ]
-    for col in scan_runs_cols:
-        try:
-            conn.execute(f"ALTER TABLE scan_runs ADD COLUMN {col}")
-        except Exception:
-            pass  # Spalte existiert bereits
-
-    # Migration idv_files: Blattschutz-Spalten
-    idv_files_cols = [
-        "has_sheet_protection    INTEGER DEFAULT 0",
-        "protected_sheets_count  INTEGER DEFAULT 0",
-        "sheet_protection_has_pw INTEGER DEFAULT 0",
-        "workbook_protected      INTEGER DEFAULT 0",
-    ]
-    for col in idv_files_cols:
-        try:
-            conn.execute(f"ALTER TABLE idv_files ADD COLUMN {col}")
-        except Exception:
-            pass  # Spalte existiert bereits
-
     conn.commit()
     return conn
 
@@ -274,6 +249,7 @@ def analyze_ooxml(path: str, ext: str) -> dict:
         "has_external_links":     0,
         "sheet_count":            None,
         "named_ranges_count":     None,
+        "formula_count":          0,
         "has_sheet_protection":   0,
         "protected_sheets_count": 0,
         "sheet_protection_has_pw":0,
@@ -338,30 +314,32 @@ def analyze_ooxml(path: str, ext: str) -> dict:
                     except Exception:
                         pass
 
-                # --- Blattschutz: jedes Sheet-XML prüfen ---
+                # --- Blattschutz + Formelzählung: jedes Sheet-XML prüfen ---
                 sheet_files = [n for n in names
                                if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]
-                protected    = 0
-                has_pw       = 0
+                protected     = 0
+                has_pw        = 0
+                formula_count = 0
                 ns_ss = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
                 for sheet_file in sheet_files:
                     try:
                         with z.open(sheet_file) as sf:
                             sh_tree = ET.parse(sf)
                             sh_root = sh_tree.getroot()
+                            # Blattschutz
                             prot_el = sh_root.find(f"{{{ns_ss}}}sheetProtection")
                             if prot_el is not None:
-                                # sheet="1" (oder fehlendes Attribut bei älteren Formaten)
-                                # bedeutet: Blatt ist geschützt
                                 sheet_attr = prot_el.get("sheet", "0")
                                 if sheet_attr == "1":
                                     protected += 1
-                                    # Passwort-Hash vorhanden?
                                     if prot_el.get("hashValue") or prot_el.get("password"):
                                         has_pw = 1
+                            # Formeln: jede Zelle mit einem <f>-Kindelement ist eine Formelzelle
+                            formula_count += len(sh_root.findall(f".//{{{ns_ss}}}f"))
                     except Exception:
                         pass
 
+                result["formula_count"] = formula_count
                 if protected > 0:
                     result["has_sheet_protection"]   = 1
                     result["protected_sheets_count"]  = protected
@@ -437,6 +415,7 @@ def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
         "has_external_links":     ooxml.get("has_external_links", 0),
         "sheet_count":            ooxml.get("sheet_count"),
         "named_ranges_count":     ooxml.get("named_ranges_count"),
+        "formula_count":          ooxml.get("formula_count", 0),
         "has_sheet_protection":   ooxml.get("has_sheet_protection", 0),
         "protected_sheets_count": ooxml.get("protected_sheets_count", 0),
         "sheet_protection_has_pw":ooxml.get("sheet_protection_has_pw", 0),
@@ -575,6 +554,7 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 relative_path, size_bytes, created_at, modified_at, file_owner,
                 office_author, office_last_author, office_created, office_modified,
                 has_macros, has_external_links, sheet_count, named_ranges_count,
+                formula_count,
                 has_sheet_protection, protected_sheets_count,
                 sheet_protection_has_pw, workbook_protected,
                 first_seen_at, last_seen_at, last_scan_run_id, status
@@ -583,6 +563,7 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 :relative_path, :size_bytes, :created_at, :modified_at, :file_owner,
                 :office_author, :office_last_author, :office_created, :office_modified,
                 :has_macros, :has_external_links, :sheet_count, :named_ranges_count,
+                :formula_count,
                 :has_sheet_protection, :protected_sheets_count,
                 :sheet_protection_has_pw, :workbook_protected,
                 :first_seen_at, :last_seen_at, :last_scan_run_id, 'active'
@@ -610,6 +591,7 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 office_modified = :office_modified,
                 has_macros = :has_macros, has_external_links = :has_external_links,
                 sheet_count = :sheet_count, named_ranges_count = :named_ranges_count,
+                formula_count = :formula_count,
                 has_sheet_protection = :has_sheet_protection,
                 protected_sheets_count = :protected_sheets_count,
                 sheet_protection_has_pw = :sheet_protection_has_pw,

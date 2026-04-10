@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS idv_files (
     has_external_links      INTEGER DEFAULT 0,
     sheet_count             INTEGER,
     named_ranges_count      INTEGER,
+    formula_count           INTEGER DEFAULT 0,       -- Anzahl Formelzellen (Excel)
     has_sheet_protection    INTEGER DEFAULT 0,
     protected_sheets_count  INTEGER DEFAULT 0,
     sheet_protection_has_pw INTEGER DEFAULT 0,
@@ -75,8 +76,14 @@ CREATE TABLE IF NOT EXISTS persons (
     org_unit_id     INTEGER REFERENCES org_units(id),
     rolle           TEXT,                            -- "IDV-Koordinator" | "Fachverantwortlicher" | "IT-Sicherheit" | "Revision"
     aktiv           INTEGER NOT NULL DEFAULT 1,
+    user_id         TEXT,                            -- Login-Name (LDAP / Windows)
+    ad_name         TEXT,                            -- AD-Distinguished-Name
+    password_hash   TEXT,                            -- SHA-256 (Fallback-Login)
     created_at      TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_persons_user_id
+    ON persons(user_id) WHERE user_id IS NOT NULL;
 
 -- Geschäftsprozesse (GP-Katalog)
 CREATE TABLE IF NOT EXISTS geschaeftsprozesse (
@@ -123,6 +130,94 @@ INSERT OR IGNORE INTO risikoklassen (bezeichnung, farbe_hex, sort_order) VALUES
 -- Standard-Rollen
 INSERT OR IGNORE INTO org_units (kuerzel, bezeichnung) VALUES
     ('UNBEK', '(unbekannt / nicht zugeordnet)');
+
+-- Anwendungs-Einstellungen (SMTP etc.)
+CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
+
+INSERT OR IGNORE INTO app_settings (key, value) VALUES
+    ('smtp_host',     ''),
+    ('smtp_port',     '587'),
+    ('smtp_user',     ''),
+    ('smtp_password', ''),
+    ('smtp_from',     ''),
+    ('smtp_tls',      '1'),
+    ('notify_new_file', '1');
+
+-- Konfigurierbare Klassifizierungskriterien
+CREATE TABLE IF NOT EXISTS klassifizierungen (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    bereich      TEXT NOT NULL,
+    wert         TEXT NOT NULL,
+    bezeichnung  TEXT,
+    beschreibung TEXT,
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    aktiv        INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(bereich, wert)
+);
+
+INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+    ('idv_typ', 'unklassifiziert',  0),
+    ('idv_typ', 'Excel-Tabelle',    1),
+    ('idv_typ', 'Excel-Makro',      2),
+    ('idv_typ', 'Excel-Modell',     3),
+    ('idv_typ', 'Access-Datenbank', 4),
+    ('idv_typ', 'Python-Skript',    5),
+    ('idv_typ', 'SQL-Skript',       6),
+    ('idv_typ', 'Power-BI-Bericht', 7),
+    ('idv_typ', 'Sonstige',         8);
+
+INSERT OR IGNORE INTO klassifizierungen (bereich, wert, bezeichnung, sort_order) VALUES
+    ('pruefintervall_monate', '3',  '3 Monate (quartalsweise)', 1),
+    ('pruefintervall_monate', '6',  '6 Monate (halbjährlich)',  2),
+    ('pruefintervall_monate', '12', '12 Monate (jährlich)',     3),
+    ('pruefintervall_monate', '24', '24 Monate (alle 2 Jahre)', 4);
+
+INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+    ('nutzungsfrequenz', 'täglich',       1),
+    ('nutzungsfrequenz', 'wöchentlich',   2),
+    ('nutzungsfrequenz', 'monatlich',     3),
+    ('nutzungsfrequenz', 'quartalsweise', 4),
+    ('nutzungsfrequenz', 'jährlich',      5),
+    ('nutzungsfrequenz', 'anlassbezogen', 6);
+
+INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+    ('pruefungsart', 'Erstprüfung',      1),
+    ('pruefungsart', 'Regelprüfung',     2),
+    ('pruefungsart', 'Anlassprüfung',    3),
+    ('pruefungsart', 'Revisionsprüfung', 4);
+
+INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+    ('pruefungs_ergebnis', 'Ohne Befund',       1),
+    ('pruefungs_ergebnis', 'Mit Befund',        2),
+    ('pruefungs_ergebnis', 'Kritischer Befund', 3),
+    ('pruefungs_ergebnis', 'Nicht bestanden',   4);
+
+INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+    ('massnahmentyp', 'Technisch',       1),
+    ('massnahmentyp', 'Organisatorisch', 2),
+    ('massnahmentyp', 'Dokumentation',   3),
+    ('massnahmentyp', 'Ablösung',        4),
+    ('massnahmentyp', 'Sonstiges',       5);
+
+INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+    ('massnahmen_prioritaet', 'Kritisch', 1),
+    ('massnahmen_prioritaet', 'Hoch',     2),
+    ('massnahmen_prioritaet', 'Mittel',   3),
+    ('massnahmen_prioritaet', 'Niedrig',  4);
+
+INSERT OR IGNORE INTO klassifizierungen
+    (bereich, wert, bezeichnung, beschreibung, sort_order) VALUES
+    ('gda_stufen', '1', 'Unterstützend',
+     'Prozess läuft auch ohne IDV – mit Mehraufwand.', 1),
+    ('gda_stufen', '2', 'Relevant',
+     'Prozessunterstützung; manueller Alternativprozess vorhanden.', 2),
+    ('gda_stufen', '3', 'Wesentlich',
+     'Kernprozessunterstützung; kein vollständiger Ersatz möglich.', 3),
+    ('gda_stufen', '4', 'Vollständig abhängig',
+     'Prozess ohne IDV nicht durchführbar. → 2. Genehmigungsstufe', 4);
 
 -- -----------------------------------------------------------------------------
 -- 1. IDV-REGISTER (Kerntabelle)
