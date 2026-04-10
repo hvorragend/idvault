@@ -68,6 +68,7 @@ def new_measure(idv_db_id):
 @login_required
 def complete_measure(m_id):
     db  = get_db()
+    row = db.execute("SELECT idv_id FROM massnahmen WHERE id=?", (m_id,)).fetchone()
     now = datetime.now(timezone.utc).isoformat()
     db.execute("""
         UPDATE massnahmen SET status='Erledigt', erledigt_am=?, aktualisiert_am=?
@@ -75,7 +76,6 @@ def complete_measure(m_id):
     """, (now, now, m_id))
     db.commit()
     flash("Maßnahme als erledigt markiert.", "success")
-    idv_id = db.execute("SELECT idv_id FROM massnahmen WHERE id=?", (m_id,)).fetchone()
-    if idv_id:
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_id[0]))
+    if row:
+        return redirect(url_for("idv.detail_idv", idv_db_id=row[0]))
     return redirect(url_for("measures.list_measures"))

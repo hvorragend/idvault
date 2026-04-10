@@ -4,15 +4,16 @@ Wrapped die db.py Funktionen für den Flask-Request-Context.
 """
 
 import sqlite3
+import sys
+import os
 from flask import current_app, g
-import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from db import init_register_db, get_dashboard_stats, search_idv  # noqa
+from db import init_register_db, get_connection, get_dashboard_stats, search_idv  # noqa
 
 
 def get_db() -> sqlite3.Connection:
     if "db" not in g:
-        g.db = init_register_db(current_app.config["DATABASE"])
+        g.db = get_connection(current_app.config["DATABASE"])
     return g.db
 
 

@@ -1,7 +1,7 @@
 """Prüfungen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from . import login_required, get_db
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date as _date
 
 bp = Blueprint("reviews", __name__, url_prefix="/pruefungen")
 
@@ -21,6 +21,7 @@ def list_reviews():
         FROM pruefungen p
         JOIN idv_register r ON p.idv_id = r.id
         LEFT JOIN persons per ON p.pruefer_id = per.id
+        WHERE 1=1 {where}
         ORDER BY p.pruefungsdatum DESC
         LIMIT 100
     """).fetchall()
@@ -39,7 +40,7 @@ def new_review(idv_db_id):
 
     if request.method == "POST":
         now = datetime.now(timezone.utc).isoformat()
-        pruefungsdatum = request.form.get("pruefungsdatum") or date.today().isoformat()
+        pruefungsdatum = request.form.get("pruefungsdatum") or _date.today().isoformat()
         ergebnis = request.form.get("ergebnis", "Ohne Befund")
         pruefer_id = request.form.get("pruefer_id") or None
         befunde = request.form.get("befunde") or None
@@ -74,9 +75,6 @@ def new_review(idv_db_id):
     persons = db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall()
     return render_template("reviews/form.html", idv=idv, persons=persons)
 
-
-# today für Template-Default
-from datetime import date as _date
 
 @bp.context_processor
 def inject_today():

@@ -402,7 +402,14 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
 
     if existing is None:
         # Neue Datei
-        conn.execute("""
+
+        insert_data = {
+            **data,
+            "first_seen_at":    now,
+            "last_seen_at":     now,
+            "last_scan_run_id": scan_run_id,
+        }
+        cur_ins = conn.execute("""
             INSERT INTO idv_files (
                 file_hash, full_path, file_name, extension, share_root,
                 relative_path, size_bytes, created_at, modified_at, file_owner,
@@ -414,20 +421,11 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 :relative_path, :size_bytes, :created_at, :modified_at, :file_owner,
                 :office_author, :office_last_author, :office_created, :office_modified,
                 :has_macros, :has_external_links, :sheet_count, :named_ranges_count,
-                ?, ?, ?, 'active'
+                :first_seen_at, :last_seen_at, :last_scan_run_id, 'active'
             )
-        """, {**data, **{"?1": now, "?2": now, "?3": scan_run_id}})
+        """, insert_data)
 
-        # Workaround für benannte + positionale Params
-        conn.execute("""
-            UPDATE idv_files
-            SET first_seen_at = ?, last_seen_at = ?, last_scan_run_id = ?
-            WHERE full_path = ? AND first_seen_at IS NULL
-        """, (now, now, scan_run_id, data["full_path"]))
-
-        file_id = conn.execute(
-            "SELECT id FROM idv_files WHERE full_path = ?", (data["full_path"],)
-        ).fetchone()[0]
+        file_id = cur_ins.lastrowid
 
         conn.execute("""
             INSERT INTO idv_file_history (file_id, scan_run_id, change_type, new_hash, changed_at)
@@ -464,25 +462,31 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
         return change_type
 
 
-def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int,
-                       found_paths: set, now: str):
-    """Markiert Dateien als gelöscht, die im letzten Scan nicht mehr gefunden wurden."""
-    cur = conn.execute(
-        "SELECT id, full_path FROM idv_files WHERE status = 'active'"
+def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str) -> int:
+    """Markiert Dateien als gelöscht, die im letzten Scan nicht mehr gefunden wurden.
+ 
+    Nutzt last_scan_run_id statt eines Python-Sets – skaliert auch bei 100k+ Dateien.
+    """
+    rows = conn.execute(
+        "SELECT id FROM idv_files WHERE status = 'active' AND last_scan_run_id != ?",
+        (scan_run_id,)
+    ).fetchall()
+ 
+    if not rows:
+        return 0
+ 
+    ids = [row["id"] for row in rows]
+    placeholders = ",".join("?" * len(ids))
+    conn.execute(
+        f"UPDATE idv_files SET status = 'deleted', last_seen_at = ? WHERE id IN ({placeholders})",
+        [now] + ids
     )
-    deleted_count = 0
-    for row in cur.fetchall():
-        if row["full_path"] not in found_paths:
-            conn.execute(
-                "UPDATE idv_files SET status = 'deleted', last_seen_at = ? WHERE id = ?",
-                (now, row["id"])
-            )
-            conn.execute("""
-                INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at)
-                VALUES (?, ?, 'deleted', ?)
-            """, (row["id"], scan_run_id, now))
-            deleted_count += 1
-    return deleted_count
+    conn.executemany("""
+        INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at)
+        VALUES (?, ?, 'deleted', ?)
+    """, [(fid, scan_run_id, now) for fid in ids])
+ 
+    return len(ids)
 
 
 # ---------------------------------------------------------------------------
@@ -508,7 +512,6 @@ def run_scan(config: dict, logger: logging.Logger):
     logger.info(f"Scan-Run #{scan_run_id} gestartet | Pfade: {scan_paths}")
 
     stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0, "errors": 0}
-    found_paths = set()
 
     for scan_path in scan_paths:
         if not os.path.exists(scan_path):
@@ -520,7 +523,6 @@ def run_scan(config: dict, logger: logging.Logger):
         for data in walk_and_scan(scan_path, config, scan_paths, logger):
             try:
                 change = upsert_file(conn, data, scan_run_id, now, logger)
-                found_paths.add(data["full_path"])
                 stats["total"]   += 1
                 stats[change]    += 1
 
@@ -534,8 +536,8 @@ def run_scan(config: dict, logger: logging.Logger):
 
     conn.commit()
 
-    # Gelöschte Dateien markieren
-    deleted = mark_deleted_files(conn, scan_run_id, found_paths, now)
+    # Gelöschte Dateien markieren (SQL-basiert über last_scan_run_id)
+    deleted = mark_deleted_files(conn, scan_run_id, now)
     conn.commit()
 
     finished = datetime.now(timezone.utc).isoformat()

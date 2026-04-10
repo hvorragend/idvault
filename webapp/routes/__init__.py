@@ -4,12 +4,9 @@ idvault – Route-Blueprints
 Dashboard, IDV, Prüfungen, Maßnahmen, Auth, Admin.
 """
 
-# ─── Dashboard ────────────────────────────────────────────────────────────────
-
-from flask import Blueprint, render_template, session, redirect, url_for, g
+from flask import session, redirect, url_for
 from functools import wraps
-
-# ── Auth-Helper ───────────────────────────────────────────────
+from ..db_flask import get_db  # noqa: re-export für alle Route-Module
 
 def login_required(f):
     @wraps(f)
@@ -20,11 +17,3 @@ def login_required(f):
     return decorated
 
 
-def get_db():
-    from flask import current_app
-    import sys, os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from db import init_register_db
-    if "db" not in g:
-        g.db = init_register_db(current_app.config["DATABASE"])
-    return g.db

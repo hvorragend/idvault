@@ -7,7 +7,7 @@ Wird von Scanner und Web-Frontend gemeinsam genutzt.
 
 import sqlite3
 import json
-import re
+import calendar
 from datetime import datetime, timezone, date
 from pathlib import Path
 from typing import Optional
@@ -322,7 +322,6 @@ def _add_months(d: date, months: int) -> date:
     month = d.month - 1 + months
     year  = d.year + month // 12
     month = month % 12 + 1
-    import calendar
     day   = min(d.day, calendar.monthrange(year, month)[1])
     return date(year, month, day)
 

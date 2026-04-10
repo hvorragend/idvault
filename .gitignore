@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+ 
+# Virtual environments
+.venv/
+venv/
+env/
+ 
+
+# Flask instance folder (contains DB and secrets)
+instance/
+ 
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+ 
+# Logs
+*.log
+ 
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+ 
+# IDE
+.vscode/
+.idea/
+ 
+# OS
+.DS_Store
+Thumbs.db
+
+# Scanner config (may contain internal paths)
+scanner/config.json
