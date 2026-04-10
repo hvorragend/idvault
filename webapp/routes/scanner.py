@@ -1,10 +1,9 @@
 """Scanner-Funde Blueprint"""
-from flask import Blueprint, render_template, request
-from . import login_required, get_db
+from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
+from . import login_required, write_access_required, get_db
 
 bp = Blueprint("scanner", __name__, url_prefix="/scanner")
 
-# Dateierweiterung → IDV-Typ-Vorschlag
 _EXT_TO_TYP = {
     ".xlsx": "Excel-Tabelle",
     ".xlsm": "Excel-Makro",
@@ -78,3 +77,40 @@ def list_funde():
         gesamt=gesamt, ohne_idv=ohne_idv, mit_makro=mit_makro, archiviert=archiviert,
         idv_typ_vorschlag=_idv_typ_vorschlag,
     )
+
+
+@bp.route("/funde/<int:file_id>/benachrichtigen", methods=["POST"])
+@write_access_required
+def notify_file(file_id):
+    """Sendet manuell eine E-Mail-Benachrichtigung für einen Scannerfund."""
+    db   = get_db()
+    file = db.execute("SELECT * FROM idv_files WHERE id=?", (file_id,)).fetchone()
+    if not file:
+        flash("Datei nicht gefunden.", "error")
+        return redirect(url_for("scanner.list_funde"))
+
+    # Koordinatoren und Admins aus Personen-Tabelle als Empfänger
+    recipients = [
+        r["email"] for r in db.execute("""
+            SELECT email FROM persons
+            WHERE aktiv=1 AND email IS NOT NULL
+              AND rolle IN ('IDV-Koordinator','IDV-Administrator')
+        """).fetchall()
+        if r["email"]
+    ]
+
+    if not recipients:
+        flash("Keine E-Mail-Empfänger konfiguriert (Koordinatoren/Administratoren ohne E-Mail-Adresse).", "warning")
+        return redirect(url_for("scanner.list_funde"))
+
+    try:
+        from ..email_service import notify_new_scanner_file
+        ok = notify_new_scanner_file(db, file, recipients)
+        if ok:
+            flash(f"Benachrichtigung gesendet an: {', '.join(recipients)}", "success")
+        else:
+            flash("E-Mail konnte nicht gesendet werden – SMTP-Einstellungen prüfen.", "warning")
+    except Exception as exc:
+        flash(f"Fehler beim E-Mail-Versand: {exc}", "error")
+
+    return redirect(url_for("scanner.list_funde"))

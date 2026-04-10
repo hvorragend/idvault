@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 
-DB_VERSION = 1   # Schema-Versionsnummer für spätere Migrationen
+DB_VERSION = 2   # Schema-Versionsnummer für spätere Migrationen
 
 # ---------------------------------------------------------------------------
 # Verbindung & Initialisierung
@@ -53,6 +53,14 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
         )
         conn.commit()
 
+    if current < 2:
+        _migrate_v2(conn)
+        conn.execute(
+            "INSERT INTO _schema_version VALUES (2, ?)",
+            (datetime.now(timezone.utc).isoformat(),)
+        )
+        conn.commit()
+
     return conn
 
 
@@ -64,6 +72,38 @@ def _migrate_v1(conn: sqlite3.Connection):
         conn.executescript(sql)
     else:
         raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
+
+
+def _migrate_v2(conn: sqlite3.Connection):
+    """Migration v2: Erweiterte Personen-Felder (user_id, ad_name, password_hash) + App-Einstellungen."""
+    # Neue Spalten in persons (idempotent via ALTER TABLE IF NOT EXISTS-Emulation)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(persons)")}
+    if "user_id" not in cols:
+        conn.execute("ALTER TABLE persons ADD COLUMN user_id TEXT")
+    if "ad_name" not in cols:
+        conn.execute("ALTER TABLE persons ADD COLUMN ad_name TEXT")
+    if "password_hash" not in cols:
+        conn.execute("ALTER TABLE persons ADD COLUMN password_hash TEXT")
+
+    # Eindeutiger Index auf user_id (falls noch nicht vorhanden)
+    conn.executescript("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_persons_user_id
+            ON persons(user_id) WHERE user_id IS NOT NULL;
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        );
+
+        INSERT OR IGNORE INTO app_settings (key, value) VALUES
+            ('smtp_host',     ''),
+            ('smtp_port',     '587'),
+            ('smtp_user',     ''),
+            ('smtp_password', ''),
+            ('smtp_from',     ''),
+            ('smtp_tls',      '1'),
+            ('notify_new_file', '1');
+    """)
 
 
 # ---------------------------------------------------------------------------

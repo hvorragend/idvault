@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}GP bearbeiten{% endblock %}
+{% block page_title %}<i class="bi bi-diagram-2 me-2"></i>Geschäftsprozess bearbeiten{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">{{ gp.gp_nummer }} – {{ gp.bezeichnung }}</div>
+      <div class="card-body">
+        <form method="post">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-600">GP-Nummer <span class="text-danger">*</span></label>
+              <input type="text" name="gp_nummer" class="form-control" value="{{ gp.gp_nummer }}" required>
+            </div>
+            <div class="col-md-9">
+              <label class="form-label fw-600">Bezeichnung <span class="text-danger">*</span></label>
+              <input type="text" name="bezeichnung" class="form-control" value="{{ gp.bezeichnung }}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-600">Bereich</label>
+              <select name="bereich" class="form-select">
+                <option value="">– keiner –</option>
+                {% for b in ['Markt','Marktfolge','Steuerung','Betrieb'] %}
+                <option {{ 'selected' if gp.bereich == b else '' }}>{{ b }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-600">Beschreibung</label>
+              <textarea name="beschreibung" class="form-control" rows="3">{{ gp.beschreibung or '' }}</textarea>
+            </div>
+            <div class="col-md-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="ist_kritisch" value="1" id="gp_krit"
+                       {{ 'checked' if gp.ist_kritisch else '' }}>
+                <label class="form-check-label" for="gp_krit">DORA-kritisch/wichtig</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="ist_wesentlich" value="1" id="gp_wes"
+                       {{ 'checked' if gp.ist_wesentlich else '' }}>
+                <label class="form-check-label" for="gp_wes">Wesentlich (MaRisk)</label>
+              </div>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" name="aktiv" value="1" id="gp_aktiv"
+                       {{ 'checked' if gp.aktiv else '' }}>
+                <label class="form-check-label" for="gp_aktiv">GP aktiv</label>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Speichern</button>
+            <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Abbrechen</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<style>.fw-600{font-weight:600}</style>
+{% endblock %}

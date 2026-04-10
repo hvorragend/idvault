@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Plattform bearbeiten{% endblock %}
+{% block page_title %}<i class="bi bi-display me-2"></i>Plattform bearbeiten{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">{{ pl.bezeichnung }}</div>
+      <div class="card-body">
+        <form method="post">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-600">Bezeichnung <span class="text-danger">*</span></label>
+              <input type="text" name="bezeichnung" class="form-control" value="{{ pl.bezeichnung }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-600">Typ</label>
+              <select name="typ" class="form-select">
+                <option value="">– keiner –</option>
+                {% for t in ['Desktop','Server','Cloud','Mobile'] %}
+                <option {{ 'selected' if pl.typ == t else '' }}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-600">Hersteller</label>
+              <input type="text" name="hersteller" class="form-control" value="{{ pl.hersteller or '' }}" placeholder="Microsoft, SAP, …">
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" value="1" id="pl_aktiv"
+                       {{ 'checked' if pl.aktiv else '' }}>
+                <label class="form-check-label" for="pl_aktiv">Plattform aktiv</label>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Speichern</button>
+            <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Abbrechen</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<style>.fw-600{font-weight:600}</style>
+{% endblock %}
