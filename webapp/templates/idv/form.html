@@ -54,7 +54,7 @@
       <div class="col-md-4">
         <label class="form-label">Version</label>
         <input type="text" name="version" class="form-control"
-               value="{{ idv.version if idv else '1.0' }}" placeholder="1.0">
+               value="{{ (idv.version or '') if idv else '1.0' }}" placeholder="1.0">
       </div>
 
       <div class="col-md-4">
@@ -86,7 +86,7 @@
       <div class="col-12">
         <label class="form-label">Kurzbeschreibung</label>
         <textarea name="kurzbeschreibung" class="form-control" rows="3"
-                  placeholder="Zweck, Datenquellen, Nutzerkreis …">{{ idv.kurzbeschreibung if idv else '' }}</textarea>
+                  placeholder="Zweck, Datenquellen, Nutzerkreis …">{{ (idv.kurzbeschreibung or '') if idv else '' }}</textarea>
       </div>
 
     </div>
@@ -97,6 +97,18 @@
   <!-- ═══════════════════════════════════════════════════════════ -->
   <div class="form-section">
     <div class="form-section-title">2. Wesentlichkeitsbeurteilung (MaRisk AT 7.2 / DORA)</div>
+
+    <!-- Geschäftsprozess -->
+    <div class="mb-3">
+      <label class="form-label fw-500">Geschäftsprozess</label>
+      <select name="gp_id" class="form-select">
+        <option value="">– aus Katalog wählen –</option>
+        {% for gp in geschaeftsprozesse %}
+        <option value="{{ gp.id }}" {{ 'selected' if idv and idv.gp_id == gp.id }}>{{ gp.gp_nummer }} – {{ gp.bezeichnung }}</option>
+        {% endfor %}
+      </select>
+      <div class="form-text">Krit. Geschäftsprozess + GDA 4 ergibt DORA-kritisch/wichtig (Art. 28 Abs. 2).</div>
+    </div>
 
     <!-- GDA -->
     <div class="mb-4">
@@ -120,7 +132,7 @@
       <div class="mt-2">
         <label class="form-label form-label-sm">GDA-Begründung <span class="required-star">*</span></label>
         <textarea name="gda_begruendung" class="form-control form-control-sm" rows="2"
-                  placeholder="Warum dieser GDA-Wert?">{{ idv.gda_begruendung if idv else '' }}</textarea>
+                  placeholder="Warum dieser GDA-Wert?">{{ (idv.gda_begruendung or '') if idv else '' }}</textarea>
       </div>
     </div>
 
@@ -155,7 +167,7 @@
             {% endfor %}
           </div>
           <textarea name="steuerungsrelevanz_begr" class="form-control form-control-sm" rows="2"
-                    placeholder="Begründung (Pflicht wenn aktiv)">{{ idv.steuerungsrelevanz_begr if idv else '' }}</textarea>
+                    placeholder="Begründung (Pflicht wenn aktiv)">{{ (idv.steuerungsrelevanz_begr or '') if idv else '' }}</textarea>
         </div>
       </div>
 
@@ -172,7 +184,7 @@
           </div>
           <div class="text-muted mb-2" style="font-size:.78rem">Relevant für HGB-Abschluss, Jahresabschluss oder Meldewesen.</div>
           <textarea name="rechnungslegungsrelevanz_begr" class="form-control form-control-sm mt-2" rows="4"
-                    placeholder="Begründung (Pflicht wenn aktiv)">{{ idv.rechnungslegungsrelevanz_begr if idv else '' }}</textarea>
+                    placeholder="Begründung (Pflicht wenn aktiv)">{{ (idv.rechnungslegungsrelevanz_begr or '') if idv else '' }}</textarea>
         </div>
       </div>
 
@@ -200,7 +212,7 @@
             </div>
           </div>
           <textarea name="dora_begruendung" class="form-control form-control-sm" rows="2"
-                    placeholder="Ergänzende Notiz (optional)">{{ idv.dora_begruendung if idv else '' }}</textarea>
+                    placeholder="Ergänzende Notiz (optional)">{{ (idv.dora_begruendung or '') if idv else '' }}</textarea>
         </div>
       </div>
 
@@ -245,7 +257,7 @@
   <div class="form-section">
     <div class="form-section-title">3. Risikobewertung</div>
     <div class="row g-3">
-      <div class="col-md-3">
+      <div class="col-md-4">
         <label class="form-label">Risikoklasse</label>
         <select name="risikoklasse_id" class="form-select">
           <option value="">– noch nicht bewertet –</option>
@@ -254,17 +266,21 @@
           {% endfor %}
         </select>
       </div>
-      {% for fname, flabel in [
-        ('risiko_verfuegbarkeit','Verfügbarkeit'),
-        ('risiko_integritaet','Integrität'),
-        ('risiko_vertraulichkeit','Vertraulichkeit'),
-        ('risiko_nachvollziehbarkeit','Nachvollziehbarkeit'),
+      <div class="col-12">
+        <label class="form-label mb-0">Schutzziele (ACIN)</label>
+        <div class="form-text mt-0">Bewertung von 1 (niedrig) bis 4 (kritisch)</div>
+      </div>
+      {% for fname, flabel, letter in [
+        ('risiko_verfuegbarkeit','Verfügbarkeit','A'),
+        ('risiko_vertraulichkeit','Vertraulichkeit','C'),
+        ('risiko_integritaet','Integrität','I'),
+        ('risiko_nachvollziehbarkeit','Authentizität','N'),
       ] %}
       <div class="col-md-3">
-        <label class="form-label">{{ flabel }} (1–5)</label>
+        <label class="form-label">{{ flabel }} <span class="badge bg-secondary" style="font-size:.65rem">{{ letter }}</span></label>
         <select name="{{ fname }}" class="form-select">
           <option value="">–</option>
-          {% for i in range(1,6) %}
+          {% for i in range(1,5) %}
           <option value="{{ i }}" {{ 'selected' if idv and idv[fname] == i }}>{{ i }}</option>
           {% endfor %}
         </select>
@@ -291,7 +307,7 @@
       <div class="col-md-4">
         <label class="form-label">Programmiersprache/Werkzeug</label>
         <input type="text" name="programmiersprache" class="form-control"
-               value="{{ idv.programmiersprache if idv else '' }}" placeholder="VBA, Python, DAX …">
+               value="{{ (idv.programmiersprache or '') if idv else '' }}" placeholder="VBA, Python, DAX …">
       </div>
       <div class="col-md-4">
         <label class="form-label">Nutzungsfrequenz</label>
@@ -301,11 +317,6 @@
           <option value="{{ nf.wert }}" {{ 'selected' if idv and idv.nutzungsfrequenz == nf.wert }}>{{ nf.bezeichnung }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Nutzeranzahl</label>
-        <input type="number" name="nutzeranzahl" class="form-control" min="1"
-               value="{{ idv.nutzeranzahl if idv else '' }}">
       </div>
       {# Datenquellen, Datenempfänger und Schnittstellen: → Schritt 5 "Weitere Angaben" #}
 
@@ -318,7 +329,6 @@
             ('enthaelt_personendaten','Enthält Personendaten'),
             ('dokumentation_vorhanden','Dokumentation vorhanden'),
             ('testkonzept_vorhanden','Testkonzept vorhanden'),
-            ('versionskontrolle','Versionskontrolle (Git o.ä.)'),
             ('zugriffsschutz','Zugriffsschutz aktiv'),
             ('vier_augen_prinzip','4-Augen-Prinzip'),
           ] %}
@@ -359,7 +369,7 @@
       <div class="col-md-6">
         <label class="form-label">Datenquellen</label>
         <input type="text" name="datenquellen" class="form-control"
-               value="{{ idv.datenquellen if idv else '' }}"
+               value="{{ (idv.datenquellen or '') if idv else '' }}"
                placeholder="z.B. OSPlus-Export, Agree21, manuelle Eingabe …">
         <div class="form-text">Woher stammen die Eingangsdaten?</div>
       </div>
@@ -367,7 +377,7 @@
       <div class="col-md-6">
         <label class="form-label">Schnittstellen zu anderen Anwendungen</label>
         <input type="text" name="schnittstellen_beschr" class="form-control"
-               value="{{ idv.schnittstellen_beschr if idv else '' }}"
+               value="{{ (idv.schnittstellen_beschr or '') if idv else '' }}"
                placeholder="z.B. API-Anbindung OSPlus, Excel-Import aus Agree21 …">
         <div class="form-text">Schnittstellen zu anderen Systemen oder IDVs</div>
       </div>
@@ -375,14 +385,14 @@
       <div class="col-md-6">
         <label class="form-label">Datenempfänger</label>
         <input type="text" name="datenempfaenger" class="form-control"
-               value="{{ idv.datenempfaenger if idv else '' }}"
+               value="{{ (idv.datenempfaenger or '') if idv else '' }}"
                placeholder="z.B. Vorstandsreporting, Bundesbank, Jahresabschluss …">
       </div>
 
       <div class="col-md-6">
         <label class="form-label">Erstellt für / Verwendungszweck</label>
         <input type="text" name="erstellt_fuer" class="form-control"
-               value="{{ idv.erstellt_fuer if idv else '' }}"
+               value="{{ (idv.erstellt_fuer or '') if idv else '' }}"
                placeholder="z.B. Vorstand, Aufsichtsbehörde, Interne Revision …">
         <div class="form-text">Für wen oder für welchen Zweck wird die Datei erstellt?</div>
       </div>
@@ -394,7 +404,7 @@
   <!-- 6. VERANTWORTLICHE                                         -->
   <!-- ═══════════════════════════════════════════════════════════ -->
   <div class="form-section">
-    <div class="form-section-title">6. Verantwortliche & Geschäftsprozess</div>
+    <div class="form-section-title">6. Verantwortliche</div>
     <div class="row g-3">
       <div class="col-md-6">
         <label class="form-label">Organisationseinheit <span class="required-star">*</span></label>
@@ -402,15 +412,6 @@
           <option value="">– bitte wählen –</option>
           {% for ou in org_units %}
           <option value="{{ ou.id }}" {{ 'selected' if idv and idv.org_unit_id == ou.id }}>{{ ou.kuerzel }} – {{ ou.bezeichnung }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Geschäftsprozess</label>
-        <select name="gp_id" class="form-select">
-          <option value="">– aus Katalog wählen –</option>
-          {% for gp in geschaeftsprozesse %}
-          <option value="{{ gp.id }}" {{ 'selected' if idv and idv.gp_id == gp.id }}>{{ gp.gp_nummer }} – {{ gp.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
