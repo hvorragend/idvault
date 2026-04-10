@@ -60,7 +60,20 @@ DEFAULT_CONFIG = {
     "db_path": "idv_register.db",
     "log_path": "idv_scanner.log",
     "hash_size_limit_mb": 500,   # Dateien > X MB werden nicht gehasht (Performance)
-    "max_workers": 4
+    "max_workers": 4,
+    # Move-Detection-Modus:
+    #   "name_and_hash" (Standard) – gleicher Hash UND gleicher Dateiname
+    #   "hash_only"                – gleicher Hash, Dateiname darf sich geändert haben;
+    #                                nur wenn genau ein aktiver Treffer (Eindeutigkeit)
+    #   "disabled"                 – keine Move-Detection; verschobene Dateien werden
+    #                                archiviert und als neue Datei neu angelegt
+    "move_detection": "name_and_hash",
+    # Startdatum für den Scan (ISO-Format: "YYYY-MM-DD" oder null für alle Dateien).
+    # Nur Dateien, deren Dateisystem-Änderungsdatum >= scan_since liegt, werden
+    # verarbeitet. Ältere Dateien werden übersprungen und NICHT archiviert.
+    # Beispiel: "2024-07-01" erfasst nur Dateien, die ab dem 01.07.2024 neu
+    # erstellt oder geändert wurden.
+    "scan_since": None
 }
 
 
@@ -99,7 +112,9 @@ CREATE TABLE IF NOT EXISTS scan_runs (
     total_files     INTEGER DEFAULT 0,
     new_files       INTEGER DEFAULT 0,
     changed_files   INTEGER DEFAULT 0,
-    deleted_files   INTEGER DEFAULT 0,
+    moved_files     INTEGER DEFAULT 0,
+    restored_files  INTEGER DEFAULT 0,
+    archived_files  INTEGER DEFAULT 0,
     errors          INTEGER DEFAULT 0
 );
 
@@ -154,6 +169,14 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    # Migration: neue Spalten für bestehende Datenbanken ergänzen
+    for col in ["moved_files INTEGER DEFAULT 0",
+                "restored_files INTEGER DEFAULT 0",
+                "archived_files INTEGER DEFAULT 0"]:
+        try:
+            conn.execute(f"ALTER TABLE scan_runs ADD COLUMN {col}")
+        except Exception:
+            pass  # Spalte existiert bereits
     conn.commit()
     return conn
 
@@ -355,8 +378,12 @@ def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
 
 
 def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
-                  logger: logging.Logger):
-    """Generator: liefert Metadaten-Dicts für alle gefundenen Dateien."""
+                  logger: logging.Logger, scan_since_ts: Optional[float] = None):
+    """Generator: liefert Metadaten-Dicts für alle gefundenen Dateien.
+
+    scan_since_ts: Unix-Timestamp (float). Dateien, die vor diesem Zeitpunkt
+    zuletzt geändert wurden, werden übersprungen.
+    """
     extensions = set(e.lower() for e in config["extensions"])
     excludes   = config["exclude_paths"]
 
@@ -376,6 +403,14 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
             if should_exclude(full_path, excludes):
                 continue
 
+            # Startdatum-Filter: Dateien vor scan_since überspringen
+            if scan_since_ts is not None:
+                try:
+                    if os.stat(full_path).st_mtime < scan_since_ts:
+                        continue
+                except OSError:
+                    pass  # bei Lesefehler: Datei trotzdem verarbeiten
+
             try:
                 data = scan_file(full_path, config, all_scan_paths)
                 if data:
@@ -389,19 +424,78 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
 # ---------------------------------------------------------------------------
 
 def upsert_file(conn: sqlite3.Connection, data: dict,
-                scan_run_id: int, now: str, logger: logging.Logger) -> str:
+                scan_run_id: int, now: str, logger: logging.Logger,
+                move_mode: str = "name_and_hash") -> str:
     """
     Fügt eine Datei ein oder aktualisiert sie.
-    Gibt change_type zurück: 'new' | 'changed' | 'unchanged'
+    Gibt change_type zurück: 'new' | 'changed' | 'unchanged' | 'moved' | 'restored'
+
+    Logik:
+    1. Eintrag für full_path vorhanden (aktiv oder archiviert)?
+       → Update; war archiviert → 'restored', sonst 'changed'/'unchanged'
+    2. Kein Eintrag für full_path → Move-Detection gemäß move_mode:
+       "name_and_hash": gleicher Hash + gleicher Dateiname → moved
+       "hash_only":     gleicher Hash, genau ein aktiver Treffer → moved
+                        (mehrere Treffer = Mehrdeutigkeit → new)
+       "disabled":      keine Move-Detection
+    3. Sonst: echter Neuzugang → 'new'
     """
-    cur = conn.execute(
-        "SELECT id, file_hash, modified_at FROM idv_files WHERE full_path = ?",
+    existing = conn.execute(
+        "SELECT id, file_hash, status FROM idv_files WHERE full_path = ?",
         (data["full_path"],)
-    )
-    existing = cur.fetchone()
+    ).fetchone()
 
     if existing is None:
-        # Neue Datei
+        # ── Move-Detection ──────────────────────────────────────────────
+        if data["file_hash"] != "HASH_ERROR" and move_mode != "disabled":
+            moved_from = None
+
+            # Stufe 1: gleicher Hash + gleicher Dateiname (immer aktiv)
+            moved_from = conn.execute(
+                "SELECT id, full_path, file_name FROM idv_files "
+                "WHERE file_hash = ? AND file_name = ? AND status = 'active'",
+                (data["file_hash"], data["file_name"])
+            ).fetchone()
+
+            # Stufe 2 (hash_only): gleicher Hash, Dateiname egal, nur bei Eindeutigkeit
+            if not moved_from and move_mode == "hash_only":
+                candidates = conn.execute(
+                    "SELECT id, full_path, file_name FROM idv_files "
+                    "WHERE file_hash = ? AND status = 'active'",
+                    (data["file_hash"],)
+                ).fetchall()
+                if len(candidates) == 1:
+                    moved_from = candidates[0]
+                    logger.debug(
+                        f"Move (hash_only): '{moved_from['file_name']}' → "
+                        f"'{data['file_name']}' | {moved_from['full_path']} → {data['full_path']}"
+                    )
+                elif len(candidates) > 1:
+                    logger.debug(
+                        f"Move-Detection: {len(candidates)} Treffer für Hash "
+                        f"{data['file_hash'][:12]}… – zu mehrdeutig, behandle als neu"
+                    )
+
+            if moved_from:
+                conn.execute("""
+                    UPDATE idv_files SET
+                        full_path = :full_path, share_root = :share_root,
+                        relative_path = :relative_path,
+                        last_seen_at = :now, last_scan_run_id = :run_id
+                    WHERE id = :id
+                """, {**data, "now": now, "run_id": scan_run_id, "id": moved_from["id"]})
+                conn.execute("""
+                    INSERT INTO idv_file_history
+                        (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at, details)
+                    VALUES (?, ?, 'moved', ?, ?, ?, ?)
+                """, (moved_from["id"], scan_run_id,
+                      data["file_hash"], data["file_hash"], now,
+                      json.dumps({"old_path": moved_from["full_path"],
+                                  "new_path": data["full_path"]})))
+                logger.debug(f"Verschoben: {moved_from['full_path']} → {data['full_path']}")
+                return "moved"
+
+        # ── Echter Neuzugang ────────────────────────────────────────────
         insert_data = {
             **data,
             "first_seen_at":    now,
@@ -423,21 +517,19 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 :first_seen_at, :last_seen_at, :last_scan_run_id, 'active'
             )
         """, insert_data)
-
         file_id = cur_ins.lastrowid
-
         conn.execute("""
             INSERT INTO idv_file_history (file_id, scan_run_id, change_type, new_hash, changed_at)
             VALUES (?, ?, 'new', ?, ?)
         """, (file_id, scan_run_id, data["file_hash"], now))
-
         return "new"
 
     else:
-        file_id   = existing["id"]
-        old_hash  = existing["file_hash"]
-        new_hash  = data["file_hash"]
-        changed   = old_hash != new_hash
+        # ── Bekannte Datei: Update ──────────────────────────────────────
+        file_id      = existing["id"]
+        old_hash     = existing["file_hash"]
+        new_hash     = data["file_hash"]
+        was_archived = existing["status"] == "archiviert"
 
         conn.execute("""
             UPDATE idv_files SET
@@ -451,24 +543,54 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
             WHERE full_path = :full_path
         """, {**data, "now": now, "run_id": scan_run_id})
 
-        change_type = "changed" if changed else "unchanged"
+        if was_archived:
+            change_type = "restored"
+        else:
+            change_type = "changed" if old_hash != new_hash else "unchanged"
+
         conn.execute("""
             INSERT INTO idv_file_history
                 (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (file_id, scan_run_id, change_type, old_hash, new_hash, now))
-
         return change_type
 
 
-def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str) -> int:
-    """Markiert Dateien als gelöscht, die im letzten Scan nicht mehr gefunden wurden.
+def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
+                       scan_since: Optional[str] = None,
+                       scan_paths: Optional[list] = None) -> int:
+    """Überführt aktive Dateien, die im aktuellen Scan nicht gesehen wurden, ins Archiv.
 
     Nutzt last_scan_run_id statt eines Python-Sets – skaliert auch bei 100k+ Dateien.
+    Dateien werden nicht gelöscht, sondern auf status='archiviert' gesetzt.
+
+    scan_since:  ISO-Datumsstring (z.B. '2024-07-01'). Wenn gesetzt, werden nur
+                 Dateien archiviert, deren modified_at >= scan_since liegt.
+
+    scan_paths:  Liste der in diesem Lauf tatsächlich gescannten Pfade. Wenn gesetzt,
+                 werden nur Dateien archiviert, deren full_path unter einem dieser
+                 Pfade liegt. Dateien außerhalb des Geltungsbereichs bleiben unberührt
+                 — so können mehrere Teilscans auf verschiedene Verzeichnisse korrekt
+                 akkumuliert werden.
     """
+    conditions = ["status = 'active'", "last_scan_run_id != ?"]
+    params: list = [scan_run_id]
+
+    if scan_since:
+        conditions.append("modified_at >= ?")
+        params.append(scan_since)
+
+    if scan_paths:
+        # Nur Dateien im Geltungsbereich der gescannten Pfade archivieren
+        path_conds = " OR ".join("full_path LIKE ?" for _ in scan_paths)
+        conditions.append(f"({path_conds})")
+        for sp in scan_paths:
+            # Normalisierung: Trennzeichen am Ende entfernen, dann % anhängen
+            params.append(sp.rstrip("/\\") + "%")
+
     rows = conn.execute(
-        "SELECT id FROM idv_files WHERE status = 'active' AND last_scan_run_id != ?",
-        (scan_run_id,)
+        f"SELECT id FROM idv_files WHERE {' AND '.join(conditions)}",
+        params
     ).fetchall()
 
     if not rows:
@@ -477,12 +599,12 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str) -> 
     ids = [row["id"] for row in rows]
     placeholders = ",".join("?" * len(ids))
     conn.execute(
-        f"UPDATE idv_files SET status = 'deleted', last_seen_at = ? WHERE id IN ({placeholders})",
+        f"UPDATE idv_files SET status = 'archiviert', last_seen_at = ? WHERE id IN ({placeholders})",
         [now] + ids
     )
     conn.executemany("""
         INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at)
-        VALUES (?, ?, 'deleted', ?)
+        VALUES (?, ?, 'archiviert', ?)
     """, [(fid, scan_run_id, now) for fid in ids])
 
     return len(ids)
@@ -510,7 +632,24 @@ def run_scan(config: dict, logger: logging.Logger):
     scan_run_id = cur.lastrowid
     logger.info(f"Scan-Run #{scan_run_id} gestartet | Pfade: {scan_paths}")
 
-    stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0, "errors": 0}
+    move_mode = config.get("move_detection", "name_and_hash")
+    logger.info(f"Move-Detection-Modus: {move_mode}")
+
+    # Startdatum-Filter auswerten
+    scan_since     = config.get("scan_since") or None   # z.B. "2024-07-01"
+    scan_since_ts  = None                               # Unix-Timestamp für st_mtime-Vergleich
+    if scan_since:
+        try:
+            from datetime import date as _date
+            dt = datetime.fromisoformat(scan_since)
+            scan_since_ts = dt.timestamp()
+            logger.info(f"Startdatum-Filter aktiv: nur Dateien >= {scan_since}")
+        except ValueError:
+            logger.warning(f"Ungültiges scan_since-Format '{scan_since}' – Filter deaktiviert")
+            scan_since = None
+
+    stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0,
+             "moved": 0, "restored": 0, "errors": 0}
 
     for scan_path in scan_paths:
         if not os.path.exists(scan_path):
@@ -519,9 +658,9 @@ def run_scan(config: dict, logger: logging.Logger):
             continue
 
         logger.info(f"Scanne: {scan_path}")
-        for data in walk_and_scan(scan_path, config, scan_paths, logger):
+        for data in walk_and_scan(scan_path, config, scan_paths, logger, scan_since_ts):
             try:
-                change = upsert_file(conn, data, scan_run_id, now, logger)
+                change = upsert_file(conn, data, scan_run_id, now, logger, move_mode)
                 stats["total"]   += 1
                 stats[change]    += 1
 
@@ -535,18 +674,19 @@ def run_scan(config: dict, logger: logging.Logger):
 
     conn.commit()
 
-    # Gelöschte Dateien markieren (SQL-basiert über last_scan_run_id)
-    deleted = mark_deleted_files(conn, scan_run_id, now)
+    # Nicht mehr gefundene Dateien archivieren – nur im Geltungsbereich der gescannten Pfade
+    deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, scan_paths)
     conn.commit()
 
     finished = datetime.now(timezone.utc).isoformat()
     conn.execute("""
         UPDATE scan_runs SET
             finished_at = ?, total_files = ?, new_files = ?,
-            changed_files = ?, deleted_files = ?, errors = ?
+            changed_files = ?, moved_files = ?, restored_files = ?,
+            archived_files = ?, errors = ?
         WHERE id = ?
-    """, (finished, stats["total"], stats["new"],
-          stats["changed"], deleted, stats["errors"], scan_run_id))
+    """, (finished, stats["total"], stats["new"], stats["changed"],
+          stats["moved"], stats["restored"], deleted, stats["errors"], scan_run_id))
     conn.commit()
     conn.close()
 
@@ -555,8 +695,9 @@ def run_scan(config: dict, logger: logging.Logger):
     logger.info(f"  Gesamt gefunden : {stats['total']}")
     logger.info(f"  Neu             : {stats['new']}")
     logger.info(f"  Geändert        : {stats['changed']}")
-    logger.info(f"  Unverändert     : {stats['unchanged']}")
-    logger.info(f"  Gelöscht        : {deleted}")
+    logger.info(f"  Verschoben      : {stats['moved']}")
+    logger.info(f"  Wiederhergest.  : {stats['restored']}")
+    logger.info(f"  Archiviert      : {deleted}")
     logger.info(f"  Fehler          : {stats['errors']}")
     logger.info("=" * 60)
 
