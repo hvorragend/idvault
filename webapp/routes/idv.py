@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file
-from . import login_required, get_db
+from . import login_required, write_access_required, get_db, can_write, can_read_all, current_person_id
 import sys, os, io
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import create_idv, update_idv, change_status, search_idv
@@ -39,49 +39,67 @@ def _int_or_none(val):
 @bp.route("/")
 @login_required
 def list_idv():
-    db  = get_db()
+    db      = get_db()
     q       = request.args.get("q", "")
     status  = request.args.get("status", "")
     gda_min = _int_or_none(request.args.get("gda_min", "0")) or 0
     filt    = request.args.get("filter", "")
 
+    # Alle Bedingungen und Parameter als positionale Listen aufbauen
+    where_parts = []
+    params      = []
+
+    if q:
+        where_parts.append("(v.idv_id LIKE ? OR v.bezeichnung LIKE ? OR v.geschaeftsprozess LIKE ?)")
+        params += [f"%{q}%", f"%{q}%", f"%{q}%"]
+    if status:
+        where_parts.append("v.status = ?")
+        params.append(status)
+    if gda_min:
+        where_parts.append("v.gda_wert >= ?")
+        params.append(gda_min)
+
     # Spezialfilter
-    steuerungsrelevant = None
-    extra_where = ""
     if filt == "kritisch":
-        extra_where = "AND (gda_wert = 4 OR steuerungsrelevant = 'Ja' OR dora_kritisch = 'Ja')"
+        where_parts.append("(v.gda_wert = 4 OR v.steuerungsrelevant = 'Ja' OR v.dora_kritisch = 'Ja')")
     elif filt == "steuerung":
-        steuerungsrelevant = True
+        where_parts.append("v.steuerungsrelevant = 'Ja'")
     elif filt == "dora":
-        extra_where = "AND dora_kritisch = 'Ja'"
+        where_parts.append("v.dora_kritisch = 'Ja'")
     elif filt == "ueberfaellig":
-        extra_where = "AND pruefstatus = 'ÜBERFÄLLIG'"
+        where_parts.append("v.pruefstatus = 'ÜBERFÄLLIG'")
     elif filt == "unvollstaendig":
         ids = [r["idv_id"] for r in db.execute("SELECT idv_id FROM v_unvollstaendige_idvs").fetchall()]
-        extra_where = f"AND idv_id IN ({','.join(['?']*len(ids))})" if ids else "AND 1=0"
+        if ids:
+            where_parts.append(f"r.idv_id IN ({','.join(['?']*len(ids))})")
+            params.extend(ids)
+        else:
+            where_parts.append("1=0")
+
+    # Rollenbasierte Sichtbarkeit:
+    # Admin / Koordinator / Revision / IT-Sicherheit → alle IDVs
+    # Fachverantwortlicher / Entwickler → nur eigene
+    person_id = current_person_id()
+    if not can_read_all() and person_id:
+        where_parts.append("""(
+            r.fachverantwortlicher_id = ?
+            OR r.idv_entwickler_id   = ?
+            OR r.idv_koordinator_id  = ?
+            OR r.stellvertreter_id   = ?
+        )""")
+        params += [person_id, person_id, person_id, person_id]
+
+    where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
     sql = f"""
         SELECT r.*, v.*
         FROM v_idv_uebersicht v
         JOIN idv_register r ON r.idv_id = v.idv_id
-        WHERE 1=1
-        {'AND (v.idv_id LIKE :q OR v.bezeichnung LIKE :q OR v.geschaeftsprozess LIKE :q)' if q else ''}
-        {'AND v.status = :status' if status else ''}
-        {'AND v.gda_wert >= :gda_min' if gda_min else ''}
-        {extra_where}
+        {where_sql}
         ORDER BY v.gda_wert DESC, v.bezeichnung
     """
-    params = {}
-    if q:       params["q"]       = f"%{q}%"
-    if status:  params["status"]  = status
-    if gda_min: params["gda_min"] = gda_min
-
-    if filt == "unvollstaendig" and ids:
-        idvs = db.execute(sql.replace("AND idv_id IN (?)", f"AND r.idv_id IN ({','.join(['?']*len(ids))})"), ids).fetchall()
-    else:
-        idvs = db.execute(sql, params).fetchall()
-
-    return render_template("idv/list.html", idvs=idvs)
+    idvs = db.execute(sql, params).fetchall()
+    return render_template("idv/list.html", idvs=idvs, can_write=can_write())
 
 
 # ── Detail ─────────────────────────────────────────────────────────────────
@@ -135,7 +153,7 @@ def detail_idv(idv_db_id):
 # ── Neu ────────────────────────────────────────────────────────────────────
 
 @bp.route("/neu", methods=["GET", "POST"])
-@login_required
+@write_access_required
 def new_idv():
     db = get_db()
     if request.method == "POST":
@@ -180,7 +198,7 @@ def new_idv():
 # ── Bearbeiten ─────────────────────────────────────────────────────────────
 
 @bp.route("/<int:idv_db_id>/bearbeiten", methods=["GET", "POST"])
-@login_required
+@write_access_required
 def edit_idv(idv_db_id):
     db  = get_db()
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
@@ -204,7 +222,7 @@ def edit_idv(idv_db_id):
 # ── Status ─────────────────────────────────────────────────────────────────
 
 @bp.route("/<int:idv_db_id>/status", methods=["POST"])
-@login_required
+@write_access_required
 def change_status_route(idv_db_id):
     db        = get_db()
     new_status = request.form.get("status")

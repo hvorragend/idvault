@@ -6,55 +6,101 @@
 <div class="row g-4">
 
   <!-- ── Personen ──────────────────────────────────────────────── -->
-  <div class="col-lg-6">
+  <div class="col-12">
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-600"><i class="bi bi-people me-2"></i>Personen ({{ persons|length }})</div>
-      <div style="max-height:300px;overflow-y:auto">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-600"><i class="bi bi-people me-2"></i>Personen / Mitarbeiterverwaltung ({{ persons|length }})</span>
+        <a href="{{ url_for('admin.import_template') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-download me-1"></i>CSV-Vorlage
+        </a>
+      </div>
+      <div style="max-height:320px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0">
-          <thead class="table-light"><tr><th>Kürzel</th><th>Name</th><th>Rolle</th><th>OE</th></tr></thead>
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Kürzel</th><th>Name</th><th>User-ID</th>
+              <th>E-Mail</th><th>AD-Name</th><th>Rolle</th><th>OE</th><th>Aktiv</th><th></th>
+            </tr>
+          </thead>
           <tbody>
             {% for p in persons %}
-            <tr>
+            <tr class="{{ '' if p.aktiv else 'text-muted' }}">
               <td><code>{{ p.kuerzel }}</code></td>
               <td>{{ p.nachname }}, {{ p.vorname }}</td>
+              <td style="font-size:.78rem">{{ p.user_id or '–' }}</td>
+              <td style="font-size:.78rem">
+                {% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% else %}–{% endif %}
+              </td>
+              <td style="font-size:.78rem;font-family:monospace">{{ p.ad_name or '–' }}</td>
               <td style="font-size:.78rem">{{ p.rolle or '–' }}</td>
               <td style="font-size:.78rem">{{ p.org or '–' }}</td>
+              <td class="text-center">
+                {% if p.aktiv %}<span class="badge bg-success">Ja</span>
+                {% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('admin.edit_person', pid=p.id) }}"
+                   class="btn btn-xs btn-outline-primary py-0 px-1" title="Bearbeiten">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{{ url_for('admin.delete_person', pid=p.id) }}"
+                      class="d-inline" onsubmit="return confirm('Person deaktivieren?')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Deaktivieren">
+                    <i class="bi bi-person-dash"></i>
+                  </button>
+                </form>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
       <div class="card-footer bg-white">
-        <form method="post" action="{{ url_for('admin.new_person') }}" class="row g-2">
-          <div class="col-md-2">
-            <input type="text" name="kuerzel" class="form-control form-control-sm" placeholder="Kürzel" required>
-          </div>
-          <div class="col-md-3">
-            <input type="text" name="nachname" class="form-control form-control-sm" placeholder="Nachname" required>
-          </div>
-          <div class="col-md-3">
-            <input type="text" name="vorname" class="form-control form-control-sm" placeholder="Vorname" required>
-          </div>
-          <div class="col-md-3">
-            <input type="email" name="email" class="form-control form-control-sm" placeholder="E-Mail">
-          </div>
-          <div class="col-md-4">
-            <input type="text" name="rolle" class="form-control form-control-sm" placeholder="Rolle">
-          </div>
-          <div class="col-md-5">
-            <select name="org_unit_id" class="form-select form-select-sm">
-              <option value="">– OE wählen –</option>
-              {% for ou in org_units %}
-              <option value="{{ ou.id }}">{{ ou.kuerzel }} – {{ ou.bezeichnung }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-3">
-            <button type="submit" class="btn btn-sm btn-primary w-100">
-              <i class="bi bi-plus me-1"></i>Hinzufügen
-            </button>
-          </div>
-        </form>
+        <!-- Neue Person -->
+        <details>
+          <summary class="text-primary" style="cursor:pointer;font-size:.88rem">
+            <i class="bi bi-plus-circle me-1"></i>Neue Person anlegen
+          </summary>
+          <form method="post" action="{{ url_for('admin.new_person') }}" class="row g-2 mt-2">
+            <div class="col-md-1"><input type="text" name="kuerzel" class="form-control form-control-sm" placeholder="Kürzel" required></div>
+            <div class="col-md-2"><input type="text" name="nachname" class="form-control form-control-sm" placeholder="Nachname" required></div>
+            <div class="col-md-2"><input type="text" name="vorname" class="form-control form-control-sm" placeholder="Vorname" required></div>
+            <div class="col-md-2"><input type="email" name="email" class="form-control form-control-sm" placeholder="E-Mail (SMTP)"></div>
+            <div class="col-md-2"><input type="text" name="user_id" class="form-control form-control-sm" placeholder="User-ID (Login)"></div>
+            <div class="col-md-2"><input type="text" name="ad_name" class="form-control form-control-sm" placeholder="AD-Name (DOMAIN\\user)"></div>
+            <div class="col-md-2">
+              <select name="rolle" class="form-select form-select-sm">
+                <option value="">– Rolle –</option>
+                {% for r in ['IDV-Koordinator','Fachverantwortlicher','IT-Sicherheit','Revision','IDV-Administrator'] %}
+                <option>{{ r }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <select name="org_unit_id" class="form-select form-select-sm">
+                <option value="">– OE –</option>
+                {% for ou in org_units %}<option value="{{ ou.id }}">{{ ou.kuerzel }} – {{ ou.bezeichnung }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus me-1"></i>Hinzufügen</button>
+            </div>
+          </form>
+        </details>
+        <!-- CSV-Import -->
+        <details class="mt-2">
+          <summary class="text-success" style="cursor:pointer;font-size:.88rem">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Mitarbeiter aus CSV importieren
+          </summary>
+          <form method="post" action="{{ url_for('admin.import_persons') }}" enctype="multipart/form-data" class="row g-2 mt-2">
+            <div class="col-md-8">
+              <input type="file" name="csv_file" accept=".csv,.txt" class="form-control form-control-sm" required>
+              <div class="form-text">Trennzeichen: Semikolon oder Komma. Spalten: user_id; email; ad_name; oe_kuerzel; nachname; vorname; kuerzel; rolle</div>
+            </div>
+            <div class="col-md-4">
+              <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-upload me-1"></i>Importieren</button>
+            </div>
+          </form>
+        </details>
       </div>
     </div>
   </div>
@@ -63,100 +109,219 @@
   <div class="col-lg-6">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600"><i class="bi bi-diagram-3 me-2"></i>Organisationseinheiten ({{ org_units|length }})</div>
-      <div style="max-height:300px;overflow-y:auto">
+      <div style="max-height:280px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0">
-          <thead class="table-light"><tr><th>Kürzel</th><th>Bezeichnung</th><th>Ebene</th></tr></thead>
+          <thead class="table-light"><tr><th>Kürzel</th><th>Bezeichnung</th><th>Ebene</th><th>Aktiv</th><th></th></tr></thead>
           <tbody>
             {% for ou in org_units %}
-            <tr>
+            <tr class="{{ '' if ou.aktiv else 'text-muted' }}">
               <td><code>{{ ou.kuerzel }}</code></td>
               <td>{{ ou.bezeichnung }}</td>
               <td style="font-size:.78rem">{{ ou.ebene or '–' }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Geschäftsprozesse ─────────────────────────────────────── -->
-  <div class="col-lg-7">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-600"><i class="bi bi-diagram-2 me-2"></i>Geschäftsprozesse ({{ geschaeftsprozesse|length }})</div>
-      <div style="max-height:280px;overflow-y:auto">
-        <table class="table table-sm table-hover mb-0">
-          <thead class="table-light"><tr><th>GP-Nr.</th><th>Bezeichnung</th><th>Bereich</th><th>Krit.</th><th>Wes.</th></tr></thead>
-          <tbody>
-            {% for gp in geschaeftsprozesse %}
-            <tr>
-              <td><code>{{ gp.gp_nummer }}</code></td>
-              <td>{{ gp.bezeichnung }}</td>
-              <td style="font-size:.78rem">{{ gp.bereich or '–' }}</td>
-              <td class="text-center">{{ '✓' if gp.ist_kritisch else '–' }}</td>
-              <td class="text-center">{{ '✓' if gp.ist_wesentlich else '–' }}</td>
+              <td class="text-center">{% if ou.aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
+              <td>
+                <a href="{{ url_for('admin.edit_oe', oid=ou.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
+                <form method="post" action="{{ url_for('admin.delete_oe', oid=ou.id) }}" class="d-inline" onsubmit="return confirm('OE deaktivieren?')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-dash-circle"></i></button>
+                </form>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
       <div class="card-footer bg-white">
-        <form method="post" action="{{ url_for('admin.new_gp') }}" class="row g-2">
-          <div class="col-md-3">
-            <input type="text" name="gp_nummer" class="form-control form-control-sm" placeholder="GP-XXX-001" required>
+        <details>
+          <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neue OE anlegen</summary>
+          <form method="post" action="{{ url_for('admin.new_oe') }}" class="row g-2 mt-2">
+            <div class="col-md-2"><input type="text" name="kuerzel" class="form-control form-control-sm" placeholder="Kürzel" required></div>
+            <div class="col-md-4"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
+            <div class="col-md-3">
+              <select name="ebene" class="form-select form-select-sm">
+                <option value="">– Ebene –</option>
+                {% for e in ['Vorstand','Bereich','Abteilung'] %}<option>{{ e }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <select name="parent_id" class="form-select form-select-sm">
+                <option value="">– Übergeordnete OE –</option>
+                {% for ou in org_units %}<option value="{{ ou.id }}">{{ ou.kuerzel }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus me-1"></i>Hinzufügen</button>
+            </div>
+          </form>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Plattformen ───────────────────────────────────────────── -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-display me-2"></i>Plattformen ({{ plattformen|length }})</div>
+      <div style="max-height:280px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light"><tr><th>Bezeichnung</th><th>Typ</th><th>Hersteller</th><th>Aktiv</th><th></th></tr></thead>
+          <tbody>
+            {% for p in plattformen %}
+            <tr class="{{ '' if p.aktiv else 'text-muted' }}">
+              <td>{{ p.bezeichnung }}</td>
+              <td style="font-size:.78rem">{{ p.typ or '–' }}</td>
+              <td style="font-size:.78rem">{{ p.hersteller or '–' }}</td>
+              <td class="text-center">{% if p.aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
+              <td>
+                <a href="{{ url_for('admin.edit_plattform', plid=p.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
+                <form method="post" action="{{ url_for('admin.delete_plattform', plid=p.id) }}" class="d-inline" onsubmit="return confirm('Plattform deaktivieren?')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-dash-circle"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer bg-white">
+        <details>
+          <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neue Plattform anlegen</summary>
+          <form method="post" action="{{ url_for('admin.new_plattform') }}" class="row g-2 mt-2">
+            <div class="col-md-4"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
+            <div class="col-md-3">
+              <select name="typ" class="form-select form-select-sm">
+                <option value="">– Typ –</option>
+                {% for t in ['Desktop','Server','Cloud','Mobile'] %}<option>{{ t }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3"><input type="text" name="hersteller" class="form-control form-control-sm" placeholder="Hersteller"></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus me-1"></i>Hinzufügen</button></div>
+          </form>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Geschäftsprozesse ─────────────────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-diagram-2 me-2"></i>Geschäftsprozesse ({{ geschaeftsprozesse|length }})</div>
+      <div style="max-height:280px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light"><tr><th>GP-Nr.</th><th>Bezeichnung</th><th>Bereich</th><th>DORA</th><th>MaRisk</th><th>Aktiv</th><th></th></tr></thead>
+          <tbody>
+            {% for gp in geschaeftsprozesse %}
+            <tr class="{{ '' if gp.aktiv else 'text-muted' }}">
+              <td><code>{{ gp.gp_nummer }}</code></td>
+              <td>{{ gp.bezeichnung }}</td>
+              <td style="font-size:.78rem">{{ gp.bereich or '–' }}</td>
+              <td class="text-center">{{ '✓' if gp.ist_kritisch else '–' }}</td>
+              <td class="text-center">{{ '✓' if gp.ist_wesentlich else '–' }}</td>
+              <td class="text-center">{% if gp.aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
+              <td>
+                <a href="{{ url_for('admin.edit_gp', gid=gp.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
+                <form method="post" action="{{ url_for('admin.delete_gp', gid=gp.id) }}" class="d-inline" onsubmit="return confirm('GP deaktivieren?')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-dash-circle"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer bg-white">
+        <details>
+          <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neuen GP anlegen</summary>
+          <form method="post" action="{{ url_for('admin.new_gp') }}" class="row g-2 mt-2">
+            <div class="col-md-2"><input type="text" name="gp_nummer" class="form-control form-control-sm" placeholder="GP-XXX-001" required></div>
+            <div class="col-md-4"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
+            <div class="col-md-2">
+              <select name="bereich" class="form-select form-select-sm">
+                <option value="">– Bereich –</option>
+                {% for b in ['Markt','Marktfolge','Steuerung','Betrieb'] %}<option>{{ b }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-auto">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="ist_kritisch" value="1" id="gp_krit">
+                <label class="form-check-label" for="gp_krit" style="font-size:.83rem">DORA-kritisch</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="ist_wesentlich" value="1" id="gp_wes">
+                <label class="form-check-label" for="gp_wes" style="font-size:.83rem">Wesentlich</label>
+              </div>
+            </div>
+            <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus me-1"></i>Hinzufügen</button></div>
+          </form>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── E-Mail / SMTP-Einstellungen ───────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-envelope-gear me-2"></i>E-Mail-Einstellungen (SMTP)</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.save_settings') }}" class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm fw-600">SMTP-Host</label>
+            <input type="text" name="smtp_host" class="form-control form-control-sm"
+                   value="{{ settings.get('smtp_host','') }}" placeholder="mail.bank.de">
           </div>
-          <div class="col-md-5">
-            <input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm fw-600">Port</label>
+            <input type="number" name="smtp_port" class="form-control form-control-sm"
+                   value="{{ settings.get('smtp_port','587') }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm fw-600">SMTP-Benutzer</label>
+            <input type="text" name="smtp_user" class="form-control form-control-sm"
+                   value="{{ settings.get('smtp_user','') }}" placeholder="idvault@bank.de">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm fw-600">Passwort</label>
+            <input type="password" name="smtp_password" class="form-control form-control-sm"
+                   value="{{ settings.get('smtp_password','') }}" placeholder="••••••••">
           </div>
           <div class="col-md-4">
-            <select name="bereich" class="form-select form-select-sm">
-              <option value="">– Bereich –</option>
-              {% for b in ['Markt','Marktfolge','Steuerung','Betrieb'] %}
-              <option>{{ b }}</option>
-              {% endfor %}
-            </select>
+            <label class="form-label form-label-sm fw-600">Absenderadresse</label>
+            <input type="email" name="smtp_from" class="form-control form-control-sm"
+                   value="{{ settings.get('smtp_from','') }}" placeholder="idvault@bank.de">
           </div>
-          <div class="col-auto">
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" name="ist_kritisch" value="1" id="gp_krit">
-              <label class="form-check-label" for="gp_krit" style="font-size:.83rem">DORA-kritisch</label>
+          <div class="col-md-4 d-flex align-items-end gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="smtp_tls" value="1" id="smtp_tls"
+                     {{ 'checked' if settings.get('smtp_tls','1')=='1' else '' }}>
+              <label class="form-check-label" for="smtp_tls">STARTTLS verwenden</label>
             </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" name="ist_wesentlich" value="1" id="gp_wes">
-              <label class="form-check-label" for="gp_wes" style="font-size:.83rem">Wesentlich</label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="notify_new_file" value="1" id="notify_nf"
+                     {{ 'checked' if settings.get('notify_new_file','1')=='1' else '' }}>
+              <label class="form-check-label" for="notify_nf">Neue Dateien benachrichtigen</label>
             </div>
           </div>
-          <div class="col-md-3">
-            <button type="submit" class="btn btn-sm btn-primary w-100">
-              <i class="bi bi-plus me-1"></i>Hinzufügen
+          <div class="col-md-4 d-flex align-items-end">
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="bi bi-floppy me-1"></i>Einstellungen speichern
             </button>
+          </div>
+          <div class="col-12">
+            <div class="alert alert-info py-2 mb-0" style="font-size:.83rem">
+              <i class="bi bi-info-circle me-1"></i>
+              Umgebungsvariablen <code>IDV_SMTP_HOST</code>, <code>IDV_SMTP_PORT</code>,
+              <code>IDV_SMTP_USER</code>, <code>IDV_SMTP_PASSWORD</code>, <code>IDV_SMTP_FROM</code>
+              überschreiben die DB-Einstellungen.
+            </div>
           </div>
         </form>
       </div>
     </div>
   </div>
 
-  <!-- ── Plattformen ───────────────────────────────────────────── -->
-  <div class="col-lg-5">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-600"><i class="bi bi-display me-2"></i>Plattformen ({{ plattformen|length }})</div>
-      <div style="max-height:280px;overflow-y:auto">
-        <table class="table table-sm table-hover mb-0">
-          <thead class="table-light"><tr><th>Bezeichnung</th><th>Typ</th><th>Hersteller</th></tr></thead>
-          <tbody>
-            {% for p in plattformen %}
-            <tr>
-              <td>{{ p.bezeichnung }}</td>
-              <td style="font-size:.78rem">{{ p.typ or '–' }}</td>
-              <td style="font-size:.78rem">{{ p.hersteller or '–' }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
 </div>
-<style>.fw-600{font-weight:600}</style>
+
+<style>
+  .fw-600 { font-weight: 600; }
+  .btn-xs { font-size: .75rem; line-height: 1.4; }
+</style>
 {% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}OE bearbeiten{% endblock %}
+{% block page_title %}<i class="bi bi-diagram-3 me-2"></i>Organisationseinheit bearbeiten{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">{{ oe.kuerzel }} – {{ oe.bezeichnung }}</div>
+      <div class="card-body">
+        <form method="post">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-600">Kürzel <span class="text-danger">*</span></label>
+              <input type="text" name="kuerzel" class="form-control" value="{{ oe.kuerzel }}" required>
+            </div>
+            <div class="col-md-9">
+              <label class="form-label fw-600">Bezeichnung <span class="text-danger">*</span></label>
+              <input type="text" name="bezeichnung" class="form-control" value="{{ oe.bezeichnung }}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-600">Ebene</label>
+              <select name="ebene" class="form-select">
+                <option value="">– keine –</option>
+                {% for e in ['Vorstand','Bereich','Abteilung'] %}
+                <option {{ 'selected' if oe.ebene == e else '' }}>{{ e }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label fw-600">Übergeordnete OE</label>
+              <select name="parent_id" class="form-select">
+                <option value="">– keine –</option>
+                {% for ou in all_oe %}
+                <option value="{{ ou.id }}" {{ 'selected' if oe.parent_id == ou.id else '' }}>
+                  {{ ou.kuerzel }} – {{ ou.bezeichnung }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" value="1" id="oe_aktiv"
+                       {{ 'checked' if oe.aktiv else '' }}>
+                <label class="form-check-label" for="oe_aktiv">OE aktiv</label>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Speichern</button>
+            <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Abbrechen</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<style>.fw-600{font-weight:600}</style>
+{% endblock %}

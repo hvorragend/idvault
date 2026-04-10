@@ -56,9 +56,11 @@
       <a href="{{ url_for('idv.export_excel') }}" class="btn btn-sm btn-outline-success">
         <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
       </a>
+      {% if can_write %}
       <a href="{{ url_for('idv.new_idv') }}" class="btn btn-sm btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Neue IDV
       </a>
+      {% endif %}
     </div>
   </div>
   <div class="table-responsive">
@@ -128,10 +130,12 @@
                  class="btn btn-xs btn-outline-secondary" title="Detail">
                 <i class="bi bi-eye"></i>
               </a>
+              {% if can_write %}
               <a href="{{ url_for('idv.edit_idv', idv_db_id=r.id) }}"
                  class="btn btn-xs btn-outline-primary" title="Bearbeiten">
                 <i class="bi bi-pencil"></i>
               </a>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -139,7 +143,8 @@
         <tr>
           <td colspan="10" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-            Keine IDVs gefunden. <a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>
+            Keine IDVs gefunden.
+            {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}
           </td>
         </tr>
         {% endfor %}

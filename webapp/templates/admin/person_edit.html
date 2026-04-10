@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Person bearbeiten{% endblock %}
+{% block page_title %}<i class="bi bi-person-gear me-2"></i>Person bearbeiten{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        {{ person.nachname }}, {{ person.vorname }} &nbsp;<code class="text-muted">{{ person.kuerzel }}</code>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <div class="row g-3">
+
+            <div class="col-md-2">
+              <label class="form-label fw-600">Kürzel <span class="text-danger">*</span></label>
+              <input type="text" name="kuerzel" class="form-control" value="{{ person.kuerzel }}" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-600">Nachname <span class="text-danger">*</span></label>
+              <input type="text" name="nachname" class="form-control" value="{{ person.nachname }}" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-600">Vorname <span class="text-danger">*</span></label>
+              <input type="text" name="vorname" class="form-control" value="{{ person.vorname }}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-600">E-Mail (SMTP-Adresse)</label>
+              <input type="email" name="email" class="form-control" value="{{ person.email or '' }}" placeholder="max.mustermann@bank.de">
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label fw-600">User-ID (Login)</label>
+              <input type="text" name="user_id" class="form-control" value="{{ person.user_id or '' }}" placeholder="mmu">
+              <div class="form-text">Wird für den idvault-Login verwendet.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-600">AD-Name</label>
+              <input type="text" name="ad_name" class="form-control" value="{{ person.ad_name or '' }}" placeholder="DOMAIN\mmu">
+            </div>
+            <div class="col-md-5">
+              <label class="form-label fw-600">Passwort setzen</label>
+              <input type="password" name="password" class="form-control" placeholder="Leer lassen = unverändert">
+              <div class="form-text">SHA-256-Hash wird gespeichert. Leer lassen für keine Änderung.</div>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label fw-600">Rolle</label>
+              <select name="rolle" class="form-select">
+                <option value="">– keine –</option>
+                {% for r in ['IDV-Administrator','IDV-Koordinator','Fachverantwortlicher','IT-Sicherheit','Revision'] %}
+                <option {{ 'selected' if person.rolle == r else '' }}>{{ r }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-600">Organisationseinheit</label>
+              <select name="org_unit_id" class="form-select">
+                <option value="">– keine –</option>
+                {% for ou in org_units %}
+                <option value="{{ ou.id }}" {{ 'selected' if person.org_unit_id == ou.id else '' }}>
+                  {{ ou.kuerzel }} – {{ ou.bezeichnung }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" value="1" id="person_aktiv"
+                       {{ 'checked' if person.aktiv else '' }}>
+                <label class="form-check-label" for="person_aktiv">Person aktiv</label>
+              </div>
+            </div>
+
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-floppy me-1"></i>Speichern
+            </button>
+            <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Abbrechen</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<style>.fw-600{font-weight:600}</style>
+{% endblock %}
