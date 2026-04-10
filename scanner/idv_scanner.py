@@ -402,7 +402,6 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
 
     if existing is None:
         # Neue Datei
-
         insert_data = {
             **data,
             "first_seen_at":    now,
@@ -464,17 +463,17 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
 
 def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str) -> int:
     """Markiert Dateien als gelöscht, die im letzten Scan nicht mehr gefunden wurden.
- 
+
     Nutzt last_scan_run_id statt eines Python-Sets – skaliert auch bei 100k+ Dateien.
     """
     rows = conn.execute(
         "SELECT id FROM idv_files WHERE status = 'active' AND last_scan_run_id != ?",
         (scan_run_id,)
     ).fetchall()
- 
+
     if not rows:
         return 0
- 
+
     ids = [row["id"] for row in rows]
     placeholders = ",".join("?" * len(ids))
     conn.execute(
@@ -485,7 +484,7 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str) -> 
         INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at)
         VALUES (?, ?, 'deleted', ?)
     """, [(fid, scan_run_id, now) for fid in ids])
- 
+
     return len(ids)
 
 
