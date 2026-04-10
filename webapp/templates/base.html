@@ -149,6 +149,16 @@
      class="nav-link {% if request.blueprint == 'scanner' %}active{% endif %}">
     <i class="bi bi-radar"></i> Scanner-Funde
   </a>
+  <a href="{{ url_for('scanner.scan_laeufe') }}"
+     class="nav-link {% if request.endpoint == 'scanner.scan_laeufe' %}active{% endif %}">
+    <i class="bi bi-clock-history"></i> Scan-Läufe
+  </a>
+
+  <div class="nav-label">Auswertung</div>
+  <a href="{{ url_for('reports.index') }}"
+     class="nav-link {% if request.blueprint == 'reports' %}active{% endif %}">
+    <i class="bi bi-bar-chart-line"></i> Berichte
+  </a>
 
   <div class="nav-label">System</div>
   <a href="{{ url_for('admin.index') }}"

@@ -2,7 +2,9 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from . import login_required, write_access_required, get_db, can_write, can_read_all, current_person_id
 import sys, os, io
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from db import create_idv, update_idv, change_status, search_idv, get_klassifizierungen
+from db import (create_idv, update_idv, change_status, search_idv,
+                get_klassifizierungen, get_wesentlichkeitskriterien,
+                get_idv_wesentlichkeit, save_idv_wesentlichkeit)
 
 # Dateierweiterung → IDV-Typ-Vorschlag (gespiegelt aus scanner.py)
 _EXT_TO_TYP = {
@@ -25,10 +27,12 @@ def _form_lookups(db):
         "plattformen":        db.execute("SELECT * FROM plattformen WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
         "risikoklassen":      db.execute("SELECT * FROM risikoklassen ORDER BY sort_order").fetchall(),
         # Konfigurierbare Klassifizierungen
-        "idv_typen":          get_klassifizierungen(db, "idv_typ"),
-        "pruefintervalle":    get_klassifizierungen(db, "pruefintervall_monate"),
-        "nutzungsfrequenzen": get_klassifizierungen(db, "nutzungsfrequenz"),
-        "gda_stufen":         get_klassifizierungen(db, "gda_stufen"),
+        "idv_typen":               get_klassifizierungen(db, "idv_typ"),
+        "pruefintervalle":         get_klassifizierungen(db, "pruefintervall_monate"),
+        "nutzungsfrequenzen":      get_klassifizierungen(db, "nutzungsfrequenz"),
+        "gda_stufen":              get_klassifizierungen(db, "gda_stufen"),
+        # Konfigurierbare Wesentlichkeitskriterien
+        "wesentlichkeitskriterien": get_wesentlichkeitskriterien(db, nur_aktive=True),
     }
 
 
@@ -49,6 +53,9 @@ def list_idv():
     status  = request.args.get("status", "")
     gda_min = _int_or_none(request.args.get("gda_min", "0")) or 0
     filt    = request.args.get("filter", "")
+    oe_id   = _int_or_none(request.args.get("oe_id"))
+    fv_id   = _int_or_none(request.args.get("fv_id"))
+    share_root = request.args.get("share_root", "").strip()
 
     # Alle Bedingungen und Parameter als positionale Listen aufbauen
     where_parts = []
@@ -63,6 +70,17 @@ def list_idv():
     if gda_min:
         where_parts.append("v.gda_wert >= ?")
         params.append(gda_min)
+    if oe_id:
+        where_parts.append("r.org_unit_id = ?")
+        params.append(oe_id)
+    if fv_id:
+        where_parts.append("r.fachverantwortlicher_id = ?")
+        params.append(fv_id)
+    if share_root:
+        where_parts.append(
+            "r.file_id IN (SELECT id FROM idv_files WHERE share_root = ?)"
+        )
+        params.append(share_root)
 
     # Spezialfilter
     if filt == "kritisch":
@@ -81,9 +99,7 @@ def list_idv():
         else:
             where_parts.append("1=0")
 
-    # Rollenbasierte Sichtbarkeit:
-    # Admin / Koordinator / Revision / IT-Sicherheit → alle IDVs
-    # Fachverantwortlicher / Entwickler → nur eigene
+    # Rollenbasierte Sichtbarkeit
     person_id = current_person_id()
     if not can_read_all() and person_id:
         where_parts.append("""(
@@ -104,7 +120,23 @@ def list_idv():
         ORDER BY v.gda_wert DESC, v.bezeichnung
     """
     idvs = db.execute(sql, params).fetchall()
-    return render_template("idv/list.html", idvs=idvs, can_write=can_write())
+
+    # Filter-Optionen für Dropdowns
+    org_units = db.execute(
+        "SELECT id, kuerzel, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
+    ).fetchall()
+    persons_fv = db.execute(
+        "SELECT id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname"
+    ).fetchall()
+    share_roots = [
+        r["share_root"] for r in db.execute(
+            "SELECT DISTINCT share_root FROM idv_files WHERE share_root IS NOT NULL AND status='active' ORDER BY share_root"
+        ).fetchall()
+    ]
+
+    return render_template("idv/list.html", idvs=idvs, can_write=can_write(),
+                           org_units=org_units, persons_fv=persons_fv,
+                           share_roots=share_roots)
 
 
 # ── Detail ─────────────────────────────────────────────────────────────────
@@ -151,8 +183,11 @@ def detail_idv(idv_db_id):
         ORDER BY m.faellig_am ASC
     """, (idv_db_id,)).fetchall()
 
+    wesentlichkeit = get_idv_wesentlichkeit(db, idv_db_id)
+
     return render_template("idv/detail.html",
-        idv=idv, file=file, history=history, massnahmen=massnahmen)
+        idv=idv, file=file, history=history, massnahmen=massnahmen,
+        wesentlichkeit=wesentlichkeit)
 
 
 # ── Neu ────────────────────────────────────────────────────────────────────
@@ -169,6 +204,7 @@ def new_idv():
         person_id = session.get("person_id")
         try:
             new_id = create_idv(db, data, erfasser_id=person_id)
+            _save_wesentlichkeit_from_form(db, new_id, request.form)
             flash("IDV erfolgreich angelegt.", "success")
             if request.form.get("save_action") == "save_and_new":
                 return redirect(url_for("idv.new_idv"))
@@ -197,7 +233,9 @@ def new_idv():
             }
 
     return render_template("idv/form.html", idv=None,
-                           fund=fund, prefill=prefill, **_form_lookups(db))
+                           fund=fund, prefill=prefill,
+                           wesentlichkeit_antworten={},
+                           **_form_lookups(db))
 
 
 # ── Bearbeiten ─────────────────────────────────────────────────────────────
@@ -216,12 +254,20 @@ def edit_idv(idv_db_id):
         person_id = session.get("person_id")
         try:
             update_idv(db, idv_db_id, data, geaendert_von_id=person_id)
+            _save_wesentlichkeit_from_form(db, idv_db_id, request.form)
             flash("IDV gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
         except Exception as e:
             flash(f"Fehler: {e}", "error")
 
-    return render_template("idv/form.html", idv=idv, fund=None, prefill={}, **_form_lookups(db))
+    # Vorhandene Kriterium-Antworten für das Formular aufbereiten
+    wesentlichkeit_antworten = {
+        row["kriterium_id"]: row
+        for row in get_idv_wesentlichkeit(db, idv_db_id)
+    }
+    return render_template("idv/form.html", idv=idv, fund=None, prefill={},
+                           wesentlichkeit_antworten=wesentlichkeit_antworten,
+                           **_form_lookups(db))
 
 
 # ── Status ─────────────────────────────────────────────────────────────────
@@ -316,4 +362,25 @@ def _form_to_dict(form) -> dict:
         "abloesung_zieldatum":       form.get("abloesung_zieldatum") or None,
         "abloesung_durch":           form.get("abloesung_durch") or None,
         "interne_notizen":           form.get("interne_notizen") or None,
+        # Neue Felder (außerhalb Wesentlichkeitsbeurteilung)
+        "gobd_relevant":             chk("gobd_relevant"),
+        "erstellt_fuer":             form.get("erstellt_fuer") or None,
+        "schnittstellen_beschr":     form.get("schnittstellen_beschr") or None,
     }
+
+
+def _save_wesentlichkeit_from_form(db, idv_db_id: int, form) -> None:
+    """Liest die konfigurierbaren Kriterium-Antworten aus dem Formular und speichert sie."""
+    criteria = db.execute(
+        "SELECT id FROM wesentlichkeitskriterien WHERE aktiv=1"
+    ).fetchall()
+    antworten = []
+    for k in criteria:
+        kid = k["id"]
+        antworten.append({
+            "kriterium_id": kid,
+            "erfuellt":     1 if form.get(f"kriterium_{kid}") == "1" else 0,
+            "begruendung":  form.get(f"kriterium_begr_{kid}") or None,
+        })
+    if antworten:
+        save_idv_wesentlichkeit(db, idv_db_id, antworten)

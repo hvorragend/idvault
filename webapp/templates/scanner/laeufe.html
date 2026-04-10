@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Scan-Läufe{% endblock %}
+{% block page_title %}<i class="bi bi-clock-history me-2"></i>Scan-Läufe{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.88rem">Letzte 100 Scanner-Ausführungen</span>
+  <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Zurück zu Scanner-Funden
+  </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+      <thead class="table-light">
+        <tr>
+          <th style="width:50px">#</th>
+          <th>Gestartet</th>
+          <th>Beendet</th>
+          <th>Scan-Pfade</th>
+          <th class="text-end">Gesamt</th>
+          <th class="text-end text-success">Neu</th>
+          <th class="text-end text-warning">Geändert</th>
+          <th class="text-end">Verschoben</th>
+          <th class="text-end">Wiederhergestellt</th>
+          <th class="text-end text-secondary">Archiviert</th>
+          <th class="text-end text-danger">Fehler</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in laeufe %}
+        {% set paths = [] %}
+        {% if run.scan_paths %}
+          {# scan_paths ist ein JSON-String #}
+        {% endif %}
+        <tr>
+          <td class="text-muted font-monospace">{{ run.id }}</td>
+          <td class="text-nowrap">{{ run.started_at[:16]|replace('T',' ') if run.started_at else '–' }}</td>
+          <td class="text-nowrap text-muted">{{ run.finished_at[:16]|replace('T',' ') if run.finished_at else '–' }}</td>
+          <td style="max-width:320px">
+            {% if run.scan_paths %}
+              {% set raw = run.scan_paths %}
+              {# Versuche JSON zu parsen, sonst als Text anzeigen #}
+              <span class="font-monospace" style="font-size:.76rem;word-break:break-all" title="{{ raw }}">
+                {{ raw | replace('[','') | replace(']','') | replace('"','') | truncate(80) }}
+              </span>
+            {% else %}
+              <span class="text-muted">–</span>
+            {% endif %}
+          </td>
+          <td class="text-end">{{ run.total_files or '–' }}</td>
+          <td class="text-end {% if run.new_files %}text-success fw-bold{% else %}text-muted{% endif %}">
+            {{ run.new_files or '–' }}
+          </td>
+          <td class="text-end {% if run.changed_files %}text-warning{% else %}text-muted{% endif %}">
+            {{ run.changed_files or '–' }}
+          </td>
+          <td class="text-end text-muted">{{ run.moved_files or '–' }}</td>
+          <td class="text-end text-muted">{{ run.restored_files or '–' }}</td>
+          <td class="text-end {% if run.archived_files %}text-secondary{% else %}text-muted{% endif %}">
+            {{ run.archived_files or '–' }}
+          </td>
+          <td class="text-end {% if run.errors %}text-danger fw-bold{% else %}text-muted{% endif %}">
+            {{ run.errors or '–' }}
+          </td>
+          <td>
+            <a href="{{ url_for('scanner.list_funde', scan_run=run.id) }}"
+               class="btn btn-xs btn-outline-secondary" title="Dateien dieses Scan-Laufs anzeigen">
+              <i class="bi bi-files me-1"></i>Dateien
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="12" class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+            Keine Scan-Läufe vorhanden. Wurde der Scanner bereits ausgeführt?
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>.btn-xs { padding:.15rem .45rem; font-size:.75rem; }</style>
+{% endblock %}
