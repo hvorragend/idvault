@@ -60,7 +60,14 @@ DEFAULT_CONFIG = {
     "db_path": "idv_register.db",
     "log_path": "idv_scanner.log",
     "hash_size_limit_mb": 500,   # Dateien > X MB werden nicht gehasht (Performance)
-    "max_workers": 4
+    "max_workers": 4,
+    # Move-Detection-Modus:
+    #   "name_and_hash" (Standard) – gleicher Hash UND gleicher Dateiname
+    #   "hash_only"                – gleicher Hash, Dateiname darf sich geändert haben;
+    #                                nur wenn genau ein aktiver Treffer (Eindeutigkeit)
+    #   "disabled"                 – keine Move-Detection; verschobene Dateien werden
+    #                                archiviert und als neue Datei neu angelegt
+    "move_detection": "name_and_hash"
 }
 
 
@@ -399,7 +406,8 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
 # ---------------------------------------------------------------------------
 
 def upsert_file(conn: sqlite3.Connection, data: dict,
-                scan_run_id: int, now: str, logger: logging.Logger) -> str:
+                scan_run_id: int, now: str, logger: logging.Logger,
+                move_mode: str = "name_and_hash") -> str:
     """
     Fügt eine Datei ein oder aktualisiert sie.
     Gibt change_type zurück: 'new' | 'changed' | 'unchanged' | 'moved' | 'restored'
@@ -407,8 +415,11 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
     Logik:
     1. Eintrag für full_path vorhanden (aktiv oder archiviert)?
        → Update; war archiviert → 'restored', sonst 'changed'/'unchanged'
-    2. Kein Eintrag für full_path, aber aktiver Eintrag mit gleichem Hash+Dateinamen?
-       → Verschoben: Pfad aktualisieren, gleiche DB-ID bleibt (file_id-Link erhalten)
+    2. Kein Eintrag für full_path → Move-Detection gemäß move_mode:
+       "name_and_hash": gleicher Hash + gleicher Dateiname → moved
+       "hash_only":     gleicher Hash, genau ein aktiver Treffer → moved
+                        (mehrere Treffer = Mehrdeutigkeit → new)
+       "disabled":      keine Move-Detection
     3. Sonst: echter Neuzugang → 'new'
     """
     existing = conn.execute(
@@ -418,13 +429,35 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
 
     if existing is None:
         # ── Move-Detection ──────────────────────────────────────────────
-        # Gleicher Hash + gleicher Dateiname unter anderem Pfad?
-        if data["file_hash"] != "HASH_ERROR":
+        if data["file_hash"] != "HASH_ERROR" and move_mode != "disabled":
+            moved_from = None
+
+            # Stufe 1: gleicher Hash + gleicher Dateiname (immer aktiv)
             moved_from = conn.execute(
-                "SELECT id, full_path FROM idv_files "
+                "SELECT id, full_path, file_name FROM idv_files "
                 "WHERE file_hash = ? AND file_name = ? AND status = 'active'",
                 (data["file_hash"], data["file_name"])
             ).fetchone()
+
+            # Stufe 2 (hash_only): gleicher Hash, Dateiname egal, nur bei Eindeutigkeit
+            if not moved_from and move_mode == "hash_only":
+                candidates = conn.execute(
+                    "SELECT id, full_path, file_name FROM idv_files "
+                    "WHERE file_hash = ? AND status = 'active'",
+                    (data["file_hash"],)
+                ).fetchall()
+                if len(candidates) == 1:
+                    moved_from = candidates[0]
+                    logger.debug(
+                        f"Move (hash_only): '{moved_from['file_name']}' → "
+                        f"'{data['file_name']}' | {moved_from['full_path']} → {data['full_path']}"
+                    )
+                elif len(candidates) > 1:
+                    logger.debug(
+                        f"Move-Detection: {len(candidates)} Treffer für Hash "
+                        f"{data['file_hash'][:12]}… – zu mehrdeutig, behandle als neu"
+                    )
+
             if moved_from:
                 conn.execute("""
                     UPDATE idv_files SET
@@ -555,6 +588,9 @@ def run_scan(config: dict, logger: logging.Logger):
     scan_run_id = cur.lastrowid
     logger.info(f"Scan-Run #{scan_run_id} gestartet | Pfade: {scan_paths}")
 
+    move_mode = config.get("move_detection", "name_and_hash")
+    logger.info(f"Move-Detection-Modus: {move_mode}")
+
     stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0,
              "moved": 0, "restored": 0, "errors": 0}
 
@@ -567,7 +603,7 @@ def run_scan(config: dict, logger: logging.Logger):
         logger.info(f"Scanne: {scan_path}")
         for data in walk_and_scan(scan_path, config, scan_paths, logger):
             try:
-                change = upsert_file(conn, data, scan_run_id, now, logger)
+                change = upsert_file(conn, data, scan_run_id, now, logger, move_mode)
                 stats["total"]   += 1
                 stats[change]    += 1
 

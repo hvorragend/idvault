@@ -1,43 +1,228 @@
-# IDV-Scanner – Installationsanleitung
+# IDV-Scanner
 
-## Voraussetzungen
-- Python 3.10 oder neuer
-- Windows (empfohlen für vollständige Metadaten inkl. Eigentümer)
-- Netzwerkzugriff auf die zu scannenden Freigaben
+Scannt Netzlaufwerke und lokale Verzeichnisse nach IDV-Eigenentwicklungen
+(Excel, Access, Python, SQL, Power BI u.a.), erhebt Metadaten und speichert
+Ergebnisse in einer SQLite-Datenbank. Integriert sich mit der idvault-Webapp.
+
+---
 
 ## Installation
 
 ```cmd
 pip install -r requirements.txt
 
-REM Optional (Windows-Dateieigentümer):
+REM Optional (Windows-Dateieigentümer via pywin32):
 pip install pywin32
 ```
 
-## Konfiguration
+---
+
+## Schnellstart
 
 ```cmd
+REM 1. Beispiel-Konfiguration erzeugen
 python idv_scanner.py --init-config
+
+REM 2. config.json anpassen (Scan-Pfade, db_path)
+
+REM 3. Scan starten
+python idv_scanner.py --config config.json
 ```
-Öffnet `config.json` und trägt die Scan-Pfade ein:
+
+---
+
+## Konfiguration (`config.json`)
+
+| Parameter | Typ | Standard | Beschreibung |
+|---|---|---|---|
+| `scan_paths` | Liste | `[]` | Zu scannende Pfade (UNC oder Laufwerksbuchstaben) |
+| `extensions` | Liste | `.xlsx`, `.xlsm`, `.py` … | Erfasste Dateierweiterungen |
+| `exclude_paths` | Liste | `["~$", ".tmp", …]` | Pfadmuster, die ausgeschlossen werden |
+| `db_path` | String | `"idv_register.db"` | Pfad zur SQLite-Datenbank |
+| `log_path` | String | `"idv_scanner.log"` | Pfad zur Logdatei |
+| `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |
+| `max_workers` | Integer | `4` | Reserviert (zukünftige Parallelisierung) |
+| `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (s.u.) |
+
+### Integration mit der idvault-Webapp
+
+Damit Scanner und Webapp dieselbe Datenbank nutzen, `db_path` auf die
+Instanz-Datenbank der Webapp zeigen lassen:
+
 ```json
 {
-  "scan_paths": ["\\\\server01\\freigabe", "Z:\\"],
-  ...
+  "db_path": "../instance/idvault.db",
+  "scan_paths": ["\\\\server01\\freigabe"]
 }
 ```
 
-## Erster Scan
+---
 
-```cmd
-python idv_scanner.py --config config.json
+## Datei-Stati
+
+Jede erfasste Datei hat einen Status in `idv_files.status`:
+
+| Status | Bedeutung |
+|---|---|
+| `active` | Datei wurde beim letzten Scan gefunden. |
+| `archiviert` | Datei wurde beim letzten Scan **nicht** mehr gefunden – sie wurde möglicherweise verschoben, umbenannt oder gelöscht. Die Zeile bleibt in der Datenbank erhalten; Verknüpfungen zum IDV-Register (über `file_id`) bleiben gültig. |
+
+### Status-Übergänge
+
 ```
+Erstfund
+  → active  (change_type: new)
+
+Scan: Datei wieder gefunden, Inhalt unverändert
+  active → active  (change_type: unchanged)
+
+Scan: Datei wieder gefunden, Inhalt geändert
+  active → active  (change_type: changed)
+
+Scan: Datei nicht mehr am bekannten Pfad gefunden
+  active → archiviert  (change_type: archiviert)
+
+Scan: Archivierte Datei am selben Pfad wieder vorhanden
+  archiviert → active  (change_type: restored)
+
+Scan: Verschobene Datei erkannt (Move-Detection aktiv)
+  active (alter Pfad) → active (neuer Pfad)  (change_type: moved)
+  ↳ Kein neuer Datensatz; DB-ID und IDV-Register-Verknüpfung bleiben erhalten.
+```
+
+---
+
+## Delta-Erkennung und Historie
+
+Jeder Scan schreibt Einträge in `idv_file_history`:
+
+| `change_type` | Wann |
+|---|---|
+| `new` | Datei zum ersten Mal gefunden |
+| `unchanged` | Datei gefunden, Hash identisch zum letzten Scan |
+| `changed` | Datei gefunden, Hash hat sich geändert (Inhalt wurde geändert) |
+| `moved` | Datei an neuem Pfad gefunden, gleicher Hash erkannt |
+| `archiviert` | Datei nicht mehr gefunden → ins Archiv überführt |
+| `restored` | Archivierte Datei am gleichen Pfad wieder aufgetaucht |
+
+Für `moved`-Einträge enthält die Spalte `details` ein JSON-Objekt:
+
+```json
+{"old_path": "//srv/alt/bericht.xlsm", "new_path": "//srv/neu/bericht.xlsm"}
+```
+
+### Hash-Berechnung
+
+- Algorithmus: **SHA-256** über den vollständigen Dateiinhalt
+- Dateien, die nicht gelesen werden können (Berechtigungsfehler), erhalten den
+  Platzhalterwert `HASH_ERROR` und werden in der Move-Detection ignoriert.
+- Dateien, die `hash_size_limit_mb` überschreiten, werden ebenfalls nicht
+  gehasht (`HASH_ERROR`). Ihr Änderungsstatus basiert dann nur auf dem
+  Dateisystem-Änderungsdatum.
+
+---
+
+## Move-Detection
+
+Konfiguriert über den Parameter `move_detection` in `config.json`.
+
+### `"name_and_hash"` (Standard, empfohlen)
+
+Eine Datei gilt als verschoben, wenn unter dem neuen Pfad noch kein Eintrag
+existiert **und** eine aktive Datei mit **gleichem SHA-256-Hash** und
+**gleichem Dateinamen** gefunden wird.
+
+```
+Szenario                                               Ergebnis
+────────────────────────────────────────────────────── ─────────────────
+//srv/alt/bericht.xlsm → //srv/neu/bericht.xlsm        ✅ moved
+//srv/alt/bericht.xlsm → //srv/neu/bericht_v2.xlsm     ❌ archiviert + new
+//srv/alt/bericht.xlsm → //srv/neu/bericht.xlsm         ❌ archiviert + new
+  (Inhalt geändert)
+```
+
+**Wann geeignet:** Standardfall – Dateien werden verschoben, behalten aber
+ihren Dateinamen.
+
+---
+
+### `"hash_only"`
+
+Eine Datei gilt als verschoben, wenn unter dem neuen Pfad noch kein Eintrag
+existiert **und** genau **eine** aktive Datei mit gleichem SHA-256-Hash gefunden
+wird (Eindeutigkeitsprüfung).
+
+Bei **mehreren** Treffern (z.B. mehrere Kopien einer Vorlage mit identischem
+Inhalt) ist keine eindeutige Zuordnung möglich → die neue Datei wird als `new`
+behandelt.
+
+```
+Szenario                                               Ergebnis
+────────────────────────────────────────────────────── ─────────────────
+//srv/alt/bericht.xlsm → //srv/neu/bericht.xlsm        ✅ moved
+//srv/alt/bericht.xlsm → //srv/neu/neuer_name.xlsm     ✅ moved
+  (Name darf sich ändern)
+vorlage.xlsm (2 Kopien, gleicher Hash) umbenannt       ❌ new (mehrdeutig)
+Inhalt geändert + verschoben                           ❌ archiviert + new
+```
+
+**Wann geeignet:** Wenn Dateien häufig umbenannt und verschoben werden und
+trotzdem wiedererkannt werden sollen. Vorsicht bei Vorlagen-Dateien mit
+identischem Inhalt in mehreren Exemplaren.
+
+---
+
+### `"disabled"`
+
+Keine Move-Detection. Jede Datei, die nicht mehr am bekannten Pfad liegt,
+wird archiviert. Dateien an neuen Pfaden werden immer als `new` angelegt.
+
+**Wann geeignet:** Wenn Fehlzuordnungen ausgeschlossen werden sollen oder das
+Dateisystem viele Dateien mit identischem Inhalt enthält.
+
+---
+
+## Archivierte Dateien
+
+Archivierte Dateien werden **nicht gelöscht**. Sie bleiben mit
+`status = 'archiviert'` in `idv_files` erhalten.
+
+**Warum das wichtig ist:**
+Ist eine Datei über `idv_register.file_id` mit einem IDV-Eintrag verknüpft,
+bleibt diese Verknüpfung auch nach der Archivierung gültig. Im idvault-Interface
+unter *Scanner → Scanner-Funde → Archiv* sind alle archivierten Dateien einsehbar,
+inklusive des Datums des letzten Fundes.
+
+**Automatische Wiederherstellung:**
+Taucht eine archivierte Datei beim nächsten Scan am gleichen Pfad wieder auf
+(z.B. nach Netzwerkunterbrechung), wird sie automatisch reaktiviert
+(`change_type = 'restored'`).
+
+---
+
+## Scan-Statistik (`scan_runs`)
+
+Nach jedem Scan wird ein Protokoll-Eintrag in `scan_runs` gespeichert:
+
+| Spalte | Bedeutung |
+|---|---|
+| `total_files` | Anzahl gefundener Dateien in diesem Scan |
+| `new_files` | Erstmalig gefundene Dateien |
+| `changed_files` | Dateien mit geändertem Hash (Inhalt geändert) |
+| `moved_files` | Als verschoben erkannte Dateien |
+| `restored_files` | Aus dem Archiv wiederhergestellte Dateien |
+| `archived_files` | In diesem Scan archivierte Dateien |
+| `errors` | Dateien/Pfade mit Verarbeitungsfehlern |
+
+---
 
 ## Excel-Export
 
 ```cmd
-python idv_export.py --db idv_register.db --output IDV_Export_2025.xlsx
+python idv_export.py --db idv_register.db --output IDV_Export.xlsx
 ```
+
+---
 
 ## Als Scheduled Task (Windows)
 
@@ -46,21 +231,16 @@ python idv_export.py --db idv_register.db --output IDV_Export_2025.xlsx
 3. Trigger: wöchentlich (z.B. Montag 06:00 Uhr)
 4. Ausführen als: Dienstkonto mit Lesezugriff auf alle Shares
 
-## Datenbankstruktur
+---
 
-| Tabelle              | Inhalt                                          |
-|----------------------|-------------------------------------------------|
-| `idv_files`          | Aktuelle Dateiliste mit allen Metadaten         |
-| `idv_file_history`   | Änderungshistorie (neu/geändert/gelöscht)       |
-| `scan_runs`          | Protokoll aller Scan-Durchläufe                 |
+## Datenbankschema (Überblick)
 
-## Nächste Schritte: IDV-Register
+```
+scan_runs        – ein Eintrag pro Scan-Lauf mit Statistik
+idv_files        – eine Zeile pro bekannter Datei (aktiv oder archiviert)
+idv_file_history – lückenlose Änderungshistorie pro Datei und Scan-Lauf
+```
 
-Die `idv_files`-Tabelle ist die **Grundgesamtheit**.  
-Darauf aufbauend wird die Tabelle `idv_register` ergänzt:
-- Steuerungsrelevanz (ja/nein)
-- Rechnungslegungsrelevanz (ja/nein)
-- GDA-Bewertung (1–4)
-- Fachverantwortlicher
-- Prüfstatus / Freigabe
-- Nächste Prüfung (Wiedervorlage)
+Die `id`-Spalte in `idv_files` wird **niemals geändert** – auch nicht bei
+Verschiebung oder Umbenennung. So bleibt die Verknüpfung
+`idv_register.file_id → idv_files.id` dauerhaft konsistent.
