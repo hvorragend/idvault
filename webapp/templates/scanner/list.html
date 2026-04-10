@@ -32,7 +32,7 @@
   </div>
 </div>
 
-<!-- ── Hinweis DB-Pfad ─────────────────────────────────────────────── -->
+<!-- ── Letzter Scan + DB-Pfad-Hinweis ─────────────────────────────── -->
 {% if gesamt == 0 %}
 <div class="alert alert-warning">
   <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -47,29 +47,100 @@
 </div>
 {% else %}
 
-<!-- ── Filter ─────────────────────────────────────────────────────── -->
+<!-- Letzter Scan-Info-Banner -->
+{% if letzter_scan %}
+<div class="alert alert-light border py-2 mb-3 d-flex align-items-center gap-3" style="font-size:.82rem">
+  <i class="bi bi-clock-history text-secondary fs-5 flex-shrink-0"></i>
+  <div>
+    <strong>Letzter Scan-Lauf:</strong>
+    #{{ letzter_scan.id }} &nbsp;·&nbsp;
+    {{ letzter_scan.started_at[:16]|replace('T',' ') if letzter_scan.started_at else '?' }}
+    {% if letzter_scan.finished_at %}
+      → {{ letzter_scan.finished_at[:16]|replace('T',' ') }}
+    {% endif %}
+    &nbsp;·&nbsp;
+    {% set paths = letzter_scan.sr_scan_paths or letzter_scan.scan_paths %}
+    {% if paths %}
+      {% set parsed = paths %}
+      <span class="font-monospace">{{ parsed }}</span>
+    {% endif %}
+    &nbsp;·&nbsp;
+    <span class="badge bg-success">{{ letzter_scan.new_files }} neu</span>
+    <span class="badge bg-warning text-dark">{{ letzter_scan.changed_files }} geändert</span>
+    <span class="badge bg-secondary">{{ letzter_scan.archived_files }} archiviert</span>
+  </div>
+  <a href="{{ url_for('scanner.scan_laeufe') }}" class="btn btn-sm btn-outline-secondary ms-auto flex-shrink-0">
+    <i class="bi bi-list-ul me-1"></i>Alle Läufe
+  </a>
+</div>
+{% endif %}
+
+<!-- ── Filter-Leiste ───────────────────────────────────────────────── -->
+<form method="get" class="card border-0 shadow-sm p-3 mb-3">
+  <input type="hidden" name="filter" value="{{ filt }}">
+  <div class="row g-2 align-items-end">
+    <!-- Verzeichnis (share_root) -->
+    <div class="col-md-5">
+      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis (Teilscan)</label>
+      <select name="share_root" class="form-select form-select-sm">
+        <option value="">– Alle Verzeichnisse –</option>
+        {% for sr in share_roots %}
+        <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}>{{ sr }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Scan-Lauf -->
+    <div class="col-md-5">
+      <label class="form-label form-label-sm"><i class="bi bi-clock-history me-1"></i>Scan-Lauf</label>
+      <select name="scan_run" class="form-select form-select-sm">
+        <option value="">– Alle Läufe –</option>
+        {% for run in scan_runs %}
+        <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt == run.id|string }}>
+          {{ scan_run_label(run) }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
+      <a href="{{ url_for('scanner.list_funde', filter=filt) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+    </div>
+  </div>
+  {% if share_root_filt or scan_run_id_filt %}
+  <div class="mt-2 d-flex gap-2 flex-wrap">
+    {% if share_root_filt %}
+    <span class="badge bg-primary"><i class="bi bi-folder-fill me-1"></i>{{ share_root_filt }}</span>
+    {% endif %}
+    {% if scan_run_id_filt %}
+    <span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{ scan_run_id_filt }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+</form>
+
+<!-- ── Typ-Filter-Buttons ──────────────────────────────────────────── -->
 <div class="d-flex gap-2 mb-3 flex-wrap">
-  <a href="{{ url_for('scanner.list_funde') }}"
+  <a href="{{ url_for('scanner.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
     Alle ({{ gesamt }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='ohne_idv') }}"
+  <a href="{{ url_for('scanner.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
     <i class="bi bi-exclamation-circle me-1"></i>Noch nicht registriert ({{ ohne_idv }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='makros') }}"
+  <a href="{{ url_for('scanner.list_funde', filter='makros', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
     <i class="bi bi-lightning-fill me-1"></i>Mit Makros ({{ mit_makro }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='blattschutz') }}"
+  <a href="{{ url_for('scanner.list_funde', filter='blattschutz', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
     <i class="bi bi-lock-fill me-1"></i>Mit Blattschutz ({{ mit_schutz }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='mit_idv') }}"
+  <a href="{{ url_for('scanner.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
     <i class="bi bi-check-circle me-1"></i>Bereits registriert
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='archiv') }}"
+  <a href="{{ url_for('scanner.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
     <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
   </a>
@@ -79,7 +150,7 @@
 <div class="alert alert-secondary py-2 mb-3">
   <i class="bi bi-info-circle me-1"></i>
   Archivierte Dateien wurden beim letzten Scan nicht mehr gefunden (verschoben, umbenannt oder gelöscht).
-  Die Verknüpfung zum IDV-Register bleibt erhalten. Taucht eine Datei wieder auf, wird sie automatisch wiederhergestellt.
+  Die Verknüpfung zum IDV-Register bleibt erhalten.
 </div>
 {% endif %}
 
@@ -87,28 +158,31 @@
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-600"><i class="bi bi-files me-1"></i>{{ dateien|length }} Dateien</span>
-    <span class="text-muted" style="font-size:.78rem">Max. 500 Einträge angezeigt</span>
+    <span class="text-muted" style="font-size:.78rem">Max. 500 Einträge · sortiert nach letztem Scan</span>
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
       <thead>
         <tr>
           <th>Dateiname</th>
-          <th>Typ-Vorschlag</th>
-          <th>Pfad</th>
+          <th>Typ</th>
+          <th>Verzeichnis / Pfad</th>
+          <th>Scan-Lauf</th>
           <th>Größe</th>
           <th>{{ 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert' }}</th>
           <th>Autor</th>
           <th class="text-center">Makros</th>
           <th class="text-center">Formeln</th>
-          <th class="text-center">Blattschutz</th>
-          <th>IDV-Status</th>
+          <th class="text-center">Schutz</th>
+          <th>IDV</th>
           {% if filt != 'archiv' %}<th></th>{% endif %}
         </tr>
       </thead>
       <tbody>
         {% for f in dateien %}
         <tr class="{{ 'table-secondary text-muted' if f.status == 'archiviert' else '' }}">
+
+          <!-- Dateiname -->
           <td>
             <span class="fw-500">
               {% if f.status == 'archiviert' %}
@@ -117,18 +191,56 @@
               {{ f.file_name }}
             </span>
           </td>
+
+          <!-- IDV-Typ-Vorschlag -->
           <td>
             {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
             <span class="badge bg-light text-dark border">{{ typ }}</span>
           </td>
-          <td class="text-truncate" style="max-width:200px" title="{{ f.full_path }}">
-            <span class="hash-mono">{{ f.relative_path or f.full_path }}</span>
+
+          <!-- Verzeichnis / Pfad -->
+          <td style="min-width:180px;max-width:280px">
+            {% if f.share_root %}
+            <div class="d-flex align-items-start gap-1 flex-wrap">
+              <a href="{{ url_for('scanner.list_funde', share_root=f.share_root, filter=filt) }}"
+                 class="badge bg-primary text-decoration-none flex-shrink-0"
+                 title="Nach diesem Verzeichnis filtern"
+                 style="font-size:.7rem;font-family:monospace">
+                <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
+              </a>
+            </div>
+            {% endif %}
+            <div class="text-truncate text-muted hash-mono mt-1"
+                 style="font-size:.74rem;max-width:260px"
+                 title="{{ f.full_path }}">
+              {{ f.relative_path or f.full_path }}
+            </div>
           </td>
+
+          <!-- Scan-Lauf -->
+          <td class="text-nowrap" style="font-size:.76rem">
+            {% if f.sr_id %}
+            <a href="{{ url_for('scanner.list_funde', scan_run=f.sr_id, filter=filt) }}"
+               class="text-decoration-none text-muted"
+               title="Nach diesem Scan-Lauf filtern">
+              <i class="bi bi-clock-history me-1"></i>#{{ f.sr_id }}
+              <div>{{ f.sr_started_at[:10] if f.sr_started_at else '' }}</div>
+            </a>
+            {% else %}
+            <span class="text-muted">–</span>
+            {% endif %}
+          </td>
+
           <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
           <td class="text-nowrap">
             {{ f.last_seen_at|datefmt if (filt == 'archiv' and f.last_seen_at) else (f.modified_at|datefmt if f.modified_at else '–') }}
           </td>
-          <td>{{ f.office_author or f.file_owner or '–' }}</td>
+          <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ f.office_author or f.file_owner or '' }}">
+            {{ f.office_author or f.file_owner or '–' }}
+          </td>
+
+          <!-- Makros -->
           <td class="text-center">
             {% if f.has_macros %}
               <span class="badge bg-danger">VBA</span>
@@ -136,6 +248,8 @@
               <i class="bi bi-dash text-muted"></i>
             {% endif %}
           </td>
+
+          <!-- Formeln -->
           <td class="text-center">
             {% if f.formula_count %}
               <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
@@ -145,29 +259,33 @@
               <i class="bi bi-dash text-muted"></i>
             {% endif %}
           </td>
+
+          <!-- Blattschutz -->
           <td class="text-center">
             {% if f.has_sheet_protection %}
               {% if f.workbook_protected %}
                 <span class="badge bg-warning text-dark"
-                      title="{{ f.protected_sheets_count }} Blatt/Blätter geschützt{% if f.sheet_protection_has_pw %} (mit Passwort){% endif %} · Arbeitsmappenschutz">
+                      title="{{ f.protected_sheets_count }} Blatt geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %} + Arbeitsmappenschutz">
                   <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
                   <i class="bi bi-journals ms-1"></i>
                 </span>
               {% else %}
                 <span class="badge bg-warning text-dark"
-                      title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blatt/Blätter geschützt{% if f.sheet_protection_has_pw %} (mit Passwort){% endif %}">
+                      title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blätter geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %}">
                   <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
                   {% if f.sheet_protection_has_pw %}<i class="bi bi-key-fill ms-1"></i>{% endif %}
                 </span>
               {% endif %}
             {% elif f.workbook_protected %}
-              <span class="badge bg-secondary" title="Nur Arbeitsmappenschutz (kein Blattschutz)">
+              <span class="badge bg-secondary" title="Arbeitsmappenschutz">
                 <i class="bi bi-journals"></i>
               </span>
             {% else %}
               <i class="bi bi-dash text-muted"></i>
             {% endif %}
           </td>
+
+          <!-- IDV-Status -->
           <td>
             {% if f.reg_idv_id %}
               <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
@@ -175,29 +293,30 @@
                 {{ f.reg_idv_id }}
               </a>
             {% else %}
-              <span class="badge bg-warning text-dark">Nicht registriert</span>
+              <span class="badge bg-warning text-dark">–</span>
             {% endif %}
           </td>
+
           {% if filt != 'archiv' %}
           <td>
             {% if not f.reg_idv_id %}
             <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
-               class="btn btn-xs btn-primary text-nowrap"
-               title="Als IDV registrieren">
-              <i class="bi bi-plus-lg me-1"></i>Als IDV registrieren
+               class="btn btn-xs btn-primary text-nowrap">
+              <i class="bi bi-plus-lg me-1"></i>Registrieren
             </a>
             {% else %}
             <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
-               class="btn btn-xs btn-outline-secondary" title="IDV anzeigen">
+               class="btn btn-xs btn-outline-secondary">
               <i class="bi bi-eye"></i>
             </a>
             {% endif %}
           </td>
           {% endif %}
+
         </tr>
         {% else %}
         <tr>
-          <td colspan="11" class="text-center text-muted py-5">
+          <td colspan="12" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine Dateien gefunden.
           </td>

@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}Berichte{% endblock %}
+{% block page_title %}<i class="bi bi-bar-chart-line me-2"></i>Berichte & Auswertungen{% endblock %}
+
+{% block content %}
+
+<ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
+  <li class="nav-item">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-oe">
+      <i class="bi bi-diagram-3 me-1"></i>Nach Organisationseinheit
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-fv">
+      <i class="bi bi-person me-1"></i>Nach Fachverantwortlichem
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-pfad">
+      <i class="bi bi-folder me-1"></i>Nach Scan-Verzeichnis / Teilscan
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-scan">
+      <i class="bi bi-clock-history me-1"></i>Scan-Läufe
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- ── Tab 1: Nach Organisationseinheit ─────────────────────────── -->
+  <div class="tab-pane fade show active" id="tab-oe">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-diagram-3 me-2"></i>IDV-Register nach Organisationseinheit
+        <span class="badge bg-secondary ms-2">{{ by_oe|length }} OEs</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+          <thead class="table-light">
+            <tr>
+              <th>OE</th>
+              <th class="text-end">Gesamt</th>
+              <th class="text-end">GDA 4</th>
+              <th class="text-end">Steuerung</th>
+              <th class="text-end">DORA</th>
+              <th class="text-end text-success">Genehmigt</th>
+              <th class="text-end text-warning">Entwurf</th>
+              <th class="text-end text-danger">Prüfung überfällig</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in by_oe %}
+            <tr>
+              <td>
+                {% if r.oe_kuerzel %}
+                <strong>{{ r.oe_kuerzel }}</strong>
+                <span class="text-muted ms-1">{{ r.oe_bezeichnung }}</span>
+                {% else %}
+                <span class="text-muted fst-italic">Keine OE zugewiesen</span>
+                {% endif %}
+              </td>
+              <td class="text-end fw-bold">{{ r.anzahl }}</td>
+              <td class="text-end">
+                {% if r.gda4 %}<span class="badge bg-danger">{{ r.gda4 }}</span>{% else %}–{% endif %}
+              </td>
+              <td class="text-end">
+                {% if r.steuerung %}<span class="badge bg-primary">{{ r.steuerung }}</span>{% else %}–{% endif %}
+              </td>
+              <td class="text-end">
+                {% if r.dora %}<span class="badge bg-danger">{{ r.dora }}</span>{% else %}–{% endif %}
+              </td>
+              <td class="text-end">
+                <span class="text-success">{{ r.genehmigt or '–' }}</span>
+              </td>
+              <td class="text-end">
+                <span class="{{ 'text-warning fw-bold' if r.entwurf else 'text-muted' }}">{{ r.entwurf or '–' }}</span>
+              </td>
+              <td class="text-end">
+                {% if r.ueberfaellig %}
+                <span class="badge bg-danger">{{ r.ueberfaellig }}</span>
+                {% else %}–{% endif %}
+              </td>
+              <td>
+                {% if r.oe_id %}
+                <a href="{{ url_for('idv.list_idv', oe_id=r.oe_id) }}"
+                   class="btn btn-xs btn-outline-secondary" title="IDVs dieser OE anzeigen">
+                  <i class="bi bi-eye me-1"></i>IDVs
+                </a>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="text-center text-muted py-4">Keine Daten.</td></tr>
+            {% endfor %}
+          </tbody>
+          {% if by_oe %}
+          <tfoot class="table-light fw-bold">
+            <tr>
+              <td>Gesamt</td>
+              <td class="text-end">{{ by_oe | sum(attribute='anzahl') }}</td>
+              <td class="text-end">{{ by_oe | sum(attribute='gda4') or '–' }}</td>
+              <td class="text-end">{{ by_oe | sum(attribute='steuerung') or '–' }}</td>
+              <td class="text-end">{{ by_oe | sum(attribute='dora') or '–' }}</td>
+              <td class="text-end">{{ by_oe | sum(attribute='genehmigt') or '–' }}</td>
+              <td class="text-end">{{ by_oe | sum(attribute='entwurf') or '–' }}</td>
+              <td class="text-end">{{ by_oe | sum(attribute='ueberfaellig') or '–' }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab 2: Nach Fachverantwortlichem ─────────────────────────── -->
+  <div class="tab-pane fade" id="tab-fv">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-person me-2"></i>IDV-Register nach Fachverantwortlichem
+        <span class="badge bg-secondary ms-2">{{ by_fv|length }} Personen</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+          <thead class="table-light">
+            <tr>
+              <th>Fachverantwortlicher</th>
+              <th>OE</th>
+              <th class="text-end">Gesamt</th>
+              <th class="text-end">GDA 4</th>
+              <th class="text-end">DORA</th>
+              <th class="text-end text-success">Genehmigt</th>
+              <th class="text-end text-danger">Überfällig</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in by_fv %}
+            <tr>
+              <td>
+                {% if r.person %}
+                {{ r.person }}
+                {% else %}
+                <span class="text-muted fst-italic">Nicht zugewiesen</span>
+                {% endif %}
+              </td>
+              <td style="font-size:.78rem">{{ r.oe_kuerzel or '–' }}</td>
+              <td class="text-end fw-bold">{{ r.anzahl }}</td>
+              <td class="text-end">
+                {% if r.gda4 %}<span class="badge bg-danger">{{ r.gda4 }}</span>{% else %}–{% endif %}
+              </td>
+              <td class="text-end">
+                {% if r.dora %}<span class="badge bg-danger">{{ r.dora }}</span>{% else %}–{% endif %}
+              </td>
+              <td class="text-end text-success">{{ r.genehmigt or '–' }}</td>
+              <td class="text-end">
+                {% if r.ueberfaellig %}
+                <span class="badge bg-danger">{{ r.ueberfaellig }}</span>
+                {% else %}–{% endif %}
+              </td>
+              <td>
+                {% if r.person_id %}
+                <a href="{{ url_for('idv.list_idv', fv_id=r.person_id) }}"
+                   class="btn btn-xs btn-outline-secondary">
+                  <i class="bi bi-eye me-1"></i>IDVs
+                </a>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted py-4">Keine Daten.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab 3: Nach Scan-Verzeichnis ─────────────────────────────── -->
+  <div class="tab-pane fade" id="tab-pfad">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-folder me-2"></i>Scanner-Funde nach Verzeichnis (Teilscans)
+        <span class="badge bg-secondary ms-2">{{ by_path|length }} Pfade</span>
+      </div>
+      {% if by_path %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+          <thead class="table-light">
+            <tr>
+              <th>Scan-Verzeichnis (share_root)</th>
+              <th class="text-end">Dateien</th>
+              <th class="text-end text-success">Registriert</th>
+              <th class="text-end text-warning">Nicht registriert</th>
+              <th class="text-end text-danger">Mit Makros</th>
+              <th>Letzter Fund</th>
+              <th>Letzter Scan</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in by_path %}
+            {% set reg_pct = ((r.registriert / r.dateien_gesamt) * 100) | int if r.dateien_gesamt > 0 else 0 %}
+            <tr>
+              <td class="font-monospace" style="font-size:.78rem;word-break:break-all">
+                <i class="bi bi-folder-fill text-primary me-1"></i>{{ r.share_root }}
+              </td>
+              <td class="text-end fw-bold">{{ r.dateien_gesamt }}</td>
+              <td class="text-end">
+                <span class="text-success">{{ r.registriert }}</span>
+                <span class="text-muted" style="font-size:.75rem">({{ reg_pct }}%)</span>
+              </td>
+              <td class="text-end">
+                {% if r.nicht_registriert > 0 %}
+                <span class="badge bg-warning text-dark">{{ r.nicht_registriert }}</span>
+                {% else %}<span class="text-muted">0</span>{% endif %}
+              </td>
+              <td class="text-end">
+                {% if r.mit_makros > 0 %}
+                <span class="badge bg-danger">{{ r.mit_makros }}</span>
+                {% else %}<span class="text-muted">–</span>{% endif %}
+              </td>
+              <td class="text-muted" style="font-size:.78rem">
+                {{ r.letzter_fund[:10] if r.letzter_fund else '–' }}
+              </td>
+              <td class="text-muted" style="font-size:.78rem">
+                {{ r.letzter_scan[:16]|replace('T',' ') if r.letzter_scan else '–' }}
+              </td>
+              <td class="text-nowrap">
+                <a href="{{ url_for('scanner.list_funde', share_root=r.share_root) }}"
+                   class="btn btn-xs btn-outline-secondary" title="Scanner-Funde">
+                  <i class="bi bi-radar me-1"></i>Funde
+                </a>
+                <a href="{{ url_for('idv.list_idv', share_root=r.share_root) }}"
+                   class="btn btn-xs btn-outline-primary ms-1" title="IDVs aus diesem Pfad">
+                  <i class="bi bi-table me-1"></i>IDVs
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-muted py-5">
+        <i class="bi bi-folder fs-3 d-block mb-2"></i>
+        Keine Scanner-Funde vorhanden oder <code>share_root</code> nicht befüllt.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Tab 4: Scan-Läufe ────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tab-scan">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center fw-600">
+        <span><i class="bi bi-clock-history me-2"></i>Letzte Scan-Läufe</span>
+        <a href="{{ url_for('scanner.scan_laeufe') }}" class="btn btn-sm btn-outline-secondary">
+          Alle Läufe anzeigen →
+        </a>
+      </div>
+      {% if scan_laeufe %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Gestartet</th>
+              <th>Scan-Pfade</th>
+              <th class="text-end">Gesamt</th>
+              <th class="text-end text-success">Neu</th>
+              <th class="text-end text-warning">Geändert</th>
+              <th class="text-end text-secondary">Archiviert</th>
+              <th class="text-end text-danger">Fehler</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run in scan_laeufe %}
+            {% set paths = parse_paths(run.scan_paths) %}
+            <tr>
+              <td class="text-muted font-monospace">{{ run.id }}</td>
+              <td class="text-nowrap">{{ run.started_at[:16]|replace('T',' ') if run.started_at else '–' }}</td>
+              <td style="max-width:300px">
+                {% for p in paths %}
+                <div class="font-monospace text-truncate" style="font-size:.76rem" title="{{ p }}">
+                  <i class="bi bi-folder-fill text-primary me-1"></i>{{ p }}
+                </div>
+                {% endfor %}
+              </td>
+              <td class="text-end">{{ run.total_files or '–' }}</td>
+              <td class="text-end {% if run.new_files %}text-success fw-bold{% else %}text-muted{% endif %}">
+                {{ run.new_files or '–' }}
+              </td>
+              <td class="text-end {% if run.changed_files %}text-warning{% else %}text-muted{% endif %}">
+                {{ run.changed_files or '–' }}
+              </td>
+              <td class="text-end text-muted">{{ run.archived_files or '–' }}</td>
+              <td class="text-end {% if run.errors %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                {{ run.errors or '–' }}
+              </td>
+              <td>
+                <a href="{{ url_for('scanner.list_funde', scan_run=run.id) }}"
+                   class="btn btn-xs btn-outline-secondary">
+                  <i class="bi bi-files me-1"></i>Dateien
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-muted py-5">
+        <i class="bi bi-clock-history fs-3 d-block mb-2"></i>
+        Keine Scan-Läufe vorhanden.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<style>
+.btn-xs { padding: .15rem .45rem; font-size: .75rem; }
+.fw-600 { font-weight: 600; }
+</style>
+{% endblock %}

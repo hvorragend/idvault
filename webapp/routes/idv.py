@@ -53,6 +53,9 @@ def list_idv():
     status  = request.args.get("status", "")
     gda_min = _int_or_none(request.args.get("gda_min", "0")) or 0
     filt    = request.args.get("filter", "")
+    oe_id   = _int_or_none(request.args.get("oe_id"))
+    fv_id   = _int_or_none(request.args.get("fv_id"))
+    share_root = request.args.get("share_root", "").strip()
 
     # Alle Bedingungen und Parameter als positionale Listen aufbauen
     where_parts = []
@@ -67,6 +70,17 @@ def list_idv():
     if gda_min:
         where_parts.append("v.gda_wert >= ?")
         params.append(gda_min)
+    if oe_id:
+        where_parts.append("r.org_unit_id = ?")
+        params.append(oe_id)
+    if fv_id:
+        where_parts.append("r.fachverantwortlicher_id = ?")
+        params.append(fv_id)
+    if share_root:
+        where_parts.append(
+            "r.file_id IN (SELECT id FROM idv_files WHERE share_root = ?)"
+        )
+        params.append(share_root)
 
     # Spezialfilter
     if filt == "kritisch":
@@ -85,9 +99,7 @@ def list_idv():
         else:
             where_parts.append("1=0")
 
-    # Rollenbasierte Sichtbarkeit:
-    # Admin / Koordinator / Revision / IT-Sicherheit → alle IDVs
-    # Fachverantwortlicher / Entwickler → nur eigene
+    # Rollenbasierte Sichtbarkeit
     person_id = current_person_id()
     if not can_read_all() and person_id:
         where_parts.append("""(
@@ -108,7 +120,23 @@ def list_idv():
         ORDER BY v.gda_wert DESC, v.bezeichnung
     """
     idvs = db.execute(sql, params).fetchall()
-    return render_template("idv/list.html", idvs=idvs, can_write=can_write())
+
+    # Filter-Optionen für Dropdowns
+    org_units = db.execute(
+        "SELECT id, kuerzel, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
+    ).fetchall()
+    persons_fv = db.execute(
+        "SELECT id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname"
+    ).fetchall()
+    share_roots = [
+        r["share_root"] for r in db.execute(
+            "SELECT DISTINCT share_root FROM idv_files WHERE share_root IS NOT NULL AND status='active' ORDER BY share_root"
+        ).fetchall()
+    ]
+
+    return render_template("idv/list.html", idvs=idvs, can_write=can_write(),
+                           org_units=org_units, persons_fv=persons_fv,
+                           share_roots=share_roots)
 
 
 # ── Detail ─────────────────────────────────────────────────────────────────

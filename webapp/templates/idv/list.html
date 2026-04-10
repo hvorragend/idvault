@@ -7,6 +7,8 @@
 <!-- ── Filter-Leiste ──────────────────────────────────────────────── -->
 <form method="get" class="card border-0 shadow-sm p-3 mb-4">
   <div class="row g-2 align-items-end">
+
+    <!-- Zeile 1: Suche + Status + GDA + Spezialfilter -->
     <div class="col-md-4">
       <label class="form-label form-label-sm">Suche</label>
       <input type="text" name="q" value="{{ request.args.get('q','') }}"
@@ -31,7 +33,7 @@
       </select>
     </div>
     <div class="col-md-2">
-      <label class="form-label form-label-sm">Filter</label>
+      <label class="form-label form-label-sm">Spezialfilter</label>
       <select name="filter" class="form-select form-select-sm">
         <option value="">–</option>
         <option value="kritisch"       {{ 'selected' if request.args.get('filter') == 'kritisch' }}>Kritische IDVs</option>
@@ -41,10 +43,46 @@
         <option value="unvollstaendig" {{ 'selected' if request.args.get('filter') == 'unvollstaendig' }}>Unvollständig</option>
       </select>
     </div>
-    <div class="col-md-2 d-flex gap-2">
+    <div class="col-md-2 d-flex gap-1 align-items-end">
       <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
-      <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x"></i></a>
+      <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
+
+    <!-- Zeile 2: OE + Fachverantwortlicher + Scan-Verzeichnis -->
+    <div class="col-md-4">
+      <label class="form-label form-label-sm"><i class="bi bi-diagram-3 me-1"></i>Organisationseinheit</label>
+      <select name="oe_id" class="form-select form-select-sm">
+        <option value="">– Alle OEs –</option>
+        {% for ou in org_units %}
+        <option value="{{ ou.id }}" {{ 'selected' if request.args.get('oe_id','') == ou.id|string }}>
+          {{ ou.kuerzel }} – {{ ou.bezeichnung }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Fachverantwortlicher</label>
+      <select name="fv_id" class="form-select form-select-sm">
+        <option value="">– Alle –</option>
+        {% for p in persons_fv %}
+        <option value="{{ p.id }}" {{ 'selected' if request.args.get('fv_id','') == p.id|string }}>
+          {{ p.nachname }}, {{ p.vorname }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if share_roots %}
+    <div class="col-md-4">
+      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
+      <select name="share_root" class="form-select form-select-sm">
+        <option value="">– Alle Verzeichnisse –</option>
+        {% for sr in share_roots %}
+        <option value="{{ sr }}" {{ 'selected' if request.args.get('share_root','') == sr }}>{{ sr }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
   </div>
 </form>
 
@@ -69,6 +107,7 @@
         <tr>
           <th>IDV-ID</th>
           <th>Bezeichnung</th>
+          <th>OE</th>
           <th>Typ</th>
           <th>GDA</th>
           <th>Steuerung</th>
@@ -90,6 +129,14 @@
           </td>
           <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">
             {{ r.bezeichnung }}
+          </td>
+          <td style="font-size:.78rem;white-space:nowrap">
+            {% if r.org_einheit %}
+            <a href="{{ url_for('idv.list_idv', oe_id=r.org_unit_id, status=request.args.get('status',''), gda_min=request.args.get('gda_min','0'), filter=request.args.get('filter','')) }}"
+               class="text-decoration-none text-muted" title="Nach dieser OE filtern">
+              {{ r.org_einheit }}
+            </a>
+            {% else %}–{% endif %}
           </td>
           <td>
             <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
@@ -141,7 +188,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="10" class="text-center text-muted py-5">
+          <td colspan="11" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine IDVs gefunden.
             {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}

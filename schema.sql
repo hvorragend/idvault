@@ -14,10 +14,25 @@ PRAGMA foreign_keys = ON;
 PRAGMA journal_mode  = WAL;
 
 -- -----------------------------------------------------------------------------
--- Scanner-Tabelle (Stub – wird vom idv_scanner.py befüllt;
--- kann in derselben oder einer separaten DB liegen.
--- Hier als Minimalstruktur für FK-Integrität)
+-- Scanner-Tabellen (Stub – wird vom idv_scanner.py befüllt;
+-- kann in derselben oder einer separaten DB liegen.)
 -- -----------------------------------------------------------------------------
+
+-- Scan-Läufe (jede Ausführung des Scanners ist ein Eintrag)
+CREATE TABLE IF NOT EXISTS scan_runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at      TEXT NOT NULL,
+    finished_at     TEXT,
+    scan_paths      TEXT,           -- JSON-Array der gescannten Pfade
+    total_files     INTEGER DEFAULT 0,
+    new_files       INTEGER DEFAULT 0,
+    changed_files   INTEGER DEFAULT 0,
+    moved_files     INTEGER DEFAULT 0,
+    restored_files  INTEGER DEFAULT 0,
+    archived_files  INTEGER DEFAULT 0,
+    errors          INTEGER DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS idv_files (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     file_hash               TEXT NOT NULL,
