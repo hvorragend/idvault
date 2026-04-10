@@ -36,6 +36,7 @@ def create_app(db_path: str = None) -> Flask:
     from .routes.reviews   import bp as rev_bp
     from .routes.measures  import bp as meas_bp
     from .routes.admin     import bp as admin_bp
+    from .routes.scanner   import bp as scanner_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
@@ -43,6 +44,7 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(rev_bp)
     app.register_blueprint(meas_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(scanner_bp)
 
     # Template-Filter
     @app.template_filter("datefmt")

@@ -4,6 +4,16 @@ import sys, os, io
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import create_idv, update_idv, change_status, search_idv
 
+# Dateierweiterung → IDV-Typ-Vorschlag (gespiegelt aus scanner.py)
+_EXT_TO_TYP = {
+    ".xlsx": "Excel-Tabelle", ".xlsm": "Excel-Makro", ".xlsb": "Excel-Makro",
+    ".xls":  "Excel-Tabelle", ".xltm": "Excel-Makro", ".xltx": "Excel-Tabelle",
+    ".accdb": "Access-Datenbank", ".mdb": "Access-Datenbank",
+    ".accde": "Access-Datenbank", ".accdr": "Access-Datenbank",
+    ".py": "Python-Skript", ".r": "Sonstige", ".rmd": "Sonstige",
+    ".sql": "SQL-Skript", ".pbix": "Power-BI-Bericht", ".pbit": "Power-BI-Bericht",
+}
+
 bp = Blueprint("idv", __name__, url_prefix="/idv")
 
 
@@ -130,17 +140,41 @@ def new_idv():
     db = get_db()
     if request.method == "POST":
         data = _form_to_dict(request.form)
+        file_id = _int_or_none(request.form.get("file_id"))
+        if file_id:
+            data["file_id"] = file_id
         person_id = session.get("person_id")
         try:
             new_id = create_idv(db, data, erfasser_id=person_id)
-            flash(f"IDV erfolgreich angelegt.", "success")
+            flash("IDV erfolgreich angelegt.", "success")
             if request.form.get("save_action") == "save_and_new":
                 return redirect(url_for("idv.new_idv"))
             return redirect(url_for("idv.detail_idv", idv_db_id=new_id))
         except Exception as e:
             flash(f"Fehler beim Speichern: {e}", "error")
 
-    return render_template("idv/form.html", idv=None, **_form_lookups(db))
+    # Optionales Vorausfüllen aus Scannerfund
+    fund    = None
+    prefill = {}
+    file_id = _int_or_none(request.args.get("file_id"))
+    if file_id:
+        fund = db.execute("SELECT * FROM idv_files WHERE id = ?", (file_id,)).fetchone()
+        if fund:
+            ext = (fund["extension"] or "").lower()
+            typ = _EXT_TO_TYP.get(ext, "unklassifiziert")
+            if ext in (".xlsx", ".xls", ".xltx") and fund["has_macros"]:
+                typ = "Excel-Makro"
+            name = fund["file_name"]
+            if ext and name.lower().endswith(ext):
+                name = name[:-len(ext)]
+            prefill = {
+                "bezeichnung": name,
+                "idv_typ":     typ,
+                "file_id":     file_id,
+            }
+
+    return render_template("idv/form.html", idv=None,
+                           fund=fund, prefill=prefill, **_form_lookups(db))
 
 
 # ── Bearbeiten ─────────────────────────────────────────────────────────────
@@ -164,7 +198,7 @@ def edit_idv(idv_db_id):
         except Exception as e:
             flash(f"Fehler: {e}", "error")
 
-    return render_template("idv/form.html", idv=idv, **_form_lookups(db))
+    return render_template("idv/form.html", idv=idv, fund=None, prefill={}, **_form_lookups(db))
 
 
 # ── Status ─────────────────────────────────────────────────────────────────

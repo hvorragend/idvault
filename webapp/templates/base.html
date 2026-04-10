@@ -144,6 +144,12 @@
     <i class="bi bi-exclamation-triangle"></i> Maßnahmen
   </a>
 
+  <div class="nav-label">Scanner</div>
+  <a href="{{ url_for('scanner.list_funde') }}"
+     class="nav-link {% if request.blueprint == 'scanner' %}active{% endif %}">
+    <i class="bi bi-radar"></i> Scanner-Funde
+  </a>
+
   <div class="nav-label">System</div>
   <a href="{{ url_for('admin.index') }}"
      class="nav-link {% if request.blueprint == 'admin' %}active{% endif %}">

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Scanner-Funde{% endblock %}
+{% block page_title %}<i class="bi bi-radar me-2"></i>Scanner-Funde{% endblock %}
+
+{% block content %}
+
+<!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      <div class="stat-val text-primary">{{ gesamt }}</div>
+      <div class="stat-lbl">Aktive Dateien</div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      <div class="stat-val text-warning">{{ ohne_idv }}</div>
+      <div class="stat-lbl">Noch nicht registriert</div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      <div class="stat-val text-danger">{{ mit_makro }}</div>
+      <div class="stat-lbl">Dateien mit Makros</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hinweis DB-Pfad ─────────────────────────────────────────────── -->
+{% if gesamt == 0 %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+  <strong>Keine Scannerfunde in dieser Datenbank.</strong>
+  Stelle sicher, dass der Scanner mit dem korrekten <code>db_path</code> konfiguriert ist
+  und auf dieselbe Datenbankdatei zeigt wie die Webapp (<code>instance/idvault.db</code>).
+  Passe dazu <code>scanner/config.json</code> an:
+  <pre class="mt-2 mb-0 bg-light p-2 rounded" style="font-size:.82rem">{
+  "db_path": "../instance/idvault.db",
+  ...
+}</pre>
+</div>
+{% else %}
+
+<!-- ── Filter ─────────────────────────────────────────────────────── -->
+<div class="d-flex gap-2 mb-3 flex-wrap">
+  <a href="{{ url_for('scanner.list_funde') }}"
+     class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
+    Alle ({{ gesamt }})
+  </a>
+  <a href="{{ url_for('scanner.list_funde', filter='ohne_idv') }}"
+     class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
+    <i class="bi bi-exclamation-circle me-1"></i>Noch nicht registriert ({{ ohne_idv }})
+  </a>
+  <a href="{{ url_for('scanner.list_funde', filter='makros') }}"
+     class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
+    <i class="bi bi-lightning-fill me-1"></i>Mit Makros ({{ mit_makro }})
+  </a>
+  <a href="{{ url_for('scanner.list_funde', filter='mit_idv') }}"
+     class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
+    <i class="bi bi-check-circle me-1"></i>Bereits registriert
+  </a>
+</div>
+
+<!-- ── Tabelle ────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-600"><i class="bi bi-files me-1"></i>{{ dateien|length }} Dateien</span>
+    <span class="text-muted" style="font-size:.78rem">Max. 500 Einträge angezeigt</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+      <thead>
+        <tr>
+          <th>Dateiname</th>
+          <th>Typ-Vorschlag</th>
+          <th>Pfad</th>
+          <th>Größe</th>
+          <th>Geändert</th>
+          <th>Autor</th>
+          <th class="text-center">Makros</th>
+          <th>IDV-Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in dateien %}
+        <tr>
+          <td>
+            <span class="fw-500">{{ f.file_name }}</span>
+          </td>
+          <td>
+            {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+            <span class="badge bg-light text-dark border">{{ typ }}</span>
+          </td>
+          <td class="text-truncate" style="max-width:200px" title="{{ f.full_path }}">
+            <span class="hash-mono">{{ f.relative_path or f.full_path }}</span>
+          </td>
+          <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
+          <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
+          <td>{{ f.office_author or f.file_owner or '–' }}</td>
+          <td class="text-center">
+            {% if f.has_macros %}
+              <span class="badge bg-danger">VBA</span>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td>
+            {% if f.reg_idv_id %}
+              <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
+                 class="badge bg-success text-decoration-none">
+                {{ f.reg_idv_id }}
+              </a>
+            {% else %}
+              <span class="badge bg-warning text-dark">Nicht registriert</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not f.reg_idv_id %}
+            <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
+               class="btn btn-xs btn-primary text-nowrap"
+               title="Als IDV registrieren">
+              <i class="bi bi-plus-lg me-1"></i>Als IDV registrieren
+            </a>
+            {% else %}
+            <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
+               class="btn btn-xs btn-outline-secondary" title="IDV anzeigen">
+              <i class="bi bi-eye"></i>
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+            Keine Dateien gefunden.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endif %}
+
+<style>
+.btn-xs { padding: .15rem .45rem; font-size: .75rem; }
+.fw-600 { font-weight: 600; }
+.fw-500 { font-weight: 500; }
+</style>
+{% endblock %}

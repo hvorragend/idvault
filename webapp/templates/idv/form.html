@@ -8,6 +8,24 @@
 {% block content %}
 <form method="post" novalidate>
 
+  <!-- ── Scannerfund-Banner ───────────────────────────────────── -->
+  {% if fund %}
+  <input type="hidden" name="file_id" value="{{ prefill.file_id }}">
+  <div class="alert alert-info d-flex align-items-start gap-3 mb-4">
+    <i class="bi bi-radar fs-4 flex-shrink-0 mt-1"></i>
+    <div>
+      <strong>Aus Scannerfund vorausgefüllt:</strong>
+      <span class="font-monospace ms-1">{{ fund.file_name }}</span>
+      <div class="text-muted mt-1" style="font-size:.8rem">
+        Pfad: {{ fund.full_path }}
+        {% if fund.has_macros %}&nbsp;·&nbsp;<span class="badge bg-danger">VBA-Makros</span>{% endif %}
+        {% if fund.office_author %}&nbsp;·&nbsp;Autor: {{ fund.office_author }}{% endif %}
+        {% if fund.size_bytes %}&nbsp;·&nbsp;{{ fund.size_bytes | mb }}{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- ── Schritt-Anzeige ──────────────────────────────────────── -->
   <div class="d-flex gap-2 mb-4 flex-wrap">
     {% for label in ['Stammdaten','Klassifizierung','Risiko','Technik & Betrieb','Verantwortliche'] %}
@@ -29,7 +47,7 @@
       <div class="col-md-8">
         <label class="form-label">Bezeichnung <span class="required-star">*</span></label>
         <input type="text" name="bezeichnung" class="form-control" required
-               value="{{ idv.bezeichnung if idv else '' }}"
+               value="{{ idv.bezeichnung if idv else prefill.get('bezeichnung', '') }}"
                placeholder="z.B. GuV-Monatsabschluss Controlling">
       </div>
 
@@ -41,10 +59,11 @@
 
       <div class="col-md-4">
         <label class="form-label">IDV-Typ <span class="required-star">*</span></label>
+        {% set current_typ = idv.idv_typ if idv else prefill.get('idv_typ', 'unklassifiziert') %}
         <select name="idv_typ" class="form-select" required>
           {% for t in ['unklassifiziert','Excel-Tabelle','Excel-Makro','Excel-Modell',
                        'Access-Datenbank','Python-Skript','SQL-Skript','Power-BI-Bericht','Sonstige'] %}
-          <option {{ 'selected' if (idv and idv.idv_typ == t) or (not idv and t == 'unklassifiziert') }}>{{ t }}</option>
+          <option {{ 'selected' if current_typ == t }}>{{ t }}</option>
           {% endfor %}
         </select>
       </div>
