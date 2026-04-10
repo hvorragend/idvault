@@ -43,6 +43,39 @@ python idv_scanner.py --config config.json
 | `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |
 | `max_workers` | Integer | `4` | Reserviert (zukünftige Parallelisierung) |
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (s.u.) |
+| `scan_since` | String\|null | `null` | Startdatum im Format `"YYYY-MM-DD"`. Nur Dateien, deren Änderungsdatum ≥ diesem Datum liegt, werden verarbeitet. `null` = alle Dateien. |
+
+### Startdatum-Filter (`scan_since`)
+
+Mit `scan_since` werden nur Dateien verarbeitet, die seit einem bestimmten Datum
+neu erstellt oder geändert wurden. Ältere Dateien werden **übersprungen** —
+und, entscheidend, auch **nicht archiviert**: Die Archivierungslogik berücksichtigt
+den Filter und markiert nur Dateien als archiviert, die tatsächlich im Datumsbereich
+lagen und nicht mehr gefunden wurden.
+
+```json
+{
+  "scan_since": "2024-07-01"
+}
+```
+
+Verglichen wird das **Dateisystem-Änderungsdatum** (`mtime`) der Datei mit dem
+konfigurierten Datum. Ist die Datei älter, wird sie in diesem Scan ignoriert.
+
+**Typische Anwendungsfälle:**
+
+| Situation | Empfehlung |
+|---|---|
+| Ersteinrichtung mit großem Bestand, nur neuere Dateien relevant | `"scan_since": "2024-01-01"` |
+| Quartals-Scan nur für aktuelle Änderungen | `"scan_since": "2025-01-01"` |
+| Vollständige Erfassung aller Dateien | `"scan_since": null` (Standard) |
+
+**Hinweis:** `scan_since` filtert nur nach dem Dateisystem-Datum — nicht nach dem
+Datum des ersten Fundes in der Datenbank. Eine Datei, die schon länger existiert
+aber nie geändert wurde, wird bei `scan_since` übersprungen, auch wenn sie noch
+nie gescannt wurde.
+
+---
 
 ### Integration mit der idvault-Webapp
 

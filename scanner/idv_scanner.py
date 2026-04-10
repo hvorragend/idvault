@@ -67,7 +67,13 @@ DEFAULT_CONFIG = {
     #                                nur wenn genau ein aktiver Treffer (Eindeutigkeit)
     #   "disabled"                 – keine Move-Detection; verschobene Dateien werden
     #                                archiviert und als neue Datei neu angelegt
-    "move_detection": "name_and_hash"
+    "move_detection": "name_and_hash",
+    # Startdatum für den Scan (ISO-Format: "YYYY-MM-DD" oder null für alle Dateien).
+    # Nur Dateien, deren Dateisystem-Änderungsdatum >= scan_since liegt, werden
+    # verarbeitet. Ältere Dateien werden übersprungen und NICHT archiviert.
+    # Beispiel: "2024-07-01" erfasst nur Dateien, die ab dem 01.07.2024 neu
+    # erstellt oder geändert wurden.
+    "scan_since": None
 }
 
 
@@ -372,8 +378,12 @@ def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
 
 
 def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
-                  logger: logging.Logger):
-    """Generator: liefert Metadaten-Dicts für alle gefundenen Dateien."""
+                  logger: logging.Logger, scan_since_ts: Optional[float] = None):
+    """Generator: liefert Metadaten-Dicts für alle gefundenen Dateien.
+
+    scan_since_ts: Unix-Timestamp (float). Dateien, die vor diesem Zeitpunkt
+    zuletzt geändert wurden, werden übersprungen.
+    """
     extensions = set(e.lower() for e in config["extensions"])
     excludes   = config["exclude_paths"]
 
@@ -392,6 +402,14 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
             full_path = os.path.join(root, fname)
             if should_exclude(full_path, excludes):
                 continue
+
+            # Startdatum-Filter: Dateien vor scan_since überspringen
+            if scan_since_ts is not None:
+                try:
+                    if os.stat(full_path).st_mtime < scan_since_ts:
+                        continue
+                except OSError:
+                    pass  # bei Lesefehler: Datei trotzdem verarbeiten
 
             try:
                 data = scan_file(full_path, config, all_scan_paths)
@@ -538,16 +556,28 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
         return change_type
 
 
-def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str) -> int:
+def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
+                       scan_since: Optional[str] = None) -> int:
     """Überführt aktive Dateien, die im aktuellen Scan nicht gesehen wurden, ins Archiv.
 
     Nutzt last_scan_run_id statt eines Python-Sets – skaliert auch bei 100k+ Dateien.
     Dateien werden nicht gelöscht, sondern auf status='archiviert' gesetzt.
+
+    scan_since: ISO-Datumsstring (z.B. '2024-07-01'). Wenn gesetzt, werden nur
+    Dateien archiviert, deren modified_at >= scan_since liegt. Dateien außerhalb
+    des Datumsfilters wurden bewusst übersprungen und gelten nicht als verschwunden.
     """
-    rows = conn.execute(
-        "SELECT id FROM idv_files WHERE status = 'active' AND last_scan_run_id != ?",
-        (scan_run_id,)
-    ).fetchall()
+    if scan_since:
+        rows = conn.execute(
+            "SELECT id FROM idv_files WHERE status = 'active' "
+            "AND last_scan_run_id != ? AND modified_at >= ?",
+            (scan_run_id, scan_since)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id FROM idv_files WHERE status = 'active' AND last_scan_run_id != ?",
+            (scan_run_id,)
+        ).fetchall()
 
     if not rows:
         return 0
@@ -591,6 +621,19 @@ def run_scan(config: dict, logger: logging.Logger):
     move_mode = config.get("move_detection", "name_and_hash")
     logger.info(f"Move-Detection-Modus: {move_mode}")
 
+    # Startdatum-Filter auswerten
+    scan_since     = config.get("scan_since") or None   # z.B. "2024-07-01"
+    scan_since_ts  = None                               # Unix-Timestamp für st_mtime-Vergleich
+    if scan_since:
+        try:
+            from datetime import date as _date
+            dt = datetime.fromisoformat(scan_since)
+            scan_since_ts = dt.timestamp()
+            logger.info(f"Startdatum-Filter aktiv: nur Dateien >= {scan_since}")
+        except ValueError:
+            logger.warning(f"Ungültiges scan_since-Format '{scan_since}' – Filter deaktiviert")
+            scan_since = None
+
     stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0,
              "moved": 0, "restored": 0, "errors": 0}
 
@@ -601,7 +644,7 @@ def run_scan(config: dict, logger: logging.Logger):
             continue
 
         logger.info(f"Scanne: {scan_path}")
-        for data in walk_and_scan(scan_path, config, scan_paths, logger):
+        for data in walk_and_scan(scan_path, config, scan_paths, logger, scan_since_ts):
             try:
                 change = upsert_file(conn, data, scan_run_id, now, logger, move_mode)
                 stats["total"]   += 1
@@ -617,8 +660,8 @@ def run_scan(config: dict, logger: logging.Logger):
 
     conn.commit()
 
-    # Gelöschte Dateien markieren (SQL-basiert über last_scan_run_id)
-    deleted = mark_deleted_files(conn, scan_run_id, now)
+    # Nicht mehr gefundene Dateien archivieren (SQL-basiert über last_scan_run_id)
+    deleted = mark_deleted_files(conn, scan_run_id, now, scan_since)
     conn.commit()
 
     finished = datetime.now(timezone.utc).isoformat()
