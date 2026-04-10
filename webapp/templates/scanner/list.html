@@ -59,7 +59,19 @@
      class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
     <i class="bi bi-check-circle me-1"></i>Bereits registriert
   </a>
+  <a href="{{ url_for('scanner.list_funde', filter='archiv') }}"
+     class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
+    <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
+  </a>
 </div>
+
+{% if filt == 'archiv' %}
+<div class="alert alert-secondary py-2 mb-3">
+  <i class="bi bi-info-circle me-1"></i>
+  Archivierte Dateien wurden beim letzten Scan nicht mehr gefunden (verschoben, umbenannt oder gelöscht).
+  Die Verknüpfung zum IDV-Register bleibt erhalten. Taucht eine Datei wieder auf, wird sie automatisch wiederhergestellt.
+</div>
+{% endif %}
 
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm">
@@ -75,18 +87,23 @@
           <th>Typ-Vorschlag</th>
           <th>Pfad</th>
           <th>Größe</th>
-          <th>Geändert</th>
+          <th>{{ 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert' }}</th>
           <th>Autor</th>
           <th class="text-center">Makros</th>
           <th>IDV-Status</th>
-          <th></th>
+          {% if filt != 'archiv' %}<th></th>{% endif %}
         </tr>
       </thead>
       <tbody>
         {% for f in dateien %}
-        <tr>
+        <tr class="{{ 'table-secondary text-muted' if f.status == 'archiviert' else '' }}">
           <td>
-            <span class="fw-500">{{ f.file_name }}</span>
+            <span class="fw-500">
+              {% if f.status == 'archiviert' %}
+                <i class="bi bi-archive me-1 text-secondary"></i>
+              {% endif %}
+              {{ f.file_name }}
+            </span>
           </td>
           <td>
             {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
@@ -96,7 +113,9 @@
             <span class="hash-mono">{{ f.relative_path or f.full_path }}</span>
           </td>
           <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
-          <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
+          <td class="text-nowrap">
+            {{ f.last_seen_at|datefmt if (filt == 'archiv' and f.last_seen_at) else (f.modified_at|datefmt if f.modified_at else '–') }}
+          </td>
           <td>{{ f.office_author or f.file_owner or '–' }}</td>
           <td class="text-center">
             {% if f.has_macros %}
@@ -115,6 +134,7 @@
               <span class="badge bg-warning text-dark">Nicht registriert</span>
             {% endif %}
           </td>
+          {% if filt != 'archiv' %}
           <td>
             {% if not f.reg_idv_id %}
             <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
@@ -129,6 +149,7 @@
             </a>
             {% endif %}
           </td>
+          {% endif %}
         </tr>
         {% else %}
         <tr>

@@ -99,7 +99,9 @@ CREATE TABLE IF NOT EXISTS scan_runs (
     total_files     INTEGER DEFAULT 0,
     new_files       INTEGER DEFAULT 0,
     changed_files   INTEGER DEFAULT 0,
-    deleted_files   INTEGER DEFAULT 0,
+    moved_files     INTEGER DEFAULT 0,
+    restored_files  INTEGER DEFAULT 0,
+    archived_files  INTEGER DEFAULT 0,
     errors          INTEGER DEFAULT 0
 );
 
@@ -154,6 +156,14 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    # Migration: neue Spalten für bestehende Datenbanken ergänzen
+    for col in ["moved_files INTEGER DEFAULT 0",
+                "restored_files INTEGER DEFAULT 0",
+                "archived_files INTEGER DEFAULT 0"]:
+        try:
+            conn.execute(f"ALTER TABLE scan_runs ADD COLUMN {col}")
+        except Exception:
+            pass  # Spalte existiert bereits
     conn.commit()
     return conn
 
@@ -392,16 +402,49 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 scan_run_id: int, now: str, logger: logging.Logger) -> str:
     """
     Fügt eine Datei ein oder aktualisiert sie.
-    Gibt change_type zurück: 'new' | 'changed' | 'unchanged'
+    Gibt change_type zurück: 'new' | 'changed' | 'unchanged' | 'moved' | 'restored'
+
+    Logik:
+    1. Eintrag für full_path vorhanden (aktiv oder archiviert)?
+       → Update; war archiviert → 'restored', sonst 'changed'/'unchanged'
+    2. Kein Eintrag für full_path, aber aktiver Eintrag mit gleichem Hash+Dateinamen?
+       → Verschoben: Pfad aktualisieren, gleiche DB-ID bleibt (file_id-Link erhalten)
+    3. Sonst: echter Neuzugang → 'new'
     """
-    cur = conn.execute(
-        "SELECT id, file_hash, modified_at FROM idv_files WHERE full_path = ?",
+    existing = conn.execute(
+        "SELECT id, file_hash, status FROM idv_files WHERE full_path = ?",
         (data["full_path"],)
-    )
-    existing = cur.fetchone()
+    ).fetchone()
 
     if existing is None:
-        # Neue Datei
+        # ── Move-Detection ──────────────────────────────────────────────
+        # Gleicher Hash + gleicher Dateiname unter anderem Pfad?
+        if data["file_hash"] != "HASH_ERROR":
+            moved_from = conn.execute(
+                "SELECT id, full_path FROM idv_files "
+                "WHERE file_hash = ? AND file_name = ? AND status = 'active'",
+                (data["file_hash"], data["file_name"])
+            ).fetchone()
+            if moved_from:
+                conn.execute("""
+                    UPDATE idv_files SET
+                        full_path = :full_path, share_root = :share_root,
+                        relative_path = :relative_path,
+                        last_seen_at = :now, last_scan_run_id = :run_id
+                    WHERE id = :id
+                """, {**data, "now": now, "run_id": scan_run_id, "id": moved_from["id"]})
+                conn.execute("""
+                    INSERT INTO idv_file_history
+                        (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at, details)
+                    VALUES (?, ?, 'moved', ?, ?, ?, ?)
+                """, (moved_from["id"], scan_run_id,
+                      data["file_hash"], data["file_hash"], now,
+                      json.dumps({"old_path": moved_from["full_path"],
+                                  "new_path": data["full_path"]})))
+                logger.debug(f"Verschoben: {moved_from['full_path']} → {data['full_path']}")
+                return "moved"
+
+        # ── Echter Neuzugang ────────────────────────────────────────────
         insert_data = {
             **data,
             "first_seen_at":    now,
@@ -423,21 +466,19 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 :first_seen_at, :last_seen_at, :last_scan_run_id, 'active'
             )
         """, insert_data)
-
         file_id = cur_ins.lastrowid
-
         conn.execute("""
             INSERT INTO idv_file_history (file_id, scan_run_id, change_type, new_hash, changed_at)
             VALUES (?, ?, 'new', ?, ?)
         """, (file_id, scan_run_id, data["file_hash"], now))
-
         return "new"
 
     else:
-        file_id   = existing["id"]
-        old_hash  = existing["file_hash"]
-        new_hash  = data["file_hash"]
-        changed   = old_hash != new_hash
+        # ── Bekannte Datei: Update ──────────────────────────────────────
+        file_id      = existing["id"]
+        old_hash     = existing["file_hash"]
+        new_hash     = data["file_hash"]
+        was_archived = existing["status"] == "archiviert"
 
         conn.execute("""
             UPDATE idv_files SET
@@ -451,20 +492,24 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
             WHERE full_path = :full_path
         """, {**data, "now": now, "run_id": scan_run_id})
 
-        change_type = "changed" if changed else "unchanged"
+        if was_archived:
+            change_type = "restored"
+        else:
+            change_type = "changed" if old_hash != new_hash else "unchanged"
+
         conn.execute("""
             INSERT INTO idv_file_history
                 (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (file_id, scan_run_id, change_type, old_hash, new_hash, now))
-
         return change_type
 
 
 def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str) -> int:
-    """Markiert Dateien als gelöscht, die im letzten Scan nicht mehr gefunden wurden.
+    """Überführt aktive Dateien, die im aktuellen Scan nicht gesehen wurden, ins Archiv.
 
     Nutzt last_scan_run_id statt eines Python-Sets – skaliert auch bei 100k+ Dateien.
+    Dateien werden nicht gelöscht, sondern auf status='archiviert' gesetzt.
     """
     rows = conn.execute(
         "SELECT id FROM idv_files WHERE status = 'active' AND last_scan_run_id != ?",
@@ -477,12 +522,12 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str) -> 
     ids = [row["id"] for row in rows]
     placeholders = ",".join("?" * len(ids))
     conn.execute(
-        f"UPDATE idv_files SET status = 'deleted', last_seen_at = ? WHERE id IN ({placeholders})",
+        f"UPDATE idv_files SET status = 'archiviert', last_seen_at = ? WHERE id IN ({placeholders})",
         [now] + ids
     )
     conn.executemany("""
         INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at)
-        VALUES (?, ?, 'deleted', ?)
+        VALUES (?, ?, 'archiviert', ?)
     """, [(fid, scan_run_id, now) for fid in ids])
 
     return len(ids)
@@ -510,7 +555,8 @@ def run_scan(config: dict, logger: logging.Logger):
     scan_run_id = cur.lastrowid
     logger.info(f"Scan-Run #{scan_run_id} gestartet | Pfade: {scan_paths}")
 
-    stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0, "errors": 0}
+    stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0,
+             "moved": 0, "restored": 0, "errors": 0}
 
     for scan_path in scan_paths:
         if not os.path.exists(scan_path):
@@ -543,10 +589,11 @@ def run_scan(config: dict, logger: logging.Logger):
     conn.execute("""
         UPDATE scan_runs SET
             finished_at = ?, total_files = ?, new_files = ?,
-            changed_files = ?, deleted_files = ?, errors = ?
+            changed_files = ?, moved_files = ?, restored_files = ?,
+            archived_files = ?, errors = ?
         WHERE id = ?
-    """, (finished, stats["total"], stats["new"],
-          stats["changed"], deleted, stats["errors"], scan_run_id))
+    """, (finished, stats["total"], stats["new"], stats["changed"],
+          stats["moved"], stats["restored"], deleted, stats["errors"], scan_run_id))
     conn.commit()
     conn.close()
 
@@ -555,8 +602,9 @@ def run_scan(config: dict, logger: logging.Logger):
     logger.info(f"  Gesamt gefunden : {stats['total']}")
     logger.info(f"  Neu             : {stats['new']}")
     logger.info(f"  Geändert        : {stats['changed']}")
-    logger.info(f"  Unverändert     : {stats['unchanged']}")
-    logger.info(f"  Gelöscht        : {deleted}")
+    logger.info(f"  Verschoben      : {stats['moved']}")
+    logger.info(f"  Wiederhergest.  : {stats['restored']}")
+    logger.info(f"  Archiviert      : {deleted}")
     logger.info(f"  Fehler          : {stats['errors']}")
     logger.info("=" * 60)
 

@@ -38,13 +38,16 @@ def list_funde():
     db   = get_db()
     filt = request.args.get("filter", "")
 
-    where = "WHERE f.status = 'active'"
-    if filt == "ohne_idv":
-        where += " AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
-    elif filt == "mit_idv":
-        where += " AND EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
-    elif filt == "makros":
-        where += " AND f.has_macros = 1"
+    if filt == "archiv":
+        where = "WHERE f.status = 'archiviert'"
+    else:
+        where = "WHERE f.status = 'active'"
+        if filt == "ohne_idv":
+            where += " AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
+        elif filt == "mit_idv":
+            where += " AND EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
+        elif filt == "makros":
+            where += " AND f.has_macros = 1"
 
     dateien = db.execute(f"""
         SELECT f.*,
@@ -66,9 +69,12 @@ def list_funde():
     mit_makro = db.execute(
         "SELECT COUNT(*) FROM idv_files WHERE status='active' AND has_macros=1"
     ).fetchone()[0]
+    archiviert = db.execute(
+        "SELECT COUNT(*) FROM idv_files WHERE status='archiviert'"
+    ).fetchone()[0]
 
     return render_template("scanner/list.html",
         dateien=dateien, filt=filt,
-        gesamt=gesamt, ohne_idv=ohne_idv, mit_makro=mit_makro,
+        gesamt=gesamt, ohne_idv=ohne_idv, mit_makro=mit_makro, archiviert=archiviert,
         idv_typ_vorschlag=_idv_typ_vorschlag,
     )
