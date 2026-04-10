@@ -10,11 +10,17 @@
 <!-- ── Header-Leiste ──────────────────────────────────────────────── -->
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div class="d-flex align-items-center gap-2 flex-wrap">
-    <span class="badge badge-gda-{{ idv.gda_wert }} fs-6">GDA {{ idv.gda_wert }}</span>
+    {% set ist_wesentlich = idv.steuerungsrelevant or idv.rechnungslegungsrelevant or idv.dora_kritisch_wichtig
+       or (wesentlichkeit | selectattr('erfuellt') | list | length > 0) %}
+    {% if ist_wesentlich %}
+    <span class="badge bg-danger fs-6">Wesentlich</span>
+    {% else %}
+    <span class="badge bg-secondary fs-6">Nicht wesentlich</span>
+    {% endif %}
     <span class="badge status-{{ idv.status }} fs-6">{{ idv.status }}</span>
     {% if idv.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span>{% endif %}
     {% if idv.rechnungslegungsrelevant %}<span class="badge bg-info text-dark">RL-relevant</span>{% endif %}
-    {% if idv.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA-kritisch</span>{% endif %}
+    {% if idv.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA-kritisch/wichtig</span>{% endif %}
     {% if idv.gobd_relevant %}<span class="badge bg-warning text-dark">GoBD-relevant</span>{% endif %}
   </div>
   <div class="d-flex gap-2">
@@ -70,6 +76,57 @@
     <div class="form-section">
       <div class="form-section-title">Wesentlichkeitsbeurteilung (MaRisk AT 7.2 / DORA)</div>
       <div class="row g-3">
+
+        <!-- Fazit der Beurteilung -->
+        {% set ist_wesentlich = idv.steuerungsrelevant or idv.rechnungslegungsrelevant or idv.dora_kritisch_wichtig
+           or (wesentlichkeit | selectattr('erfuellt') | list | length > 0) %}
+        <div class="col-12">
+          <div class="rounded p-3 {{ 'bg-danger bg-opacity-10 border border-danger border-opacity-25' if ist_wesentlich else 'bg-light border' }}">
+            <div class="fw-600 mb-2">
+              {% if ist_wesentlich %}
+              <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+              Fazit: <span class="text-danger">Wesentlich – Dokumentationspflicht gem. MaRisk AT 7.2</span>
+              {% else %}
+              <i class="bi bi-check-circle-fill text-success me-2"></i>
+              Fazit: <span class="text-muted">Nicht wesentlich</span>
+              {% endif %}
+            </div>
+            {% if ist_wesentlich %}
+            <div class="d-flex gap-2 flex-wrap" style="font-size:.82rem">
+              {% if idv.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span>{% endif %}
+              {% if idv.rechnungslegungsrelevant %}<span class="badge bg-info text-dark">RL-relevant</span>{% endif %}
+              {% if idv.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA-kritisch/wichtig</span>{% endif %}
+              {% for k in wesentlichkeit %}{% if k.erfuellt %}<span class="badge bg-secondary">{{ k.bezeichnung }}</span>{% endif %}{% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Geschäftsprozess -->
+        <div class="col-sm-5">
+          <div class="detail-label">Geschäftsprozess</div>
+          <div class="detail-value">
+            {% if idv.geschaeftsprozess %}
+            <span class="font-monospace me-1" style="font-size:.82rem">{{ idv.gp_nummer }}</span>{{ idv.geschaeftsprozess }}
+            {% elif idv.gp_freitext %}
+            {{ idv.gp_freitext }} <span class="badge bg-light text-muted border ms-1" style="font-size:.6rem">Freitext</span>
+            {% else %}
+            <span class="text-muted">–</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-sm-7">
+          <div class="detail-label">DORA-Relevanz</div>
+          <div class="text-muted" style="font-size:.82rem">
+            {% if idv.dora_kritisch_wichtig %}
+            <span class="badge bg-danger">DORA-kritisch/wichtig</span>
+            <div class="mt-1">Krit. Geschäftsprozess + GDA 4 → Art. 28 Abs. 2</div>
+            {% else %}
+            Krit. Geschäftsprozess + GDA 4 erforderlich
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-12"><hr class="my-1"></div>
 
         <!-- GDA -->
         <div class="col-sm-3">
@@ -167,21 +224,26 @@
     <div class="form-section">
       <div class="form-section-title">Risikobewertung</div>
       <div class="row g-3 align-items-center">
-        {% for label, val in [
-          ('Verfügbarkeit',       idv.risiko_verfuegbarkeit),
-          ('Integrität',          idv.risiko_integritaet),
-          ('Vertraulichkeit',     idv.risiko_vertraulichkeit),
-          ('Nachvollziehbarkeit', idv.risiko_nachvollziehbarkeit),
+        <div class="col-sm-4">
+          <div class="detail-label">Risikoklasse</div>
+          <div class="detail-value">{{ idv.risikoklasse or '–' }}</div>
+        </div>
+        <div class="col-12"><small class="text-muted">Schutzziele (ACIN)</small></div>
+        {% for label, letter, val in [
+          ('Verfügbarkeit',   'A', idv.risiko_verfuegbarkeit),
+          ('Vertraulichkeit', 'C', idv.risiko_vertraulichkeit),
+          ('Integrität',      'I', idv.risiko_integritaet),
+          ('Authentizität',   'N', idv.risiko_nachvollziehbarkeit),
         ] %}
         <div class="col-sm-6">
-          <div class="detail-label">{{ label }}</div>
+          <div class="detail-label">{{ label }} <span class="badge bg-secondary" style="font-size:.6rem">{{ letter }}</span></div>
           <div class="d-flex align-items-center gap-2">
             {% if val %}
-              {% for i in range(1,6) %}
+              {% for i in range(1,5) %}
               <span style="width:14px;height:14px;border-radius:3px;display:inline-block;
                 background:{{ '#dc3545' if i <= val else '#dee2e6' }}"></span>
               {% endfor %}
-              <span class="text-muted ms-1" style="font-size:.8rem">{{ val }}/5</span>
+              <span class="text-muted ms-1" style="font-size:.8rem">{{ val }}/4</span>
             {% else %}
               <span class="text-muted">–</span>
             {% endif %}
@@ -205,7 +267,6 @@
         <div class="col-sm-4"><div class="detail-label">Testkonzept</div><div class="detail-value">{{ idv.testkonzept_vorhanden|yesno }}</div></div>
         <div class="col-sm-4"><div class="detail-label">4-Augen-Prinzip</div><div class="detail-value">{{ idv.vier_augen_prinzip|yesno }}</div></div>
         <div class="col-sm-4"><div class="detail-label">Nutzungsfrequenz</div><div class="detail-value">{{ idv.nutzungsfrequenz or '–' }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">Nutzeranzahl</div><div class="detail-value">{{ idv.nutzeranzahl or '–' }}</div></div>
       </div>
     </div>
 

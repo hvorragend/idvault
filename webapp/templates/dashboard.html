@@ -76,14 +76,14 @@
   <div class="col-lg-7">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-shield-exclamation me-2 text-danger"></i>Kritische IDVs (GDA=4 / steuerungsrelevant / DORA)</span>
+        <span><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Wesentliche IDVs</span>
         <a href="{{ url_for('idv.list_idv') }}?filter=kritisch" class="btn btn-sm btn-outline-secondary">Alle</a>
       </div>
       <div class="card-body p-0">
         <table class="table table-hover mb-0 table-idv">
           <thead>
             <tr>
-              <th>IDV-ID</th><th>Bezeichnung</th><th>GDA</th><th>Status</th><th>Nächste Prüfung</th>
+              <th>IDV-ID</th><th>Bezeichnung</th><th>Wesentlichkeit</th><th>Status</th><th>Nächste Prüfung</th>
             </tr>
           </thead>
           <tbody>
@@ -91,7 +91,14 @@
             <tr>
               <td><a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">{{ r.idv_id }}</a></td>
               <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
-              <td><span class="badge badge-gda-{{ r.gda_wert }}">GDA {{ r.gda_wert }}</span></td>
+              <td>
+                <span class="badge bg-danger" style="font-size:.7rem">Wesentlich</span>
+                <div style="font-size:.68rem;margin-top:.2rem">
+                  {% if r.steuerungsrelevant == 'Ja' %}<span class="badge bg-primary">S</span> {% endif %}
+                  {% if r.rl_relevant == 'Ja' %}<span class="badge bg-info text-dark">RL</span> {% endif %}
+                  {% if r.dora_kritisch == 'Ja' %}<span class="badge bg-danger">D</span>{% endif %}
+                </div>
+              </td>
               <td><span class="badge status-{{ r.status }}">{{ r.status }}</span></td>
               <td>
                 {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
