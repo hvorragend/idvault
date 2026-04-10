@@ -43,10 +43,10 @@ def index():
 
     offene_massnahmen = db.execute("""
         SELECT m.titel, m.prioritaet, m.faellig_am, m.status,
-               r.idv_bezeichnung,
+               r.idv_id, r.bezeichnung AS idv_bezeichnung,
                CASE WHEN m.faellig_am < date('now') THEN 'ÜBERFÄLLIG' ELSE 'OK' END AS faelligkeitsstatus
         FROM massnahmen m
-        JOIN v_idv_uebersicht r ON m.idv_id = (SELECT id FROM idv_register WHERE idv_id = r.idv_id)
+        JOIN idv_register r ON m.idv_id = r.id
         WHERE m.status IN ('Offen','In Bearbeitung')
         ORDER BY m.faellig_am ASC
         LIMIT 5
