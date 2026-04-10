@@ -45,6 +45,42 @@ python idv_scanner.py --config config.json
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (s.u.) |
 | `scan_since` | String\|null | `null` | Startdatum im Format `"YYYY-MM-DD"`. Nur Dateien, deren Änderungsdatum ≥ diesem Datum liegt, werden verarbeitet. `null` = alle Dateien. |
 
+### Mehrere Teilscans (große Verzeichnisse aufteilen)
+
+Sind die zu scannenden Verzeichnisse sehr groß, können sie auf mehrere Scan-Läufe
+aufgeteilt werden. Dazu einfach pro Lauf einen eigenen `scan_paths`-Eintrag verwenden:
+
+```json
+// config_share1.json
+{ "scan_paths": ["//srv/share1/Abteilung_A", "//srv/share1/Abteilung_B"] }
+
+// config_share2.json
+{ "scan_paths": ["//srv/share2"] }
+```
+
+```cmd
+python idv_scanner.py --config config_share1.json
+python idv_scanner.py --config config_share2.json
+```
+
+**Warum das funktioniert:**
+
+Die Archivierungslogik (`mark_deleted_files`) berücksichtigt den Geltungsbereich
+jedes Scan-Laufs. Nur Dateien, deren Pfad unter einem der gescannten Verzeichnisse
+liegt **und** die in diesem Lauf nicht gefunden wurden, werden archiviert. Dateien
+aus anderen Verzeichnissen bleiben unberührt.
+
+```
+Scan 1: //srv/share1/        → archiviert nur fehlende Dateien aus share1
+Scan 2: //srv/share2/        → archiviert nur fehlende Dateien aus share2
+                               Dateien aus share1 werden nicht angetastet ✅
+```
+
+**Hinweis:** Alle Teilscans sollten auf dieselbe Datenbank (`db_path`) zeigen,
+damit die Ergebnisse akkumuliert werden.
+
+---
+
 ### Startdatum-Filter (`scan_since`)
 
 Mit `scan_since` werden nur Dateien verarbeitet, die seit einem bestimmten Datum

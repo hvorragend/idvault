@@ -557,27 +557,41 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
 
 
 def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
-                       scan_since: Optional[str] = None) -> int:
+                       scan_since: Optional[str] = None,
+                       scan_paths: Optional[list] = None) -> int:
     """Überführt aktive Dateien, die im aktuellen Scan nicht gesehen wurden, ins Archiv.
 
     Nutzt last_scan_run_id statt eines Python-Sets – skaliert auch bei 100k+ Dateien.
     Dateien werden nicht gelöscht, sondern auf status='archiviert' gesetzt.
 
-    scan_since: ISO-Datumsstring (z.B. '2024-07-01'). Wenn gesetzt, werden nur
-    Dateien archiviert, deren modified_at >= scan_since liegt. Dateien außerhalb
-    des Datumsfilters wurden bewusst übersprungen und gelten nicht als verschwunden.
+    scan_since:  ISO-Datumsstring (z.B. '2024-07-01'). Wenn gesetzt, werden nur
+                 Dateien archiviert, deren modified_at >= scan_since liegt.
+
+    scan_paths:  Liste der in diesem Lauf tatsächlich gescannten Pfade. Wenn gesetzt,
+                 werden nur Dateien archiviert, deren full_path unter einem dieser
+                 Pfade liegt. Dateien außerhalb des Geltungsbereichs bleiben unberührt
+                 — so können mehrere Teilscans auf verschiedene Verzeichnisse korrekt
+                 akkumuliert werden.
     """
+    conditions = ["status = 'active'", "last_scan_run_id != ?"]
+    params: list = [scan_run_id]
+
     if scan_since:
-        rows = conn.execute(
-            "SELECT id FROM idv_files WHERE status = 'active' "
-            "AND last_scan_run_id != ? AND modified_at >= ?",
-            (scan_run_id, scan_since)
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT id FROM idv_files WHERE status = 'active' AND last_scan_run_id != ?",
-            (scan_run_id,)
-        ).fetchall()
+        conditions.append("modified_at >= ?")
+        params.append(scan_since)
+
+    if scan_paths:
+        # Nur Dateien im Geltungsbereich der gescannten Pfade archivieren
+        path_conds = " OR ".join("full_path LIKE ?" for _ in scan_paths)
+        conditions.append(f"({path_conds})")
+        for sp in scan_paths:
+            # Normalisierung: Trennzeichen am Ende entfernen, dann % anhängen
+            params.append(sp.rstrip("/\\") + "%")
+
+    rows = conn.execute(
+        f"SELECT id FROM idv_files WHERE {' AND '.join(conditions)}",
+        params
+    ).fetchall()
 
     if not rows:
         return 0
@@ -660,8 +674,8 @@ def run_scan(config: dict, logger: logging.Logger):
 
     conn.commit()
 
-    # Nicht mehr gefundene Dateien archivieren (SQL-basiert über last_scan_run_id)
-    deleted = mark_deleted_files(conn, scan_run_id, now, scan_since)
+    # Nicht mehr gefundene Dateien archivieren – nur im Geltungsbereich der gescannten Pfade
+    deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, scan_paths)
     conn.commit()
 
     finished = datetime.now(timezone.utc).isoformat()
