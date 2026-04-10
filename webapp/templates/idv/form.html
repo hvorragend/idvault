@@ -61,9 +61,8 @@
         <label class="form-label">IDV-Typ <span class="required-star">*</span></label>
         {% set current_typ = idv.idv_typ if idv else prefill.get('idv_typ', 'unklassifiziert') %}
         <select name="idv_typ" class="form-select" required>
-          {% for t in ['unklassifiziert','Excel-Tabelle','Excel-Makro','Excel-Modell',
-                       'Access-Datenbank','Python-Skript','SQL-Skript','Power-BI-Bericht','Sonstige'] %}
-          <option {{ 'selected' if current_typ == t }}>{{ t }}</option>
+          {% for t in idv_typen %}
+          <option value="{{ t.wert }}" {{ 'selected' if current_typ == t.wert }}>{{ t.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
@@ -77,8 +76,9 @@
       <div class="col-md-4">
         <label class="form-label">Prüfintervall (Monate)</label>
         <select name="pruefintervall_monate" class="form-select">
-          {% for m in [3,6,12,24] %}
-          <option value="{{ m }}" {{ 'selected' if idv and idv.pruefintervall_monate == m or (not idv and m == 12) }}>{{ m }} Monate</option>
+          {% for p in pruefintervalle %}
+          {% set m = p.wert|int %}
+          <option value="{{ p.wert }}" {{ 'selected' if (idv and idv.pruefintervall_monate == m) or (not idv and m == 12) }}>{{ p.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
@@ -102,21 +102,16 @@
     <div class="mb-4">
       <label class="form-label fw-500">GDA – Grad der Abhängigkeit <span class="required-star">*</span></label>
       <div class="row g-2">
-        {% set gda_labels = {
-          1: ('Unterstützend',      'Prozess läuft auch ohne IDV – mit Mehraufwand.'),
-          2: ('Relevant',           'Prozessunterstützung; manueller Alternativprozess vorhanden.'),
-          3: ('Wesentlich',         'Kernprozessunterstützung; kein vollständiger Ersatz möglich.'),
-          4: ('Vollständig abhängig','Prozess ohne IDV nicht durchführbar. → 2. Genehmigungsstufe'),
-        } %}
-        {% for val, (lbl, desc) in gda_labels.items() %}
+        {% for stufe in gda_stufen %}
+        {% set val = stufe.wert|int %}
         <div class="col-md-6 col-xl-3">
           <label class="d-block border rounded p-3 h-100 cursor-pointer
             {{ 'border-danger bg-danger bg-opacity-10' if val == 4 else '' }}"
             style="cursor:pointer">
             <input type="radio" name="gda_wert" value="{{ val }}" class="form-check-input me-2"
                    {{ 'checked' if (idv and idv.gda_wert == val) or (not idv and val == 1) }}>
-            <strong>GDA {{ val }} – {{ lbl }}</strong>
-            <div class="text-muted mt-1" style="font-size:.78rem">{{ desc }}</div>
+            <strong>GDA {{ val }} – {{ stufe.bezeichnung }}</strong>
+            <div class="text-muted mt-1" style="font-size:.78rem">{{ stufe.beschreibung or '' }}</div>
           </label>
         </div>
         {% endfor %}
@@ -245,8 +240,9 @@
       <div class="col-md-4">
         <label class="form-label">Nutzungsfrequenz</label>
         <select name="nutzungsfrequenz" class="form-select">
-          {% for f in ['','täglich','wöchentlich','monatlich','quartalsweise','jährlich','anlassbezogen'] %}
-          <option {{ 'selected' if idv and idv.nutzungsfrequenz == f }}>{{ f }}</option>
+          <option value="">–</option>
+          {% for nf in nutzungsfrequenzen %}
+          <option value="{{ nf.wert }}" {{ 'selected' if idv and idv.nutzungsfrequenz == nf.wert }}>{{ nf.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>

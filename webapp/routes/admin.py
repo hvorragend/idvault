@@ -19,6 +19,18 @@ def _now() -> str:
 
 # ── Übersicht ──────────────────────────────────────────────────────────────
 
+_KLASSIFIZIERUNGS_BEREICHE = [
+    ("idv_typ",               "IDV-Typ"),
+    ("pruefintervall_monate", "Prüfintervall (Monate)"),
+    ("nutzungsfrequenz",      "Nutzungsfrequenz"),
+    ("pruefungsart",          "Prüfungsart"),
+    ("pruefungs_ergebnis",    "Prüfungsergebnis"),
+    ("massnahmentyp",         "Maßnahmentyp"),
+    ("massnahmen_prioritaet", "Maßnahmen-Priorität"),
+    ("gda_stufen",            "GDA-Stufen (Bezeichnung & Beschreibung)"),
+]
+
+
 @bp.route("/")
 @login_required
 def index():
@@ -33,10 +45,19 @@ def index():
     plattformen      = db.execute("SELECT * FROM plattformen ORDER BY bezeichnung").fetchall()
     settings         = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM app_settings").fetchall()}
 
+    # Klassifizierungen gruppiert nach Bereich
+    klassifizierungen = {}
+    for bereich, _ in _KLASSIFIZIERUNGS_BEREICHE:
+        klassifizierungen[bereich] = db.execute("""
+            SELECT * FROM klassifizierungen WHERE bereich=? ORDER BY sort_order, wert
+        """, (bereich,)).fetchall()
+
     return render_template("admin/index.html",
         org_units=org_units, persons=persons,
         geschaeftsprozesse=geschaeftsprozesse, plattformen=plattformen,
-        settings=settings)
+        settings=settings,
+        klassifizierungen=klassifizierungen,
+        klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE)
 
 
 # ── Personen ───────────────────────────────────────────────────────────────
@@ -409,3 +430,80 @@ def import_template():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=mitarbeiter_vorlage.csv"}
     )
+
+
+# ── Klassifizierungen ──────────────────────────────────────────────────────
+
+@bp.route("/klassifizierungen/<bereich>/neu", methods=["POST"])
+@login_required
+def new_klassifizierung(bereich):
+    db  = get_db()
+    wert = request.form.get("wert", "").strip()
+    if not wert:
+        flash("Wert darf nicht leer sein.", "error")
+        return redirect(url_for("admin.index") + f"#klass-{bereich}")
+
+    max_order = db.execute(
+        "SELECT COALESCE(MAX(sort_order),0) FROM klassifizierungen WHERE bereich=?", (bereich,)
+    ).fetchone()[0]
+
+    db.execute("""
+        INSERT INTO klassifizierungen (bereich, wert, bezeichnung, beschreibung, sort_order, aktiv)
+        VALUES (?,?,?,?,?,1)
+        ON CONFLICT(bereich, wert) DO UPDATE SET
+            bezeichnung=excluded.bezeichnung,
+            beschreibung=excluded.beschreibung,
+            aktiv=1
+    """, (
+        bereich,
+        wert,
+        request.form.get("bezeichnung") or None,
+        request.form.get("beschreibung") or None,
+        max_order + 1
+    ))
+    db.commit()
+    flash(f"Eintrag '{wert}' in '{bereich}' angelegt.", "success")
+    return redirect(url_for("admin.index") + f"#klass-{bereich}")
+
+
+@bp.route("/klassifizierungen/<int:kid>/bearbeiten", methods=["GET", "POST"])
+@login_required
+def edit_klassifizierung(kid):
+    db  = get_db()
+    row = db.execute("SELECT * FROM klassifizierungen WHERE id=?", (kid,)).fetchone()
+    if not row:
+        flash("Eintrag nicht gefunden.", "error")
+        return redirect(url_for("admin.index"))
+
+    if request.method == "POST":
+        db.execute("""
+            UPDATE klassifizierungen
+            SET wert=?, bezeichnung=?, beschreibung=?, sort_order=?, aktiv=?
+            WHERE id=?
+        """, (
+            request.form.get("wert", "").strip(),
+            request.form.get("bezeichnung") or None,
+            request.form.get("beschreibung") or None,
+            int(request.form.get("sort_order", row["sort_order"])),
+            1 if request.form.get("aktiv") else 0,
+            kid
+        ))
+        db.commit()
+        flash("Eintrag gespeichert.", "success")
+        return redirect(url_for("admin.index") + f"#klass-{row['bereich']}")
+
+    bereich_label = dict(_KLASSIFIZIERUNGS_BEREICHE).get(row["bereich"], row["bereich"])
+    return render_template("admin/klassifizierung_edit.html",
+                           row=row, bereich_label=bereich_label)
+
+
+@bp.route("/klassifizierungen/<int:kid>/loeschen", methods=["POST"])
+@admin_required
+def delete_klassifizierung(kid):
+    db  = get_db()
+    row = db.execute("SELECT bereich FROM klassifizierungen WHERE id=?", (kid,)).fetchone()
+    db.execute("UPDATE klassifizierungen SET aktiv=0 WHERE id=?", (kid,))
+    db.commit()
+    flash("Eintrag deaktiviert.", "success")
+    bereich = row["bereich"] if row else ""
+    return redirect(url_for("admin.index") + f"#klass-{bereich}")

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Klassifizierung bearbeiten{% endblock %}
+{% block page_title %}<i class="bi bi-sliders me-2"></i>Klassifizierung bearbeiten – {{ bereich_label }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <code>{{ row.bereich }}</code> &nbsp;/&nbsp; {{ row.wert }}
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info py-2 mb-3" style="font-size:.83rem">
+          <i class="bi bi-info-circle me-1"></i>
+          Der <strong>Wert</strong> wird in der Datenbank gespeichert und in Formularen als Option angeboten.
+          Die <strong>Bezeichnung</strong> wird dem Nutzer angezeigt (wenn abweichend vom Wert).
+          Die <strong>Beschreibung</strong> erscheint als Hinweis im Formular (z.&nbsp;B. bei GDA-Stufen).
+        </div>
+        <form method="post">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-600">Wert (wird in der DB gespeichert) <span class="text-danger">*</span></label>
+              <input type="text" name="wert" class="form-control" value="{{ row.wert }}" required>
+              <div class="form-text">Achtung: Bestehende IDVs, die diesen Wert verwenden, sind nicht automatisch betroffen.</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-600">Bezeichnung (angezeigter Name)</label>
+              <input type="text" name="bezeichnung" class="form-control"
+                     value="{{ row.bezeichnung or '' }}"
+                     placeholder="Leer lassen = Wert wird angezeigt">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-600">Beschreibung / Hinweis</label>
+              <textarea name="beschreibung" class="form-control" rows="3"
+                        placeholder="Kurze Erläuterung (erscheint als Tooltip oder Hinweistext im Formular)">{{ row.beschreibung or '' }}</textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-600">Reihenfolge (sort_order)</label>
+              <input type="number" name="sort_order" class="form-control" value="{{ row.sort_order }}" min="0">
+            </div>
+            <div class="col-md-8 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" value="1" id="klass_aktiv"
+                       {{ 'checked' if row.aktiv else '' }}>
+                <label class="form-check-label" for="klass_aktiv">Eintrag aktiv (wird in Formularen angezeigt)</label>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Speichern</button>
+            <a href="{{ url_for('admin.index') }}#klass-{{ row.bereich }}" class="btn btn-outline-secondary">Abbrechen</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<style>.fw-600{font-weight:600}</style>
+{% endblock %}

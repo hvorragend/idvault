@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 
-DB_VERSION = 2   # Schema-Versionsnummer für spätere Migrationen
+DB_VERSION = 3   # Schema-Versionsnummer für spätere Migrationen
 
 # ---------------------------------------------------------------------------
 # Verbindung & Initialisierung
@@ -61,6 +61,14 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
         )
         conn.commit()
 
+    if current < 3:
+        _migrate_v3(conn)
+        conn.execute(
+            "INSERT INTO _schema_version VALUES (3, ?)",
+            (datetime.now(timezone.utc).isoformat(),)
+        )
+        conn.commit()
+
     return conn
 
 
@@ -104,6 +112,106 @@ def _migrate_v2(conn: sqlite3.Connection):
             ('smtp_tls',      '1'),
             ('notify_new_file', '1');
     """)
+
+
+def _migrate_v3(conn: sqlite3.Connection):
+    """Migration v3: Konfigurierbare Klassifizierungskriterien."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS klassifizierungen (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            bereich     TEXT NOT NULL,
+            wert        TEXT NOT NULL,
+            bezeichnung TEXT,
+            beschreibung TEXT,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            aktiv       INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(bereich, wert)
+        );
+
+        -- IDV-Typen
+        INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+            ('idv_typ', 'unklassifiziert',  0),
+            ('idv_typ', 'Excel-Tabelle',    1),
+            ('idv_typ', 'Excel-Makro',      2),
+            ('idv_typ', 'Excel-Modell',     3),
+            ('idv_typ', 'Access-Datenbank', 4),
+            ('idv_typ', 'Python-Skript',    5),
+            ('idv_typ', 'SQL-Skript',       6),
+            ('idv_typ', 'Power-BI-Bericht', 7),
+            ('idv_typ', 'Sonstige',         8);
+
+        -- Prüfintervalle (Wert in Monaten, Bezeichnung als Label)
+        INSERT OR IGNORE INTO klassifizierungen (bereich, wert, bezeichnung, sort_order) VALUES
+            ('pruefintervall_monate', '3',  '3 Monate (quartalsweise)',  1),
+            ('pruefintervall_monate', '6',  '6 Monate (halbjährlich)',   2),
+            ('pruefintervall_monate', '12', '12 Monate (jährlich)',      3),
+            ('pruefintervall_monate', '24', '24 Monate (alle 2 Jahre)',  4);
+
+        -- Nutzungsfrequenz
+        INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+            ('nutzungsfrequenz', 'täglich',       1),
+            ('nutzungsfrequenz', 'wöchentlich',   2),
+            ('nutzungsfrequenz', 'monatlich',     3),
+            ('nutzungsfrequenz', 'quartalsweise', 4),
+            ('nutzungsfrequenz', 'jährlich',      5),
+            ('nutzungsfrequenz', 'anlassbezogen', 6);
+
+        -- Prüfungsart
+        INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+            ('pruefungsart', 'Erstprüfung',      1),
+            ('pruefungsart', 'Regelprüfung',     2),
+            ('pruefungsart', 'Anlassprüfung',    3),
+            ('pruefungsart', 'Revisionsprüfung', 4);
+
+        -- Prüfungsergebnis
+        INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+            ('pruefungs_ergebnis', 'Ohne Befund',      1),
+            ('pruefungs_ergebnis', 'Mit Befund',       2),
+            ('pruefungs_ergebnis', 'Kritischer Befund',3),
+            ('pruefungs_ergebnis', 'Nicht bestanden',  4);
+
+        -- Maßnahmentyp
+        INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+            ('massnahmentyp', 'Technisch',       1),
+            ('massnahmentyp', 'Organisatorisch', 2),
+            ('massnahmentyp', 'Dokumentation',   3),
+            ('massnahmentyp', 'Ablösung',        4),
+            ('massnahmentyp', 'Sonstiges',       5);
+
+        -- Maßnahmen-Priorität
+        INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
+            ('massnahmen_prioritaet', 'Kritisch', 1),
+            ('massnahmen_prioritaet', 'Hoch',     2),
+            ('massnahmen_prioritaet', 'Mittel',   3),
+            ('massnahmen_prioritaet', 'Niedrig',  4);
+
+        -- GDA-Stufen (Grad der Abhängigkeit)
+        INSERT OR IGNORE INTO klassifizierungen
+            (bereich, wert, bezeichnung, beschreibung, sort_order) VALUES
+            ('gda_stufen', '1', 'Unterstützend',
+             'Prozess läuft auch ohne IDV – mit Mehraufwand.', 1),
+            ('gda_stufen', '2', 'Relevant',
+             'Prozessunterstützung; manueller Alternativprozess vorhanden.', 2),
+            ('gda_stufen', '3', 'Wesentlich',
+             'Kernprozessunterstützung; kein vollständiger Ersatz möglich.', 3),
+            ('gda_stufen', '4', 'Vollständig abhängig',
+             'Prozess ohne IDV nicht durchführbar. → 2. Genehmigungsstufe', 4);
+    """)
+
+
+# ---------------------------------------------------------------------------
+# Klassifizierungen-Hilfsfunktion
+# ---------------------------------------------------------------------------
+
+def get_klassifizierungen(conn: sqlite3.Connection, bereich: str) -> list:
+    """Gibt alle aktiven Einträge eines Klassifizierungsbereichs zurück."""
+    return conn.execute("""
+        SELECT id, wert, COALESCE(bezeichnung, wert) AS bezeichnung,
+               beschreibung, sort_order
+        FROM klassifizierungen
+        WHERE bereich = ? AND aktiv = 1
+        ORDER BY sort_order, wert
+    """, (bereich,)).fetchall()
 
 
 # ---------------------------------------------------------------------------

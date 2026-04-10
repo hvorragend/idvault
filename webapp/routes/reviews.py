@@ -2,6 +2,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from . import login_required, get_db
 from datetime import datetime, timezone, date as _date
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from db import get_klassifizierungen
 
 bp = Blueprint("reviews", __name__, url_prefix="/pruefungen")
 
@@ -73,7 +76,9 @@ def new_review(idv_db_id):
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
     persons = db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall()
-    return render_template("reviews/form.html", idv=idv, persons=persons)
+    return render_template("reviews/form.html", idv=idv, persons=persons,
+        pruefungsarten=get_klassifizierungen(db, "pruefungsart"),
+        pruefungs_ergebnisse=get_klassifizierungen(db, "pruefungs_ergebnis"))
 
 
 @bp.context_processor

@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from . import login_required, write_access_required, get_db, can_write, can_read_all, current_person_id
 import sys, os, io
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from db import create_idv, update_idv, change_status, search_idv
+from db import create_idv, update_idv, change_status, search_idv, get_klassifizierungen
 
 # Dateierweiterung → IDV-Typ-Vorschlag (gespiegelt aus scanner.py)
 _EXT_TO_TYP = {
@@ -19,11 +19,16 @@ bp = Blueprint("idv", __name__, url_prefix="/idv")
 
 def _form_lookups(db):
     return {
-        "org_units":        db.execute("SELECT * FROM org_units WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
-        "persons":          db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall(),
+        "org_units":          db.execute("SELECT * FROM org_units WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
+        "persons":            db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall(),
         "geschaeftsprozesse": db.execute("SELECT * FROM geschaeftsprozesse WHERE aktiv=1 ORDER BY gp_nummer").fetchall(),
-        "plattformen":      db.execute("SELECT * FROM plattformen WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
-        "risikoklassen":    db.execute("SELECT * FROM risikoklassen ORDER BY sort_order").fetchall(),
+        "plattformen":        db.execute("SELECT * FROM plattformen WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
+        "risikoklassen":      db.execute("SELECT * FROM risikoklassen ORDER BY sort_order").fetchall(),
+        # Konfigurierbare Klassifizierungen
+        "idv_typen":          get_klassifizierungen(db, "idv_typ"),
+        "pruefintervalle":    get_klassifizierungen(db, "pruefintervall_monate"),
+        "nutzungsfrequenzen": get_klassifizierungen(db, "nutzungsfrequenz"),
+        "gda_stufen":         get_klassifizierungen(db, "gda_stufen"),
     }
 
 

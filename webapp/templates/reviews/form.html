@@ -19,8 +19,8 @@
           <div class="col-md-4">
             <label class="form-label">Prüfungsart <span class="required-star">*</span></label>
             <select name="pruefungsart" class="form-select" required>
-              {% for art in ['Erstprüfung','Regelprüfung','Anlassprüfung','Revisionsprüfung'] %}
-              <option>{{ art }}</option>
+              {% for art in pruefungsarten %}
+              <option value="{{ art.wert }}">{{ art.bezeichnung }}</option>
               {% endfor %}
             </select>
           </div>
@@ -44,8 +44,8 @@
           <div class="col-md-6">
             <label class="form-label">Ergebnis <span class="required-star">*</span></label>
             <select name="ergebnis" class="form-select" required>
-              {% for e in ['Ohne Befund','Mit Befund','Kritischer Befund','Nicht bestanden'] %}
-              <option>{{ e }}</option>
+              {% for e in pruefungs_ergebnisse %}
+              <option value="{{ e.wert }}">{{ e.bezeichnung }}</option>
               {% endfor %}
             </select>
           </div>
