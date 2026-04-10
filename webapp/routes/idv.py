@@ -262,7 +262,7 @@ def edit_idv(idv_db_id):
 
     # Vorhandene Kriterium-Antworten für das Formular aufbereiten
     wesentlichkeit_antworten = {
-        row["kriterium_id"]: row
+        row["kriterium_id"]: dict(row)
         for row in get_idv_wesentlichkeit(db, idv_db_id)
     }
     return render_template("idv/form.html", idv=idv, fund=None, prefill={},
