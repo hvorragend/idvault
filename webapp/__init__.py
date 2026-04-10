@@ -6,6 +6,7 @@ von Eigenentwicklungen (Individuelle Datenverarbeitung).
 """
 
 import os
+from datetime import datetime, date
 from flask import Flask
 from .db_flask import get_db, close_db, init_app_db
 
@@ -49,11 +50,9 @@ def create_app(db_path: str = None) -> Flask:
         if not value:
             return "–"
         try:
-            from datetime import datetime
             if "T" in str(value):
                 dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
             else:
-                from datetime import date
                 dt = datetime.strptime(str(value)[:10], "%Y-%m-%d")
             return dt.strftime(fmt)
         except Exception:

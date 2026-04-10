@@ -193,8 +193,8 @@ def export_excel():
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
         out_path = f.name
     try:
-        script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-                               "idv_scanner", "idv_export.py")
+        script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                               "scanner", "idv_export.py")
         subprocess.run([sys.executable, script, "--db", db_path, "--output", out_path], check=True)
         return send_file(out_path, as_attachment=True,
                          download_name="IDV_Grundgesamtheit.xlsx",
@@ -235,12 +235,15 @@ def _form_to_dict(form) -> dict:
         "org_unit_id":               _int_or_none(form.get("org_unit_id")),
         "fachverantwortlicher_id":   _int_or_none(form.get("fachverantwortlicher_id")),
         "idv_entwickler_id":         _int_or_none(form.get("idv_entwickler_id")),
+        "idv_koordinator_id":        _int_or_none(form.get("idv_koordinator_id")),
+        "stellvertreter_id":         _int_or_none(form.get("stellvertreter_id")),
         "plattform_id":              _int_or_none(form.get("plattform_id")),
         "programmiersprache":        form.get("programmiersprache") or None,
         "datenbankanbindung":        chk("datenbankanbindung"),
         "datenbankanbindung_beschr": form.get("datenbankanbindung_beschr") or None,
         "netzwerkzugriff":           chk("netzwerkzugriff"),
         "enthaelt_personendaten":    chk("enthaelt_personendaten"),
+        "datenschutz_kategorie":     form.get("datenschutz_kategorie") or "keine",
         "nutzungsfrequenz":          form.get("nutzungsfrequenz") or None,
         "nutzeranzahl":              _int_or_none(form.get("nutzeranzahl")),
         "datenquellen":              form.get("datenquellen") or None,
