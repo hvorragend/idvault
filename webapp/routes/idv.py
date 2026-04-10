@@ -278,6 +278,7 @@ def _form_to_dict(form) -> dict:
         "netzwerkzugriff":           chk("netzwerkzugriff"),
         "enthaelt_personendaten":    chk("enthaelt_personendaten"),
         "datenschutz_kategorie":     form.get("datenschutz_kategorie") or "keine",
+        "produktiv_seit":            form.get("produktiv_seit") or None,
         "nutzungsfrequenz":          form.get("nutzungsfrequenz") or None,
         "nutzeranzahl":              _int_or_none(form.get("nutzeranzahl")),
         "datenquellen":              form.get("datenquellen") or None,
