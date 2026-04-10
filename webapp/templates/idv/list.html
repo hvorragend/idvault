@@ -8,7 +8,7 @@
 <form method="get" class="card border-0 shadow-sm p-3 mb-4">
   <div class="row g-2 align-items-end">
 
-    <!-- Zeile 1: Suche + Status + GDA + Spezialfilter -->
+    <!-- Zeile 1: Suche + Status + Filter -->
     <div class="col-md-4">
       <label class="form-label form-label-sm">Suche</label>
       <input type="text" name="q" value="{{ request.args.get('q','') }}"
@@ -23,22 +23,13 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2">
-      <label class="form-label form-label-sm">GDA (min.)</label>
-      <select name="gda_min" class="form-select form-select-sm">
-        <option value="0">Alle</option>
-        {% for g in [1,2,3,4] %}
-        <option value="{{ g }}" {{ 'selected' if request.args.get('gda_min','0')|int == g }}>GDA {{ g }}+</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label form-label-sm">Spezialfilter</label>
+    <div class="col-md-4">
+      <label class="form-label form-label-sm">Filter</label>
       <select name="filter" class="form-select form-select-sm">
-        <option value="">–</option>
-        <option value="kritisch"       {{ 'selected' if request.args.get('filter') == 'kritisch' }}>Kritische IDVs</option>
+        <option value="">– Alle IDVs –</option>
+        <option value="wesentlich"     {{ 'selected' if request.args.get('filter') in ('wesentlich','kritisch') }}>Wesentliche IDVs</option>
         <option value="steuerung"      {{ 'selected' if request.args.get('filter') == 'steuerung' }}>Steuerungsrelevant</option>
-        <option value="dora"           {{ 'selected' if request.args.get('filter') == 'dora' }}>DORA-kritisch</option>
+        <option value="dora"           {{ 'selected' if request.args.get('filter') == 'dora' }}>DORA-kritisch/wichtig</option>
         <option value="ueberfaellig"   {{ 'selected' if request.args.get('filter') == 'ueberfaellig' }}>Prüfung überfällig</option>
         <option value="unvollstaendig" {{ 'selected' if request.args.get('filter') == 'unvollstaendig' }}>Unvollständig</option>
       </select>
@@ -109,9 +100,7 @@
           <th>Bezeichnung</th>
           <th>OE</th>
           <th>Typ</th>
-          <th>GDA</th>
-          <th>Steuerung</th>
-          <th>DORA</th>
+          <th>Wesentlichkeit</th>
           <th>Status</th>
           <th>Fachverantwortlicher</th>
           <th>Nächste Prüfung</th>
@@ -142,20 +131,15 @@
             <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
           </td>
           <td>
-            <span class="badge badge-gda-{{ r.gda_wert }}">{{ r.gda_wert }} – {{ r.gda_bezeichnung }}</span>
-          </td>
-          <td class="text-center">
-            {% if r.steuerungsrelevant == 'Ja' %}
-              <i class="bi bi-check-circle-fill text-primary"></i>
+            {% if r.ist_wesentlich %}
+            <span class="badge bg-danger">Wesentlich</span>
+            <div class="mt-1" style="font-size:.7rem;line-height:1.6">
+              {% if r.steuerungsrelevant == 'Ja' %}<span class="badge bg-primary">Steuerung</span> {% endif %}
+              {% if r.rl_relevant == 'Ja' %}<span class="badge bg-info text-dark">RL</span> {% endif %}
+              {% if r.dora_kritisch == 'Ja' %}<span class="badge bg-danger">DORA</span> {% endif %}
+            </div>
             {% else %}
-              <i class="bi bi-dash text-muted"></i>
-            {% endif %}
-          </td>
-          <td class="text-center">
-            {% if r.dora_kritisch == 'Ja' %}
-              <i class="bi bi-shield-fill-exclamation text-danger"></i>
-            {% else %}
-              <i class="bi bi-dash text-muted"></i>
+            <span class="text-muted" style="font-size:.82rem">–</span>
             {% endif %}
           </td>
           <td>
@@ -188,7 +172,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="11" class="text-center text-muted py-5">
+          <td colspan="9" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine IDVs gefunden.
             {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}

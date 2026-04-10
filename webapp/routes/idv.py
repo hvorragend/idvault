@@ -51,11 +51,15 @@ def list_idv():
     db      = get_db()
     q       = request.args.get("q", "")
     status  = request.args.get("status", "")
-    gda_min = _int_or_none(request.args.get("gda_min", "0")) or 0
     filt    = request.args.get("filter", "")
     oe_id   = _int_or_none(request.args.get("oe_id"))
     fv_id   = _int_or_none(request.args.get("fv_id"))
     share_root = request.args.get("share_root", "").strip()
+
+    _WESENTLICH = """(
+        v.steuerungsrelevant = 'Ja' OR v.rl_relevant = 'Ja' OR v.dora_kritisch = 'Ja'
+        OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
+    )"""
 
     # Alle Bedingungen und Parameter als positionale Listen aufbauen
     where_parts = []
@@ -67,9 +71,6 @@ def list_idv():
     if status:
         where_parts.append("v.status = ?")
         params.append(status)
-    if gda_min:
-        where_parts.append("v.gda_wert >= ?")
-        params.append(gda_min)
     if oe_id:
         where_parts.append("r.org_unit_id = ?")
         params.append(oe_id)
@@ -83,8 +84,8 @@ def list_idv():
         params.append(share_root)
 
     # Spezialfilter
-    if filt == "kritisch":
-        where_parts.append("(v.gda_wert = 4 OR v.steuerungsrelevant = 'Ja' OR v.dora_kritisch = 'Ja')")
+    if filt in ("kritisch", "wesentlich"):
+        where_parts.append(_WESENTLICH)
     elif filt == "steuerung":
         where_parts.append("v.steuerungsrelevant = 'Ja'")
     elif filt == "dora":
@@ -113,11 +114,12 @@ def list_idv():
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
     sql = f"""
-        SELECT r.*, v.*
+        SELECT r.*, v.*,
+          CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich
         FROM v_idv_uebersicht v
         JOIN idv_register r ON r.idv_id = v.idv_id
         {where_sql}
-        ORDER BY v.gda_wert DESC, v.bezeichnung
+        ORDER BY ist_wesentlich DESC, v.bezeichnung
     """
     idvs = db.execute(sql, params).fetchall()
 
