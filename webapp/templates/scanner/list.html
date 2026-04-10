@@ -6,22 +6,28 @@
 
 <!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
-  <div class="col-sm-4">
+  <div class="col-sm-3">
     <div class="card border-0 shadow-sm stat-card p-3 text-center">
       <div class="stat-val text-primary">{{ gesamt }}</div>
       <div class="stat-lbl">Aktive Dateien</div>
     </div>
   </div>
-  <div class="col-sm-4">
+  <div class="col-sm-3">
     <div class="card border-0 shadow-sm stat-card p-3 text-center">
       <div class="stat-val text-warning">{{ ohne_idv }}</div>
       <div class="stat-lbl">Noch nicht registriert</div>
     </div>
   </div>
-  <div class="col-sm-4">
+  <div class="col-sm-3">
     <div class="card border-0 shadow-sm stat-card p-3 text-center">
       <div class="stat-val text-danger">{{ mit_makro }}</div>
       <div class="stat-lbl">Dateien mit Makros</div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      <div class="stat-val text-warning">{{ mit_schutz }}</div>
+      <div class="stat-lbl">Mit Blattschutz</div>
     </div>
   </div>
 </div>
@@ -54,6 +60,10 @@
   <a href="{{ url_for('scanner.list_funde', filter='makros') }}"
      class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
     <i class="bi bi-lightning-fill me-1"></i>Mit Makros ({{ mit_makro }})
+  </a>
+  <a href="{{ url_for('scanner.list_funde', filter='blattschutz') }}"
+     class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
+    <i class="bi bi-lock-fill me-1"></i>Mit Blattschutz ({{ mit_schutz }})
   </a>
   <a href="{{ url_for('scanner.list_funde', filter='mit_idv') }}"
      class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
@@ -90,6 +100,7 @@
           <th>{{ 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert' }}</th>
           <th>Autor</th>
           <th class="text-center">Makros</th>
+          <th class="text-center">Blattschutz</th>
           <th>IDV-Status</th>
           {% if filt != 'archiv' %}<th></th>{% endif %}
         </tr>
@@ -124,6 +135,29 @@
               <i class="bi bi-dash text-muted"></i>
             {% endif %}
           </td>
+          <td class="text-center">
+            {% if f.has_sheet_protection %}
+              {% if f.workbook_protected %}
+                <span class="badge bg-warning text-dark"
+                      title="{{ f.protected_sheets_count }} Blatt/Blätter geschützt{% if f.sheet_protection_has_pw %} (mit Passwort){% endif %} · Arbeitsmappenschutz">
+                  <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
+                  <i class="bi bi-journals ms-1"></i>
+                </span>
+              {% else %}
+                <span class="badge bg-warning text-dark"
+                      title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blatt/Blätter geschützt{% if f.sheet_protection_has_pw %} (mit Passwort){% endif %}">
+                  <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
+                  {% if f.sheet_protection_has_pw %}<i class="bi bi-key-fill ms-1"></i>{% endif %}
+                </span>
+              {% endif %}
+            {% elif f.workbook_protected %}
+              <span class="badge bg-secondary" title="Nur Arbeitsmappenschutz (kein Blattschutz)">
+                <i class="bi bi-journals"></i>
+              </span>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
           <td>
             {% if f.reg_idv_id %}
               <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
@@ -153,7 +187,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="9" class="text-center text-muted py-5">
+          <td colspan="10" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine Dateien gefunden.
           </td>

@@ -69,6 +69,14 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
         )
         conn.commit()
 
+    if current < 4:
+        _migrate_v4(conn)
+        conn.execute(
+            "INSERT INTO _schema_version VALUES (4, ?)",
+            (datetime.now(timezone.utc).isoformat(),)
+        )
+        conn.commit()
+
     return conn
 
 
@@ -112,6 +120,21 @@ def _migrate_v2(conn: sqlite3.Connection):
             ('smtp_tls',      '1'),
             ('notify_new_file', '1');
     """)
+
+
+def _migrate_v4(conn: sqlite3.Connection):
+    """Migration v4: Blattschutz-Spalten in idv_files (Webapp-DB)."""
+    new_cols = [
+        "has_sheet_protection    INTEGER DEFAULT 0",
+        "protected_sheets_count  INTEGER DEFAULT 0",
+        "sheet_protection_has_pw INTEGER DEFAULT 0",
+        "workbook_protected      INTEGER DEFAULT 0",
+    ]
+    for col in new_cols:
+        try:
+            conn.execute(f"ALTER TABLE idv_files ADD COLUMN {col}")
+        except Exception:
+            pass  # Spalte bereits vorhanden (gemeinsame DB mit Scanner)
 
 
 def _migrate_v3(conn: sqlite3.Connection):
