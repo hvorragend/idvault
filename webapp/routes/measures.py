@@ -2,6 +2,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from . import login_required, get_db
 from datetime import datetime, timezone
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from db import get_klassifizierungen
 
 bp = Blueprint("measures", __name__, url_prefix="/massnahmen")
 
@@ -61,7 +64,9 @@ def new_measure(idv_db_id):
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
     persons = db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall()
-    return render_template("measures/form.html", idv=idv, persons=persons)
+    return render_template("measures/form.html", idv=idv, persons=persons,
+        massnahmentypen=get_klassifizierungen(db, "massnahmentyp"),
+        prioritaeten=get_klassifizierungen(db, "massnahmen_prioritaet"))
 
 
 @bp.route("/<int:m_id>/erledigen", methods=["POST"])

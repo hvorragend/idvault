@@ -13,8 +13,6 @@ from pathlib import Path
 from typing import Optional
 
 
-DB_VERSION = 2   # Schema-Versionsnummer für spätere Migrationen
-
 # ---------------------------------------------------------------------------
 # Verbindung & Initialisierung
 # ---------------------------------------------------------------------------
@@ -29,81 +27,30 @@ def get_connection(db_path: str) -> sqlite3.Connection:
 
 
 def init_register_db(db_path: str) -> sqlite3.Connection:
-    """Initialisiert die Datenbank und führt alle Migrationen aus."""
+    """Initialisiert die Datenbank anhand von schema.sql."""
     conn = get_connection(db_path)
-
-    # Schema-Version verwalten
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS _schema_version (
-            version     INTEGER PRIMARY KEY,
-            applied_at  TEXT NOT NULL
-        )
-    """)
+    schema_path = Path(__file__).parent / "schema.sql"
+    if not schema_path.exists():
+        raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
+    sql = schema_path.read_text(encoding="utf-8")
+    conn.executescript(sql)
     conn.commit()
-
-    current = conn.execute(
-        "SELECT MAX(version) as v FROM _schema_version"
-    ).fetchone()["v"] or 0
-
-    if current < 1:
-        _migrate_v1(conn)
-        conn.execute(
-            "INSERT INTO _schema_version VALUES (1, ?)",
-            (datetime.now(timezone.utc).isoformat(),)
-        )
-        conn.commit()
-
-    if current < 2:
-        _migrate_v2(conn)
-        conn.execute(
-            "INSERT INTO _schema_version VALUES (2, ?)",
-            (datetime.now(timezone.utc).isoformat(),)
-        )
-        conn.commit()
-
     return conn
 
 
-def _migrate_v1(conn: sqlite3.Connection):
-    """Migration v1: Vollständiges IDV-Register-Schema."""
-    schema_path = Path(__file__).parent / "schema.sql"
-    if schema_path.exists():
-        sql = schema_path.read_text(encoding="utf-8")
-        conn.executescript(sql)
-    else:
-        raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
+# ---------------------------------------------------------------------------
+# Klassifizierungen-Hilfsfunktion
+# ---------------------------------------------------------------------------
 
-
-def _migrate_v2(conn: sqlite3.Connection):
-    """Migration v2: Erweiterte Personen-Felder (user_id, ad_name, password_hash) + App-Einstellungen."""
-    # Neue Spalten in persons (idempotent via ALTER TABLE IF NOT EXISTS-Emulation)
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(persons)")}
-    if "user_id" not in cols:
-        conn.execute("ALTER TABLE persons ADD COLUMN user_id TEXT")
-    if "ad_name" not in cols:
-        conn.execute("ALTER TABLE persons ADD COLUMN ad_name TEXT")
-    if "password_hash" not in cols:
-        conn.execute("ALTER TABLE persons ADD COLUMN password_hash TEXT")
-
-    # Eindeutiger Index auf user_id (falls noch nicht vorhanden)
-    conn.executescript("""
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_persons_user_id
-            ON persons(user_id) WHERE user_id IS NOT NULL;
-
-        CREATE TABLE IF NOT EXISTS app_settings (
-            key   TEXT PRIMARY KEY,
-            value TEXT
-        );
-
-        INSERT OR IGNORE INTO app_settings (key, value) VALUES
-            ('smtp_host',     ''),
-            ('smtp_port',     '587'),
-            ('smtp_user',     ''),
-            ('smtp_password', ''),
-            ('smtp_from',     ''),
-            ('smtp_tls',      '1'),
-            ('notify_new_file', '1');
-    """)
+def get_klassifizierungen(conn: sqlite3.Connection, bereich: str) -> list:
+    """Gibt alle aktiven Einträge eines Klassifizierungsbereichs zurück."""
+    return conn.execute("""
+        SELECT id, wert, COALESCE(bezeichnung, wert) AS bezeichnung,
+               beschreibung, sort_order
+        FROM klassifizierungen
+        WHERE bereich = ? AND aktiv = 1
+        ORDER BY sort_order, wert
+    """, (bereich,)).fetchall()
 
 
 # ---------------------------------------------------------------------------

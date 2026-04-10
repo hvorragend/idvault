@@ -318,6 +318,103 @@
     </div>
   </div>
 
+  <!-- ── Klassifizierungskriterien ────────────────────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-sliders me-2"></i>Klassifizierungskriterien
+        <span class="badge bg-secondary ms-2" style="font-weight:400;font-size:.75rem">konfigurierbar</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="accordion accordion-flush" id="klassAcc">
+          {% for bereich, bereich_label in klassifizierungs_bereiche %}
+          {% set eintraege = klassifizierungen.get(bereich, []) %}
+          <div class="accordion-item" id="klass-{{ bereich }}">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed py-2" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#klass-body-{{ bereich }}">
+                <span class="fw-600 me-2">{{ bereich_label }}</span>
+                <span class="badge bg-light text-dark border">{{ eintraege|selectattr('aktiv')|list|length }} aktiv</span>
+              </button>
+            </h2>
+            <div id="klass-body-{{ bereich }}" class="accordion-collapse collapse">
+              <div class="accordion-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width:40px">#</th>
+                      <th>Wert (gespeichert)</th>
+                      <th>Bezeichnung (angezeigt)</th>
+                      <th>Beschreibung / Hinweis</th>
+                      <th style="width:80px">Aktiv</th>
+                      <th style="width:70px"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for e in eintraege %}
+                    <tr class="{{ '' if e.aktiv else 'text-muted' }}">
+                      <td class="text-muted" style="font-size:.78rem">{{ e.sort_order }}</td>
+                      <td><code>{{ e.wert }}</code></td>
+                      <td>{{ e.bezeichnung if e.bezeichnung != e.wert else '–' }}</td>
+                      <td style="font-size:.78rem;color:#6c757d">{{ e.beschreibung or '–' }}</td>
+                      <td class="text-center">
+                        {% if e.aktiv %}<span class="badge bg-success">Ja</span>
+                        {% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
+                      </td>
+                      <td>
+                        <a href="{{ url_for('admin.edit_klassifizierung', kid=e.id) }}"
+                           class="btn btn-xs btn-outline-primary py-0 px-1" title="Bearbeiten">
+                          <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="post"
+                              action="{{ url_for('admin.delete_klassifizierung', kid=e.id) }}"
+                              class="d-inline"
+                              onsubmit="return confirm('Eintrag deaktivieren?')">
+                          <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
+                            <i class="bi bi-dash-circle"></i>
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                <!-- Neuen Wert hinzufügen -->
+                <div class="p-3 border-top bg-light">
+                  <form method="post"
+                        action="{{ url_for('admin.new_klassifizierung', bereich=bereich) }}"
+                        class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                      <label class="form-label form-label-sm">Wert <span class="text-danger">*</span></label>
+                      <input type="text" name="wert" class="form-control form-control-sm"
+                             placeholder="z.B. R-Skript" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label form-label-sm">Bezeichnung (optional)</label>
+                      <input type="text" name="bezeichnung" class="form-control form-control-sm"
+                             placeholder="Angezeigter Name">
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label form-label-sm">Beschreibung / Hinweis</label>
+                      <input type="text" name="beschreibung" class="form-control form-control-sm"
+                             placeholder="Kurze Erläuterung (optional)">
+                    </div>
+                    <div class="col-md-2">
+                      <button type="submit" class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-plus me-1"></i>Hinzufügen
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <style>

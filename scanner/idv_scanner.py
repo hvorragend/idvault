@@ -119,29 +119,34 @@ CREATE TABLE IF NOT EXISTS scan_runs (
 );
 
 CREATE TABLE IF NOT EXISTS idv_files (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_hash           TEXT NOT NULL,          -- SHA-256, eindeutiger Fingerabdruck
-    full_path           TEXT NOT NULL,
-    file_name           TEXT NOT NULL,
-    extension           TEXT NOT NULL,
-    share_root          TEXT,                   -- UNC-Root / Laufwerksbuchstabe
-    relative_path       TEXT,                   -- Pfad relativ zum Share-Root
-    size_bytes          INTEGER,
-    created_at          TEXT,                   -- Dateisystem-Erstelldatum (UTC)
-    modified_at         TEXT,                   -- Dateisystem-Änderungsdatum (UTC)
-    file_owner          TEXT,                   -- Windows-Eigentümer (SID/Name)
-    office_author       TEXT,                   -- dc:creator aus OOXML
-    office_last_author  TEXT,                   -- cp:lastModifiedBy aus OOXML
-    office_created      TEXT,                   -- dcterms:created aus OOXML
-    office_modified     TEXT,                   -- dcterms:modified aus OOXML
-    has_macros          INTEGER DEFAULT 0,       -- 1 = VBA-Projekt vorhanden
-    has_external_links  INTEGER DEFAULT 0,       -- 1 = externe Verknüpfungen
-    sheet_count         INTEGER,                -- Anzahl Tabellenblätter (Excel)
-    named_ranges_count  INTEGER,                -- Anzahl benannter Bereiche
-    first_seen_at       TEXT NOT NULL,          -- Erster Fund (UTC)
-    last_seen_at        TEXT NOT NULL,          -- Letzter Scan (UTC)
-    last_scan_run_id    INTEGER,
-    status              TEXT DEFAULT 'active',  -- active | deleted | moved
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_hash               TEXT NOT NULL,          -- SHA-256, eindeutiger Fingerabdruck
+    full_path               TEXT NOT NULL,
+    file_name               TEXT NOT NULL,
+    extension               TEXT NOT NULL,
+    share_root              TEXT,                   -- UNC-Root / Laufwerksbuchstabe
+    relative_path           TEXT,                   -- Pfad relativ zum Share-Root
+    size_bytes              INTEGER,
+    created_at              TEXT,                   -- Dateisystem-Erstelldatum (UTC)
+    modified_at             TEXT,                   -- Dateisystem-Änderungsdatum (UTC)
+    file_owner              TEXT,                   -- Windows-Eigentümer (SID/Name)
+    office_author           TEXT,                   -- dc:creator aus OOXML
+    office_last_author      TEXT,                   -- cp:lastModifiedBy aus OOXML
+    office_created          TEXT,                   -- dcterms:created aus OOXML
+    office_modified         TEXT,                   -- dcterms:modified aus OOXML
+    has_macros              INTEGER DEFAULT 0,       -- 1 = VBA-Projekt vorhanden
+    has_external_links      INTEGER DEFAULT 0,       -- 1 = externe Verknüpfungen
+    sheet_count             INTEGER,                -- Anzahl Tabellenblätter (Excel)
+    named_ranges_count      INTEGER,                -- Anzahl benannter Bereiche
+    formula_count           INTEGER DEFAULT 0,       -- Anzahl Formelzellen (Excel)
+    has_sheet_protection    INTEGER DEFAULT 0,       -- 1 = mind. 1 Blatt ist geschützt
+    protected_sheets_count  INTEGER DEFAULT 0,       -- Anzahl geschützter Blätter
+    sheet_protection_has_pw INTEGER DEFAULT 0,       -- 1 = mind. 1 Passwort-Hash gesetzt
+    workbook_protected      INTEGER DEFAULT 0,       -- 1 = Arbeitsmappenschutz aktiv
+    first_seen_at           TEXT NOT NULL,          -- Erster Fund (UTC)
+    last_seen_at            TEXT NOT NULL,          -- Letzter Scan (UTC)
+    last_scan_run_id        INTEGER,
+    status                  TEXT DEFAULT 'active',  -- active | deleted | moved
     UNIQUE(full_path)
 );
 
@@ -169,14 +174,6 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
-    # Migration: neue Spalten für bestehende Datenbanken ergänzen
-    for col in ["moved_files INTEGER DEFAULT 0",
-                "restored_files INTEGER DEFAULT 0",
-                "archived_files INTEGER DEFAULT 0"]:
-        try:
-            conn.execute(f"ALTER TABLE scan_runs ADD COLUMN {col}")
-        except Exception:
-            pass  # Spalte existiert bereits
     conn.commit()
     return conn
 
@@ -244,14 +241,19 @@ OOXML_NS = {
 def analyze_ooxml(path: str, ext: str) -> dict:
     """Analysiert OOXML-Dateien (xlsx, xlsm, docm, pptm …) via ZIP-Inspektion."""
     result = {
-        "office_author":       None,
-        "office_last_author":  None,
-        "office_created":      None,
-        "office_modified":     None,
-        "has_macros":          0,
-        "has_external_links":  0,
-        "sheet_count":         None,
-        "named_ranges_count":  None,
+        "office_author":          None,
+        "office_last_author":     None,
+        "office_created":         None,
+        "office_modified":        None,
+        "has_macros":             0,
+        "has_external_links":     0,
+        "sheet_count":            None,
+        "named_ranges_count":     None,
+        "formula_count":          0,
+        "has_sheet_protection":   0,
+        "protected_sheets_count": 0,
+        "sheet_protection_has_pw":0,
+        "workbook_protected":     0,
     }
 
     try:
@@ -292,7 +294,7 @@ def analyze_ooxml(path: str, ext: str) -> dict:
                 sheets = [n for n in names if n.startswith("xl/worksheets/sheet")]
                 result["sheet_count"] = len(sheets)
 
-                # --- Benannte Bereiche (workbook.xml) ---
+                # --- Benannte Bereiche + Arbeitsmappenschutz (workbook.xml) ---
                 if "xl/workbook.xml" in names:
                     try:
                         with z.open("xl/workbook.xml") as f:
@@ -301,8 +303,47 @@ def analyze_ooxml(path: str, ext: str) -> dict:
                             ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
                             defined = wb_root.findall(f".//{{{ns}}}definedName")
                             result["named_ranges_count"] = len(defined)
+                            # Arbeitsmappenschutz: <workbookProtection> vorhanden?
+                            wb_prot = wb_root.find(f"{{{ns}}}workbookProtection")
+                            if wb_prot is not None:
+                                # lockStructure="1" oder lockWindows="1" → aktiv
+                                lock_structure = wb_prot.get("lockStructure", "0")
+                                lock_windows   = wb_prot.get("lockWindows",   "0")
+                                if lock_structure == "1" or lock_windows == "1":
+                                    result["workbook_protected"] = 1
                     except Exception:
                         pass
+
+                # --- Blattschutz + Formelzählung: jedes Sheet-XML prüfen ---
+                sheet_files = [n for n in names
+                               if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]
+                protected     = 0
+                has_pw        = 0
+                formula_count = 0
+                ns_ss = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+                for sheet_file in sheet_files:
+                    try:
+                        with z.open(sheet_file) as sf:
+                            sh_tree = ET.parse(sf)
+                            sh_root = sh_tree.getroot()
+                            # Blattschutz
+                            prot_el = sh_root.find(f"{{{ns_ss}}}sheetProtection")
+                            if prot_el is not None:
+                                sheet_attr = prot_el.get("sheet", "0")
+                                if sheet_attr == "1":
+                                    protected += 1
+                                    if prot_el.get("hashValue") or prot_el.get("password"):
+                                        has_pw = 1
+                            # Formeln: jede Zelle mit einem <f>-Kindelement ist eine Formelzelle
+                            formula_count += len(sh_root.findall(f".//{{{ns_ss}}}f"))
+                    except Exception:
+                        pass
+
+                result["formula_count"] = formula_count
+                if protected > 0:
+                    result["has_sheet_protection"]   = 1
+                    result["protected_sheets_count"]  = protected
+                    result["sheet_protection_has_pw"] = has_pw
 
     except Exception:
         pass
@@ -370,10 +411,15 @@ def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
         "office_last_author": ooxml.get("office_last_author"),
         "office_created":     ooxml.get("office_created"),
         "office_modified":    ooxml.get("office_modified"),
-        "has_macros":         ooxml.get("has_macros", 0),
-        "has_external_links": ooxml.get("has_external_links", 0),
-        "sheet_count":        ooxml.get("sheet_count"),
-        "named_ranges_count": ooxml.get("named_ranges_count"),
+        "has_macros":             ooxml.get("has_macros", 0),
+        "has_external_links":     ooxml.get("has_external_links", 0),
+        "sheet_count":            ooxml.get("sheet_count"),
+        "named_ranges_count":     ooxml.get("named_ranges_count"),
+        "formula_count":          ooxml.get("formula_count", 0),
+        "has_sheet_protection":   ooxml.get("has_sheet_protection", 0),
+        "protected_sheets_count": ooxml.get("protected_sheets_count", 0),
+        "sheet_protection_has_pw":ooxml.get("sheet_protection_has_pw", 0),
+        "workbook_protected":     ooxml.get("workbook_protected", 0),
     }
 
 
@@ -508,12 +554,18 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 relative_path, size_bytes, created_at, modified_at, file_owner,
                 office_author, office_last_author, office_created, office_modified,
                 has_macros, has_external_links, sheet_count, named_ranges_count,
+                formula_count,
+                has_sheet_protection, protected_sheets_count,
+                sheet_protection_has_pw, workbook_protected,
                 first_seen_at, last_seen_at, last_scan_run_id, status
             ) VALUES (
                 :file_hash, :full_path, :file_name, :extension, :share_root,
                 :relative_path, :size_bytes, :created_at, :modified_at, :file_owner,
                 :office_author, :office_last_author, :office_created, :office_modified,
                 :has_macros, :has_external_links, :sheet_count, :named_ranges_count,
+                :formula_count,
+                :has_sheet_protection, :protected_sheets_count,
+                :sheet_protection_has_pw, :workbook_protected,
                 :first_seen_at, :last_seen_at, :last_scan_run_id, 'active'
             )
         """, insert_data)
@@ -539,6 +591,11 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 office_modified = :office_modified,
                 has_macros = :has_macros, has_external_links = :has_external_links,
                 sheet_count = :sheet_count, named_ranges_count = :named_ranges_count,
+                formula_count = :formula_count,
+                has_sheet_protection = :has_sheet_protection,
+                protected_sheets_count = :protected_sheets_count,
+                sheet_protection_has_pw = :sheet_protection_has_pw,
+                workbook_protected = :workbook_protected,
                 last_seen_at = :now, last_scan_run_id = :run_id, status = 'active'
             WHERE full_path = :full_path
         """, {**data, "now": now, "run_id": scan_run_id})

@@ -20,8 +20,8 @@
             <label class="form-label">Typ</label>
             <select name="massnahmentyp" class="form-select">
               <option value="">–</option>
-              {% for t in ['Technisch','Organisatorisch','Dokumentation','Ablösung','Sonstiges'] %}
-              <option>{{ t }}</option>
+              {% for t in massnahmentypen %}
+              <option value="{{ t.wert }}">{{ t.bezeichnung }}</option>
               {% endfor %}
             </select>
           </div>
@@ -29,8 +29,8 @@
           <div class="col-md-4">
             <label class="form-label">Priorität</label>
             <select name="prioritaet" class="form-select">
-              {% for p in ['Kritisch','Hoch','Mittel','Niedrig'] %}
-              <option {{ 'selected' if p == 'Mittel' }}>{{ p }}</option>
+              {% for p in prioritaeten %}
+              <option value="{{ p.wert }}" {{ 'selected' if p.wert == 'Mittel' }}>{{ p.bezeichnung }}</option>
               {% endfor %}
             </select>
           </div>
