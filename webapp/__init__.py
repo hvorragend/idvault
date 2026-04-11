@@ -30,14 +30,15 @@ def create_app(db_path: str = None) -> Flask:
     init_app_db(app)
 
     # Blueprints registrieren
-    from .routes.auth      import bp as auth_bp
-    from .routes.dashboard import bp as dash_bp
-    from .routes.idv       import bp as idv_bp
-    from .routes.reviews   import bp as rev_bp
-    from .routes.measures  import bp as meas_bp
-    from .routes.admin     import bp as admin_bp
-    from .routes.scanner   import bp as scanner_bp
-    from .routes.reports   import bp as reports_bp
+    from .routes.auth       import bp as auth_bp
+    from .routes.dashboard  import bp as dash_bp
+    from .routes.idv        import bp as idv_bp
+    from .routes.reviews    import bp as rev_bp
+    from .routes.measures   import bp as meas_bp
+    from .routes.admin      import bp as admin_bp
+    from .routes.scanner    import bp as scanner_bp
+    from .routes.reports    import bp as reports_bp
+    from .routes.freigaben  import bp as freigaben_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
@@ -47,6 +48,7 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(admin_bp)
     app.register_blueprint(scanner_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(freigaben_bp)
 
     # Template-Filter
     @app.template_filter("datefmt")

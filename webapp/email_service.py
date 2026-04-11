@@ -166,6 +166,80 @@ def notify_review_due(db, idv_row, responsible_email: str) -> bool:
     return send_mail(db, responsible_email, subject, html, text)
 
 
+def notify_freigabe_schritt(db, idv_row, schritt: str,
+                            recipient_emails: list) -> bool:
+    """Benachrichtigt Prüfer über einen neuen offenen Freigabe-Schritt."""
+    idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
+    name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
+
+    subject = f"[idvault] Freigabe-Schritt offen: {schritt} – {idv_id}"
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;font-size:14px;">
+    <h2 style="color:#0d6efd;">idvault – Test &amp; Freigabe</h2>
+    <p>Für die folgende IDV steht ein Freigabe-Schritt zur Bearbeitung bereit:</p>
+    <table style="border-collapse:collapse;width:100%">
+      <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
+          <td style="padding:6px;">{idv_id}</td></tr>
+      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
+          <td style="padding:6px;">{name}</td></tr>
+      <tr><td style="padding:6px;font-weight:bold;">Schritt</td>
+          <td style="padding:6px;font-weight:bold;color:#0d6efd;">{schritt}</td></tr>
+    </table>
+    <p style="margin-top:16px;color:#6c757d;font-size:12px;">
+      Bitte melden Sie sich in idvault an und schließen Sie den Schritt ab.<br>
+      Hinweis: Gemäß Funktionstrennung darf der Entwickler der IDV keine Freigabe-Schritte abschließen.
+    </p>
+    <p style="color:#6c757d;font-size:12px;margin-top:16px;">
+      Diese Nachricht wurde automatisch von idvault gesendet.
+    </p>
+    </body></html>
+    """
+    text = (
+        f"idvault – Freigabe-Schritt offen\n\n"
+        f"IDV: {idv_id} – {name}\nSchritt: {schritt}\n\n"
+        f"Bitte in idvault anmelden und Schritt abschließen."
+    )
+    return send_mail(db, recipient_emails, subject, html, text)
+
+
+def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
+    """Benachrichtigung wenn alle 4 Freigabe-Schritte bestanden wurden."""
+    idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
+    name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
+
+    subject = f"[idvault] IDV freigegeben: {idv_id} – {name}"
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;font-size:14px;">
+    <h2 style="color:#198754;">idvault – IDV freigegeben</h2>
+    <p>Alle vier Freigabe-Schritte wurden erfolgreich abgeschlossen:</p>
+    <table style="border-collapse:collapse;width:100%">
+      <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
+          <td style="padding:6px;">{idv_id}</td></tr>
+      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
+          <td style="padding:6px;">{name}</td></tr>
+    </table>
+    <ul style="margin-top:12px;">
+      <li>✅ Fachlicher Test</li>
+      <li>✅ Technischer Test</li>
+      <li>✅ Fachliche Abnahme</li>
+      <li>✅ Technische Abnahme</li>
+    </ul>
+    <p>Die IDV wurde auf Status <strong>Freigegeben</strong> und Dokumentationsstatus
+       <strong>Dokumentiert</strong> gesetzt.</p>
+    <p style="color:#6c757d;font-size:12px;margin-top:30px;">
+      Diese Nachricht wurde automatisch von idvault gesendet.
+    </p>
+    </body></html>
+    """
+    text = (
+        f"idvault – IDV freigegeben\n\n"
+        f"IDV: {idv_id} – {name}\n"
+        f"Alle 4 Freigabe-Schritte bestanden.\n"
+        f"Status: Freigegeben / Dokumentiert"
+    )
+    return send_mail(db, recipient_emails, subject, html, text)
+
+
 def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:
     """Eskalation für überfällige Maßnahme."""
     titel  = massnahme_row["titel"] if hasattr(massnahme_row, "__getitem__") else str(massnahme_row)

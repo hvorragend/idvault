@@ -188,9 +188,45 @@ def detail_idv(idv_db_id):
 
     wesentlichkeit = get_idv_wesentlichkeit(db, idv_db_id)
 
+    # Versionshistorie
+    vorgaenger = None
+    if idv["vorgaenger_idv_id"]:
+        vorgaenger = db.execute(
+            "SELECT id, idv_id, bezeichnung, version, status FROM idv_register WHERE id=?",
+            (idv["vorgaenger_idv_id"],)
+        ).fetchone()
+    nachfolger = db.execute(
+        "SELECT id, idv_id, bezeichnung, version, status FROM idv_register WHERE vorgaenger_idv_id=?",
+        (idv_db_id,)
+    ).fetchall()
+
+    # Freigabe-Schritte
+    try:
+        freigaben = db.execute("""
+            SELECT f.*, p_b.nachname || ', ' || p_b.vorname AS beauftragt_von,
+                   p_d.nachname || ', ' || p_d.vorname AS durchgefuehrt_von
+            FROM idv_freigaben f
+            LEFT JOIN persons p_b ON f.beauftragt_von_id    = p_b.id
+            LEFT JOIN persons p_d ON f.durchgefuehrt_von_id = p_d.id
+            WHERE f.idv_id = ?
+            ORDER BY f.erstellt_am
+        """, (idv_db_id,)).fetchall()
+    except Exception:
+        freigaben = []
+
+    ist_wesentlich = bool(
+        idv["steuerungsrelevant"] or idv["rechnungslegungsrelevant"] or idv["dora_kritisch_wichtig"]
+        or any(k["erfuellt"] for k in wesentlichkeit)
+    )
+
     return render_template("idv/detail.html",
         idv=idv, file=file, history=history, massnahmen=massnahmen,
-        wesentlichkeit=wesentlichkeit)
+        wesentlichkeit=wesentlichkeit,
+        vorgaenger=vorgaenger, nachfolger=nachfolger,
+        freigaben=freigaben, ist_wesentlich=ist_wesentlich,
+        bearbeitungsstatus_werte=_BEARBEITUNGSSTATUS_WERTE,
+        dokumentationsstatus_werte=_DOKUMENTATIONSSTATUS_WERTE,
+        can_create=can_create())
 
 
 # ── Neu ────────────────────────────────────────────────────────────────────
@@ -292,6 +328,125 @@ def change_status_route(idv_db_id):
         change_status(db, idv_db_id, new_status, geaendert_von_id=person_id)
         flash(f"Status geändert zu: {new_status}", "success")
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+
+_BEARBEITUNGSSTATUS_WERTE = [
+    "Wertung ausstehend", "In Bearbeitung", "Freigabe ausstehend", "Freigegeben"
+]
+_DOKUMENTATIONSSTATUS_WERTE = [
+    "Nicht dokumentiert", "In Dokumentation", "Dokumentiert"
+]
+
+
+@bp.route("/<int:idv_db_id>/bearbeitungsstatus", methods=["POST"])
+@own_write_required
+def change_bearbeitungsstatus(idv_db_id):
+    db  = get_db()
+    val = request.form.get("bearbeitungsstatus", "")
+    if val not in _BEARBEITUNGSSTATUS_WERTE:
+        flash("Ungültiger Bearbeitungsstatus.", "error")
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    person_id = session.get("person_id")
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        "UPDATE idv_register SET bearbeitungsstatus=?, aktualisiert_am=? WHERE id=?",
+        (val, now, idv_db_id)
+    )
+    db.execute(
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        (idv_db_id, "bearbeitungsstatus_geaendert", f"Bearbeitungsstatus → {val}", person_id)
+    )
+    db.commit()
+    flash(f"Bearbeitungsstatus geändert zu: {val}", "success")
+    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+
+@bp.route("/<int:idv_db_id>/dokumentationsstatus", methods=["POST"])
+@own_write_required
+def change_dokumentationsstatus(idv_db_id):
+    db  = get_db()
+    val = request.form.get("dokumentationsstatus", "")
+    if val not in _DOKUMENTATIONSSTATUS_WERTE:
+        flash("Ungültiger Dokumentationsstatus.", "error")
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    person_id = session.get("person_id")
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        "UPDATE idv_register SET dokumentationsstatus=?, aktualisiert_am=? WHERE id=?",
+        (val, now, idv_db_id)
+    )
+    db.execute(
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        (idv_db_id, "dokumentationsstatus_geaendert", f"Dokumentationsstatus → {val}", person_id)
+    )
+    db.commit()
+    flash(f"Dokumentationsstatus geändert zu: {val}", "success")
+    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+
+# ── Neue Version ───────────────────────────────────────────────────────────
+
+@bp.route("/<int:idv_db_id>/neue-version", methods=["POST"])
+@own_write_required
+def neue_version(idv_db_id):
+    """Erstellt eine neue Version einer IDV (Nachfolger-Dokument)."""
+    db  = get_db()
+    src = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
+    if not src:
+        flash("IDV nicht gefunden.", "error")
+        return redirect(url_for("idv.list_idv"))
+
+    # Versionsnummer inkrementieren: "1.0" → "1.1", "1.9" → "1.10"
+    version_str = src["version"] or "1.0"
+    try:
+        parts = version_str.split(".")
+        major = parts[0]
+        minor = int(parts[1]) + 1 if len(parts) > 1 else 1
+        new_version = f"{major}.{minor}"
+    except (ValueError, IndexError):
+        new_version = version_str + ".1"
+
+    # Daten aus Quell-IDV kopieren
+    data = dict(src)
+    data["vorgaenger_idv_id"]    = idv_db_id
+    data["version"]              = new_version
+    data["bearbeitungsstatus"]   = "Wertung ausstehend"
+    data["dokumentationsstatus"] = "Nicht dokumentiert"
+    # Felder entfernen, die create_idv selbst setzt
+    for k in ("id", "idv_id", "status", "status_geaendert_am", "status_geaendert_von_id",
+              "erstellt_am", "aktualisiert_am", "erfasst_von_id",
+              "naechste_pruefung", "letzte_pruefung"):
+        data.pop(k, None)
+
+    person_id = session.get("person_id")
+    try:
+        new_id = create_idv(db, data, erfasser_id=person_id)
+
+        # Wesentlichkeitskriterien-Antworten aus Quelle kopieren
+        antworten = get_idv_wesentlichkeit(db, idv_db_id)
+        from db import save_idv_wesentlichkeit
+        save_idv_wesentlichkeit(db, new_id, [
+            {"kriterium_id": a["kriterium_id"], "erfuellt": a["erfuellt"],
+             "begruendung": a["begruendung"]}
+            for a in antworten
+        ])
+
+        # History-Eintrag auf Quell-IDV
+        new_idv_row = db.execute("SELECT idv_id FROM idv_register WHERE id=?", (new_id,)).fetchone()
+        db.execute(
+            "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+            (idv_db_id, "neue_version",
+             f"Nachfolger {new_idv_row['idv_id']} (v{new_version}) angelegt", person_id)
+        )
+        db.commit()
+
+        flash(f"Neue Version {new_version} angelegt.", "success")
+        return redirect(url_for("idv.detail_idv", idv_db_id=new_id))
+    except Exception as e:
+        flash(f"Fehler beim Anlegen der neuen Version: {e}", "error")
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 
 # ── Excel-Export ───────────────────────────────────────────────────────────
