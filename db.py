@@ -109,6 +109,12 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_file_links_file ON idv_file_links(file_id);
     """)
 
+    # --- Performance-Index für Eingang-Ansicht (158k+ Dateien) ---
+    conn.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_files_status_bearb
+            ON idv_files(status, bearbeitungsstatus, has_macros, first_seen_at);
+    """)
+
     conn.commit()
 
 

@@ -173,9 +173,18 @@
 
   {% if _is_admin or _is_koord %}
   <div class="nav-label">Scanner</div>
+  <a href="{{ url_for('scanner.eingang_funde') }}"
+     class="nav-link {% if request.endpoint == 'scanner.eingang_funde' %}active{% endif %}">
+    <i class="bi bi-tray-arrow-down"></i> Eingang
+    {% if scanner_eingang_count > 0 %}
+    <span class="badge bg-danger ms-auto" style="font-size:.65rem">
+      {{ scanner_eingang_count if scanner_eingang_count < 1000 else (scanner_eingang_count // 1000)|string + 'k' }}
+    </span>
+    {% endif %}
+  </a>
   <a href="{{ url_for('scanner.list_funde') }}"
      class="nav-link {% if request.endpoint == 'scanner.list_funde' %}active{% endif %}">
-    <i class="bi bi-radar"></i> Scanner-Funde
+    <i class="bi bi-radar"></i> Alle Funde
   </a>
   <a href="{{ url_for('scanner.bewertet') }}"
      class="nav-link {% if request.endpoint == 'scanner.bewertet' %}active{% endif %}">
