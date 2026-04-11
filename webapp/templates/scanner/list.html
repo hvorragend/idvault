@@ -152,6 +152,12 @@
      class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
     <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
   </a>
+  {% if duplikate_anzahl %}
+  <a href="{{ url_for('scanner.list_funde', filter='duplikate', share_root=share_root_filt) }}"
+     class="btn btn-sm {{ 'btn-danger' if filt == 'duplikate' else 'btn-outline-danger' }}">
+    <i class="bi bi-copy me-1"></i>Duplikate ({{ duplikate_anzahl }} Gruppen)
+  </a>
+  {% endif %}
 </div>
 
 {% if filt == 'archiv' %}
@@ -182,6 +188,11 @@
       <button type="submit" name="aktion" value="zur_registrierung"
               class="btn btn-sm btn-outline-info">
         <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
+      </button>
+      <button type="submit" name="aktion" value="zusammenfassen"
+              class="btn btn-sm btn-outline-primary"
+              title="Ausgewählte Dateien als IDV-Projekt zusammenfassen oder mit bestehendem IDV verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu IDV-Projekt zusammenfassen
       </button>
       <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
         Auswahl aufheben
@@ -218,6 +229,136 @@
           </tr>
         </thead>
         <tbody>
+          {% if filt == 'duplikate' %}
+            {# ── Duplikat-Gruppenansicht ── #}
+            {% for hash_val, gruppe in dateien | groupby('file_hash') %}
+              {% set grp = gruppe | list %}
+              {% set gid = 'dup-' ~ hash_val[:8] %}
+              {# Gruppen-Header-Zeile #}
+              <tr class="table-warning" style="cursor:pointer" onclick="toggleDupGroup('{{ gid }}', this)">
+                <td class="text-center">
+                  {% for f in grp %}
+                  <input type="checkbox" name="file_ids" value="{{ f.id }}"
+                         class="form-check-input row-check dup-group-cb" style="display:none">
+                  {% endfor %}
+                  <input type="checkbox" class="form-check-input dup-master-cb"
+                         data-gid="{{ gid }}" onchange="masterCbChange(this)" onclick="event.stopPropagation()">
+                </td>
+                <td colspan="12">
+                  <span class="fw-600">
+                    <i class="bi bi-copy me-1 text-danger"></i>
+                    {{ grp | length }} identische Dateien
+                  </span>
+                  <span class="badge bg-danger ms-2">{{ grp | length }}×</span>
+                  <span class="font-monospace text-muted ms-2" style="font-size:.72rem"
+                        title="SHA-256: {{ hash_val }}">
+                    <i class="bi bi-fingerprint me-1"></i>{{ hash_val[:16] }}…
+                  </span>
+                  <span class="text-muted ms-2" style="font-size:.78rem">
+                    <i class="bi bi-chevron-down" id="{{ gid }}-icon"></i>
+                  </span>
+                </td>
+                <td></td>
+              </tr>
+              {# Detail-Zeilen (eingeklappt) #}
+              {% for f in grp %}
+              <tr class="{{ gid }}-row d-none"
+                  data-formula-count="{{ f.formula_count or 0 }}"
+                  data-has-idv="{{ '1' if f.reg_idv_id else '0' }}">
+                <td></td>
+
+                <td>
+                  <span class="fw-500 ms-3">
+                    <i class="bi bi-file-earmark me-1 text-muted"></i>{{ f.file_name }}
+                  </span>
+                  {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
+                  <div class="ms-3">
+                    <span class="font-monospace text-muted" style="font-size:.68rem"
+                          title="SHA-256: {{ f.file_hash }}">
+                      <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
+                    </span>
+                  </div>
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+                  <span class="badge bg-light text-dark border">{{ typ }}</span>
+                </td>
+
+                <td style="min-width:180px;max-width:280px">
+                  {% if f.share_root %}
+                  <span class="badge bg-primary" style="font-size:.7rem;font-family:monospace">
+                    <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
+                  </span>
+                  {% endif %}
+                  <div class="text-truncate text-muted hash-mono mt-1"
+                       style="font-size:.74rem;max-width:260px" title="{{ f.full_path }}">
+                    {{ f.relative_path or f.full_path }}
+                  </div>
+                </td>
+
+                <td class="text-nowrap" style="font-size:.76rem">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
+                <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
+                <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
+                <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                    title="{{ f.office_author or f.file_owner or '' }}">
+                  {{ f.office_author or f.file_owner or '–' }}
+                </td>
+                <td class="text-center">
+                  {% if f.has_macros %}<span class="badge bg-danger">VBA</span>
+                  {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
+                </td>
+                <td class="text-center">
+                  {% if f.formula_count %}
+                  <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
+                    <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+                  </span>
+                  {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
+                </td>
+                <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
+                <td>
+                  {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
+                  {% if bs == 'Registriert' %}<span class="badge bg-success">Registriert</span>
+                  {% elif bs == 'Zur Registrierung' %}<span class="badge bg-info text-dark">Zur Registrierung</span>
+                  {% elif bs == 'Ignoriert' %}<span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Ignoriert</span>
+                  {% else %}<span class="badge bg-light text-dark border">Neu</span>{% endif %}
+                </td>
+                <td>
+                  {% if f.reg_idv_id %}
+                  <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
+                     class="badge bg-success text-decoration-none">{{ f.reg_idv_id }}</a>
+                  {% else %}<span class="badge bg-warning text-dark">–</span>{% endif %}
+                </td>
+                <td class="text-nowrap">
+                  {% if not f.reg_idv_id %}
+                  <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
+                     class="btn btn-xs btn-primary text-nowrap">
+                    <i class="bi bi-plus-lg me-1"></i>Registrieren
+                  </a>
+                  {% endif %}
+                  {% if is_admin and not f.reg_idv_id %}
+                  <button type="button" class="btn btn-xs btn-outline-danger"
+                          title="Eintrag löschen (Admin)"
+                          data-delete-url="{{ url_for('scanner.loeschen', file_id=f.id) }}"
+                          data-filename="{{ f.file_name }}"
+                          onclick="deleteScannerfund(this)">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+            <tr>
+              <td colspan="14" class="text-center text-muted py-5">
+                <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
+              </td>
+            </tr>
+            {% endfor %}
+
+          {% else %}
+            {# ── Normale Listenansicht ── #}
           {% for f in dateien %}
           <tr class="{{ 'table-secondary text-muted' if f.status == 'archiviert' else '' }}"
               data-formula-count="{{ f.formula_count or 0 }}"
@@ -416,6 +557,7 @@
             </td>
           </tr>
           {% endfor %}
+          {% endif %}{# end duplikate/normale Ansicht #}
         </tbody>
       </table>
     </div>
@@ -431,6 +573,34 @@
 </style>
 
 <script>
+function toggleDupGroup(gid, headerRow) {
+  const rows  = document.querySelectorAll('.' + gid + '-row');
+  const icon  = document.getElementById(gid + '-icon');
+  const open  = rows.length && !rows[0].classList.contains('d-none');
+  rows.forEach(r => r.classList.toggle('d-none', open));
+  if (icon) {
+    icon.classList.toggle('bi-chevron-down', open);
+    icon.classList.toggle('bi-chevron-up',   !open);
+  }
+}
+
+function masterCbChange(masterCb) {
+  const gid  = masterCb.dataset.gid;
+  const rows = document.querySelectorAll('.' + gid + '-row');
+  // Öffne Gruppe wenn Haken gesetzt
+  if (masterCb.checked) {
+    rows.forEach(r => r.classList.remove('d-none'));
+    const icon = document.getElementById(gid + '-icon');
+    if (icon) { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
+  }
+  // Alle versteckten Checkboxen (file_ids) synchronisieren
+  const headerRow = masterCb.closest('tr');
+  headerRow.querySelectorAll('.dup-group-cb').forEach(cb => {
+    cb.checked = masterCb.checked;
+  });
+  updateBar();
+}
+
 function deleteScannerfund(btn) {
   const name = btn.dataset.filename;
   if (!confirm('Scannerfund "' + name + '" wirklich löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden.')) return;

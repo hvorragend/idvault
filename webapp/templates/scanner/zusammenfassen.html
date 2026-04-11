@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Dateien zu IDV-Projekt zusammenfassen{% endblock %}
+{% block page_title %}
+  <i class="bi bi-diagram-3 me-2"></i>Dateien zu IDV-Projekt zusammenfassen
+{% endblock %}
+
+{% block content %}
+
+<div class="row g-4">
+  <div class="col-lg-8">
+
+    <!-- Ausgewählte Dateien -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-files me-2"></i>Ausgewählte Dateien ({{ dateien|length }})
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:.83rem">
+          <thead>
+            <tr>
+              <th>Dateiname</th>
+              <th>Pfad</th>
+              <th>Größe</th>
+              <th>Geändert</th>
+              <th class="text-center">Makros</th>
+              <th class="text-center">Formeln</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in dateien %}
+            <tr>
+              <td>
+                <span class="fw-500">{{ f.file_name }}</span>
+                {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+                <br><span class="badge bg-light text-dark border" style="font-size:.7rem">{{ typ }}</span>
+              </td>
+              <td class="text-muted" style="max-width:260px">
+                {% if f.share_root %}
+                <span class="badge bg-primary" style="font-size:.7rem;font-family:monospace">
+                  <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
+                </span>
+                {% endif %}
+                <div class="text-truncate hash-mono" style="font-size:.72rem;max-width:250px"
+                     title="{{ f.full_path }}">
+                  {{ f.relative_path or f.full_path }}
+                </div>
+              </td>
+              <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes else '–' }}</td>
+              <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
+              <td class="text-center">
+                {% if f.has_macros %}<span class="badge bg-danger">VBA</span>
+                {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
+              </td>
+              <td class="text-center">
+                {% if f.formula_count %}
+                <span class="badge bg-light text-dark border">{{ f.formula_count }}</span>
+                {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Option A: Neues IDV anlegen ─────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-plus-circle me-2 text-primary"></i>Option A – Neues IDV anlegen
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.88rem">
+          Legt ein neues IDV an. Eine Datei wird als Primärdatei gewählt;
+          alle weiteren werden automatisch als zusätzliche Projektdateien verknüpft.
+        </p>
+        <form method="post">
+          {% for f in dateien %}
+          <input type="hidden" name="file_ids" value="{{ f.id }}">
+          {% endfor %}
+          <input type="hidden" name="aktion" value="neues_idv">
+
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-600">
+              Primärdatei (wird im IDV-Formular vorausgefüllt)
+            </label>
+            {% for f in dateien %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio"
+                     name="primary_file_id" value="{{ f.id }}"
+                     id="prim-{{ f.id }}"
+                     {{ 'checked' if loop.first }}>
+              <label class="form-check-label" for="prim-{{ f.id }}">
+                <span class="fw-500">{{ f.file_name }}</span>
+                <span class="text-muted ms-1" style="font-size:.8rem">
+                  {{ f.relative_path or f.full_path }}
+                </span>
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Weiter zum IDV-Formular
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Option B: Zu bestehendem IDV verknüpfen ─────────────── -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-link-45deg me-2 text-success"></i>Option B – Zu bestehendem IDV hinzufügen
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.88rem">
+          Alle ausgewählten Dateien werden als zusätzliche Projektdateien mit einem
+          bestehenden IDV-Eintrag verknüpft.
+        </p>
+        {% if idvs %}
+        <form method="post">
+          {% for f in dateien %}
+          <input type="hidden" name="file_ids" value="{{ f.id }}">
+          {% endfor %}
+          <input type="hidden" name="aktion" value="zu_idv">
+
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-600" for="idv-select">IDV auswählen</label>
+            <select name="idv_db_id" id="idv-select" class="form-select form-select-sm" required>
+              <option value="">– IDV auswählen –</option>
+              {% for idv in idvs %}
+              <option value="{{ idv.id }}">{{ idv.idv_id }} – {{ idv.bezeichnung }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-link me-1"></i>Mit IDV verknüpfen
+          </button>
+        </form>
+        {% else %}
+        <div class="alert alert-warning py-2 mb-0">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Keine aktiven IDV-Einträge vorhanden. Bitte zuerst Option A verwenden.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-info-circle me-2"></i>Hinweise
+      </div>
+      <div class="card-body" style="font-size:.85rem">
+        <ul class="mb-0 ps-3">
+          <li class="mb-2">
+            <strong>Duplikate</strong> (gleicher SHA-256-Hash) stellen
+            physisch identische Dateien dar und können problemlos unter
+            einem IDV zusammengefasst werden.
+          </li>
+          <li class="mb-2">
+            <strong>Unterschiedliche Dateien</strong> (unterschiedliche Hashes)
+            gehören zum gleichen IDV-Projekt, z. B. mehrere Tabellenblätter
+            oder Hilfsdateien einer Gesamtdokumentation.
+          </li>
+          <li class="mb-2">
+            Die Verknüpfung ist jederzeit in der IDV-Detailansicht
+            einsehbar und kann dort auch wieder aufgehoben werden.
+          </li>
+          <li>
+            Alle verknüpften Dateien erhalten den Bearbeitungsstatus
+            <strong>„Registriert"</strong>.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Zurück zu Scanner-Funde
+      </a>
+    </div>
+  </div>
+</div>
+
+<style>
+.fw-600 { font-weight: 600; }
+.fw-500 { font-weight: 500; }
+</style>
+{% endblock %}

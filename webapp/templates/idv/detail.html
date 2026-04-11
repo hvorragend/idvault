@@ -366,19 +366,73 @@
       </div>
     </div>
 
-    <!-- Verknüpfte Datei -->
-    {% if file %}
+    <!-- Verknüpfte Dateien (Scanner-Funde) -->
+    {% if file or extra_files %}
     <div class="form-section">
-      <div class="form-section-title">Verknüpfte Datei (Scanner-Fund)</div>
-      <div class="row g-2">
-        <div class="col-12"><div class="detail-label">Pfad</div><div class="hash-mono">{{ file.full_path }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">SHA-256</div><div class="hash-mono">{{ file.file_hash[:16] }}…</div></div>
-        <div class="col-sm-4"><div class="detail-label">Größe</div><div>{{ file.size_bytes|mb }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">Zuletzt geändert</div><div>{{ file.modified_at|datefmt }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">Makros</div><div>{{ file.has_macros|yesno }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">Ext. Links</div><div>{{ file.has_external_links|yesno }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">Tabellenblätter</div><div>{{ file.sheet_count or '–' }}</div></div>
+      <div class="form-section-title">
+        <i class="bi bi-diagram-3 me-1"></i>Verknüpfte Dateien (Scanner-Funde)
+        <span class="badge bg-secondary ms-1">{{ (1 if file else 0) + (extra_files|length) }}</span>
       </div>
+
+      {# Primärdatei #}
+      {% if file %}
+      <div class="border rounded p-2 mb-2 bg-light">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <span class="badge bg-primary me-1">Primärdatei</span>
+            <span class="fw-500">{{ file.file_name }}</span>
+          </div>
+        </div>
+        <div class="row g-2 mt-1" style="font-size:.82rem">
+          <div class="col-12"><div class="detail-label">Pfad</div><div class="hash-mono">{{ file.full_path }}</div></div>
+          <div class="col-sm-4"><div class="detail-label">SHA-256</div><div class="hash-mono" title="{{ file.file_hash }}">{{ file.file_hash[:16] if file.file_hash else '–' }}…</div></div>
+          <div class="col-sm-4"><div class="detail-label">Größe</div><div>{{ file.size_bytes|mb }}</div></div>
+          <div class="col-sm-4"><div class="detail-label">Zuletzt geändert</div><div>{{ file.modified_at|datefmt }}</div></div>
+          <div class="col-sm-4"><div class="detail-label">Makros</div><div>{{ file.has_macros|yesno }}</div></div>
+          <div class="col-sm-4"><div class="detail-label">Ext. Links</div><div>{{ file.has_external_links|yesno }}</div></div>
+          <div class="col-sm-4"><div class="detail-label">Tabellenblätter</div><div>{{ file.sheet_count or '–' }}</div></div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Zusätzlich verknüpfte Dateien #}
+      {% for ef in extra_files %}
+      <div class="border rounded p-2 mb-2">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <span class="badge bg-secondary me-1">Projektdatei</span>
+            <span class="fw-500">{{ ef.file_name }}</span>
+            <span class="text-muted ms-2" style="font-size:.78rem">verknüpft {{ ef.linked_at[:10] if ef.linked_at else '' }}</span>
+          </div>
+          {% if can_create %}
+          <form method="post" action="{{ url_for('idv.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}"
+                onsubmit="return confirm('Verknüpfung mit {{ ef.file_name }} aufheben?')">
+            <button type="submit" class="btn btn-xs btn-outline-danger" title="Verknüpfung aufheben">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+        <div class="row g-2 mt-1" style="font-size:.82rem">
+          <div class="col-12"><div class="detail-label">Pfad</div>
+            <div class="hash-mono text-truncate" title="{{ ef.full_path }}">{{ ef.full_path }}</div>
+          </div>
+          <div class="col-sm-4"><div class="detail-label">SHA-256</div>
+            <div class="hash-mono" title="{{ ef.file_hash }}">{{ ef.file_hash[:16] if ef.file_hash else '–' }}…</div>
+          </div>
+          <div class="col-sm-4"><div class="detail-label">Größe</div><div>{{ ef.size_bytes|mb }}</div></div>
+          <div class="col-sm-4"><div class="detail-label">Zuletzt geändert</div><div>{{ ef.modified_at|datefmt }}</div></div>
+        </div>
+      </div>
+      {% endfor %}
+
+      {% if can_create %}
+      <div class="mt-2">
+        <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-xs btn-outline-secondary">
+          <i class="bi bi-plus-lg me-1"></i>Weitere Dateien verknüpfen
+        </a>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
 
