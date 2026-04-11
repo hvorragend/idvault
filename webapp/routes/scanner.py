@@ -69,17 +69,28 @@ def list_funde():
             scan_run_id = ""
     elif filt == "archiv":
         where_parts.append("f.status = 'archiviert'")
+    elif filt == "duplikate":
+        where_parts.append("f.status = 'active'")
+        where_parts.append("""f.file_hash IN (
+            SELECT file_hash FROM idv_files
+            WHERE status='active' AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
+            GROUP BY file_hash HAVING COUNT(*) > 1
+        )""")
     else:
         where_parts.append("f.status = 'active'")
+        _no_idv = (
+            "NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
+            " AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id)"
+        )
+        _has_idv = (
+            "(EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
+            " OR EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id))"
+        )
         if filt == "ohne_idv":
-            where_parts.append(
-                "NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
-            )
+            where_parts.append(_no_idv)
             where_parts.append("(f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')")
         elif filt == "mit_idv":
-            where_parts.append(
-                "EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
-            )
+            where_parts.append(_has_idv)
         elif filt == "makros":
             where_parts.append("f.has_macros = 1")
         elif filt == "blattschutz":
@@ -97,20 +108,28 @@ def list_funde():
         params.append(share_root)
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    # Duplikate nach Hash sortieren, damit Jinja2-groupby funktioniert
+    order_sql = (
+        "ORDER BY f.file_hash, f.last_seen_at DESC"
+        if filt == "duplikate"
+        else "ORDER BY f.last_seen_at DESC, f.modified_at DESC"
+    )
 
     dateien = db.execute(f"""
         SELECT f.*,
-               reg.idv_id       AS reg_idv_id,
-               reg.bezeichnung  AS reg_bezeichnung,
-               reg.id           AS reg_db_id,
+               COALESCE(reg.idv_id,       lnk_reg.idv_id)      AS reg_idv_id,
+               COALESCE(reg.bezeichnung,  lnk_reg.bezeichnung)  AS reg_bezeichnung,
+               COALESCE(reg.id,           lnk_reg.id)           AS reg_db_id,
                sr.id            AS sr_id,
                sr.started_at    AS sr_started_at,
                sr.scan_paths    AS sr_scan_paths
         FROM idv_files f
-        LEFT JOIN idv_register reg ON reg.file_id = f.id
-        LEFT JOIN scan_runs    sr  ON f.last_scan_run_id = sr.id
+        LEFT JOIN idv_register  reg     ON reg.file_id    = f.id
+        LEFT JOIN idv_file_links lnk    ON lnk.file_id    = f.id
+        LEFT JOIN idv_register  lnk_reg ON lnk_reg.id     = lnk.idv_db_id
+        LEFT JOIN scan_runs     sr      ON f.last_scan_run_id = sr.id
         {where_sql}
-        ORDER BY f.last_seen_at DESC, f.modified_at DESC
+        {order_sql}
         LIMIT 500
     """, params).fetchall()
 
@@ -126,6 +145,7 @@ def list_funde():
     ohne_idv   = db.execute("""
         SELECT COUNT(*) FROM idv_files f WHERE f.status='active'
         AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id)
         AND (f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')
     """).fetchone()[0]
     mit_makro  = db.execute(
@@ -148,8 +168,18 @@ def list_funde():
         ignoriert = 0
         zur_registrierung = 0
 
+    try:
+        duplikate_anzahl = db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT file_hash FROM idv_files
+                WHERE status='active' AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
+                GROUP BY file_hash HAVING COUNT(*) > 1
+            )
+        """).fetchone()[0]
+    except Exception:
+        duplikate_anzahl = 0
+
     # ---------- Filter-Optionen ----------
-    # Distinct share_roots für Dropdown
     share_roots = [
         r["share_root"] for r in db.execute("""
             SELECT DISTINCT share_root FROM idv_files
@@ -157,7 +187,6 @@ def list_funde():
             ORDER BY share_root
         """).fetchall()
     ]
-    # Letzte 30 Scan-Läufe für Dropdown
     try:
         scan_runs = db.execute("""
             SELECT id, started_at, finished_at, scan_paths,
@@ -169,9 +198,7 @@ def list_funde():
     except Exception:
         scan_runs = []
 
-    # Letzten Scan-Lauf ermitteln (für Info-Banner)
     letzter_scan = scan_runs[0] if scan_runs else None
-
     is_admin = current_user_role() == ROLE_ADMIN
 
     return render_template("scanner/list.html",
@@ -179,6 +206,7 @@ def list_funde():
         gesamt=gesamt, ohne_idv=ohne_idv, mit_makro=mit_makro,
         mit_schutz=mit_schutz, archiviert=archiviert,
         ignoriert=ignoriert, zur_registrierung=zur_registrierung,
+        duplikate_anzahl=duplikate_anzahl,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         share_roots=share_roots,
         share_root_filt=share_root,
@@ -266,6 +294,109 @@ def scan_laeufe():
                            scan_run_label=_scan_run_label)
 
 
+@bp.route("/funde/zusammenfassen", methods=["GET", "POST"])
+@own_write_required
+def zusammenfassen():
+    """Mehrere Scanner-Funde zu einem IDV-Projekt zusammenfassen.
+
+    GET  – Bestätigungsseite mit Dateiliste + Optionen
+    POST – Dateien mit bestehendem IDV verknüpfen
+           oder Weiterleitung zur IDV-Neuanlage
+    """
+    db = get_db()
+
+    if request.method == "POST":
+        aktion   = request.form.get("aktion", "")
+        raw_ids  = request.form.getlist("file_ids")
+        try:
+            file_ids = [int(i) for i in raw_ids if i]
+        except ValueError:
+            flash("Ungültige Datei-IDs.", "error")
+            return redirect(url_for("scanner.list_funde"))
+
+        if not file_ids:
+            flash("Keine Dateien ausgewählt.", "warning")
+            return redirect(url_for("scanner.list_funde"))
+
+        if aktion == "neues_idv":
+            # Primärdatei + zusätzliche IDs an IDV-Neuanlage übergeben
+            primary_id  = request.form.get("primary_file_id", "")
+            extra_ids   = [str(i) for i in file_ids if str(i) != primary_id]
+            url = url_for("idv.new_idv",
+                          file_id=primary_id,
+                          extra_file_ids=",".join(extra_ids))
+            return redirect(url)
+
+        elif aktion == "zu_idv":
+            idv_db_id = request.form.get("idv_db_id", "")
+            try:
+                idv_db_id = int(idv_db_id)
+            except (ValueError, TypeError):
+                flash("Ungültige IDV-Auswahl.", "error")
+                return redirect(url_for("scanner.list_funde"))
+
+            idv_row = db.execute(
+                "SELECT id, idv_id FROM idv_register WHERE id=?", (idv_db_id,)
+            ).fetchone()
+            if not idv_row:
+                flash("IDV nicht gefunden.", "error")
+                return redirect(url_for("scanner.list_funde"))
+
+            linked = 0
+            for fid in file_ids:
+                try:
+                    db.execute(
+                        "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                        (idv_db_id, fid)
+                    )
+                    db.execute(
+                        "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
+                        (fid,)
+                    )
+                    linked += 1
+                except Exception:
+                    pass
+            db.commit()
+            flash(
+                f"{linked} Datei(en) mit IDV {idv_row['idv_id']} verknüpft.",
+                "success"
+            )
+            return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+        flash("Unbekannte Aktion.", "error")
+        return redirect(url_for("scanner.list_funde"))
+
+    # ---------- GET ----------
+    raw_ids = request.args.getlist("file_ids")
+    try:
+        file_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        file_ids = []
+
+    if not file_ids:
+        flash("Keine Dateien ausgewählt.", "warning")
+        return redirect(url_for("scanner.list_funde"))
+
+    ph = ",".join("?" * len(file_ids))
+    dateien = db.execute(
+        f"SELECT * FROM idv_files WHERE id IN ({ph}) ORDER BY last_seen_at DESC",
+        file_ids
+    ).fetchall()
+
+    # Bestehende IDVs für Dropdown
+    idvs = db.execute("""
+        SELECT id, idv_id, bezeichnung FROM idv_register
+        WHERE status NOT IN ('Außer Betrieb', 'Abgelöst')
+        ORDER BY idv_id
+    """).fetchall()
+
+    return render_template("scanner/zusammenfassen.html",
+        dateien=dateien,
+        idvs=idvs,
+        idv_typ_vorschlag=_idv_typ_vorschlag,
+    )
+
+
 @bp.route("/funde/bulk-aktion", methods=["POST"])
 @own_write_required
 def bulk_aktion():
@@ -273,6 +404,12 @@ def bulk_aktion():
     db      = get_db()
     aktion  = request.form.get("aktion", "")
     raw_ids = request.form.getlist("file_ids")
+
+    if aktion == "zusammenfassen":
+        # Weiterleitung zur Zusammenfassen-Seite (GET)
+        from flask import url_for as _uf
+        ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
+        return redirect(url_for("scanner.zusammenfassen") + "?" + ids_qs)
 
     if aktion not in ("ignorieren", "zur_registrierung"):
         flash("Ungültige Aktion.", "error")

@@ -169,6 +169,18 @@ def detail_idv(idv_db_id):
 
     file = db.execute("SELECT * FROM idv_files WHERE id = ?", (idv["file_id"],)).fetchone() if idv["file_id"] else None
 
+    # Zusätzlich verknüpfte Dateien (idv_file_links)
+    try:
+        extra_files = db.execute("""
+            SELECT f.*, lnk.id AS link_id, lnk.linked_at
+            FROM idv_file_links lnk
+            JOIN idv_files f ON f.id = lnk.file_id
+            WHERE lnk.idv_db_id = ?
+            ORDER BY lnk.linked_at
+        """, (idv_db_id,)).fetchall()
+    except Exception:
+        extra_files = []
+
     history = db.execute("""
         SELECT h.*, p.nachname || ', ' || p.vorname AS person
         FROM idv_history h
@@ -222,7 +234,7 @@ def detail_idv(idv_db_id):
     )
 
     return render_template("idv/detail.html",
-        idv=idv, file=file, history=history, massnahmen=massnahmen,
+        idv=idv, file=file, extra_files=extra_files, history=history, massnahmen=massnahmen,
         wesentlichkeit=wesentlichkeit,
         vorgaenger=vorgaenger, nachfolger=nachfolger,
         freigaben=freigaben, ist_wesentlich=ist_wesentlich,
@@ -246,6 +258,24 @@ def new_idv():
         try:
             new_id = create_idv(db, data, erfasser_id=person_id)
             _save_wesentlichkeit_from_form(db, new_id, request.form)
+            # Zusätzliche Dateien aus idv_file_links speichern
+            extra_raw = request.form.get("extra_file_ids", "")
+            for part in extra_raw.split(","):
+                extra_id = _int_or_none(part.strip())
+                if extra_id and extra_id != file_id:
+                    try:
+                        db.execute(
+                            "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                            (new_id, extra_id)
+                        )
+                        db.execute(
+                            "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
+                            (extra_id,)
+                        )
+                    except Exception:
+                        pass
+            if extra_raw.strip():
+                db.commit()
             flash("IDV erfolgreich angelegt.", "success")
             if request.form.get("save_action") == "save_and_new":
                 return redirect(url_for("idv.new_idv"))
@@ -254,9 +284,11 @@ def new_idv():
             flash(f"Fehler beim Speichern: {e}", "error")
 
     # Optionales Vorausfüllen aus Scannerfund
-    fund    = None
-    prefill = {}
-    file_id = _int_or_none(request.args.get("file_id"))
+    fund          = None
+    prefill       = {}
+    extra_fonds   = []
+    file_id       = _int_or_none(request.args.get("file_id"))
+    extra_file_ids = request.args.get("extra_file_ids", "")
     if file_id:
         fund = db.execute("SELECT * FROM idv_files WHERE id = ?", (file_id,)).fetchone()
         if fund:
@@ -268,13 +300,24 @@ def new_idv():
             if ext and name.lower().endswith(ext):
                 name = name[:-len(ext)]
             prefill = {
-                "bezeichnung": name,
-                "idv_typ":     typ,
-                "file_id":     file_id,
+                "bezeichnung":   name,
+                "idv_typ":       typ,
+                "file_id":       file_id,
+                "extra_file_ids": extra_file_ids,
             }
+        # Zusätzliche Dateien für Banner laden
+        if extra_file_ids:
+            extra_ids_parsed = [_int_or_none(x.strip()) for x in extra_file_ids.split(",") if x.strip()]
+            extra_ids_parsed = [i for i in extra_ids_parsed if i and i != file_id]
+            if extra_ids_parsed:
+                ph = ",".join("?" * len(extra_ids_parsed))
+                extra_fonds = db.execute(
+                    f"SELECT * FROM idv_files WHERE id IN ({ph})", extra_ids_parsed
+                ).fetchall()
 
     return render_template("idv/form.html", idv=None,
                            fund=fund, prefill=prefill,
+                           extra_fonds=extra_fonds,
                            wesentlichkeit_antworten={},
                            can_write=can_write(),
                            **_form_lookups(db))
@@ -361,6 +404,28 @@ def change_bearbeitungsstatus(idv_db_id):
     )
     db.commit()
     flash(f"Bearbeitungsstatus geändert zu: {val}", "success")
+    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+
+@bp.route("/<int:idv_db_id>/datei-verknuepfung/<int:link_id>/loeschen", methods=["POST"])
+@own_write_required
+def unlink_file(idv_db_id, link_id):
+    """Entfernt eine zusätzliche Datei-Verknüpfung (idv_file_links)."""
+    db = get_db()
+    row = db.execute(
+        "SELECT lnk.*, f.file_name FROM idv_file_links lnk JOIN idv_files f ON f.id=lnk.file_id WHERE lnk.id=? AND lnk.idv_db_id=?",
+        (link_id, idv_db_id)
+    ).fetchone()
+    if not row:
+        flash("Verknüpfung nicht gefunden.", "error")
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    db.execute("DELETE FROM idv_file_links WHERE id=?", (link_id,))
+    db.execute(
+        "UPDATE idv_files SET bearbeitungsstatus='Neu' WHERE id=? AND bearbeitungsstatus='Registriert'",
+        (row["file_id"],)
+    )
+    db.commit()
+    flash(f"Verknüpfung mit \"{row['file_name']}\" aufgehoben.", "success")
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 

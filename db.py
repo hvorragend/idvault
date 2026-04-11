@@ -96,6 +96,19 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_freigaben_status ON idv_freigaben(status, schritt);
     """)
 
+    # --- idv_file_links (Mehrfach-Datei-Verknüpfung) ---
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS idv_file_links (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            idv_db_id   INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+            file_id     INTEGER NOT NULL REFERENCES idv_files(id),
+            linked_at   TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
+            UNIQUE(idv_db_id, file_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_file_links_idv  ON idv_file_links(idv_db_id);
+        CREATE INDEX IF NOT EXISTS idx_file_links_file ON idv_file_links(file_id);
+    """)
+
     conn.commit()
 
 
