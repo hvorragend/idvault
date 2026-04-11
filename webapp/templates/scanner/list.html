@@ -271,9 +271,8 @@
               {% if f.sr_id %}
               <a href="{{ url_for('scanner.list_funde', scan_run=f.sr_id, filter=filt) }}"
                  class="text-decoration-none text-muted"
-                 title="Nach diesem Scan-Lauf filtern">
-                <i class="bi bi-clock-history me-1"></i>#{{ f.sr_id }}
-                <div>{{ f.sr_started_at[:10] if f.sr_started_at else '' }}</div>
+                 title="#{{ f.sr_id }} – Nach diesem Scan-Lauf filtern">
+                {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
               </a>
               {% else %}
               <span class="text-muted">–</span>

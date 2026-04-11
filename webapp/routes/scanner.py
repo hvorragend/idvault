@@ -74,6 +74,7 @@ def list_funde():
             where_parts.append(
                 "NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
             )
+            where_parts.append("(f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')")
         elif filt == "mit_idv":
             where_parts.append(
                 "EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
@@ -86,6 +87,9 @@ def list_funde():
             where_parts.append("f.bearbeitungsstatus = 'Ignoriert'")
         elif filt == "zur_registrierung":
             where_parts.append("f.bearbeitungsstatus = 'Zur Registrierung'")
+        else:
+            # Standard-Ansicht "Alle": als Ignoriert bewertete Dateien ausblenden
+            where_parts.append("(f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')")
 
     if share_root:
         where_parts.append("f.share_root = ?")
@@ -114,6 +118,7 @@ def list_funde():
     ohne_idv   = db.execute("""
         SELECT COUNT(*) FROM idv_files f WHERE f.status='active'
         AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
+        AND (f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')
     """).fetchone()[0]
     mit_makro  = db.execute(
         "SELECT COUNT(*) FROM idv_files WHERE status='active' AND has_macros=1"
@@ -171,6 +176,61 @@ def list_funde():
         scan_run_id_filt=scan_run_id,
         letzter_scan=letzter_scan,
         scan_run_label=_scan_run_label,
+    )
+
+
+@bp.route("/bewertet")
+@login_required
+def bewertet():
+    """Übersicht bewerteter Eigenentwicklungen:
+    a) Ignorierte Scanner-Funde (keine Formeln o.ä.)
+    b) Nicht wesentliche IDVs aus dem Scanner
+    """
+    db = get_db()
+
+    _WESENTLICH_SQL = """(
+        r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
+        OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
+    )"""
+
+    # a) Ignorierte Scanner-Funde
+    ignorierte = db.execute("""
+        SELECT f.*,
+               reg.idv_id      AS reg_idv_id,
+               reg.bezeichnung AS reg_bezeichnung,
+               reg.id          AS reg_db_id,
+               sr.id           AS sr_id,
+               sr.started_at   AS sr_started_at
+        FROM idv_files f
+        LEFT JOIN idv_register reg ON reg.file_id = f.id
+        LEFT JOIN scan_runs    sr  ON f.last_scan_run_id = sr.id
+        WHERE f.status = 'active' AND f.bearbeitungsstatus = 'Ignoriert'
+        ORDER BY f.last_seen_at DESC, f.modified_at DESC
+        LIMIT 500
+    """).fetchall()
+
+    # b) Nicht wesentliche IDVs, die aus dem Scanner stammen (file_id gesetzt)
+    nicht_wesentliche = db.execute(f"""
+        SELECT r.id AS idv_db_id, r.idv_id, r.bezeichnung, r.status,
+               r.bearbeitungsstatus AS idv_bearbeitungsstatus,
+               f.file_name, f.full_path, f.share_root,
+               f.id AS file_id,
+               p.nachname || ', ' || p.vorname AS fachverantwortlicher,
+               ou.kuerzel AS org_einheit
+        FROM idv_register r
+        JOIN idv_files f ON r.file_id = f.id
+        LEFT JOIN persons  p  ON r.fachverantwortlicher_id = p.id
+        LEFT JOIN org_units ou ON r.org_unit_id = ou.id
+        WHERE f.status = 'active'
+          AND NOT {_WESENTLICH_SQL}
+        ORDER BY r.bezeichnung
+        LIMIT 500
+    """).fetchall()
+
+    return render_template("scanner/bewertet.html",
+        ignorierte=ignorierte,
+        nicht_wesentliche=nicht_wesentliche,
+        idv_typ_vorschlag=_idv_typ_vorschlag,
     )
 
 

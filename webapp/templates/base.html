@@ -174,8 +174,12 @@
   {% if _is_admin or _is_koord %}
   <div class="nav-label">Scanner</div>
   <a href="{{ url_for('scanner.list_funde') }}"
-     class="nav-link {% if request.blueprint == 'scanner' %}active{% endif %}">
+     class="nav-link {% if request.endpoint == 'scanner.list_funde' %}active{% endif %}">
     <i class="bi bi-radar"></i> Scanner-Funde
+  </a>
+  <a href="{{ url_for('scanner.bewertet') }}"
+     class="nav-link {% if request.endpoint == 'scanner.bewertet' %}active{% endif %}">
+    <i class="bi bi-check2-all"></i> Bewertet
   </a>
   <a href="{{ url_for('scanner.scan_laeufe') }}"
      class="nav-link {% if request.endpoint == 'scanner.scan_laeufe' %}active{% endif %}">
