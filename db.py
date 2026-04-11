@@ -352,6 +352,16 @@ def get_dashboard_stats(conn: sqlite3.Connection) -> dict:
         "genehmigt":            scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Genehmigt'"),
         "entwurf":              scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Entwurf'"),
         "in_pruefung":          scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'In Prüfung'"),
+        "wesentlich":           scalar("""
+            SELECT COUNT(*) FROM idv_register r WHERE status NOT IN ('Archiviert')
+            AND (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1 OR r.dora_kritisch_wichtig=1
+                 OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
+        """),
+        "nicht_wesentlich":     scalar("""
+            SELECT COUNT(*) FROM idv_register r WHERE status NOT IN ('Archiviert')
+            AND NOT (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1 OR r.dora_kritisch_wichtig=1
+                     OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
+        """),
         "kritisch_gda4":        scalar("SELECT COUNT(*) FROM idv_register WHERE gda_wert = 4 AND status NOT IN ('Archiviert')"),
         "steuerungsrelevant":   scalar("SELECT COUNT(*) FROM idv_register WHERE steuerungsrelevant = 1 AND status NOT IN ('Archiviert')"),
         "dora_kritisch":        scalar("SELECT COUNT(*) FROM idv_register WHERE dora_kritisch_wichtig = 1 AND status NOT IN ('Archiviert')"),

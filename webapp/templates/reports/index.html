@@ -42,9 +42,7 @@
             <tr>
               <th>OE</th>
               <th class="text-end">Gesamt</th>
-              <th class="text-end">GDA 4</th>
-              <th class="text-end">Steuerung</th>
-              <th class="text-end">DORA</th>
+              <th class="text-end text-danger">Wesentlich</th>
               <th class="text-end text-success">Genehmigt</th>
               <th class="text-end text-warning">Entwurf</th>
               <th class="text-end text-danger">Prüfung überfällig</th>
@@ -64,13 +62,7 @@
               </td>
               <td class="text-end fw-bold">{{ r.anzahl }}</td>
               <td class="text-end">
-                {% if r.gda4 %}<span class="badge bg-danger">{{ r.gda4 }}</span>{% else %}–{% endif %}
-              </td>
-              <td class="text-end">
-                {% if r.steuerung %}<span class="badge bg-primary">{{ r.steuerung }}</span>{% else %}–{% endif %}
-              </td>
-              <td class="text-end">
-                {% if r.dora %}<span class="badge bg-danger">{{ r.dora }}</span>{% else %}–{% endif %}
+                {% if r.wesentlich %}<span class="badge bg-danger">{{ r.wesentlich }}</span>{% else %}–{% endif %}
               </td>
               <td class="text-end">
                 <span class="text-success">{{ r.genehmigt or '–' }}</span>
@@ -93,7 +85,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="9" class="text-center text-muted py-4">Keine Daten.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-4">Keine Daten.</td></tr>
             {% endfor %}
           </tbody>
           {% if by_oe %}
@@ -101,9 +93,7 @@
             <tr>
               <td>Gesamt</td>
               <td class="text-end">{{ by_oe | sum(attribute='anzahl') }}</td>
-              <td class="text-end">{{ by_oe | sum(attribute='gda4') or '–' }}</td>
-              <td class="text-end">{{ by_oe | sum(attribute='steuerung') or '–' }}</td>
-              <td class="text-end">{{ by_oe | sum(attribute='dora') or '–' }}</td>
+              <td class="text-end">{{ by_oe | sum(attribute='wesentlich') or '–' }}</td>
               <td class="text-end">{{ by_oe | sum(attribute='genehmigt') or '–' }}</td>
               <td class="text-end">{{ by_oe | sum(attribute='entwurf') or '–' }}</td>
               <td class="text-end">{{ by_oe | sum(attribute='ueberfaellig') or '–' }}</td>
@@ -130,8 +120,7 @@
               <th>Fachverantwortlicher</th>
               <th>OE</th>
               <th class="text-end">Gesamt</th>
-              <th class="text-end">GDA 4</th>
-              <th class="text-end">DORA</th>
+              <th class="text-end text-danger">Wesentlich</th>
               <th class="text-end text-success">Genehmigt</th>
               <th class="text-end text-danger">Überfällig</th>
               <th></th>
@@ -150,10 +139,7 @@
               <td style="font-size:.78rem">{{ r.oe_kuerzel or '–' }}</td>
               <td class="text-end fw-bold">{{ r.anzahl }}</td>
               <td class="text-end">
-                {% if r.gda4 %}<span class="badge bg-danger">{{ r.gda4 }}</span>{% else %}–{% endif %}
-              </td>
-              <td class="text-end">
-                {% if r.dora %}<span class="badge bg-danger">{{ r.dora }}</span>{% else %}–{% endif %}
+                {% if r.wesentlich %}<span class="badge bg-danger">{{ r.wesentlich }}</span>{% else %}–{% endif %}
               </td>
               <td class="text-end text-success">{{ r.genehmigt or '–' }}</td>
               <td class="text-end">
@@ -171,7 +157,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-center text-muted py-4">Keine Daten.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-4">Keine Daten.</td></tr>
             {% endfor %}
           </tbody>
         </table>

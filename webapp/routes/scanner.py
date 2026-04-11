@@ -59,7 +59,14 @@ def list_funde():
     where_parts = []
     params      = []
 
-    if filt == "archiv":
+    if scan_run_id:
+        # Für einen konkreten Scan-Lauf: alle Dateien zeigen, nicht nur aktive
+        try:
+            where_parts.append("f.last_scan_run_id = ?")
+            params.append(int(scan_run_id))
+        except ValueError:
+            scan_run_id = ""
+    elif filt == "archiv":
         where_parts.append("f.status = 'archiviert'")
     else:
         where_parts.append("f.status = 'active'")
@@ -79,13 +86,6 @@ def list_funde():
     if share_root:
         where_parts.append("f.share_root = ?")
         params.append(share_root)
-
-    if scan_run_id:
-        try:
-            where_parts.append("f.last_scan_run_id = ?")
-            params.append(int(scan_run_id))
-        except ValueError:
-            pass
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 

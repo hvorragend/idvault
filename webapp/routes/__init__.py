@@ -19,6 +19,8 @@ ROLE_FACHVERW   = "Fachverantwortlicher"
 
 # Rollen mit vollständigem Schreibzugriff auf alle IDVs
 _FULL_ACCESS_ROLES = {ROLE_ADMIN, ROLE_KOORDINATOR}
+# Rollen, die eigene IDVs anlegen/bearbeiten dürfen
+_OWN_WRITE_ROLES   = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_FACHVERW}
 # Rollen mit Lesezugriff auf alle IDVs
 _READ_ALL_ROLES    = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC}
 
@@ -67,9 +69,28 @@ def current_person_id():
     return session.get("person_id")
 
 
+def own_write_required(f):
+    """Admin, Koordinator und Fachverantwortliche dürfen IDVs anlegen/eigene bearbeiten."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("auth.login"))
+        role = session.get("user_role", "")
+        if role not in _OWN_WRITE_ROLES:
+            flash("Zugriff verweigert – keine Schreibberechtigung.", "error")
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
 def can_write() -> bool:
-    """True wenn der eingeloggte Benutzer Schreibrechte hat."""
+    """True wenn der eingeloggte Benutzer Schreibrechte auf alle IDVs hat."""
     return current_user_role() in _FULL_ACCESS_ROLES
+
+
+def can_create() -> bool:
+    """True wenn der Benutzer eigene IDVs anlegen darf."""
+    return current_user_role() in _OWN_WRITE_ROLES
 
 
 def can_read_all() -> bool:
