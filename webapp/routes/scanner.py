@@ -1,7 +1,8 @@
 """Scanner-Funde Blueprint"""
 import json
+from collections import Counter
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
-from . import login_required, write_access_required, own_write_required, get_db
+from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN
 
 bp = Blueprint("scanner", __name__, url_prefix="/scanner")
 
@@ -113,6 +114,13 @@ def list_funde():
         LIMIT 500
     """, params).fetchall()
 
+    # ---------- Duplikat-Erkennung (gleicher Hash mehrfach in Ergebnisliste) ----------
+    hash_counts = Counter(
+        f["file_hash"] for f in dateien
+        if f["file_hash"] and f["file_hash"] != "HASH_ERROR"
+    )
+    duplicate_hashes = {h for h, c in hash_counts.items() if c > 1}
+
     # ---------- Zählkarten ----------
     gesamt     = db.execute("SELECT COUNT(*) FROM idv_files WHERE status='active'").fetchone()[0]
     ohne_idv   = db.execute("""
@@ -164,6 +172,8 @@ def list_funde():
     # Letzten Scan-Lauf ermitteln (für Info-Banner)
     letzter_scan = scan_runs[0] if scan_runs else None
 
+    is_admin = current_user_role() == ROLE_ADMIN
+
     return render_template("scanner/list.html",
         dateien=dateien, filt=filt,
         gesamt=gesamt, ohne_idv=ohne_idv, mit_makro=mit_makro,
@@ -176,6 +186,8 @@ def list_funde():
         scan_run_id_filt=scan_run_id,
         letzter_scan=letzter_scan,
         scan_run_label=_scan_run_label,
+        duplicate_hashes=duplicate_hashes,
+        is_admin=is_admin,
     )
 
 
@@ -316,6 +328,34 @@ def bulk_aktion():
         flash(f"{len(file_ids)} Datei(en) zur Registrierung vorgemerkt.", "success")
 
     return redirect(url_for("scanner.list_funde", filter=request.form.get("filt", "")))
+
+
+@bp.route("/funde/<int:file_id>/loeschen", methods=["POST"])
+@admin_required
+def loeschen(file_id):
+    """Löscht einen Scannerfund-Eintrag dauerhaft (nur für Administratoren)."""
+    db = get_db()
+    datei = db.execute("SELECT * FROM idv_files WHERE id=?", (file_id,)).fetchone()
+    if not datei:
+        flash("Datei nicht gefunden.", "error")
+        return redirect(url_for("scanner.list_funde"))
+
+    idv_link = db.execute(
+        "SELECT id, idv_id FROM idv_register WHERE file_id=?", (file_id,)
+    ).fetchone()
+    if idv_link:
+        flash(
+            f"Datei ist mit IDV {idv_link['idv_id']} verknüpft und kann nicht gelöscht werden. "
+            "Bitte zuerst die IDV-Verknüpfung aufheben.",
+            "error"
+        )
+        return redirect(url_for("scanner.list_funde"))
+
+    datei_name = datei["file_name"]
+    db.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
+    db.commit()
+    flash(f"Scannerfund \"{datei_name}\" wurde gelöscht.", "success")
+    return redirect(url_for("scanner.list_funde"))
 
 
 @bp.route("/funde/<int:file_id>/benachrichtigen", methods=["POST"])

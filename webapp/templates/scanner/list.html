@@ -214,7 +214,7 @@
             <th class="text-center">Schutz</th>
             <th>Status</th>
             <th>IDV</th>
-            {% if filt != 'archiv' %}<th></th>{% endif %}
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -239,6 +239,28 @@
                 {% endif %}
                 {{ f.file_name }}
               </span>
+              {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
+              <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
+                {% if f.file_hash in duplicate_hashes %}
+                <span class="badge bg-warning text-dark"
+                      title="Dieser SHA-256-Hash kommt in der aktuellen Ansicht mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
+                  <i class="bi bi-copy me-1"></i>Duplikat
+                </span>
+                {% endif %}
+                <span class="font-monospace text-muted"
+                      style="font-size:.68rem"
+                      title="SHA-256: {{ f.file_hash }}">
+                  <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
+                </span>
+              </div>
+              {% elif f.file_hash == 'HASH_ERROR' %}
+              <div class="mt-1">
+                <span class="text-danger" style="font-size:.7rem"
+                      title="Hash konnte nicht berechnet werden (Zugriffsfehler oder Datei zu groß)">
+                  <i class="bi bi-exclamation-triangle me-1"></i>Hash-Fehler
+                </span>
+              </div>
+              {% endif %}
             </td>
 
             <!-- IDV-Typ-Vorschlag -->
@@ -359,21 +381,31 @@
               {% endif %}
             </td>
 
-            {% if filt != 'archiv' %}
-            <td>
-              {% if not f.reg_idv_id %}
-              <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
-                 class="btn btn-xs btn-primary text-nowrap">
-                <i class="bi bi-plus-lg me-1"></i>Registrieren
-              </a>
-              {% else %}
-              <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
-                 class="btn btn-xs btn-outline-secondary">
-                <i class="bi bi-eye"></i>
-              </a>
+            <td class="text-nowrap">
+              {% if filt != 'archiv' %}
+                {% if not f.reg_idv_id %}
+                <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
+                   class="btn btn-xs btn-primary text-nowrap">
+                  <i class="bi bi-plus-lg me-1"></i>Registrieren
+                </a>
+                {% else %}
+                <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
+                   class="btn btn-xs btn-outline-secondary">
+                  <i class="bi bi-eye"></i>
+                </a>
+                {% endif %}
+              {% endif %}
+              {% if is_admin and not f.reg_idv_id %}
+              <button type="button"
+                      class="btn btn-xs btn-outline-danger"
+                      title="Eintrag löschen (Admin)"
+                      data-delete-url="{{ url_for('scanner.loeschen', file_id=f.id) }}"
+                      data-filename="{{ f.file_name }}"
+                      onclick="deleteScannerfund(this)">
+                <i class="bi bi-trash"></i>
+              </button>
               {% endif %}
             </td>
-            {% endif %}
 
           </tr>
           {% else %}
@@ -399,6 +431,16 @@
 </style>
 
 <script>
+function deleteScannerfund(btn) {
+  const name = btn.dataset.filename;
+  if (!confirm('Scannerfund "' + name + '" wirklich löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden.')) return;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = btn.dataset.deleteUrl;
+  document.body.appendChild(form);
+  form.submit();
+}
+
 (function () {
   const selectAll   = document.getElementById('select-all');
   const bulkBar     = document.getElementById('bulk-bar');
