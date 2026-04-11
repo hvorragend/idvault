@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file
-from . import login_required, write_access_required, get_db, can_write, can_read_all, current_person_id
+from . import (login_required, write_access_required, own_write_required,
+               get_db, can_write, can_create, can_read_all, current_person_id)
 import sys, os, io
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (create_idv, update_idv, change_status, search_idv,
@@ -195,7 +196,7 @@ def detail_idv(idv_db_id):
 # ── Neu ────────────────────────────────────────────────────────────────────
 
 @bp.route("/neu", methods=["GET", "POST"])
-@write_access_required
+@own_write_required
 def new_idv():
     db = get_db()
     if request.method == "POST":
@@ -237,19 +238,25 @@ def new_idv():
     return render_template("idv/form.html", idv=None,
                            fund=fund, prefill=prefill,
                            wesentlichkeit_antworten={},
+                           can_write=can_write(),
                            **_form_lookups(db))
 
 
 # ── Bearbeiten ─────────────────────────────────────────────────────────────
 
 @bp.route("/<int:idv_db_id>/bearbeiten", methods=["GET", "POST"])
-@write_access_required
+@own_write_required
 def edit_idv(idv_db_id):
     db  = get_db()
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
         flash("IDV nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
+    # Fachverantwortliche dürfen nur eigene IDVs bearbeiten
+    if not can_write() and current_person_id() != idv["fachverantwortlicher_id"]:
+        flash("Zugriff verweigert – Sie sind nicht der Fachverantwortliche dieser IDV.", "error")
+        from flask import abort
+        abort(403)
 
     if request.method == "POST":
         data = _form_to_dict(request.form)
@@ -269,6 +276,7 @@ def edit_idv(idv_db_id):
     }
     return render_template("idv/form.html", idv=idv, fund=None, prefill={},
                            wesentlichkeit_antworten=wesentlichkeit_antworten,
+                           can_write=can_write(),
                            **_form_lookups(db))
 
 

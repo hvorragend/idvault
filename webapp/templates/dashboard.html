@@ -8,12 +8,12 @@
 <div class="row g-3 mb-4">
 
   {% set cards = [
-    ("gesamt_aktiv",       "IDVs gesamt",          "bi-archive",        "#1a3a5c", ""),
-    ("genehmigt",          "Genehmigt",             "bi-check-circle",   "#166534", ""),
-    ("entwurf",            "Im Entwurf",            "bi-pencil-square",  "#854d0e", ""),
-    ("kritisch_gda4",      "GDA = 4 (kritisch)",    "bi-exclamation-octagon","#842029",""),
-    ("steuerungsrelevant", "Steuerungsrelevant",    "bi-bar-chart-line", "#1e40af",""),
-    ("dora_kritisch",      "DORA-kritisch",         "bi-shield-exclamation","#6b21a8",""),
+    ("gesamt_aktiv",     "IDVs gesamt",       "bi-archive",            "#1a3a5c", ""),
+    ("wesentlich",       "Wesentlich",        "bi-exclamation-triangle-fill","#842029",""),
+    ("nicht_wesentlich", "Nicht wesentlich",  "bi-check2-circle",      "#166534", ""),
+    ("genehmigt",        "Genehmigt",         "bi-check-circle",       "#166534", ""),
+    ("entwurf",          "Im Entwurf",        "bi-pencil-square",      "#854d0e", ""),
+    ("in_pruefung",      "In Prüfung",        "bi-clipboard2-check",   "#1e40af", ""),
   ] %}
 
   {% for key, label, icon, color, _ in cards %}
@@ -92,11 +92,10 @@
               <td><a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">{{ r.idv_id }}</a></td>
               <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
               <td>
-                <span class="badge bg-danger" style="font-size:.7rem">Wesentlich</span>
-                <div style="font-size:.68rem;margin-top:.2rem">
-                  {% if r.steuerungsrelevant == 'Ja' %}<span class="badge bg-primary">S</span> {% endif %}
-                  {% if r.rl_relevant == 'Ja' %}<span class="badge bg-info text-dark">RL</span> {% endif %}
-                  {% if r.dora_kritisch == 'Ja' %}<span class="badge bg-danger">D</span>{% endif %}
+                <div style="font-size:.72rem">
+                  {% if r.steuerungsrelevant %}<span class="badge bg-primary">Steuerung</span> {% endif %}
+                  {% if r.rechnungslegungsrelevant %}<span class="badge bg-info text-dark">RL</span> {% endif %}
+                  {% if r.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA</span>{% endif %}
                 </div>
               </td>
               <td><span class="badge status-{{ r.status }}">{{ r.status }}</span></td>
