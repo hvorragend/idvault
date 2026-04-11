@@ -1,7 +1,7 @@
 """Scanner-Funde Blueprint"""
 import json
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
-from . import login_required, write_access_required, get_db
+from . import login_required, write_access_required, own_write_required, get_db
 
 bp = Blueprint("scanner", __name__, url_prefix="/scanner")
 
@@ -82,6 +82,10 @@ def list_funde():
             where_parts.append("f.has_macros = 1")
         elif filt == "blattschutz":
             where_parts.append("f.has_sheet_protection = 1")
+        elif filt == "ignoriert":
+            where_parts.append("f.bearbeitungsstatus = 'Ignoriert'")
+        elif filt == "zur_registrierung":
+            where_parts.append("f.bearbeitungsstatus = 'Zur Registrierung'")
 
     if share_root:
         where_parts.append("f.share_root = ?")
@@ -120,6 +124,16 @@ def list_funde():
     archiviert = db.execute(
         "SELECT COUNT(*) FROM idv_files WHERE status='archiviert'"
     ).fetchone()[0]
+    try:
+        ignoriert = db.execute(
+            "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Ignoriert'"
+        ).fetchone()[0]
+        zur_registrierung = db.execute(
+            "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Zur Registrierung'"
+        ).fetchone()[0]
+    except Exception:
+        ignoriert = 0
+        zur_registrierung = 0
 
     # ---------- Filter-Optionen ----------
     # Distinct share_roots für Dropdown
@@ -149,6 +163,7 @@ def list_funde():
         dateien=dateien, filt=filt,
         gesamt=gesamt, ohne_idv=ohne_idv, mit_makro=mit_makro,
         mit_schutz=mit_schutz, archiviert=archiviert,
+        ignoriert=ignoriert, zur_registrierung=zur_registrierung,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         share_roots=share_roots,
         share_root_filt=share_root,
@@ -179,6 +194,70 @@ def scan_laeufe():
                            scan_run_label=_scan_run_label)
 
 
+@bp.route("/funde/bulk-aktion", methods=["POST"])
+@own_write_required
+def bulk_aktion():
+    """Massenmarkierung von Scanner-Funden (ignorieren / zur Registrierung)."""
+    db      = get_db()
+    aktion  = request.form.get("aktion", "")
+    raw_ids = request.form.getlist("file_ids")
+
+    if aktion not in ("ignorieren", "zur_registrierung"):
+        flash("Ungültige Aktion.", "error")
+        return redirect(url_for("scanner.list_funde"))
+
+    try:
+        file_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        flash("Ungültige Datei-IDs.", "error")
+        return redirect(url_for("scanner.list_funde"))
+
+    if not file_ids:
+        flash("Keine Dateien ausgewählt.", "warning")
+        return redirect(url_for("scanner.list_funde"))
+
+    if aktion == "ignorieren":
+        # Nur Dateien ohne Formeln und ohne IDV-Verknüpfung dürfen ignoriert werden
+        placeholders = ",".join("?" * len(file_ids))
+        kandidaten = db.execute(f"""
+            SELECT f.id FROM idv_files f
+            WHERE f.id IN ({placeholders})
+              AND (f.formula_count IS NULL OR f.formula_count = 0)
+              AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
+        """, file_ids).fetchall()
+        erlaubte_ids = [r["id"] for r in kandidaten]
+        abgelehnt = len(file_ids) - len(erlaubte_ids)
+
+        if erlaubte_ids:
+            ph2 = ",".join("?" * len(erlaubte_ids))
+            db.execute(
+                f"UPDATE idv_files SET bearbeitungsstatus = 'Ignoriert' WHERE id IN ({ph2})",
+                erlaubte_ids
+            )
+            db.commit()
+            msg = f"{len(erlaubte_ids)} Datei(en) als 'Ignoriert' markiert."
+            if abgelehnt:
+                msg += f" {abgelehnt} Datei(en) übersprungen (Formeln vorhanden oder bereits registriert)."
+            flash(msg, "success")
+        else:
+            flash(
+                "Keine der ausgewählten Dateien konnte ignoriert werden "
+                "(Formeln vorhanden oder bereits im IDV-Register).",
+                "warning"
+            )
+
+    elif aktion == "zur_registrierung":
+        placeholders = ",".join("?" * len(file_ids))
+        db.execute(
+            f"UPDATE idv_files SET bearbeitungsstatus = 'Zur Registrierung' WHERE id IN ({placeholders})",
+            file_ids
+        )
+        db.commit()
+        flash(f"{len(file_ids)} Datei(en) zur Registrierung vorgemerkt.", "success")
+
+    return redirect(url_for("scanner.list_funde", filter=request.form.get("filt", "")))
+
+
 @bp.route("/funde/<int:file_id>/benachrichtigen", methods=["POST"])
 @write_access_required
 def notify_file(file_id):
@@ -193,7 +272,7 @@ def notify_file(file_id):
         r["email"] for r in db.execute("""
             SELECT email FROM persons
             WHERE aktiv=1 AND email IS NOT NULL
-              AND rolle IN ('IDV-Koordinator','IDV-Administrator')
+              AND rolle IN ('IDV-Koordinator','IDV-Administrator','IDV-Entwickler')
         """).fetchall()
         if r["email"]
     ]
