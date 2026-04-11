@@ -1,6 +1,6 @@
 {
   "scan_paths": [
-  "c:\\0\\"
+    "c:\\0\\"
   ],
   "extensions": [
     ".xls",
@@ -34,7 +34,7 @@
     "\\System Volume Information\\",
     "\\AppData\\"
   ],
-  "db_path": "idv_register.db",
+  "db_path": "../instance/idvault.db",
   "log_path": "idv_scanner.log",
   "hash_size_limit_mb": 500,
   "max_workers": 4
