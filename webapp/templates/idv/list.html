@@ -27,11 +27,12 @@
       <label class="form-label form-label-sm">Filter</label>
       <select name="filter" class="form-select form-select-sm">
         <option value="">– Alle IDVs –</option>
-        <option value="wesentlich"     {{ 'selected' if request.args.get('filter') in ('wesentlich','kritisch') }}>Wesentliche IDVs</option>
-        <option value="steuerung"      {{ 'selected' if request.args.get('filter') == 'steuerung' }}>Steuerungsrelevant</option>
-        <option value="dora"           {{ 'selected' if request.args.get('filter') == 'dora' }}>DORA-kritisch/wichtig</option>
-        <option value="ueberfaellig"   {{ 'selected' if request.args.get('filter') == 'ueberfaellig' }}>Prüfung überfällig</option>
-        <option value="unvollstaendig" {{ 'selected' if request.args.get('filter') == 'unvollstaendig' }}>Unvollständig</option>
+        <option value="wesentlich"      {{ 'selected' if request.args.get('filter') in ('wesentlich','kritisch') }}>Wesentliche IDVs</option>
+        <option value="nicht_wesentlich" {{ 'selected' if request.args.get('filter') == 'nicht_wesentlich' }}>Nicht wesentliche IDVs</option>
+        <option value="steuerung"       {{ 'selected' if request.args.get('filter') == 'steuerung' }}>Steuerungsrelevant</option>
+        <option value="dora"            {{ 'selected' if request.args.get('filter') == 'dora' }}>DORA-kritisch/wichtig</option>
+        <option value="ueberfaellig"    {{ 'selected' if request.args.get('filter') == 'ueberfaellig' }}>Prüfung überfällig</option>
+        <option value="unvollstaendig"  {{ 'selected' if request.args.get('filter') == 'unvollstaendig' }}>Unvollständig</option>
       </select>
     </div>
     <div class="col-md-2 d-flex gap-1 align-items-end">
@@ -132,12 +133,7 @@
           </td>
           <td>
             {% if r.ist_wesentlich %}
-            <span class="badge bg-danger">Wesentlich</span>
-            <div class="mt-1" style="font-size:.7rem;line-height:1.6">
-              {% if r.steuerungsrelevant == 'Ja' %}<span class="badge bg-primary">Steuerung</span> {% endif %}
-              {% if r.rl_relevant == 'Ja' %}<span class="badge bg-info text-dark">RL</span> {% endif %}
-              {% if r.dora_kritisch == 'Ja' %}<span class="badge bg-danger">DORA</span> {% endif %}
-            </div>
+            <span class="badge bg-danger">Ja</span>
             {% else %}
             <span class="text-muted" style="font-size:.82rem">–</span>
             {% endif %}

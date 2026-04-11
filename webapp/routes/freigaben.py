@@ -32,11 +32,19 @@ def _ist_wesentlich(db, idv_db_id: int) -> bool:
 
 
 def _funktionstrennung_ok(db, idv_db_id: int, person_id: int) -> bool:
-    """True wenn der angemeldete User NICHT der eingetragene Entwickler ist."""
+    """True wenn der angemeldete User NICHT der eingetragene Entwickler ist.
+    Admins sind von der Funktionstrennung ausgenommen.
+    Wenn kein Entwickler eingetragen ist, gibt es keine Einschränkung."""
+    from flask import session
+    from . import ROLE_ADMIN
+    if session.get("user_role") == ROLE_ADMIN:
+        return True
     row = db.execute(
         "SELECT idv_entwickler_id FROM idv_register WHERE id = ?", (idv_db_id,)
     ).fetchone()
     if not row:
+        return True
+    if row["idv_entwickler_id"] is None:
         return True
     return row["idv_entwickler_id"] != person_id
 

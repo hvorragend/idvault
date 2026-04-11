@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Bewertete Eigenentwicklungen{% endblock %}
+{% block page_title %}<i class="bi bi-check2-all me-2"></i>Bewertete Eigenentwicklungen{% endblock %}
+
+{% block content %}
+
+<p class="text-muted mb-4" style="font-size:.87rem">
+  Eigenentwicklungen, für die eine Bewertung vorgenommen wurde:
+  entweder als <strong>nicht wesentlich</strong> eingestufte IDVs oder
+  als <strong>ignoriert</strong> markierte Scanner-Funde (z.&nbsp;B. keine Formeln).
+  Diese erscheinen nicht mehr in der regulären Scanner-Funde-Ansicht.
+</p>
+
+<!-- ══════════════════════════════════════════════════════════════
+     a) Nicht wesentliche IDVs
+     ══════════════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-600">
+      <i class="bi bi-dash-circle me-2 text-secondary"></i>
+      a) Nicht wesentliche Eigenentwicklungen
+      <span class="badge bg-secondary ms-1">{{ nicht_wesentliche|length }}</span>
+    </span>
+    <a href="{{ url_for('idv.list_idv', filter='nicht_wesentlich') }}"
+       class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-box-arrow-up-right me-1"></i>In IDV-Liste öffnen
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+      <thead>
+        <tr>
+          <th>IDV-ID</th>
+          <th>Bezeichnung</th>
+          <th>OE</th>
+          <th>Fachverantwortlicher</th>
+          <th>Status</th>
+          <th>Dateiname</th>
+          <th>Verzeichnis</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in nicht_wesentliche %}
+        <tr>
+          <td class="font-monospace" style="font-size:.78rem">{{ r.idv_id }}</td>
+          <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">
+            {{ r.bezeichnung }}
+          </td>
+          <td style="font-size:.78rem">{{ r.org_einheit or '–' }}</td>
+          <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+          <td>
+            <span class="badge status-{{ r.status }}">{{ r.status }}</span>
+          </td>
+          <td class="text-truncate" style="max-width:180px" title="{{ r.file_name }}">
+            {{ r.file_name or '–' }}
+          </td>
+          <td style="font-size:.74rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ r.full_path }}">
+            {% if r.share_root %}
+            <span class="badge bg-primary" style="font-size:.68rem;font-family:monospace">{{ r.share_root }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.idv_db_id) }}"
+               class="btn btn-xs btn-outline-secondary" title="IDV-Detail">
+              <i class="bi bi-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">
+            <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
+            Keine nicht wesentlichen Scanner-IDVs vorhanden.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     b) Ignorierte Scanner-Funde
+     ══════════════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-600">
+      <i class="bi bi-eye-slash me-2 text-secondary"></i>
+      b) Ignorierte Eigenentwicklungen
+      <span class="badge bg-secondary ms-1">{{ ignorierte|length }}</span>
+    </span>
+    <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
+       class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-box-arrow-up-right me-1"></i>In Scanner-Funde öffnen
+    </a>
+  </div>
+  <div class="alert alert-light border-0 border-bottom rounded-0 py-2 px-3 mb-0" style="font-size:.82rem">
+    <i class="bi bi-info-circle me-1 text-secondary"></i>
+    Als <em>Ignoriert</em> markierte Dateien enthalten keine relevanten Formeln oder wurden
+    bewusst von der Registrierungspflicht ausgenommen.
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+      <thead>
+        <tr>
+          <th>Dateiname</th>
+          <th>Typ</th>
+          <th>Verzeichnis</th>
+          <th>Scan-Datum</th>
+          <th class="text-center">Makros</th>
+          <th class="text-center">Formeln</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in ignorierte %}
+        <tr>
+          <td>
+            <span class="fw-500">{{ f.file_name }}</span>
+          </td>
+          <td>
+            {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+            <span class="badge bg-light text-dark border">{{ typ }}</span>
+          </td>
+          <td style="font-size:.74rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ f.full_path }}">
+            {% if f.share_root %}
+            <span class="badge bg-primary" style="font-size:.68rem;font-family:monospace">{{ f.share_root }}</span>
+            {% endif %}
+            <div class="text-muted mt-1">{{ f.relative_path or f.full_path }}</div>
+          </td>
+          <td class="text-nowrap" style="font-size:.76rem">
+            {% if f.sr_id %}
+            <a href="{{ url_for('scanner.list_funde', scan_run=f.sr_id) }}"
+               class="text-decoration-none text-muted"
+               title="#{{ f.sr_id }}">
+              {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
+            </a>
+            {% else %}–{% endif %}
+          </td>
+          <td class="text-center">
+            {% if f.has_macros %}
+              <span class="badge bg-danger">VBA</span>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if f.formula_count %}
+              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              </span>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
+               class="btn btn-xs btn-outline-secondary" title="In Scanner-Funde anzeigen">
+              <i class="bi bi-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-4">
+            <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
+            Keine ignorierten Dateien vorhanden.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.btn-xs { padding: .15rem .45rem; font-size: .75rem; }
+.fw-600 { font-weight: 600; }
+.fw-500 { font-weight: 500; }
+</style>
+{% endblock %}

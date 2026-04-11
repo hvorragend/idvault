@@ -87,6 +87,8 @@ def list_idv():
     # Spezialfilter
     if filt in ("kritisch", "wesentlich"):
         where_parts.append(_WESENTLICH)
+    elif filt == "nicht_wesentlich":
+        where_parts.append(f"NOT {_WESENTLICH}")
     elif filt == "steuerung":
         where_parts.append("v.steuerungsrelevant = 'Ja'")
     elif filt == "dora":
