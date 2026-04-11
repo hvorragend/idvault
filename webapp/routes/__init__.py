@@ -11,18 +11,19 @@ from ..db_flask import get_db  # noqa: re-export für alle Route-Module
 # ---------------------------------------------------------------------------
 # Rollen-Konstanten
 # ---------------------------------------------------------------------------
-ROLE_ADMIN      = "IDV-Administrator"
+ROLE_ADMIN       = "IDV-Administrator"
 ROLE_KOORDINATOR = "IDV-Koordinator"
-ROLE_REVISION   = "Revision"
-ROLE_IT_SEC     = "IT-Sicherheit"
-ROLE_FACHVERW   = "Fachverantwortlicher"
+ROLE_REVISION    = "Revision"
+ROLE_IT_SEC      = "IT-Sicherheit"
+ROLE_FACHVERW    = "Fachverantwortlicher"
+ROLE_ENTWICKLER  = "IDV-Entwickler"
 
 # Rollen mit vollständigem Schreibzugriff auf alle IDVs
 _FULL_ACCESS_ROLES = {ROLE_ADMIN, ROLE_KOORDINATOR}
 # Rollen, die eigene IDVs anlegen/bearbeiten dürfen
-_OWN_WRITE_ROLES   = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_FACHVERW}
+_OWN_WRITE_ROLES   = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_FACHVERW, ROLE_ENTWICKLER}
 # Rollen mit Lesezugriff auf alle IDVs
-_READ_ALL_ROLES    = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC}
+_READ_ALL_ROLES    = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC, ROLE_ENTWICKLER}
 
 
 def login_required(f):

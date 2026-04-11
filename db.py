@@ -41,15 +41,61 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Fügt fehlende Spalten zu bestehenden Tabellen hinzu (idempotent)."""
+    # --- idv_register ---
     existing = {row[1] for row in conn.execute("PRAGMA table_info(idv_register)").fetchall()}
     new_cols = [
-        ("gobd_relevant", "INTEGER NOT NULL DEFAULT 0"),
-        ("erstellt_fuer",  "TEXT"),
-        ("schnittstellen_beschr", "TEXT"),
+        ("gobd_relevant",        "INTEGER NOT NULL DEFAULT 0"),
+        ("erstellt_fuer",        "TEXT"),
+        ("schnittstellen_beschr","TEXT"),
+        ("bearbeitungsstatus",   "TEXT NOT NULL DEFAULT 'Wertung ausstehend'"),
+        ("dokumentationsstatus", "TEXT NOT NULL DEFAULT 'Nicht dokumentiert'"),
+        ("vorgaenger_idv_id",    "INTEGER REFERENCES idv_register(id)"),
     ]
     for col, definition in new_cols:
         if col not in existing:
             conn.execute(f"ALTER TABLE idv_register ADD COLUMN {col} {definition}")
+
+    # Backfill bearbeitungsstatus für bereits genehmigte IDVs
+    if "bearbeitungsstatus" not in existing:
+        conn.execute("""
+            UPDATE idv_register SET bearbeitungsstatus = 'Freigegeben'
+            WHERE status IN ('Genehmigt', 'Genehmigt mit Auflagen')
+        """)
+        conn.execute("""
+            UPDATE idv_register SET dokumentationsstatus = 'Dokumentiert'
+            WHERE dokumentation_vorhanden = 1
+        """)
+
+    # --- idv_files ---
+    file_cols = {row[1] for row in conn.execute("PRAGMA table_info(idv_files)").fetchall()}
+    if "bearbeitungsstatus" not in file_cols:
+        conn.execute(
+            "ALTER TABLE idv_files ADD COLUMN bearbeitungsstatus TEXT NOT NULL DEFAULT 'Neu'"
+        )
+        conn.execute("""
+            UPDATE idv_files SET bearbeitungsstatus = 'Registriert'
+            WHERE id IN (SELECT DISTINCT file_id FROM idv_register WHERE file_id IS NOT NULL)
+        """)
+
+    # --- idv_freigaben (Test- und Freigabeverfahren) ---
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS idv_freigaben (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            idv_id                INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+            schritt               TEXT NOT NULL,
+            status                TEXT NOT NULL DEFAULT 'Ausstehend',
+            beauftragt_von_id     INTEGER REFERENCES persons(id),
+            beauftragt_am         TEXT NOT NULL DEFAULT (datetime('now','utc')),
+            durchgefuehrt_von_id  INTEGER REFERENCES persons(id),
+            durchgefuehrt_am      TEXT,
+            kommentar             TEXT,
+            befunde               TEXT,
+            erstellt_am           TEXT NOT NULL DEFAULT (datetime('now','utc'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_freigaben_idv    ON idv_freigaben(idv_id);
+        CREATE INDEX IF NOT EXISTS idx_freigaben_status ON idv_freigaben(status, schritt);
+    """)
+
     conn.commit()
 
 
@@ -225,6 +271,9 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "gobd_relevant":             int(data.get("gobd_relevant", 0)),
         "erstellt_fuer":             data.get("erstellt_fuer"),
         "schnittstellen_beschr":     data.get("schnittstellen_beschr"),
+        "bearbeitungsstatus":        data.get("bearbeitungsstatus", "Wertung ausstehend"),
+        "dokumentationsstatus":      data.get("dokumentationsstatus", "Nicht dokumentiert"),
+        "vorgaenger_idv_id":         data.get("vorgaenger_idv_id"),
         "status":                    "Entwurf",
         "pruefintervall_monate":     intervall,
         "naechste_pruefung":         naechste_pruefung,
@@ -247,6 +296,13 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
         VALUES (?, 'erstellt', ?, ?)
     """, (new_id, f"IDV {idv_id} erstellt", erfasser_id))
+
+    # Scanner-Datei als registriert markieren
+    if data.get("file_id"):
+        conn.execute(
+            "UPDATE idv_files SET bearbeitungsstatus = 'Registriert' WHERE id = ?",
+            (data["file_id"],)
+        )
 
     conn.commit()
     return new_id
@@ -274,6 +330,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
         "rechnungslegungsrelevant", "dora_kritisch_wichtig", "status",
         "fachverantwortlicher_id", "gp_id", "risikoklasse_id",
         "naechste_pruefung", "pruefintervall_monate", "gobd_relevant",
+        "bearbeitungsstatus", "dokumentationsstatus",
     ]
     changes = {}
     for f in tracked_fields:
@@ -302,6 +359,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
         "abloesung_geplant", "abloesung_zieldatum", "abloesung_durch",
         "pruefintervall_monate", "naechste_pruefung", "interne_notizen", "tags",
         "gobd_relevant", "erstellt_fuer", "schnittstellen_beschr",
+        "bearbeitungsstatus", "dokumentationsstatus",
     ]}
     update_fields["aktualisiert_am"] = now
 
