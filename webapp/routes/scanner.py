@@ -82,6 +82,10 @@ def list_funde():
             where_parts.append("f.has_macros = 1")
         elif filt == "blattschutz":
             where_parts.append("f.has_sheet_protection = 1")
+        elif filt == "ignoriert":
+            where_parts.append("f.bearbeitungsstatus = 'Ignoriert'")
+        elif filt == "zur_registrierung":
+            where_parts.append("f.bearbeitungsstatus = 'Zur Registrierung'")
 
     if share_root:
         where_parts.append("f.share_root = ?")

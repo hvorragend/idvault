@@ -8,10 +8,8 @@
 {% block content %}
 
 <!-- ── Header-Leiste ──────────────────────────────────────────────── -->
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
   <div class="d-flex align-items-center gap-2 flex-wrap">
-    {% set ist_wesentlich = idv.steuerungsrelevant or idv.rechnungslegungsrelevant or idv.dora_kritisch_wichtig
-       or (wesentlichkeit | selectattr('erfuellt') | list | length > 0) %}
     {% if ist_wesentlich %}
     <span class="badge bg-danger fs-6">Wesentlich</span>
     {% else %}
@@ -48,6 +46,77 @@
     <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-arrow-left me-1"></i>Zurück
     </a>
+  </div>
+</div>
+
+<!-- ── Bearbeitungs- und Dokumentationsstatus ─────────────────────── -->
+<div class="d-flex gap-3 align-items-center mb-4 flex-wrap p-3 bg-light rounded border">
+  <!-- Bearbeitungsstatus -->
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Bearbeitungsstatus:</span>
+    {% set bs = idv.bearbeitungsstatus or 'Wertung ausstehend' %}
+    {% if bs == 'Freigegeben' %}
+      <span class="badge bg-success">{{ bs }}</span>
+    {% elif bs == 'Freigabe ausstehend' %}
+      <span class="badge bg-warning text-dark">{{ bs }}</span>
+    {% elif bs == 'In Bearbeitung' %}
+      <span class="badge bg-info text-dark">{{ bs }}</span>
+    {% else %}
+      <span class="badge bg-light text-dark border">{{ bs }}</span>
+    {% endif %}
+    {% if can_create %}
+    <div class="dropdown">
+      <button class="btn btn-xs btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-pencil-fill"></i>
+      </button>
+      <ul class="dropdown-menu">
+        {% for s in bearbeitungsstatus_werte %}
+        {% if s != bs %}
+        <li>
+          <form method="post" action="{{ url_for('idv.change_bearbeitungsstatus', idv_db_id=idv.id) }}">
+            <input type="hidden" name="bearbeitungsstatus" value="{{ s }}">
+            <button class="dropdown-item">→ {{ s }}</button>
+          </form>
+        </li>
+        {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+  <span class="text-muted">|</span>
+
+  <!-- Dokumentationsstatus -->
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Dokumentation:</span>
+    {% set ds = idv.dokumentationsstatus or 'Nicht dokumentiert' %}
+    {% if ds == 'Dokumentiert' %}
+      <span class="badge bg-success"><i class="bi bi-file-check me-1"></i>{{ ds }}</span>
+    {% elif ds == 'In Dokumentation' %}
+      <span class="badge bg-warning text-dark"><i class="bi bi-file-earmark-pen me-1"></i>{{ ds }}</span>
+    {% else %}
+      <span class="badge bg-light text-dark border"><i class="bi bi-file-x me-1"></i>{{ ds }}</span>
+    {% endif %}
+    {% if can_create %}
+    <div class="dropdown">
+      <button class="btn btn-xs btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-pencil-fill"></i>
+      </button>
+      <ul class="dropdown-menu">
+        {% for s in dokumentationsstatus_werte %}
+        {% if s != ds %}
+        <li>
+          <form method="post" action="{{ url_for('idv.change_dokumentationsstatus', idv_db_id=idv.id) }}">
+            <input type="hidden" name="dokumentationsstatus" value="{{ s }}">
+            <button class="dropdown-item">→ {{ s }}</button>
+          </form>
+        </li>
+        {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
   </div>
 </div>
 
@@ -389,6 +458,149 @@
         </a>
       </div>
     </div>
+
+    <!-- Versionshistorie -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600"><i class="bi bi-diagram-3 me-2"></i>Versionshistorie</div>
+      <ul class="list-group list-group-flush">
+        {% if vorgaenger %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label text-muted">Vorgänger</div>
+          <a href="{{ url_for('idv.detail_idv', idv_db_id=vorgaenger.id) }}"
+             class="text-decoration-none fw-500">
+            <span class="font-monospace me-1" style="font-size:.8rem">{{ vorgaenger.idv_id }}</span>
+            v{{ vorgaenger.version }}
+          </a>
+          <span class="badge status-{{ vorgaenger.status }} ms-1" style="font-size:.6rem">{{ vorgaenger.status }}</span>
+        </li>
+        {% endif %}
+        <li class="list-group-item px-3 py-2 bg-light">
+          <div class="detail-label text-muted">Aktuelle Version</div>
+          <span class="fw-600">v{{ idv.version }}</span>
+          <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese IDV</span>
+        </li>
+        {% for nf in nachfolger %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label text-muted">Nachfolger</div>
+          <a href="{{ url_for('idv.detail_idv', idv_db_id=nf.id) }}"
+             class="text-decoration-none fw-500">
+            <span class="font-monospace me-1" style="font-size:.8rem">{{ nf.idv_id }}</span>
+            v{{ nf.version }}
+          </a>
+          <span class="badge status-{{ nf.status }} ms-1" style="font-size:.6rem">{{ nf.status }}</span>
+        </li>
+        {% endfor %}
+        {% if not vorgaenger and not nachfolger %}
+        <li class="list-group-item text-muted text-center py-2" style="font-size:.83rem">
+          Keine Vorgänger/Nachfolger.
+        </li>
+        {% endif %}
+      </ul>
+      {% if can_create and idv.status != 'Archiviert' %}
+      <div class="card-footer bg-white">
+        <form method="post" action="{{ url_for('idv.neue_version', idv_db_id=idv.id) }}"
+              onsubmit="return confirm('Neue Version anlegen? Die aktuelle IDV wird als Vorgänger verknüpft.')">
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+            <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
+          </button>
+        </form>
+        {% if ist_wesentlich %}
+        <div class="mt-1 text-muted text-center" style="font-size:.75rem">
+          <i class="bi bi-info-circle me-1"></i>Wesentliche IDV: neue Version erfordert erneute Freigabe
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Test- und Freigabeverfahren -->
+    {% if ist_wesentlich %}
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-shield-check me-2"></i>Test & Freigabe</span>
+        {% set offene_freigabe = freigaben | selectattr('status', 'equalto', 'Ausstehend') | list %}
+        {% set freigegebene = freigaben | selectattr('status', 'equalto', 'Bestanden') | list %}
+        {% if offene_freigabe %}
+        <span class="badge bg-warning text-dark">{{ offene_freigabe[0].schritt }}</span>
+        {% elif freigegebene | length == 4 %}
+        <span class="badge bg-success">Freigegeben</span>
+        {% endif %}
+      </div>
+
+      {% if freigaben %}
+      <ul class="list-group list-group-flush">
+        {% set schritte_reihenfolge = ['Fachlicher Test', 'Technischer Test', 'Fachliche Abnahme', 'Technische Abnahme'] %}
+        {% for schritt_name in schritte_reihenfolge %}
+          {% set schritt_rows = freigaben | selectattr('schritt', 'equalto', schritt_name) | list %}
+          {% set letzter = schritt_rows[-1] if schritt_rows else none %}
+        <li class="list-group-item px-3 py-2">
+          <div class="d-flex align-items-center gap-2">
+            {% if letzter %}
+              {% if letzter.status == 'Bestanden' %}
+                <i class="bi bi-check-circle-fill text-success"></i>
+              {% elif letzter.status == 'Nicht bestanden' %}
+                <i class="bi bi-x-circle-fill text-danger"></i>
+              {% elif letzter.status == 'Ausstehend' %}
+                <i class="bi bi-hourglass-split text-warning"></i>
+              {% else %}
+                <i class="bi bi-dash-circle text-secondary"></i>
+              {% endif %}
+            {% else %}
+              <i class="bi bi-circle text-muted"></i>
+            {% endif %}
+            <span style="font-size:.83rem;font-weight:500">{{ schritt_name }}</span>
+            {% if letzter %}
+              <span class="badge
+                {% if letzter.status == 'Bestanden' %}bg-success
+                {% elif letzter.status == 'Nicht bestanden' %}bg-danger
+                {% elif letzter.status == 'Ausstehend' %}bg-warning text-dark
+                {% else %}bg-secondary{% endif %}
+                ms-auto" style="font-size:.65rem">{{ letzter.status }}</span>
+            {% else %}
+              <span class="badge bg-light text-muted border ms-auto" style="font-size:.65rem">Ausstehend</span>
+            {% endif %}
+          </div>
+          {% if letzter and letzter.durchgefuehrt_von %}
+          <div class="text-muted ms-4" style="font-size:.75rem">
+            {{ letzter.durchgefuehrt_von }} · {{ letzter.durchgefuehrt_am[:10] if letzter.durchgefuehrt_am else '' }}
+          </div>
+          {% endif %}
+          {% if letzter and letzter.status == 'Ausstehend' and can_create %}
+          <div class="ms-4 mt-1 d-flex gap-1">
+            <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=letzter.id) }}">
+              <button class="btn btn-xs btn-success">
+                <i class="bi bi-check2 me-1"></i>Bestanden
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('freigaben.ablehnen', freigabe_id=letzter.id) }}">
+              <button class="btn btn-xs btn-outline-danger">
+                <i class="bi bi-x me-1"></i>Nicht bestanden
+              </button>
+            </form>
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      <div class="card-footer bg-white">
+        {% set hat_offenen_schritt = freigaben | selectattr('status', 'equalto', 'Ausstehend') | list | length > 0 %}
+        {% if not hat_offenen_schritt and can_create %}
+          {% set person_id = session.get('person_id') %}
+          <form method="post" action="{{ url_for('freigaben.starten', idv_db_id=idv.id) }}">
+            <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+              <i class="bi bi-play-circle me-1"></i>Freigabeverfahren starten
+            </button>
+          </form>
+        {% elif hat_offenen_schritt %}
+          <div class="text-muted text-center" style="font-size:.8rem">
+            <i class="bi bi-hourglass-split me-1"></i>Verfahren läuft – Schritt offen
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Änderungshistorie -->
     <div class="card border-0 shadow-sm">
