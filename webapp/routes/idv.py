@@ -458,9 +458,15 @@ def edit_idv(idv_db_id):
     if not idv:
         flash("IDV nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
-    # Fachverantwortliche dürfen nur eigene IDVs bearbeiten
-    if not can_write() and current_person_id() != idv["fachverantwortlicher_id"]:
-        flash("Zugriff verweigert – Sie sind nicht der Fachverantwortliche dieser IDV.", "error")
+    # Eingeschränkte Rollen dürfen nur IDVs bearbeiten, an denen sie beteiligt sind
+    pid = current_person_id()
+    if not can_write() and pid not in (
+        idv["fachverantwortlicher_id"],
+        idv["idv_entwickler_id"],
+        idv["idv_koordinator_id"],
+        idv["stellvertreter_id"],
+    ):
+        flash("Zugriff verweigert – Sie sind an dieser IDV nicht als Verantwortlicher erfasst.", "error")
         from flask import abort
         abort(403)
 
