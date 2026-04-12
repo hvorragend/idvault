@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block title %}Scanner-Einstellungen{% endblock %}
+{% block page_title %}<i class="bi bi-gear-wide-connected me-2"></i>Scanner-Einstellungen{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.88rem">
+    Konfiguration und Steuerung des IDV-Dateiscanners
+  </span>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Zurück zur Administration
+  </a>
+</div>
+
+<div class="row g-4">
+
+  <!-- ── Scan-Pfade ───────────────────────────────────────────────── -->
+  <div class="col-12">
+    <form method="post" action="{{ url_for('admin.scanner_einstellungen') }}">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-folder2-open me-2"></i>Scan-Konfiguration (config.json)
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+
+          <!-- Scan-Pfade -->
+          <div class="col-12">
+            <label class="form-label fw-600">Scan-Pfade
+              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">
+                — ein Pfad pro Zeile, z.&thinsp;B. <code>\\\\server01\\freigabe</code>
+              </span>
+            </label>
+            <textarea name="scan_paths" class="form-control font-monospace"
+                      rows="4" style="font-size:.84rem"
+                      placeholder="\\\\server01\share1&#10;\\\\server02\abteilung_a"
+            >{{ cfg.scan_paths | join('\n') }}</textarea>
+          </div>
+
+          <!-- Dateiendungen -->
+          <div class="col-md-6">
+            <label class="form-label fw-600">Überwachte Dateiendungen
+              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— eine pro Zeile</span>
+            </label>
+            <textarea name="extensions" class="form-control font-monospace"
+                      rows="10" style="font-size:.82rem"
+            >{{ cfg.extensions | join('\n') }}</textarea>
+          </div>
+
+          <!-- Ausschluss-Pfade -->
+          <div class="col-md-6">
+            <label class="form-label fw-600">Ausschluss-Muster
+              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— ein Muster pro Zeile (Substring-Abgleich)</span>
+            </label>
+            <textarea name="exclude_paths" class="form-control font-monospace"
+                      rows="10" style="font-size:.82rem"
+            >{{ cfg.exclude_paths | join('\n') }}</textarea>
+            <div class="form-text">Dateien und Verzeichnisse, deren Pfad eines dieser Muster enthält, werden übersprungen.</div>
+          </div>
+
+          <!-- Parameter-Zeile -->
+          <div class="col-md-3">
+            <label class="form-label fw-600">Hash-Limit (MB)</label>
+            <input type="number" name="hash_size_limit_mb" class="form-control"
+                   value="{{ cfg.hash_size_limit_mb or 500 }}" min="1" max="10000">
+            <div class="form-text">Dateien über diesem Schwellenwert werden nicht gehasht.</div>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label fw-600">Parallele Threads</label>
+            <input type="number" name="max_workers" class="form-control"
+                   value="{{ cfg.max_workers or 4 }}" min="1" max="32">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label fw-600">Move-Detection</label>
+            <select name="move_detection" class="form-select">
+              {% for val, label in [
+                ('name_and_hash', 'Name + Hash (Standard)'),
+                ('hash_only',     'Nur Hash'),
+                ('disabled',      'Deaktiviert'),
+              ] %}
+              <option value="{{ val }}" {{ 'selected' if cfg.move_detection == val }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label fw-600">Scan-Startdatum
+              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— optional</span>
+            </label>
+            <input type="date" name="scan_since" class="form-control"
+                   value="{{ cfg.scan_since or '' }}">
+            <div class="form-text">Nur Dateien verarbeiten, die ab diesem Datum geändert wurden.</div>
+          </div>
+
+        </div><!-- /row -->
+      </div>
+      <div class="card-footer bg-white d-flex justify-content-end gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-floppy me-1"></i>Konfiguration speichern
+        </button>
+      </div>
+    </div>
+    </form>
+  </div>
+
+  <!-- ── Scan-Lauf auslösen ──────────────────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-play-circle me-2"></i>Scan-Lauf auslösen
+      </div>
+      <div class="card-body">
+
+        {% if cfg.scan_paths %}
+        <p class="mb-2 text-muted" style="font-size:.88rem">
+          Startet den Scanner für folgende Pfade:
+          {% for p in cfg.scan_paths %}
+            <code class="d-block ms-3">{{ p }}</code>
+          {% endfor %}
+        </p>
+        {% else %}
+        <div class="alert alert-warning mb-3 py-2">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Es sind noch keine Scan-Pfade konfiguriert. Bitte zuerst speichern.
+        </div>
+        {% endif %}
+
+        <div id="scan-status-box" class="mb-3" style="display:none">
+          <div class="alert py-2 mb-0" id="scan-alert">
+            <span id="scan-msg"></span>
+          </div>
+        </div>
+
+        <button id="btn-scan-start" type="button" class="btn btn-success"
+                {{ 'disabled' if scan_running or not cfg.scan_paths }}>
+          {% if scan_running %}
+            <span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft …
+          {% else %}
+            <i class="bi bi-play-fill me-1"></i>Scan jetzt starten
+          {% endif %}
+        </button>
+        <span class="text-muted ms-3" style="font-size:.82rem">
+          Der Scan läuft im Hintergrund. Diese Seite kann geschlossen werden.
+        </span>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Datenbank-Bereinigung ──────────────────────────────────── -->
+  <div class="col-12" id="bereinigung">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-trash3 me-2"></i>Alte Scan-Daten bereinigen
+      </div>
+      <div class="card-body">
+        <p class="text-muted" style="font-size:.88rem">
+          Bei täglichen Scan-Läufen wächst die <code>idv_file_history</code>-Tabelle stark an,
+          da für jede Datei ein History-Eintrag geschrieben wird (auch bei unverändertem Inhalt).
+          Die Bereinigung löscht:
+        </p>
+        <ul class="text-muted" style="font-size:.88rem">
+          <li>Alle History-Einträge älter als N Tage</li>
+          <li>Scan-Läufe älter als N Tage, die nicht mehr als <em>letzter Scan</em> einer Datei referenziert werden</li>
+        </ul>
+        <div class="alert alert-info py-2" style="font-size:.84rem">
+          <i class="bi bi-info-circle me-1"></i>
+          Scan-Läufe, die noch als <code>last_scan_run_id</code> einer aktiven Datei eingetragen sind,
+          werden <strong>nicht</strong> gelöscht — auch wenn sie älter als N Tage sind.
+        </div>
+
+        <form method="post" action="{{ url_for('admin.scanner_bereinigen') }}"
+              onsubmit="return confirm('Alte Scan-Daten wirklich löschen?')">
+          <div class="d-flex align-items-center gap-3">
+            <div>
+              <label class="form-label mb-1" style="font-size:.88rem">Einträge älter als</label>
+              <div class="input-group input-group-sm" style="width:160px">
+                <input type="number" name="tage" class="form-control" value="180" min="7" max="3650">
+                <span class="input-group-text">Tage</span>
+              </div>
+            </div>
+            <div class="mt-3">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash3 me-1"></i>Bereinigen
+              </button>
+            </div>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+</div><!-- /row -->
+
+<script>
+(function () {
+  const btn    = document.getElementById("btn-scan-start");
+  const box    = document.getElementById("scan-status-box");
+  const alert  = document.getElementById("scan-alert");
+  const msg    = document.getElementById("scan-msg");
+
+  function showAlert(text, type) {
+    alert.className = "alert py-2 mb-0 alert-" + type;
+    msg.textContent  = text;
+    box.style.display = "";
+  }
+
+  function setRunning(running) {
+    btn.disabled = running;
+    btn.innerHTML = running
+      ? '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft …'
+      : '<i class="bi bi-play-fill me-1"></i>Scan jetzt starten';
+  }
+
+  // Beim Laden Status prüfen
+  {% if scan_running %}
+  setRunning(true);
+  pollStatus();
+  {% endif %}
+
+  btn.addEventListener("click", function () {
+    btn.disabled = true;
+    fetch("{{ url_for('admin.scanner_starten') }}", { method: "POST",
+      headers: { "X-CSRFToken": "" } })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        showAlert(data.msg, "success");
+        setRunning(true);
+        pollStatus();
+      } else {
+        showAlert(data.msg, "danger");
+        btn.disabled = false;
+      }
+    })
+    .catch(err => {
+      showAlert("Netzwerkfehler: " + err, "danger");
+      btn.disabled = false;
+    });
+  });
+
+  function pollStatus() {
+    setTimeout(function check() {
+      fetch("{{ url_for('admin.scanner_status') }}")
+      .then(r => r.json())
+      .then(data => {
+        if (data.running) {
+          setTimeout(check, 3000);
+        } else {
+          setRunning(false);
+          showAlert("Scan abgeschlossen. Ergebnisse unter Scanner → Scan-Läufe.", "success");
+        }
+      })
+      .catch(() => setTimeout(check, 5000));
+    }, 3000);
+  }
+})();
+</script>
+
+<style>
+.fw-600 { font-weight: 600; }
+</style>
+{% endblock %}
