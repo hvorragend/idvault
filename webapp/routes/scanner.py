@@ -627,6 +627,9 @@ def loeschen(file_id):
         return redirect(url_for("scanner.list_funde"))
 
     datei_name = datei["file_name"]
+    # Abhängige Einträge vor dem Hauptlöschen entfernen (FK-Constraints)
+    db.execute("DELETE FROM idv_file_history WHERE file_id=?", (file_id,))
+    db.execute("DELETE FROM idv_file_links  WHERE file_id=?", (file_id,))
     db.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
     db.commit()
     flash(f"Scannerfund \"{datei_name}\" wurde gelöscht.", "success")
