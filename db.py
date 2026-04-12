@@ -35,7 +35,67 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
     sql = schema_path.read_text(encoding="utf-8")
     conn.executescript(sql)
     conn.commit()
+    _apply_incremental_migrations(conn)
     return conn
+
+
+def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
+    """Fügt fehlende Spalten zu bestehenden Datenbanken hinzu (idempotent)."""
+    def has_column(table: str, column: str) -> bool:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return any(r["name"] == column for r in rows)
+
+    # idv_freigaben: zugewiesen_an_id (Parallelverfahren)
+    if not has_column("idv_freigaben", "zugewiesen_an_id"):
+        conn.execute(
+            "ALTER TABLE idv_freigaben ADD COLUMN zugewiesen_an_id INTEGER REFERENCES persons(id)"
+        )
+
+    # idv_freigaben: Abbruch-Felder
+    for col, typedef in [
+        ("abgebrochen_von_id", "INTEGER REFERENCES persons(id)"),
+        ("abgebrochen_am",     "TEXT"),
+        ("abbruch_kommentar",  "TEXT"),
+    ]:
+        if not has_column("idv_freigaben", col):
+            conn.execute(f"ALTER TABLE idv_freigaben ADD COLUMN {col} {typedef}")
+
+    # idv_freigaben: Nachweis-Felder
+    for col, typedef in [
+        ("nachweise_text",      "TEXT"),
+        ("nachweis_datei_pfad", "TEXT"),
+        ("nachweis_datei_name", "TEXT"),
+    ]:
+        if not has_column("idv_freigaben", col):
+            conn.execute(f"ALTER TABLE idv_freigaben ADD COLUMN {col} {typedef}")
+
+    # idv_register: neue Felder aus Runde 1
+    for col, typedef in [
+        ("gobd_relevant",               "INTEGER NOT NULL DEFAULT 0"),
+        ("erstellt_fuer",               "TEXT"),
+        ("schnittstellen_beschr",       "TEXT"),
+        ("bearbeitungsstatus",          "TEXT NOT NULL DEFAULT 'Wertung ausstehend'"),
+        ("dokumentationsstatus",        "TEXT NOT NULL DEFAULT 'Nicht dokumentiert'"),
+        ("vorgaenger_idv_id",           "INTEGER"),
+        ("letzte_aenderungsart",        "TEXT"),
+        ("letzte_aenderungsbegruendung","TEXT"),
+    ]:
+        if not has_column("idv_register", col):
+            conn.execute(f"ALTER TABLE idv_register ADD COLUMN {col} {typedef}")
+
+    # idv_files: bearbeitungsstatus
+    if not has_column("idv_files", "bearbeitungsstatus"):
+        conn.execute(
+            "ALTER TABLE idv_files ADD COLUMN bearbeitungsstatus TEXT NOT NULL DEFAULT 'Neu'"
+        )
+
+    # geschaeftsprozesse: ist_wesentlich
+    if not has_column("geschaeftsprozesse", "ist_wesentlich"):
+        conn.execute(
+            "ALTER TABLE geschaeftsprozesse ADD COLUMN ist_wesentlich INTEGER NOT NULL DEFAULT 0"
+        )
+
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
