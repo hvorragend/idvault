@@ -523,6 +523,22 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                     )
 
             if moved_from:
+                # Prüfen ob die Quelldatei in diesem Lauf bereits gesehen wurde
+                # (last_scan_run_id == scan_run_id → Originaldatei existiert noch).
+                # In diesem Fall handelt es sich um eine KOPIE, nicht um eine
+                # Verschiebung → als Neuanlage behandeln.
+                source_still_active = conn.execute(
+                    "SELECT 1 FROM idv_files WHERE id = ? AND last_scan_run_id = ?",
+                    (moved_from["id"], scan_run_id)
+                ).fetchone()
+                if source_still_active:
+                    logger.debug(
+                        f"Kopie erkannt (Quelle noch aktiv): '{moved_from['full_path']}' "
+                        f"→ '{data['full_path']}' – behandle als Neuanlage"
+                    )
+                    moved_from = None   # Kopie → Neuanlage weiter unten
+
+            if moved_from:
                 conn.execute("""
                     UPDATE idv_files SET
                         full_path = :full_path, share_root = :share_root,

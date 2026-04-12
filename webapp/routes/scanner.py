@@ -1,6 +1,5 @@
 """Scanner-Funde Blueprint"""
 import json
-from collections import Counter
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN
 
@@ -133,12 +132,15 @@ def list_funde():
         LIMIT 500
     """, params).fetchall()
 
-    # ---------- Duplikat-Erkennung (gleicher Hash mehrfach in Ergebnisliste) ----------
-    hash_counts = Counter(
-        f["file_hash"] for f in dateien
-        if f["file_hash"] and f["file_hash"] != "HASH_ERROR"
-    )
-    duplicate_hashes = {h for h, c in hash_counts.items() if c > 1}
+    # ---------- Duplikat-Erkennung (datenbankweit, nicht nur in der aktuellen Seite) ----------
+    duplicate_hashes = {
+        r["file_hash"] for r in db.execute("""
+            SELECT file_hash FROM idv_files
+            WHERE status = 'active'
+              AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
+            GROUP BY file_hash HAVING COUNT(*) > 1
+        """).fetchall()
+    }
 
     # ---------- Zählkarten ----------
     gesamt     = db.execute("SELECT COUNT(*) FROM idv_files WHERE status='active'").fetchone()[0]
@@ -313,11 +315,15 @@ def eingang_funde():
         "ORDER BY share_root"
     ).fetchall()]
 
-    hash_counts = Counter(
-        f["file_hash"] for f in dateien
-        if f["file_hash"] and f["file_hash"] != "HASH_ERROR"
-    )
-    duplicate_hashes = {h for h, c in hash_counts.items() if c > 1}
+    # Duplikate datenbankweit ermitteln (nicht nur auf der aktuellen Seite)
+    duplicate_hashes = {
+        r["file_hash"] for r in db.execute("""
+            SELECT file_hash FROM idv_files
+            WHERE status = 'active'
+              AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
+            GROUP BY file_hash HAVING COUNT(*) > 1
+        """).fetchall()
+    }
     is_admin = current_user_role() == ROLE_ADMIN
 
     return render_template("scanner/eingang.html",
