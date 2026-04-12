@@ -696,6 +696,8 @@ CREATE TABLE IF NOT EXISTS idv_freigaben (
     -- Wer hat das Verfahren gestartet / diesen Schritt beauftragt
     beauftragt_von_id       INTEGER REFERENCES persons(id),
     beauftragt_am           TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    -- Wer soll diesen Schritt durchführen (Empfänger / Prüfer)
+    zugewiesen_an_id        INTEGER REFERENCES persons(id),
     -- Wer hat den Schritt abgeschlossen
     durchgefuehrt_von_id    INTEGER REFERENCES persons(id),
     durchgefuehrt_am        TEXT,
@@ -705,9 +707,6 @@ CREATE TABLE IF NOT EXISTS idv_freigaben (
     nachweise_text          TEXT,
     nachweis_datei_pfad     TEXT,       -- relativer Pfad zur hochgeladenen Datei
     nachweis_datei_name     TEXT,       -- Originaldateiname
-    -- Freigabeanforderung (nur beim ersten Schritt gesetzt)
-    freigabeanforderer_id   INTEGER REFERENCES persons(id),
-    versions_kommentar      TEXT,
     -- Admin-Abbruch
     abgebrochen_von_id      INTEGER REFERENCES persons(id),
     abgebrochen_am          TEXT,
