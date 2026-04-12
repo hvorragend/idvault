@@ -326,13 +326,15 @@ def analyze_ooxml(path: str, ext: str) -> dict:
                         with z.open(sheet_file) as sf:
                             sh_tree = ET.parse(sf)
                             sh_root = sh_tree.getroot()
-                            # Blattschutz
+                            # Blattschutz: <sheetProtection> vorhanden UND
+                            # entweder sheet="1" explizit gesetzt oder Passwort-Hash hinterlegt
                             prot_el = sh_root.find(f"{{{ns_ss}}}sheetProtection")
                             if prot_el is not None:
-                                sheet_attr = prot_el.get("sheet", "0")
-                                if sheet_attr == "1":
+                                has_hash = prot_el.get("hashValue") or prot_el.get("password")
+                                sheet_on = prot_el.get("sheet", "0") == "1"
+                                if sheet_on or has_hash:
                                     protected += 1
-                                    if prot_el.get("hashValue") or prot_el.get("password"):
+                                    if has_hash:
                                         has_pw = 1
                             # Formeln: jede Zelle mit einem <f>-Kindelement ist eine Formelzelle
                             formula_count += len(sh_root.findall(f".//{{{ns_ss}}}f"))

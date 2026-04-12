@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify
 from . import (login_required, write_access_required, own_write_required, admin_required,
                get_db, can_write, can_create, can_read_all, current_person_id)
 import sys, os, io
@@ -148,6 +148,42 @@ def list_idv():
                            is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
                            share_roots=share_roots)
+
+
+# ── Globale Schnellsuche (JSON) ────────────────────────────────────────────
+
+@bp.route("/api/quick-search")
+@login_required
+def quick_search():
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    db = get_db()
+    rows = db.execute("""
+        SELECT r.id, r.idv_id, r.bezeichnung, r.status,
+               r.idv_typ, ou.kuerzel AS oe_kuerzel
+        FROM idv_register r
+        LEFT JOIN org_units ou ON r.org_unit_id = ou.id
+        WHERE r.status NOT IN ('Archiviert')
+          AND (r.idv_id        LIKE ?
+            OR r.bezeichnung   LIKE ?
+            OR r.kurzbeschreibung LIKE ?
+            OR r.geschaeftsprozess LIKE ?)
+        ORDER BY r.idv_id
+        LIMIT 12
+    """, (f"%{q}%",) * 4).fetchall()
+    return jsonify([
+        {
+            "id":       row["id"],
+            "idv_id":   row["idv_id"],
+            "name":     row["bezeichnung"],
+            "status":   row["status"],
+            "typ":      row["idv_typ"] or "",
+            "oe":       row["oe_kuerzel"] or "",
+            "url":      url_for("idv.detail_idv", idv_db_id=row["id"]),
+        }
+        for row in rows
+    ])
 
 
 # ── Bulk-Löschen (Admin) ───────────────────────────────────────────────────
@@ -458,9 +494,15 @@ def edit_idv(idv_db_id):
     if not idv:
         flash("IDV nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
-    # Fachverantwortliche dürfen nur eigene IDVs bearbeiten
-    if not can_write() and current_person_id() != idv["fachverantwortlicher_id"]:
-        flash("Zugriff verweigert – Sie sind nicht der Fachverantwortliche dieser IDV.", "error")
+    # Eingeschränkte Rollen dürfen nur IDVs bearbeiten, an denen sie beteiligt sind
+    pid = current_person_id()
+    if not can_write() and pid not in (
+        idv["fachverantwortlicher_id"],
+        idv["idv_entwickler_id"],
+        idv["idv_koordinator_id"],
+        idv["stellvertreter_id"],
+    ):
+        flash("Zugriff verweigert – Sie sind an dieser IDV nicht als Verantwortlicher erfasst.", "error")
         from flask import abort
         abort(403)
 
