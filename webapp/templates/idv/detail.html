@@ -520,6 +520,28 @@
     </div>
     {% endif %}
 
+    {% if not (file or extra_files) and idv.vorgaenger_idv_id %}
+    <div class="form-section">
+      <div class="form-section-title">
+        <i class="bi bi-diagram-3 me-1"></i>Verknüpfte Dateien (Scanner-Funde)
+      </div>
+      <div class="alert alert-warning d-flex align-items-start gap-2 mb-0" role="alert">
+        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+        <div>
+          <strong>Noch keine Datei verknüpft.</strong><br>
+          Diese IDV-Version hat noch kein Dateipendant. Für die Nachvollziehbarkeit
+          (MaRisk AT&nbsp;7.2&nbsp;/&nbsp;DORA) sollte jede Version mit der zugehörigen
+          Datei verknüpft sein.
+          <div class="mt-2">
+            <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-sm btn-warning">
+              <i class="bi bi-folder2-open me-1"></i>Zum Scanner → Datei verknüpfen
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
   </div><!-- /col-lg-8 -->
 
   <!-- ── Rechte Spalte: Meta / History ────────────────────────── -->

@@ -391,6 +391,15 @@ def change_status(conn: sqlite3.Connection, idv_db_id: int,
         SET status = ?, status_geaendert_am = ?, status_geaendert_von_id = ?, aktualisiert_am = ?
         WHERE id = ?
     """, (new_status, now, geaendert_von_id, now, idv_db_id))
+    if new_status == "Genehmigt":
+        row = conn.execute(
+            "SELECT f.file_hash FROM idv_register r "
+            "LEFT JOIN idv_files f ON r.file_id = f.id WHERE r.id = ?",
+            (idv_db_id,)
+        ).fetchone()
+        if row and row["file_hash"]:
+            kommentar = (kommentar or "") + f" [Datei-Hash: {row['file_hash'][:16]}...]"
+
     conn.execute("""
         INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
         VALUES (?, 'status_geaendert', ?, ?)

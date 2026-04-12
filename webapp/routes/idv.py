@@ -612,10 +612,13 @@ def neue_version(idv_db_id):
     data["dokumentationsstatus"]          = "Nicht dokumentiert"
     data["letzte_aenderungsart"]          = aenderungsart
     data["letzte_aenderungsbegruendung"]  = aenderungsbegruendung
-    # Felder entfernen, die create_idv selbst setzt
+    # Felder entfernen, die create_idv selbst setzt oder die versionsexklusiv sind.
+    # file_id und weitere_dateien werden NICHT kopiert: jede Version muss ihre eigene
+    # Datei explizit verknüpfen, damit die Dateihistorie je Version nachvollziehbar ist.
     for k in ("id", "idv_id", "status", "status_geaendert_am", "status_geaendert_von_id",
               "erstellt_am", "aktualisiert_am", "erfasst_von_id",
-              "naechste_pruefung", "letzte_pruefung"):
+              "naechste_pruefung", "letzte_pruefung",
+              "file_id", "weitere_dateien"):
         data.pop(k, None)
 
     person_id = session.get("person_id")
