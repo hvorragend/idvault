@@ -170,9 +170,22 @@ def bulk_loeschen():
     deleted = 0
     for idv_db_id in idv_db_ids:
         row = db.execute("SELECT idv_id FROM idv_register WHERE id=?", (idv_db_id,)).fetchone()
-        if row:
-            db.execute("DELETE FROM idv_register WHERE id=?", (idv_db_id,))
-            deleted += 1
+        if not row:
+            continue
+        # Abhängige Datensätze ohne CASCADE zuerst löschen
+        db.execute("DELETE FROM idv_history        WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM massnahmen          WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM pruefungen          WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM genehmigungen       WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM dokumente           WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM idv_abhaengigkeiten WHERE quell_idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM idv_abhaengigkeiten WHERE ziel_idv_id  = ?", (idv_db_id,))
+        # Vorgänger-Verknüpfung in Nachfolgern aufheben
+        db.execute("UPDATE idv_register SET vorgaenger_idv_id = NULL WHERE vorgaenger_idv_id = ?",
+                   (idv_db_id,))
+        # IDV löschen (CASCADE für idv_freigaben, idv_file_links, idv_wesentlichkeit)
+        db.execute("DELETE FROM idv_register WHERE id=?", (idv_db_id,))
+        deleted += 1
 
     db.commit()
     flash(f"{deleted} IDV(s) gelöscht.", "success")
@@ -255,11 +268,11 @@ def detail_idv(idv_db_id):
             SELECT f.*,
                    p_b.nachname || ', ' || p_b.vorname AS beauftragt_von,
                    p_d.nachname || ', ' || p_d.vorname AS durchgefuehrt_von,
-                   p_a.nachname || ', ' || p_a.vorname AS freigabeanforderer
+                   p_z.nachname || ', ' || p_z.vorname AS zugewiesen_an
             FROM idv_freigaben f
-            LEFT JOIN persons p_b ON f.beauftragt_von_id      = p_b.id
-            LEFT JOIN persons p_d ON f.durchgefuehrt_von_id   = p_d.id
-            LEFT JOIN persons p_a ON f.freigabeanforderer_id  = p_a.id
+            LEFT JOIN persons p_b ON f.beauftragt_von_id    = p_b.id
+            LEFT JOIN persons p_d ON f.durchgefuehrt_von_id = p_d.id
+            LEFT JOIN persons p_z ON f.zugewiesen_an_id     = p_z.id
             WHERE f.idv_id = ?
             ORDER BY f.erstellt_am
         """, (idv_db_id,)).fetchall()
@@ -276,12 +289,30 @@ def detail_idv(idv_db_id):
         or any(k["erfuellt"] for k in wesentlichkeit)
     )
 
+    # Phasenstatus für die Freigabe-Anzeige
+    _PHASE_1 = ["Fachlicher Test", "Technischer Test"]
+    _PHASE_2 = ["Fachliche Abnahme", "Technische Abnahme"]
+    phase1_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_1]
+    phase2_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_2]
+    phase1_gestartet  = len(phase1_schritte) > 0
+    phase1_bestanden  = (
+        {f["schritt"] for f in phase1_schritte if f["status"] == "Bestanden"} == set(_PHASE_1)
+    )
+    phase2_gestartet  = len(phase2_schritte) > 0
+    phase2_bestanden  = (
+        {f["schritt"] for f in phase2_schritte if f["status"] == "Bestanden"} == set(_PHASE_2)
+    )
+    hat_offenen_schritt = any(f["status"] == "Ausstehend" for f in freigaben)
+
     return render_template("idv/detail.html",
         idv=idv, file=file, extra_files=extra_files, history=history, massnahmen=massnahmen,
         wesentlichkeit=wesentlichkeit,
         vorgaenger=vorgaenger, nachfolger=nachfolger,
         freigaben=freigaben, ist_wesentlich=ist_wesentlich,
         freigabe_persons=freigabe_persons,
+        phase1_gestartet=phase1_gestartet, phase1_bestanden=phase1_bestanden,
+        phase2_gestartet=phase2_gestartet, phase2_bestanden=phase2_bestanden,
+        hat_offenen_schritt=hat_offenen_schritt,
         bearbeitungsstatus_werte=_BEARBEITUNGSSTATUS_WERTE,
         dokumentationsstatus_werte=_DOKUMENTATIONSSTATUS_WERTE,
         can_create=can_create())
