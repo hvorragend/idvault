@@ -120,7 +120,7 @@
       <select name="gp_id" class="form-select">
         <option value="">– aus Katalog wählen –</option>
         {% for gp in geschaeftsprozesse %}
-        <option value="{{ gp.id }}" {{ 'selected' if idv and idv.gp_id == gp.id }}>{{ gp.gp_nummer }} – {{ gp.bezeichnung }}</option>
+        <option value="{{ gp.id }}" {{ 'selected' if idv and idv.gp_id == gp.id }}>{{ gp.gp_nummer }} – {{ gp.bezeichnung }}{% if gp.ist_kritisch %} ⚠ kritisch{% endif %}{% if gp.ist_wesentlich %} · wesentlich{% endif %}</option>
         {% endfor %}
       </select>
       <div class="form-text">Krit. Geschäftsprozess + GDA 4 ergibt DORA-kritisch/wichtig (Art. 28 Abs. 2).</div>

@@ -546,16 +546,27 @@ def bulk_aktion():
         return redirect(url_for("scanner.list_funde"))
 
     if aktion == "ignorieren":
-        # Nur Dateien ohne Formeln und ohne IDV-Verknüpfung dürfen ignoriert werden
+        from flask import session as _session
+        from . import ROLE_ADMIN
+        ist_admin = (_session.get("user_role") == ROLE_ADMIN)
+
         placeholders = ",".join("?" * len(file_ids))
-        kandidaten = db.execute(f"""
-            SELECT f.id FROM idv_files f
-            WHERE f.id IN ({placeholders})
-              AND (f.formula_count IS NULL OR f.formula_count = 0)
-              AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
-        """, file_ids).fetchall()
-        erlaubte_ids = [r["id"] for r in kandidaten]
-        abgelehnt = len(file_ids) - len(erlaubte_ids)
+        if ist_admin:
+            # Admins dürfen alle Dateien ignorieren – keine Einschränkungen
+            erlaubte_ids = [r["id"] for r in db.execute(
+                f"SELECT id FROM idv_files WHERE id IN ({placeholders})", file_ids
+            ).fetchall()]
+            abgelehnt = 0
+        else:
+            # Nur Dateien ohne Formeln und ohne IDV-Verknüpfung
+            kandidaten = db.execute(f"""
+                SELECT f.id FROM idv_files f
+                WHERE f.id IN ({placeholders})
+                  AND (f.formula_count IS NULL OR f.formula_count = 0)
+                  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
+            """, file_ids).fetchall()
+            erlaubte_ids = [r["id"] for r in kandidaten]
+            abgelehnt = len(file_ids) - len(erlaubte_ids)
 
         if erlaubte_ids:
             ph2 = ",".join("?" * len(erlaubte_ids))

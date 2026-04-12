@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS idv_files (
     last_seen_at            TEXT NOT NULL DEFAULT (datetime('now','utc')),
     last_scan_run_id        INTEGER,
     status                  TEXT DEFAULT 'active',
+    bearbeitungsstatus      TEXT NOT NULL DEFAULT 'Neu',
     UNIQUE(full_path)
 );
 
@@ -402,7 +403,20 @@ CREATE TABLE IF NOT EXISTS idv_register (
     erstellt_am             TEXT NOT NULL DEFAULT (datetime('now','utc')),
     aktualisiert_am         TEXT NOT NULL DEFAULT (datetime('now','utc')),
     interne_notizen         TEXT,                        -- Nur intern, nicht im Report
-    tags                    TEXT                         -- JSON-Array: ["Jahresabschluss","Meldewesen"]
+    tags                    TEXT,                        -- JSON-Array: ["Jahresabschluss","Meldewesen"]
+
+    -- -------------------------------------------------------------------------
+    -- Erweiterte Felder (Betrieb / Workflow / Versioning)
+    -- -------------------------------------------------------------------------
+    gobd_relevant               INTEGER NOT NULL DEFAULT 0,
+    erstellt_fuer               TEXT,
+    schnittstellen_beschr       TEXT,
+    bearbeitungsstatus          TEXT NOT NULL DEFAULT 'Wertung ausstehend',
+    dokumentationsstatus        TEXT NOT NULL DEFAULT 'Nicht dokumentiert',
+    vorgaenger_idv_id           INTEGER REFERENCES idv_register(id),
+    -- Änderungsart bei neuer Version
+    letzte_aenderungsart        TEXT,          -- 'wesentlich' | 'unwesentlich'
+    letzte_aenderungsbegruendung TEXT
 );
 
 -- Indizes IDV-Register
@@ -668,6 +682,60 @@ CREATE TABLE IF NOT EXISTS idv_wesentlichkeit (
 );
 
 CREATE INDEX IF NOT EXISTS idx_wesentl_idv ON idv_wesentlichkeit(idv_db_id);
+
+-- -----------------------------------------------------------------------------
+-- 10. TEST- UND FREIGABEVERFAHREN (MaRisk AT 7.2 / BAIT / DORA)
+-- Schrittfolge: Fachlicher Test → Technischer Test → Fachliche Abnahme → Technische Abnahme
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS idv_freigaben (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    idv_id                  INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+    schritt                 TEXT NOT NULL,
+    status                  TEXT NOT NULL DEFAULT 'Ausstehend',
+    -- Wer hat das Verfahren gestartet / diesen Schritt beauftragt
+    beauftragt_von_id       INTEGER REFERENCES persons(id),
+    beauftragt_am           TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    -- Wer hat den Schritt abgeschlossen
+    durchgefuehrt_von_id    INTEGER REFERENCES persons(id),
+    durchgefuehrt_am        TEXT,
+    kommentar               TEXT,
+    befunde                 TEXT,
+    -- Nachweise (Textfeld + Datei-Upload)
+    nachweise_text          TEXT,
+    nachweis_datei_pfad     TEXT,       -- relativer Pfad zur hochgeladenen Datei
+    nachweis_datei_name     TEXT,       -- Originaldateiname
+    -- Freigabeanforderung (nur beim ersten Schritt gesetzt)
+    freigabeanforderer_id   INTEGER REFERENCES persons(id),
+    versions_kommentar      TEXT,
+    -- Admin-Abbruch
+    abgebrochen_von_id      INTEGER REFERENCES persons(id),
+    abgebrochen_am          TEXT,
+    abbruch_kommentar       TEXT,
+    erstellt_am             TEXT NOT NULL DEFAULT (datetime('now','utc'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_freigaben_idv    ON idv_freigaben(idv_id);
+CREATE INDEX IF NOT EXISTS idx_freigaben_status ON idv_freigaben(status, schritt);
+
+-- -----------------------------------------------------------------------------
+-- 11. MEHRFACH-DATEI-VERKNÜPFUNGEN (IDV ↔ mehrere Scanner-Dateien)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS idv_file_links (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    idv_db_id   INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+    file_id     INTEGER NOT NULL REFERENCES idv_files(id),
+    linked_at   TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
+    UNIQUE(idv_db_id, file_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_file_links_idv  ON idv_file_links(idv_db_id);
+CREATE INDEX IF NOT EXISTS idx_file_links_file ON idv_file_links(file_id);
+
+-- Performance-Index für Eingang-Ansicht (große Dateimengen)
+CREATE INDEX IF NOT EXISTS idx_files_status_bearb
+    ON idv_files(status, bearbeitungsstatus, has_macros, first_seen_at);
 
 -- Prüffälligkeiten nächste 90 Tage
 CREATE VIEW IF NOT EXISTS v_prueffaelligkeiten AS

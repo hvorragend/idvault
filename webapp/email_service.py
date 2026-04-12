@@ -167,10 +167,17 @@ def notify_review_due(db, idv_row, responsible_email: str) -> bool:
 
 
 def notify_freigabe_schritt(db, idv_row, schritt: str,
-                            recipient_emails: list) -> bool:
+                            recipient_emails: list,
+                            versions_kommentar: str = None) -> bool:
     """Benachrichtigt Prüfer über einen neuen offenen Freigabe-Schritt."""
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
+
+    kommentar_zeile = ""
+    if versions_kommentar:
+        kommentar_zeile = f"""
+      <tr><td style="padding:6px;font-weight:bold;">Versionskommentar</td>
+          <td style="padding:6px;font-style:italic;">{versions_kommentar}</td></tr>"""
 
     subject = f"[idvault] Freigabe-Schritt offen: {schritt} – {idv_id}"
     html = f"""
@@ -184,6 +191,7 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
           <td style="padding:6px;">{name}</td></tr>
       <tr><td style="padding:6px;font-weight:bold;">Schritt</td>
           <td style="padding:6px;font-weight:bold;color:#0d6efd;">{schritt}</td></tr>
+      {kommentar_zeile}
     </table>
     <p style="margin-top:16px;color:#6c757d;font-size:12px;">
       Bitte melden Sie sich in idvault an und schließen Sie den Schritt ab.<br>
@@ -196,8 +204,9 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
     """
     text = (
         f"idvault – Freigabe-Schritt offen\n\n"
-        f"IDV: {idv_id} – {name}\nSchritt: {schritt}\n\n"
-        f"Bitte in idvault anmelden und Schritt abschließen."
+        f"IDV: {idv_id} – {name}\nSchritt: {schritt}\n"
+        + (f"Versionskommentar: {versions_kommentar}\n" if versions_kommentar else "")
+        + "\nBitte in idvault anmelden und Schritt abschließen."
     )
     return send_mail(db, recipient_emails, subject, html, text)
 
