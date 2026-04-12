@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+{% block title %}Scanner-Eingang{% endblock %}
+{% block page_title %}<i class="bi bi-tray-arrow-down me-2"></i>Scanner-Eingang{% endblock %}
+
+{% block content %}
+
+<!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      <div class="stat-val text-warning">{{ neu_gesamt }}</div>
+      <div class="stat-lbl">Unbearbeitet (Eingang)</div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      <div class="stat-val text-danger">{{ neu_mit_makros }}</div>
+      <div class="stat-lbl">Davon mit Makros</div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      <div class="stat-val text-info">{{ zur_registrierung_count }}</div>
+      <div class="stat-lbl">Zur Registrierung</div>
+    </div>
+  </div>
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      {% if gesamt_aktiv > 0 %}
+      <div class="stat-val text-success">{{ ((gesamt_aktiv - neu_gesamt) / gesamt_aktiv * 100)|int }}%</div>
+      {% else %}
+      <div class="stat-val text-success">–</div>
+      {% endif %}
+      <div class="stat-lbl">Fortschritt</div>
+    </div>
+  </div>
+</div>
+
+{% if neu_gesamt == 0 and zur_registrierung_count == 0 %}
+<!-- ── Eingang leer ─────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm text-center py-5 mb-4">
+  <div class="card-body">
+    <i class="bi bi-check-circle-fill text-success fs-1 d-block mb-3"></i>
+    <h5 class="fw-600 mb-1">Eingang leer.</h5>
+    <p class="text-muted mb-3">Alle Scanner-Funde wurden bearbeitet.</p>
+    <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-radar me-1"></i>Alle Funde anzeigen
+    </a>
+  </div>
+</div>
+
+{% else %}
+
+<!-- ── Fortschrittsbalken ──────────────────────────────────────────── -->
+{% if gesamt_aktiv > 0 %}
+<div class="card border-0 shadow-sm p-3 mb-3">
+  {% set processed = gesamt_aktiv - neu_gesamt %}
+  {% set pct = ((processed / gesamt_aktiv) * 100)|int %}
+  <div class="d-flex justify-content-between align-items-center mb-1" style="font-size:.82rem">
+    <span class="text-muted">Bearbeitungsfortschritt</span>
+    <span class="text-muted">{{ processed }} von {{ gesamt_aktiv }} aktiven Dateien verarbeitet</span>
+  </div>
+  <div class="progress" style="height:8px">
+    <div class="progress-bar bg-success" role="progressbar"
+         style="width:{{ pct }}%"
+         aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Hotspot-Tabellen ─────────────────────────────────────────────── -->
+{% if nach_share or nach_typ %}
+<div class="mb-3">
+  <button class="btn btn-sm btn-outline-secondary"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#hotspot-collapse"
+          aria-expanded="false"
+          aria-controls="hotspot-collapse">
+    <i class="bi bi-bar-chart-line me-1"></i>Hotspot-Übersicht
+    <i class="bi bi-chevron-down ms-1" style="font-size:.7rem"></i>
+  </button>
+</div>
+<div class="collapse mb-3" id="hotspot-collapse">
+  <div class="row g-3">
+    {% if nach_share %}
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2" style="font-size:.82rem;font-weight:600">
+          <i class="bi bi-folder me-1"></i>Top-Verzeichnisse (Eingang)
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:.80rem">
+            <thead class="table-light">
+              <tr>
+                <th>Verzeichnis</th>
+                <th class="text-end">Neu</th>
+                <th class="text-end">Makros</th>
+                <th class="text-end">Formeln</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in nach_share %}
+              <tr>
+                <td class="font-monospace text-truncate" style="max-width:200px" title="{{ row.share_root }}">
+                  {{ row.share_root or '–' }}
+                </td>
+                <td class="text-end fw-500">{{ row.anzahl }}</td>
+                <td class="text-end">
+                  {% if row.mit_makros %}
+                  <span class="badge bg-danger" style="font-size:.68rem">{{ row.mit_makros }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if row.mit_formeln %}
+                  <span class="text-warning fw-500">{{ row.mit_formeln }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+                <td>
+                  <a href="{{ url_for('scanner.eingang_funde', share_root=row.share_root, sort=sort, per_page=per_page) }}"
+                     class="btn btn-xs btn-outline-secondary"
+                     title="Nach diesem Verzeichnis filtern">
+                    <i class="bi bi-funnel"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if nach_typ %}
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2" style="font-size:.82rem;font-weight:600">
+          <i class="bi bi-file-earmark-code me-1"></i>Top-Dateitypen (Eingang)
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:.80rem">
+            <thead class="table-light">
+              <tr>
+                <th>Erweiterung</th>
+                <th class="text-end">Anzahl</th>
+                <th class="text-end">Makros</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in nach_typ %}
+              <tr>
+                <td><span class="badge bg-light text-dark border font-monospace">{{ row.extension }}</span></td>
+                <td class="text-end fw-500">{{ row.anzahl }}</td>
+                <td class="text-end">
+                  {% if row.mit_makros %}
+                  <span class="badge bg-danger" style="font-size:.68rem">{{ row.mit_makros }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Filter-Leiste ───────────────────────────────────────────────── -->
+<form method="get" class="card border-0 shadow-sm p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Verzeichnis</label>
+      <select name="share_root" class="form-select form-select-sm">
+        <option value="">– Alle Verzeichnisse –</option>
+        {% for sr in share_roots %}
+        <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}>{{ sr }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
+      <select name="sort" class="form-select form-select-sm">
+        <option value="prioritaet" {{ 'selected' if sort == 'prioritaet' }}>Priorität (Makros zuerst)</option>
+        <option value="datum"      {{ 'selected' if sort == 'datum' }}>Neueste zuerst</option>
+        <option value="share"      {{ 'selected' if sort == 'share' }}>Nach Verzeichnis</option>
+        <option value="groesse"    {{ 'selected' if sort == 'groesse' }}>Größte zuerst</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label form-label-sm"><i class="bi bi-list-ol me-1"></i>Pro Seite</label>
+      <select name="per_page" class="form-select form-select-sm">
+        <option value="50"  {{ 'selected' if per_page == 50 }}>50</option>
+        <option value="100" {{ 'selected' if per_page == 100 }}>100</option>
+        <option value="200" {{ 'selected' if per_page == 200 }}>200</option>
+      </select>
+    </div>
+    <div class="col-md-3 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary w-100">
+        <i class="bi bi-funnel me-1"></i>Filtern
+      </button>
+      <a href="{{ url_for('scanner.eingang_funde') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen">
+        <i class="bi bi-x-lg"></i>
+      </a>
+    </div>
+  </div>
+  {% if share_root_filt %}
+  <div class="mt-2">
+    <span class="badge bg-primary">
+      <i class="bi bi-folder me-1"></i>{{ share_root_filt }}
+      <a href="{{ url_for('scanner.eingang_funde', sort=sort, per_page=per_page) }}"
+         class="text-white text-decoration-none ms-1" title="Filter entfernen">×</a>
+    </span>
+  </div>
+  {% endif %}
+</form>
+
+<!-- ── Massenaktions-Formular ──────────────────────────────────────── -->
+<form method="post" action="{{ url_for('scanner.bulk_aktion') }}" id="bulk-form">
+  <input type="hidden" name="return_to"       value="eingang">
+  <input type="hidden" name="share_root_filt" value="{{ share_root_filt }}">
+  <input type="hidden" name="page"            value="{{ page }}">
+  <input type="hidden" name="per_page"        value="{{ per_page }}">
+  <input type="hidden" name="sort"            value="{{ sort }}">
+
+  <!-- Aktionsleiste -->
+  <div id="bulk-bar" class="card border-primary shadow-sm mb-3 p-2 d-none">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <span class="fw-600 text-primary">
+        <i class="bi bi-check2-square me-1"></i>
+        <span id="bulk-count">0</span> ausgewählt
+      </span>
+      <button type="submit" name="aktion" value="ignorieren"
+              id="btn-ignorieren"
+              class="btn btn-sm btn-outline-secondary"
+              title="Nur für Dateien ohne Formeln verfügbar">
+        <i class="bi bi-eye-slash me-1"></i>Ignorieren
+      </button>
+      <button type="submit" name="aktion" value="zur_registrierung"
+              class="btn btn-sm btn-outline-info">
+        <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
+      </button>
+      <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
+        Auswahl aufheben
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Pagination oben ──────────────────────────────────────────── -->
+  {% if total_pages > 1 %}
+  <nav class="d-flex align-items-center justify-content-between mb-2">
+    <span class="text-muted" style="font-size:.82rem">
+      Seite {{ page }} von {{ total_pages }} &nbsp;·&nbsp; {{ total }} Dateien im Eingang
+    </span>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {{ 'disabled' if page <= 1 }}">
+        <a class="page-link" href="{{ url_for('scanner.eingang_funde', page=page-1, per_page=per_page, sort=sort, share_root=share_root_filt) }}">&laquo;</a>
+      </li>
+      {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
+      <li class="page-item {{ 'active' if p == page }}">
+        <a class="page-link" href="{{ url_for('scanner.eingang_funde', page=p, per_page=per_page, sort=sort, share_root=share_root_filt) }}">{{ p }}</a>
+      </li>
+      {% endfor %}
+      <li class="page-item {{ 'disabled' if page >= total_pages }}">
+        <a class="page-link" href="{{ url_for('scanner.eingang_funde', page=page+1, per_page=per_page, sort=sort, share_root=share_root_filt) }}">&raquo;</a>
+      </li>
+    </ul>
+  </nav>
+  {% endif %}
+
+  <!-- ── Tabelle ──────────────────────────────────────────────────── -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <span class="fw-600">
+        <input type="checkbox" id="select-all" class="form-check-input me-2" title="Alle auf dieser Seite auswählen">
+        <i class="bi bi-tray-arrow-down me-1"></i>
+        {% if total > per_page %}
+          {{ dateien|length }} von {{ total }} Dateien (Seite {{ page }})
+        {% else %}
+          {{ dateien|length }} Datei{{ 'en' if dateien|length != 1 }}
+        {% endif %}
+      </span>
+      <span class="text-muted" style="font-size:.78rem">
+        Sortierung: {{ {'prioritaet':'Makros zuerst','datum':'Neueste zuerst','share':'Nach Verzeichnis','groesse':'Größte zuerst'}[sort] }}
+      </span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+        <thead>
+          <tr>
+            <th style="width:32px"></th>
+            <th>Dateiname</th>
+            <th>Typ</th>
+            <th>Verzeichnis / Pfad</th>
+            <th class="text-nowrap">Erst gesehen</th>
+            <th>Größe</th>
+            <th class="text-center">Makros</th>
+            <th class="text-center">Formeln</th>
+            <th class="text-center">Blattschutz</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if dateien %}
+            {% for f in dateien %}
+            <tr data-formula-count="{{ f.formula_count or 0 }}"
+                data-has-idv="0">
+
+              <!-- Checkbox -->
+              <td class="text-center align-middle">
+                <input type="checkbox" name="file_ids" value="{{ f.id }}"
+                       class="form-check-input row-check">
+              </td>
+
+              <!-- Dateiname + Hash -->
+              <td>
+                <span class="fw-500">{{ f.file_name }}</span>
+                {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
+                <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
+                  {% if f.file_hash in duplicate_hashes %}
+                  <span class="badge bg-warning text-dark"
+                        title="Dieser Hash kommt auf dieser Seite mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
+                    <i class="bi bi-copy me-1"></i>Duplikat
+                  </span>
+                  {% endif %}
+                  <span class="font-monospace text-muted"
+                        style="font-size:.68rem"
+                        title="SHA-256: {{ f.file_hash }}">
+                    <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
+                  </span>
+                </div>
+                {% elif f.file_hash == 'HASH_ERROR' %}
+                <div class="mt-1">
+                  <span class="text-danger" style="font-size:.7rem"
+                        title="Hash konnte nicht berechnet werden">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Hash-Fehler
+                  </span>
+                </div>
+                {% endif %}
+              </td>
+
+              <!-- IDV-Typ-Vorschlag -->
+              <td>
+                {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+                <span class="badge bg-light text-dark border">{{ typ }}</span>
+              </td>
+
+              <!-- Verzeichnis / Pfad -->
+              <td style="min-width:160px;max-width:260px">
+                {% if f.share_root %}
+                <a href="{{ url_for('scanner.eingang_funde', share_root=f.share_root, sort=sort, per_page=per_page) }}"
+                   class="badge bg-primary text-decoration-none"
+                   title="Nach diesem Verzeichnis filtern"
+                   style="font-size:.7rem;font-family:monospace">
+                  <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
+                </a>
+                {% endif %}
+                <div class="text-truncate text-muted mt-1"
+                     style="font-size:.74rem;max-width:240px;font-family:monospace"
+                     title="{{ f.full_path }}">
+                  {{ f.relative_path or f.full_path }}
+                </div>
+              </td>
+
+              <!-- Erst gesehen -->
+              <td class="text-nowrap" style="font-size:.76rem">
+                {{ f.first_seen_at|datefmt if f.first_seen_at else '–' }}
+              </td>
+
+              <!-- Größe -->
+              <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes else '–' }}</td>
+
+              <!-- Makros -->
+              <td class="text-center">
+                {% if f.has_macros %}
+                  <span class="badge bg-danger">VBA</span>
+                {% else %}
+                  <i class="bi bi-dash text-muted"></i>
+                {% endif %}
+              </td>
+
+              <!-- Formeln -->
+              <td class="text-center">
+                {% if f.formula_count %}
+                  <span class="badge bg-warning text-dark">{{ f.formula_count }}</span>
+                {% else %}
+                  <i class="bi bi-dash text-muted"></i>
+                {% endif %}
+              </td>
+
+              <!-- Blattschutz -->
+              <td class="text-center">
+                {% if f.has_sheet_protection %}
+                  <span class="badge bg-secondary" title="{{ f.protected_sheets_count }} Blatt/Blätter geschützt{% if f.sheet_protection_has_pw %} · mit Passwort{% endif %}">
+                    <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count or '' }}
+                  </span>
+                {% else %}
+                  <i class="bi bi-dash text-muted"></i>
+                {% endif %}
+              </td>
+
+              <!-- Aktionen -->
+              <td class="text-end text-nowrap">
+                <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
+                   class="btn btn-xs btn-primary"
+                   title="Als IDV registrieren">
+                  <i class="bi bi-plus-circle me-1"></i>Registrieren
+                </a>
+                {% if is_admin %}
+                <button type="button" class="btn btn-xs btn-outline-danger ms-1"
+                        title="Eintrag löschen (Admin)"
+                        data-delete-url="{{ url_for('scanner.loeschen', file_id=f.id) }}"
+                        data-filename="{{ f.file_name }}"
+                        onclick="deleteScannerfund(this)">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="10" class="text-center text-muted py-5">
+                {% if share_root_filt %}
+                <i class="bi bi-funnel fs-3 d-block mb-2"></i>
+                Keine neuen Dateien in <strong>{{ share_root_filt }}</strong>.
+                <br><a href="{{ url_for('scanner.eingang_funde', sort=sort, per_page=per_page) }}" class="btn btn-sm btn-outline-secondary mt-2">Filter entfernen</a>
+                {% else %}
+                <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-2"></i>
+                Eingang leer – alle Dateien wurden bearbeitet.
+                {% endif %}
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Pagination unten ─────────────────────────────────────────── -->
+  {% if total_pages > 1 %}
+  <nav class="d-flex align-items-center justify-content-between mt-3">
+    <span class="text-muted" style="font-size:.82rem">
+      Seite {{ page }} von {{ total_pages }} &nbsp;·&nbsp; {{ total }} Dateien
+    </span>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {{ 'disabled' if page <= 1 }}">
+        <a class="page-link" href="{{ url_for('scanner.eingang_funde', page=page-1, per_page=per_page, sort=sort, share_root=share_root_filt) }}">&laquo;</a>
+      </li>
+      {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
+      <li class="page-item {{ 'active' if p == page }}">
+        <a class="page-link" href="{{ url_for('scanner.eingang_funde', page=p, per_page=per_page, sort=sort, share_root=share_root_filt) }}">{{ p }}</a>
+      </li>
+      {% endfor %}
+      <li class="page-item {{ 'disabled' if page >= total_pages }}">
+        <a class="page-link" href="{{ url_for('scanner.eingang_funde', page=page+1, per_page=per_page, sort=sort, share_root=share_root_filt) }}">&raquo;</a>
+      </li>
+    </ul>
+  </nav>
+  {% endif %}
+
+</form>
+{% endif %}
+
+<style>
+.btn-xs { padding: .15rem .45rem; font-size: .75rem; }
+.fw-600 { font-weight: 600; }
+.fw-500 { font-weight: 500; }
+</style>
+
+<script>
+function deleteScannerfund(btn) {
+  const name = btn.dataset.filename;
+  if (!confirm('Scannerfund "' + name + '" wirklich löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden.')) return;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = btn.dataset.deleteUrl;
+  document.body.appendChild(form);
+  form.submit();
+}
+
+(function () {
+  const selectAll   = document.getElementById('select-all');
+  const bulkBar     = document.getElementById('bulk-bar');
+  const bulkCount   = document.getElementById('bulk-count');
+  const btnIgn      = document.getElementById('btn-ignorieren');
+  const btnDeselect = document.getElementById('btn-deselect-all');
+
+  function updateBar() {
+    const checked = document.querySelectorAll('.row-check:checked');
+    const n = checked.length;
+    if (bulkCount) bulkCount.textContent = n;
+    if (bulkBar)   bulkBar.classList.toggle('d-none', n === 0);
+    if (btnIgn) {
+      const allNoFormula = [...checked].every(cb => {
+        const row = cb.closest('tr');
+        return parseInt(row.dataset.formulaCount || '0') === 0
+            && row.dataset.hasIdv === '0';
+      });
+      btnIgn.disabled = !allNoFormula;
+      btnIgn.title = allNoFormula
+        ? 'Alle ausgewählten Dateien haben keine Formeln – Ignorieren möglich'
+        : 'Eine oder mehrere Dateien haben Formeln';
+    }
+  }
+
+  document.querySelectorAll('.row-check').forEach(cb => cb.addEventListener('change', updateBar));
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      document.querySelectorAll('.row-check').forEach(cb => { cb.checked = this.checked; });
+      updateBar();
+    });
+  }
+
+  if (btnDeselect) {
+    btnDeselect.addEventListener('click', function () {
+      document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
+      if (selectAll) selectAll.checked = false;
+      updateBar();
+    });
+  }
+})();
+</script>
+{% endblock %}

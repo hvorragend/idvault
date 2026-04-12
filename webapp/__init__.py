@@ -50,6 +50,22 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(reports_bp)
     app.register_blueprint(freigaben_bp)
 
+    # Context Processor: Scanner-Eingang Badge-Count für alle Templates
+    @app.context_processor
+    def inject_scanner_badge():
+        from flask import has_request_context
+        if not has_request_context():
+            return {}
+        try:
+            db = get_db()
+            count = db.execute(
+                "SELECT COUNT(*) FROM idv_files "
+                "WHERE status='active' AND bearbeitungsstatus='Neu'"
+            ).fetchone()[0]
+        except Exception:
+            count = 0
+        return {"scanner_eingang_count": count}
+
     # Template-Filter
     @app.template_filter("datefmt")
     def datefmt(value, fmt="%d.%m.%Y"):

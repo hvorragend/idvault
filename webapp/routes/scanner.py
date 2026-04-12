@@ -219,6 +219,126 @@ def list_funde():
     )
 
 
+@bp.route("/eingang")
+@login_required
+def eingang_funde():
+    """Eingang: Neue, unbearbeitete Scanner-Funde als priorisierte Arbeitsliste."""
+    db = get_db()
+    share_root = request.args.get("share_root", "").strip()
+    sort       = request.args.get("sort", "prioritaet")
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", 100))
+    except (ValueError, TypeError):
+        per_page = 100
+    if per_page not in (50, 100, 200):
+        per_page = 100
+    offset = (page - 1) * per_page
+
+    _no_idv = (
+        "NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)"
+        " AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id)"
+    )
+    where_parts = ["f.status = 'active'", "f.bearbeitungsstatus = 'Neu'", _no_idv]
+    params = []
+    if share_root:
+        where_parts.append("f.share_root = ?")
+        params.append(share_root)
+    where_sql = "WHERE " + " AND ".join(where_parts)
+
+    sort_map = {
+        "prioritaet": "f.has_macros DESC, f.formula_count DESC, f.first_seen_at ASC",
+        "datum":      "f.first_seen_at DESC",
+        "share":      "f.share_root, f.has_macros DESC, f.formula_count DESC",
+        "groesse":    "f.size_bytes DESC",
+    }
+    order_sql = "ORDER BY " + sort_map.get(sort, sort_map["prioritaet"])
+
+    dateien = db.execute(
+        f"SELECT f.*, sr.id AS sr_id, sr.started_at AS sr_started_at "
+        f"FROM idv_files f LEFT JOIN scan_runs sr ON f.last_scan_run_id = sr.id "
+        f"{where_sql} {order_sql} LIMIT ? OFFSET ?",
+        params + [per_page, offset]
+    ).fetchall()
+
+    total = db.execute(
+        f"SELECT COUNT(*) FROM idv_files f {where_sql}", params
+    ).fetchone()[0]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    # Stats-Karten
+    neu_gesamt = db.execute(
+        "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Neu'"
+    ).fetchone()[0]
+    neu_mit_makros = db.execute(
+        "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Neu' AND has_macros=1"
+    ).fetchone()[0]
+    zur_registrierung_count = db.execute(
+        "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Zur Registrierung'"
+    ).fetchone()[0]
+    gesamt_aktiv = db.execute(
+        "SELECT COUNT(*) FROM idv_files WHERE status='active'"
+    ).fetchone()[0]
+
+    # Hotspot-Tabellen
+    nach_share = db.execute("""
+        SELECT share_root,
+               COUNT(*) AS anzahl,
+               SUM(has_macros) AS mit_makros,
+               SUM(CASE WHEN formula_count > 0 THEN 1 ELSE 0 END) AS mit_formeln
+        FROM idv_files
+        WHERE status='active' AND bearbeitungsstatus='Neu'
+        GROUP BY share_root
+        ORDER BY anzahl DESC
+        LIMIT 10
+    """).fetchall()
+
+    nach_typ = db.execute("""
+        SELECT extension,
+               COUNT(*) AS anzahl,
+               SUM(has_macros) AS mit_makros
+        FROM idv_files
+        WHERE status='active' AND bearbeitungsstatus='Neu'
+        GROUP BY extension
+        ORDER BY anzahl DESC
+        LIMIT 8
+    """).fetchall()
+
+    share_roots = [r["share_root"] for r in db.execute(
+        "SELECT DISTINCT share_root FROM idv_files "
+        "WHERE share_root IS NOT NULL AND status='active' AND bearbeitungsstatus='Neu' "
+        "ORDER BY share_root"
+    ).fetchall()]
+
+    hash_counts = Counter(
+        f["file_hash"] for f in dateien
+        if f["file_hash"] and f["file_hash"] != "HASH_ERROR"
+    )
+    duplicate_hashes = {h for h, c in hash_counts.items() if c > 1}
+    is_admin = current_user_role() == ROLE_ADMIN
+
+    return render_template("scanner/eingang.html",
+        dateien=dateien,
+        total=total, total_pages=total_pages,
+        page=page, per_page=per_page,
+        neu_gesamt=neu_gesamt,
+        neu_mit_makros=neu_mit_makros,
+        zur_registrierung_count=zur_registrierung_count,
+        gesamt_aktiv=gesamt_aktiv,
+        nach_share=nach_share,
+        nach_typ=nach_typ,
+        share_roots=share_roots,
+        share_root_filt=share_root,
+        sort=sort,
+        duplicate_hashes=duplicate_hashes,
+        idv_typ_vorschlag=_idv_typ_vorschlag,
+        is_admin=is_admin,
+    )
+
+
 @bp.route("/bewertet")
 @login_required
 def bewertet():
@@ -464,6 +584,13 @@ def bulk_aktion():
         db.commit()
         flash(f"{len(file_ids)} Datei(en) zur Registrierung vorgemerkt.", "success")
 
+    return_to = request.form.get("return_to", "")
+    if return_to == "eingang":
+        return redirect(url_for("scanner.eingang_funde",
+            share_root=request.form.get("share_root_filt", ""),
+            page=request.form.get("page", 1),
+            per_page=request.form.get("per_page", 100),
+            sort=request.form.get("sort", "prioritaet")))
     return redirect(url_for("scanner.list_funde", filter=request.form.get("filt", "")))
 
 
