@@ -170,9 +170,22 @@ def bulk_loeschen():
     deleted = 0
     for idv_db_id in idv_db_ids:
         row = db.execute("SELECT idv_id FROM idv_register WHERE id=?", (idv_db_id,)).fetchone()
-        if row:
-            db.execute("DELETE FROM idv_register WHERE id=?", (idv_db_id,))
-            deleted += 1
+        if not row:
+            continue
+        # Abhängige Datensätze ohne CASCADE zuerst löschen
+        db.execute("DELETE FROM idv_history        WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM massnahmen          WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM pruefungen          WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM genehmigungen       WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM dokumente           WHERE idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM idv_abhaengigkeiten WHERE quell_idv_id = ?", (idv_db_id,))
+        db.execute("DELETE FROM idv_abhaengigkeiten WHERE ziel_idv_id  = ?", (idv_db_id,))
+        # Vorgänger-Verknüpfung in Nachfolgern aufheben
+        db.execute("UPDATE idv_register SET vorgaenger_idv_id = NULL WHERE vorgaenger_idv_id = ?",
+                   (idv_db_id,))
+        # IDV löschen (CASCADE für idv_freigaben, idv_file_links, idv_wesentlichkeit)
+        db.execute("DELETE FROM idv_register WHERE id=?", (idv_db_id,))
+        deleted += 1
 
     db.commit()
     flash(f"{deleted} IDV(s) gelöscht.", "success")
