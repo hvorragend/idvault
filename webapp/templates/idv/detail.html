@@ -15,7 +15,7 @@
     {% else %}
     <span class="badge bg-secondary fs-6">Nicht wesentlich</span>
     {% endif %}
-    <span class="badge status-{{ idv.status }} fs-6">{{ idv.status }}</span>
+    <span class="badge status-{{ idv.status|replace(' ', '-') }} fs-6">{{ idv.status }}</span>
   </div>
   <div class="d-flex gap-2">
     <a href="{{ url_for('idv.edit_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary">
@@ -554,7 +554,7 @@
             <span class="font-monospace me-1" style="font-size:.8rem">{{ vorgaenger.idv_id }}</span>
             v{{ vorgaenger.version }}
           </a>
-          <span class="badge status-{{ vorgaenger.status }} ms-1" style="font-size:.6rem">{{ vorgaenger.status }}</span>
+          <span class="badge status-{{ vorgaenger.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ vorgaenger.status }}</span>
         </li>
         {% endif %}
         <li class="list-group-item px-3 py-2 bg-light">
@@ -569,7 +569,7 @@
             <span class="font-monospace me-1" style="font-size:.8rem">{{ nf.idv_id }}</span>
             v{{ nf.version }}
           </a>
-          <span class="badge status-{{ nf.status }} ms-1" style="font-size:.6rem">{{ nf.status }}</span>
+          <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ nf.status }}</span>
         </li>
         {% endfor %}
         {% if not vorgaenger and not nachfolger %}

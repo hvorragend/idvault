@@ -154,7 +154,7 @@
             {% endif %}
           </td>
           <td>
-            <span class="badge status-{{ r.status }}">{{ r.status }}</span>
+            <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
           </td>
           <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
           <td style="font-size:.82rem">

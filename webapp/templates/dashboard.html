@@ -107,7 +107,7 @@
                   {% if r.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA</span>{% endif %}
                 </div>
               </td>
-              <td><span class="badge status-{{ r.status }}">{{ r.status }}</span></td>
+              <td><span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span></td>
               <td>
                 {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
                 <span class="text-danger fw-bold">{{ r.naechste_pruefung|datefmt }}</span>

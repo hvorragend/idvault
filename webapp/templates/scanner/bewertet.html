@@ -50,7 +50,7 @@
           <td style="font-size:.78rem">{{ r.org_einheit or '–' }}</td>
           <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
           <td>
-            <span class="badge status-{{ r.status }}">{{ r.status }}</span>
+            <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
           </td>
           <td class="text-truncate" style="max-width:180px" title="{{ r.file_name }}">
             {{ r.file_name or '–' }}
