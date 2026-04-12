@@ -541,62 +541,6 @@
       </ul>
     </div>
 
-    <!-- Prüfung & Fristen -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white fw-600"><i class="bi bi-calendar-check me-2"></i>Prüffristen</div>
-      <ul class="list-group list-group-flush">
-        <li class="list-group-item px-3 py-2">
-          <div class="detail-label">Prüfintervall</div>
-          <div class="fw-500">{{ idv.pruefintervall_monate }} Monate</div>
-        </li>
-        <li class="list-group-item px-3 py-2">
-          <div class="detail-label">Letzte Prüfung</div>
-          <div>{{ idv.letzte_pruefung|datefmt }}</div>
-        </li>
-        <li class="list-group-item px-3 py-2">
-          <div class="detail-label">Nächste Prüfung</div>
-          <div class="fw-500 {{ 'text-danger' if idv.pruefstatus == 'ÜBERFÄLLIG' else '' }}">
-            {{ idv.naechste_pruefung|datefmt }}
-            {% if idv.pruefstatus != 'OK' %}
-            <span class="badge bg-danger ms-1">{{ idv.pruefstatus }}</span>
-            {% endif %}
-          </div>
-        </li>
-      </ul>
-      <div class="card-footer bg-white">
-        <a href="{{ url_for('reviews.new_review', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary w-100">
-          <i class="bi bi-plus me-1"></i>Prüfung anlegen
-        </a>
-      </div>
-    </div>
-
-    <!-- Maßnahmen -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white fw-600 d-flex justify-content-between">
-        <span><i class="bi bi-tools me-2"></i>Maßnahmen</span>
-        <span class="badge bg-warning text-dark">{{ massnahmen|length }}</span>
-      </div>
-      <ul class="list-group list-group-flush">
-        {% for m in massnahmen[:4] %}
-        <li class="list-group-item px-3 py-2">
-          <div class="d-flex justify-content-between">
-            <span style="font-size:.83rem;font-weight:500">{{ m.titel|truncate(30) }}</span>
-            <span
-              class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' }}">{{
-              m.status }}</span>
-          </div>
-          <div class="text-muted" style="font-size:.75rem">fällig {{ m.faellig_am|datefmt }}</div>
-        </li>
-        {% else %}
-        <li class="list-group-item text-muted text-center py-3" style="font-size:.83rem">Keine Maßnahmen.</li>
-        {% endfor %}
-      </ul>
-      <div class="card-footer bg-white">
-        <a href="{{ url_for('measures.new_measure', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-warning w-100">
-          <i class="bi bi-plus me-1"></i>Maßnahme anlegen
-        </a>
-      </div>
-    </div>
 
     <!-- Versionshistorie -->
     <div class="card border-0 shadow-sm mb-4">
@@ -635,8 +579,8 @@
       </ul>
       {% if can_create and idv.status != 'Archiviert' %}
       <div class="card-footer bg-white">
-        <button type="button" class="btn btn-sm btn-outline-primary w-100"
-                data-bs-toggle="modal" data-bs-target="#modal-neue-version">
+        <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal"
+          data-bs-target="#modal-neue-version">
           <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
         </button>
         {% if ist_wesentlich %}
@@ -659,8 +603,7 @@
               <div class="modal-body">
                 <div class="mb-3">
                   <label class="form-label fw-500">Art der Änderung <span class="text-danger">*</span></label>
-                  <select name="aenderungsart" class="form-select form-select-sm" required
-                          id="aenderungsart-select">
+                  <select name="aenderungsart" class="form-select form-select-sm" required id="aenderungsart-select">
                     <option value="">– bitte wählen –</option>
                     <option value="wesentlich">Wesentliche Änderung</option>
                     <option value="unwesentlich">Unwesentliche Änderung</option>
@@ -669,9 +612,8 @@
                 </div>
                 <div class="mb-2">
                   <label class="form-label fw-500">Begründung <span class="text-danger">*</span></label>
-                  <textarea name="aenderungsbegruendung" class="form-control form-control-sm" rows="3"
-                            required
-                            placeholder="Beschreiben Sie die wesentlichen Änderungen dieser Version …"></textarea>
+                  <textarea name="aenderungsbegruendung" class="form-control form-control-sm" rows="3" required
+                    placeholder="Beschreiben Sie die wesentlichen Änderungen dieser Version …"></textarea>
                   <div class="form-text">
                     Begründung warum es sich um eine wesentliche bzw. unwesentliche Änderung handelt.
                   </div>
@@ -693,23 +635,23 @@
         </div>
       </div>
       <script>
-      (function() {
-        var sel = document.getElementById('aenderungsart-select');
-        var hint = document.getElementById('aenderungsart-hinweis');
-        if (sel && hint) {
-          sel.addEventListener('change', function() {
-            if (this.value === 'wesentlich') {
-              hint.textContent = '⚠ Erfordert erneutes Test- und Freigabeverfahren.';
-              hint.className = 'form-text text-warning fw-500';
-            } else if (this.value === 'unwesentlich') {
-              hint.textContent = '✓ Kein Testverfahren erforderlich.';
-              hint.className = 'form-text text-success';
-            } else {
-              hint.textContent = '';
-            }
-          });
-        }
-      })();
+        (function () {
+          var sel = document.getElementById('aenderungsart-select');
+          var hint = document.getElementById('aenderungsart-hinweis');
+          if (sel && hint) {
+            sel.addEventListener('change', function () {
+              if (this.value === 'wesentlich') {
+                hint.textContent = '⚠ Erfordert erneutes Test- und Freigabeverfahren.';
+                hint.className = 'form-text text-warning fw-500';
+              } else if (this.value === 'unwesentlich') {
+                hint.textContent = '✓ Kein Testverfahren erforderlich.';
+                hint.className = 'form-text text-success';
+              } else {
+                hint.textContent = '';
+              }
+            });
+          }
+        })();
       </script>
     </div>
 
@@ -771,8 +713,7 @@
                     {% if f.status == 'Bestanden' %}bg-success
                     {% elif f.status == 'Nicht bestanden' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
-                    {% else %}bg-secondary{% endif %}"
-                    style="font-size:.6rem">{{ f.status }}</span>
+                    {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
                   {% endif %}
                 </div>
                 {% if f and f.zugewiesen_an %}
@@ -800,7 +741,7 @@
                 <div class="mt-1" style="font-size:.72rem">
                   <i class="bi bi-paperclip me-1"></i>
                   <a href="{{ url_for('freigaben.nachweis_download', filename=f.nachweis_datei_pfad) }}"
-                     class="text-decoration-none">{{ f.nachweis_datei_name }}</a>
+                    class="text-decoration-none">{{ f.nachweis_datei_name }}</a>
                 </div>
                 {% endif %}
                 {% if f and f.status == 'Abgebrochen' and f.abbruch_kommentar %}
@@ -810,14 +751,12 @@
                 {% endif %}
                 {% if f and f.status == 'Ausstehend' and can_create %}
                 <div class="mt-2 d-flex gap-1">
-                  <button type="button" class="btn btn-xs btn-success flex-fill"
-                          data-bs-toggle="modal"
-                          data-bs-target="#modal-bestanden-{{ f.id }}">
+                  <button type="button" class="btn btn-xs btn-success flex-fill" data-bs-toggle="modal"
+                    data-bs-target="#modal-bestanden-{{ f.id }}">
                     <i class="bi bi-check2 me-1"></i>Bestanden
                   </button>
-                  <button type="button" class="btn btn-xs btn-outline-danger flex-fill"
-                          data-bs-toggle="modal"
-                          data-bs-target="#modal-ablehnen-{{ f.id }}">
+                  <button type="button" class="btn btn-xs btn-outline-danger flex-fill" data-bs-toggle="modal"
+                    data-bs-target="#modal-ablehnen-{{ f.id }}">
                     <i class="bi bi-x me-1"></i>Nicht bestanden
                   </button>
                 </div>
@@ -825,12 +764,12 @@
                 <!-- Modal: Bestanden -->
                 <div class="modal fade" id="modal-bestanden-{{ f.id }}" tabindex="-1">
                   <div class="modal-dialog">
-                    <form method="post"
-                          action="{{ url_for('freigaben.abschliessen', freigabe_id=f.id) }}"
-                          enctype="multipart/form-data">
+                    <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=f.id) }}"
+                      enctype="multipart/form-data">
                       <div class="modal-content">
                         <div class="modal-header">
-                          <h5 class="modal-title"><i class="bi bi-check-circle-fill text-success me-2"></i>{{ schritt_name }} – Bestanden</h5>
+                          <h5 class="modal-title"><i class="bi bi-check-circle-fill text-success me-2"></i>{{
+                            schritt_name }} – Bestanden</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
@@ -839,19 +778,22 @@
                             <textarea name="kommentar" class="form-control form-control-sm" rows="2"></textarea>
                           </div>
                           <div class="mb-3">
-                            <label class="form-label">Nachweise / Testprotokoll <small class="text-muted">(Text)</small></label>
+                            <label class="form-label">Nachweise / Testprotokoll <small
+                                class="text-muted">(Text)</small></label>
                             <textarea name="nachweise_text" class="form-control form-control-sm" rows="3"
-                                      placeholder="Beschreibung der durchgeführten Tests, Testergebnisse …"></textarea>
+                              placeholder="Beschreibung der durchgeführten Tests, Testergebnisse …"></textarea>
                           </div>
                           <div class="mb-2">
-                            <label class="form-label">Screenshot / Dokument hochladen <small class="text-muted">(optional)</small></label>
+                            <label class="form-label">Screenshot / Dokument hochladen <small
+                                class="text-muted">(optional)</small></label>
                             <input type="file" name="nachweis_datei" class="form-control form-control-sm"
-                                   accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
+                              accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
                             <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
                           </div>
                         </div>
                         <div class="modal-footer">
-                          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                          <button type="button" class="btn btn-sm btn-secondary"
+                            data-bs-dismiss="modal">Abbrechen</button>
                           <button type="submit" class="btn btn-sm btn-success">
                             <i class="bi bi-check2 me-1"></i>Als Bestanden markieren
                           </button>
@@ -864,19 +806,19 @@
                 <!-- Modal: Nicht bestanden -->
                 <div class="modal fade" id="modal-ablehnen-{{ f.id }}" tabindex="-1">
                   <div class="modal-dialog">
-                    <form method="post"
-                          action="{{ url_for('freigaben.ablehnen', freigabe_id=f.id) }}"
-                          enctype="multipart/form-data">
+                    <form method="post" action="{{ url_for('freigaben.ablehnen', freigabe_id=f.id) }}"
+                      enctype="multipart/form-data">
                       <div class="modal-content">
                         <div class="modal-header">
-                          <h5 class="modal-title"><i class="bi bi-x-circle-fill text-danger me-2"></i>{{ schritt_name }} – Nicht bestanden</h5>
+                          <h5 class="modal-title"><i class="bi bi-x-circle-fill text-danger me-2"></i>{{ schritt_name }}
+                            – Nicht bestanden</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
                           <div class="mb-3">
                             <label class="form-label">Befunde <span class="text-danger">*</span></label>
-                            <textarea name="befunde" class="form-control form-control-sm" rows="3"
-                                      required placeholder="Beschreiben Sie die festgestellten Mängel …"></textarea>
+                            <textarea name="befunde" class="form-control form-control-sm" rows="3" required
+                              placeholder="Beschreiben Sie die festgestellten Mängel …"></textarea>
                           </div>
                           <div class="mb-3">
                             <label class="form-label">Kommentar (optional)</label>
@@ -885,16 +827,18 @@
                           <div class="mb-3">
                             <label class="form-label">Nachweise <small class="text-muted">(Text)</small></label>
                             <textarea name="nachweise_text" class="form-control form-control-sm" rows="2"
-                                      placeholder="Ergänzende Hinweise zu den Befunden …"></textarea>
+                              placeholder="Ergänzende Hinweise zu den Befunden …"></textarea>
                           </div>
                           <div class="mb-2">
-                            <label class="form-label">Screenshot / Dokument hochladen <small class="text-muted">(optional)</small></label>
+                            <label class="form-label">Screenshot / Dokument hochladen <small
+                                class="text-muted">(optional)</small></label>
                             <input type="file" name="nachweis_datei" class="form-control form-control-sm"
-                                   accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
+                              accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
                           </div>
                         </div>
                         <div class="modal-footer">
-                          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                          <button type="button" class="btn btn-sm btn-secondary"
+                            data-bs-dismiss="modal">Abbrechen</button>
                           <button type="submit" class="btn btn-sm btn-danger">
                             <i class="bi bi-x me-1"></i>Als nicht bestanden markieren
                           </button>
@@ -951,8 +895,7 @@
                     {% if f.status == 'Bestanden' %}bg-success
                     {% elif f.status == 'Nicht bestanden' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
-                    {% else %}bg-secondary{% endif %}"
-                    style="font-size:.6rem">{{ f.status }}</span>
+                    {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
                   {% endif %}
                 </div>
                 {% if f and f.zugewiesen_an %}
@@ -980,7 +923,7 @@
                 <div class="mt-1" style="font-size:.72rem">
                   <i class="bi bi-paperclip me-1"></i>
                   <a href="{{ url_for('freigaben.nachweis_download', filename=f.nachweis_datei_pfad) }}"
-                     class="text-decoration-none">{{ f.nachweis_datei_name }}</a>
+                    class="text-decoration-none">{{ f.nachweis_datei_name }}</a>
                 </div>
                 {% endif %}
                 {% if f and f.status == 'Abgebrochen' and f.abbruch_kommentar %}
@@ -990,14 +933,12 @@
                 {% endif %}
                 {% if f and f.status == 'Ausstehend' and can_create %}
                 <div class="mt-2 d-flex gap-1">
-                  <button type="button" class="btn btn-xs btn-success flex-fill"
-                          data-bs-toggle="modal"
-                          data-bs-target="#modal-bestanden-{{ f.id }}">
+                  <button type="button" class="btn btn-xs btn-success flex-fill" data-bs-toggle="modal"
+                    data-bs-target="#modal-bestanden-{{ f.id }}">
                     <i class="bi bi-check2 me-1"></i>Bestanden
                   </button>
-                  <button type="button" class="btn btn-xs btn-outline-danger flex-fill"
-                          data-bs-toggle="modal"
-                          data-bs-target="#modal-ablehnen-{{ f.id }}">
+                  <button type="button" class="btn btn-xs btn-outline-danger flex-fill" data-bs-toggle="modal"
+                    data-bs-target="#modal-ablehnen-{{ f.id }}">
                     <i class="bi bi-x me-1"></i>Nicht bestanden
                   </button>
                 </div>
@@ -1005,12 +946,12 @@
                 <!-- Modal: Bestanden -->
                 <div class="modal fade" id="modal-bestanden-{{ f.id }}" tabindex="-1">
                   <div class="modal-dialog">
-                    <form method="post"
-                          action="{{ url_for('freigaben.abschliessen', freigabe_id=f.id) }}"
-                          enctype="multipart/form-data">
+                    <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=f.id) }}"
+                      enctype="multipart/form-data">
                       <div class="modal-content">
                         <div class="modal-header">
-                          <h5 class="modal-title"><i class="bi bi-check-circle-fill text-success me-2"></i>{{ schritt_name }} – Bestanden</h5>
+                          <h5 class="modal-title"><i class="bi bi-check-circle-fill text-success me-2"></i>{{
+                            schritt_name }} – Bestanden</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
@@ -1019,19 +960,22 @@
                             <textarea name="kommentar" class="form-control form-control-sm" rows="2"></textarea>
                           </div>
                           <div class="mb-3">
-                            <label class="form-label">Nachweise / Abnahmeprotokoll <small class="text-muted">(Text)</small></label>
+                            <label class="form-label">Nachweise / Abnahmeprotokoll <small
+                                class="text-muted">(Text)</small></label>
                             <textarea name="nachweise_text" class="form-control form-control-sm" rows="3"
-                                      placeholder="Beschreibung der Abnahme, Ergebnis …"></textarea>
+                              placeholder="Beschreibung der Abnahme, Ergebnis …"></textarea>
                           </div>
                           <div class="mb-2">
-                            <label class="form-label">Screenshot / Dokument hochladen <small class="text-muted">(optional)</small></label>
+                            <label class="form-label">Screenshot / Dokument hochladen <small
+                                class="text-muted">(optional)</small></label>
                             <input type="file" name="nachweis_datei" class="form-control form-control-sm"
-                                   accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
+                              accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
                             <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
                           </div>
                         </div>
                         <div class="modal-footer">
-                          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                          <button type="button" class="btn btn-sm btn-secondary"
+                            data-bs-dismiss="modal">Abbrechen</button>
                           <button type="submit" class="btn btn-sm btn-success">
                             <i class="bi bi-check2 me-1"></i>Als Bestanden markieren
                           </button>
@@ -1044,19 +988,19 @@
                 <!-- Modal: Nicht bestanden -->
                 <div class="modal fade" id="modal-ablehnen-{{ f.id }}" tabindex="-1">
                   <div class="modal-dialog">
-                    <form method="post"
-                          action="{{ url_for('freigaben.ablehnen', freigabe_id=f.id) }}"
-                          enctype="multipart/form-data">
+                    <form method="post" action="{{ url_for('freigaben.ablehnen', freigabe_id=f.id) }}"
+                      enctype="multipart/form-data">
                       <div class="modal-content">
                         <div class="modal-header">
-                          <h5 class="modal-title"><i class="bi bi-x-circle-fill text-danger me-2"></i>{{ schritt_name }} – Nicht bestanden</h5>
+                          <h5 class="modal-title"><i class="bi bi-x-circle-fill text-danger me-2"></i>{{ schritt_name }}
+                            – Nicht bestanden</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
                           <div class="mb-3">
                             <label class="form-label">Befunde <span class="text-danger">*</span></label>
-                            <textarea name="befunde" class="form-control form-control-sm" rows="3"
-                                      required placeholder="Beschreiben Sie die festgestellten Mängel …"></textarea>
+                            <textarea name="befunde" class="form-control form-control-sm" rows="3" required
+                              placeholder="Beschreiben Sie die festgestellten Mängel …"></textarea>
                           </div>
                           <div class="mb-3">
                             <label class="form-label">Kommentar (optional)</label>
@@ -1065,16 +1009,18 @@
                           <div class="mb-3">
                             <label class="form-label">Nachweise <small class="text-muted">(Text)</small></label>
                             <textarea name="nachweise_text" class="form-control form-control-sm" rows="2"
-                                      placeholder="Ergänzende Hinweise zu den Befunden …"></textarea>
+                              placeholder="Ergänzende Hinweise zu den Befunden …"></textarea>
                           </div>
                           <div class="mb-2">
-                            <label class="form-label">Screenshot / Dokument hochladen <small class="text-muted">(optional)</small></label>
+                            <label class="form-label">Screenshot / Dokument hochladen <small
+                                class="text-muted">(optional)</small></label>
                             <input type="file" name="nachweis_datei" class="form-control form-control-sm"
-                                   accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
+                              accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
                           </div>
                         </div>
                         <div class="modal-footer">
-                          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                          <button type="button" class="btn btn-sm btn-secondary"
+                            data-bs-dismiss="modal">Abbrechen</button>
                           <button type="submit" class="btn btn-sm btn-danger">
                             <i class="bi bi-x me-1"></i>Als nicht bestanden markieren
                           </button>
@@ -1105,16 +1051,16 @@
 
         {# Freigabeverfahren starten (Phase 1) #}
         {% if not phase1_gestartet and not phase2_bestanden and can_create %}
-        <button type="button" class="btn btn-sm btn-outline-primary w-100"
-                data-bs-toggle="modal" data-bs-target="#modal-starten">
+        <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal"
+          data-bs-target="#modal-starten">
           <i class="bi bi-play-circle me-1"></i>Freigabeverfahren starten
         </button>
         {% endif %}
 
         {# Phase 2 starten (nach vollständiger Phase 1) #}
         {% if phase1_bestanden and not phase2_gestartet and can_create %}
-        <button type="button" class="btn btn-sm btn-primary w-100"
-                data-bs-toggle="modal" data-bs-target="#modal-abnahme-starten">
+        <button type="button" class="btn btn-sm btn-primary w-100" data-bs-toggle="modal"
+          data-bs-target="#modal-abnahme-starten">
           <i class="bi bi-2-circle me-1"></i>Phase 2 starten (Abnahmen beauftragen)
         </button>
         {% endif %}
@@ -1128,8 +1074,8 @@
 
         {# Admin: Verfahren abbrechen #}
         {% if hat_offenen_schritt and session.get('user_role') == 'IDV-Administrator' %}
-        <button type="button" class="btn btn-sm btn-outline-danger w-100"
-                data-bs-toggle="modal" data-bs-target="#modal-abbrechen">
+        <button type="button" class="btn btn-sm btn-outline-danger w-100" data-bs-toggle="modal"
+          data-bs-target="#modal-abbrechen">
           <i class="bi bi-slash-circle me-1"></i>Verfahren abbrechen (Admin)
         </button>
         {% endif %}
@@ -1157,7 +1103,8 @@
                 <select name="zugewiesen_fachlicher_test" class="form-select form-select-sm">
                   <option value="">– Person auswählen –</option>
                   {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif
+                    %}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -1166,7 +1113,8 @@
                 <select name="zugewiesen_technischer_test" class="form-select form-select-sm">
                   <option value="">– Person auswählen –</option>
                   {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif
+                    %}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -1202,7 +1150,8 @@
                 <select name="zugewiesen_fachliche_abnahme" class="form-select form-select-sm">
                   <option value="">– Person auswählen –</option>
                   {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif
+                    %}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -1211,7 +1160,8 @@
                 <select name="zugewiesen_technische_abnahme" class="form-select form-select-sm">
                   <option value="">– Person auswählen –</option>
                   {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif
+                    %}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -1234,7 +1184,8 @@
         <form method="post" action="{{ url_for('freigaben.abbrechen', idv_db_id=idv.id) }}">
           <div class="modal-content">
             <div class="modal-header border-danger">
-              <h5 class="modal-title text-danger"><i class="bi bi-slash-circle me-2"></i>Freigabeverfahren abbrechen</h5>
+              <h5 class="modal-title text-danger"><i class="bi bi-slash-circle me-2"></i>Freigabeverfahren abbrechen
+              </h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -1246,7 +1197,7 @@
               <div class="mb-2">
                 <label class="form-label">Begründung für den Abbruch</label>
                 <textarea name="abbruch_kommentar" class="form-control form-control-sm" rows="3"
-                          placeholder="Warum wird das Verfahren abgebrochen?"></textarea>
+                  placeholder="Warum wird das Verfahren abgebrochen?"></textarea>
               </div>
             </div>
             <div class="modal-footer">
@@ -1262,6 +1213,64 @@
     {% endif %}
 
     {% endif %}
+
+    <!-- Prüfung & Fristen -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600"><i class="bi bi-calendar-check me-2"></i>Prüffristen</div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Prüfintervall</div>
+          <div class="fw-500">{{ idv.pruefintervall_monate }} Monate</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Letzte Prüfung</div>
+          <div>{{ idv.letzte_pruefung|datefmt }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Nächste Prüfung</div>
+          <div class="fw-500 {{ 'text-danger' if idv.pruefstatus == 'ÜBERFÄLLIG' else '' }}">
+            {{ idv.naechste_pruefung|datefmt }}
+            {% if idv.pruefstatus != 'OK' %}
+            <span class="badge bg-danger ms-1">{{ idv.pruefstatus }}</span>
+            {% endif %}
+          </div>
+        </li>
+      </ul>
+      <div class="card-footer bg-white">
+        <a href="{{ url_for('reviews.new_review', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary w-100">
+          <i class="bi bi-plus me-1"></i>Prüfung anlegen
+        </a>
+      </div>
+    </div>
+
+    <!-- Maßnahmen -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600 d-flex justify-content-between">
+        <span><i class="bi bi-tools me-2"></i>Maßnahmen</span>
+        <span class="badge bg-warning text-dark">{{ massnahmen|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for m in massnahmen[:4] %}
+        <li class="list-group-item px-3 py-2">
+          <div class="d-flex justify-content-between">
+            <span style="font-size:.83rem;font-weight:500">{{ m.titel|truncate(30) }}</span>
+            <span
+              class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' }}">{{
+              m.status }}</span>
+          </div>
+          <div class="text-muted" style="font-size:.75rem">fällig {{ m.faellig_am|datefmt }}</div>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted text-center py-3" style="font-size:.83rem">Keine Maßnahmen.</li>
+        {% endfor %}
+      </ul>
+      <div class="card-footer bg-white">
+        <a href="{{ url_for('measures.new_measure', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-warning w-100">
+          <i class="bi bi-plus me-1"></i>Maßnahme anlegen
+        </a>
+      </div>
+    </div>
+
 
     <!-- Änderungshistorie -->
     <div class="card border-0 shadow-sm">
