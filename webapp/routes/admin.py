@@ -1,12 +1,210 @@
 """Admin-Blueprint: Stammdaten verwalten"""
 import csv
 import io
+import os
+import json
 import hashlib
-from flask import Blueprint, render_template, request, redirect, url_for, flash, Response
+import subprocess
+import threading
+from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app
 from . import login_required, admin_required, get_db
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+# ── Scanner-Konfiguration & Scan-Trigger ────────────────────────────────────
+
+_scan_lock  = threading.Lock()
+_scan_state = {"pid": None, "started": None}   # veränderlich, kein global nötig
+
+
+def _scanner_dir():
+    return os.path.join(os.path.dirname(current_app.root_path), "scanner")
+
+
+def _scanner_config_path():
+    return os.path.join(_scanner_dir(), "config.json")
+
+
+def _scanner_script_path():
+    return os.path.join(_scanner_dir(), "idv_scanner.py")
+
+
+_DEFAULT_SCANNER_CFG = {
+    "scan_paths": [],
+    "extensions": [
+        ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
+        ".accdb", ".mdb", ".accde", ".accdr",
+        ".ida", ".idv",
+        ".bas", ".cls", ".frm",
+        ".pbix", ".pbit",
+        ".dotm", ".pptm",
+        ".py", ".r", ".rmd", ".sql",
+    ],
+    "exclude_paths": [
+        "~$", ".tmp",
+        "\\$RECYCLE.BIN\\",
+        "\\System Volume Information\\",
+        "\\AppData\\",
+    ],
+    "db_path": "../instance/idvault.db",
+    "log_path": "idv_scanner.log",
+    "hash_size_limit_mb": 500,
+    "max_workers": 4,
+    "move_detection": "name_and_hash",
+    "scan_since": None,
+}
+
+
+def _load_scanner_config() -> dict:
+    cfg = dict(_DEFAULT_SCANNER_CFG)
+    try:
+        with open(_scanner_config_path(), encoding="utf-8") as f:
+            cfg.update(json.load(f))
+    except Exception:
+        pass
+    return cfg
+
+
+def _save_scanner_config(cfg: dict):
+    with open(_scanner_config_path(), "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+
+def _scan_is_running() -> bool:
+    pid = _scan_state.get("pid")
+    if pid is None:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, OSError):
+        _scan_state["pid"]     = None
+        _scan_state["started"] = None
+        return False
+
+
+@bp.route("/scanner-einstellungen", methods=["GET", "POST"])
+@admin_required
+def scanner_einstellungen():
+    cfg = _load_scanner_config()
+
+    if request.method == "POST":
+        scan_paths    = [p.strip() for p in request.form.get("scan_paths",    "").splitlines() if p.strip()]
+        extensions    = [e.strip().lower() for e in request.form.get("extensions",    "").splitlines() if e.strip()]
+        exclude_paths = [p.strip() for p in request.form.get("exclude_paths", "").splitlines() if p.strip()]
+
+        try:
+            hash_limit  = max(1, int(request.form.get("hash_size_limit_mb", 500)))
+        except ValueError:
+            hash_limit  = 500
+        try:
+            max_workers = max(1, min(32, int(request.form.get("max_workers", 4))))
+        except ValueError:
+            max_workers = 4
+
+        move_det    = request.form.get("move_detection", "name_and_hash")
+        scan_since  = request.form.get("scan_since", "").strip() or None
+
+        cfg.update({
+            "scan_paths":         scan_paths,
+            "extensions":         extensions,
+            "exclude_paths":      exclude_paths,
+            "hash_size_limit_mb": hash_limit,
+            "max_workers":        max_workers,
+            "move_detection":     move_det,
+            "scan_since":         scan_since,
+        })
+        try:
+            _save_scanner_config(cfg)
+            flash("Scanner-Konfiguration gespeichert.", "success")
+        except Exception as exc:
+            flash(f"Fehler beim Speichern: {exc}", "error")
+        return redirect(url_for("admin.scanner_einstellungen"))
+
+    return render_template("admin/scanner_einstellungen.html",
+                           cfg=cfg, scan_running=_scan_is_running())
+
+
+@bp.route("/scanner/starten", methods=["POST"])
+@admin_required
+def scanner_starten():
+    with _scan_lock:
+        if _scan_is_running():
+            return jsonify({"ok": False, "msg": "Ein Scan läuft bereits."})
+
+        script = _scanner_script_path()
+        config = _scanner_config_path()
+
+        if not os.path.isfile(script):
+            return jsonify({"ok": False, "msg": f"Scanner-Skript nicht gefunden: {script}"})
+        if not os.path.isfile(config):
+            return jsonify({"ok": False, "msg": f"Konfiguration nicht gefunden: {config}"})
+
+        try:
+            proc = subprocess.Popen(
+                ["python3", script, "--config", config],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                cwd=_scanner_dir(),
+            )
+            _scan_state["pid"]     = proc.pid
+            _scan_state["started"] = datetime.now(timezone.utc).isoformat()
+
+            def _watch():
+                proc.wait()
+                with _scan_lock:
+                    if _scan_state.get("pid") == proc.pid:
+                        _scan_state["pid"]     = None
+                        _scan_state["started"] = None
+
+            threading.Thread(target=_watch, daemon=True).start()
+            return jsonify({"ok": True, "msg": f"Scan gestartet (PID {proc.pid}).", "pid": proc.pid})
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": str(exc)})
+
+
+@bp.route("/scanner/status")
+@admin_required
+def scanner_status():
+    running = _scan_is_running()
+    return jsonify({"running": running, "started": _scan_state.get("started")})
+
+
+@bp.route("/scanner/bereinigen", methods=["POST"])
+@admin_required
+def scanner_bereinigen():
+    db = get_db()
+    try:
+        tage = int(request.form.get("tage", 180))
+    except (ValueError, TypeError):
+        tage = 180
+    if tage < 7:
+        flash("Mindestalter für die Bereinigung: 7 Tage.", "error")
+        return redirect(url_for("admin.scanner_einstellungen") + "#bereinigung")
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=tage)).isoformat()
+
+    hist_count = db.execute(
+        "DELETE FROM idv_file_history WHERE changed_at < ?", (cutoff,)
+    ).rowcount
+
+    runs_count = db.execute("""
+        DELETE FROM scan_runs
+        WHERE started_at < ?
+          AND id NOT IN (
+              SELECT DISTINCT last_scan_run_id FROM idv_files
+              WHERE last_scan_run_id IS NOT NULL
+          )
+    """, (cutoff,)).rowcount
+
+    db.commit()
+    flash(
+        f"Bereinigung abgeschlossen: {hist_count} History-Einträge und "
+        f"{runs_count} Scan-Läufe gelöscht (älter als {tage} Tage).",
+        "success"
+    )
+    return redirect(url_for("admin.scanner_einstellungen") + "#bereinigung")
 
 
 def _hash_pw(pw: str) -> str:

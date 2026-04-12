@@ -520,6 +520,28 @@
     </div>
     {% endif %}
 
+    {% if not (file or extra_files) and idv.vorgaenger_idv_id %}
+    <div class="form-section">
+      <div class="form-section-title">
+        <i class="bi bi-diagram-3 me-1"></i>Verknüpfte Dateien (Scanner-Funde)
+      </div>
+      <div class="alert alert-warning d-flex align-items-start gap-2 mb-0" role="alert">
+        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+        <div>
+          <strong>Noch keine Datei verknüpft.</strong><br>
+          Diese IDV-Version hat noch kein Dateipendant. Für die Nachvollziehbarkeit
+          (MaRisk AT&nbsp;7.2&nbsp;/&nbsp;DORA) sollte jede Version mit der zugehörigen
+          Datei verknüpft sein.
+          <div class="mt-2">
+            <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-sm btn-warning">
+              <i class="bi bi-folder2-open me-1"></i>Zum Scanner → Datei verknüpfen
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
   </div><!-- /col-lg-8 -->
 
   <!-- ── Rechte Spalte: Meta / History ────────────────────────── -->
@@ -561,6 +583,13 @@
           <div class="detail-label text-muted">Aktuelle Version</div>
           <span class="fw-600">v{{ idv.version }}</span>
           <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese IDV</span>
+          {% if idv.letzte_aenderungsart %}
+            <span class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
+                  style="font-size:.6rem"
+                  {% if idv.letzte_aenderungsbegruendung %}title="{{ idv.letzte_aenderungsbegruendung }}"{% endif %}>
+              {{ idv.letzte_aenderungsart }}
+            </span>
+          {% endif %}
         </li>
         {% for nf in nachfolger %}
         <li class="list-group-item px-3 py-2">
@@ -570,6 +599,13 @@
             v{{ nf.version }}
           </a>
           <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ nf.status }}</span>
+          {% if nf.letzte_aenderungsart %}
+            <span class="badge ms-1 {% if nf.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
+                  style="font-size:.6rem"
+                  {% if nf.letzte_aenderungsbegruendung %}title="{{ nf.letzte_aenderungsbegruendung }}"{% endif %}>
+              {{ nf.letzte_aenderungsart }}
+            </span>
+          {% endif %}
         </li>
         {% endfor %}
         {% if not vorgaenger and not nachfolger %}

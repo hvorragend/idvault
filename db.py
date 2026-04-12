@@ -391,6 +391,15 @@ def change_status(conn: sqlite3.Connection, idv_db_id: int,
         SET status = ?, status_geaendert_am = ?, status_geaendert_von_id = ?, aktualisiert_am = ?
         WHERE id = ?
     """, (new_status, now, geaendert_von_id, now, idv_db_id))
+    if new_status == "Genehmigt":
+        row = conn.execute(
+            "SELECT f.file_hash FROM idv_register r "
+            "LEFT JOIN idv_files f ON r.file_id = f.id WHERE r.id = ?",
+            (idv_db_id,)
+        ).fetchone()
+        if row and row["file_hash"]:
+            kommentar = (kommentar or "") + f" [Datei-Hash: {row['file_hash'][:16]}...]"
+
     conn.execute("""
         INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
         VALUES (?, 'status_geaendert', ?, ?)
@@ -402,10 +411,27 @@ def change_status(conn: sqlite3.Connection, idv_db_id: int,
 # Abfragen / Reports
 # ---------------------------------------------------------------------------
 
-def get_dashboard_stats(conn: sqlite3.Connection) -> dict:
-    """Kennzahlen für das Dashboard."""
+def get_dashboard_stats(conn: sqlite3.Connection, person_id: Optional[int] = None) -> dict:
+    """Kennzahlen für das Dashboard.
+
+    person_id: wenn gesetzt, wird 'unvollstaendig' auf die IDVs des Nutzers eingeschränkt
+               (für Rollen ohne vollständigen Lesezugriff).
+    """
     def scalar(sql, *args):
         return conn.execute(sql, args).fetchone()[0] or 0
+
+    # Eingeschränkte Nutzer sehen nur ihre eigenen unvollständigen IDVs
+    if person_id is not None:
+        unvollstaendig = conn.execute("""
+            SELECT COUNT(*) FROM v_unvollstaendige_idvs v
+            JOIN idv_register r ON r.idv_id = v.idv_id
+            WHERE r.fachverantwortlicher_id = ?
+               OR r.idv_entwickler_id       = ?
+               OR r.idv_koordinator_id      = ?
+               OR r.stellvertreter_id       = ?
+        """, (person_id, person_id, person_id, person_id)).fetchone()[0] or 0
+    else:
+        unvollstaendig = scalar("SELECT COUNT(*) FROM v_unvollstaendige_idvs")
 
     return {
         "gesamt_aktiv":         scalar("SELECT COUNT(*) FROM idv_register WHERE status NOT IN ('Archiviert')"),
@@ -429,7 +455,7 @@ def get_dashboard_stats(conn: sqlite3.Connection) -> dict:
         "pruefung_30_tage":     scalar("SELECT COUNT(*) FROM idv_register WHERE naechste_pruefung BETWEEN date('now') AND date('now','+30 days') AND status NOT IN ('Archiviert','Abgekündigt')"),
         "massnahmen_offen":     scalar("SELECT COUNT(*) FROM massnahmen WHERE status IN ('Offen','In Bearbeitung')"),
         "massnahmen_ueberfaellig": scalar("SELECT COUNT(*) FROM massnahmen WHERE faellig_am < date('now') AND status IN ('Offen','In Bearbeitung')"),
-        "unvollstaendig":       scalar("SELECT COUNT(*) FROM v_unvollstaendige_idvs"),
+        "unvollstaendig":       unvollstaendig,
     }
 
 

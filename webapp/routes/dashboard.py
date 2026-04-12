@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template
-from . import login_required, get_db
+from . import login_required, get_db, can_read_all, current_person_id
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import get_dashboard_stats
@@ -10,8 +10,11 @@ bp = Blueprint("dashboard", __name__)
 @bp.route("/")
 @login_required
 def index():
-    db   = get_db()
-    stats = get_dashboard_stats(db)
+    db  = get_db()
+    # Eingeschränkte Nutzer (z.B. Fachverantwortliche) sehen nur ihre eigenen
+    # unvollständigen IDVs, damit der Zähler zu ihren Berechtigungen passt.
+    pid   = None if can_read_all() else current_person_id()
+    stats = get_dashboard_stats(db, person_id=pid)
 
     kritische_idvs = db.execute("""
         SELECT r.id, r.idv_id, r.bezeichnung, r.status,

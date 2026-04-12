@@ -188,10 +188,10 @@ def export_to_excel(db_path: str, output_path: str, only_active: bool = True):
         ws2.cell(row=row_idx, column=4, value=r["total_files"])
         cell_new     = ws2.cell(row=row_idx, column=5, value=r["new_files"])
         cell_changed = ws2.cell(row=row_idx, column=6, value=r["changed_files"])
-        cell_deleted = ws2.cell(row=row_idx, column=7, value=r["deleted_files"])
-        if r["new_files"]:     cell_new.fill     = PatternFill("solid", fgColor=COL_NEW)
-        if r["changed_files"]: cell_changed.fill = PatternFill("solid", fgColor=COL_CHANGED)
-        if r["deleted_files"]: cell_deleted.fill = PatternFill("solid", fgColor=COL_DELETED)
+        cell_deleted = ws2.cell(row=row_idx, column=7, value=r["archived_files"])
+        if r["new_files"]:      cell_new.fill     = PatternFill("solid", fgColor=COL_NEW)
+        if r["changed_files"]:  cell_changed.fill = PatternFill("solid", fgColor=COL_CHANGED)
+        if r["archived_files"]: cell_deleted.fill = PatternFill("solid", fgColor=COL_DELETED)
 
     # -----------------------------------------------------------------------
     # Sheet 3: Delta-Bericht
