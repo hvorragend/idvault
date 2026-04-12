@@ -14,17 +14,24 @@ from .db_flask import get_db, close_db, init_app_db
 def create_app(db_path: str = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
 
+    upload_folder = os.path.join(
+        os.environ.get("IDV_INSTANCE_PATH", app.instance_path),
+        "uploads", "freigaben"
+    )
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-change-in-production-!"),
         DATABASE=db_path or os.environ.get(
             "IDV_DB_PATH",
             os.path.join(app.instance_path, "idvault.db")
         ),
+        UPLOAD_FOLDER=upload_folder,
+        MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
         APP_NAME="idvault",
         APP_VERSION="0.1.0",
     )
 
     os.makedirs(app.instance_path, exist_ok=True)
+    os.makedirs(upload_folder, exist_ok=True)
 
     # Datenbank
     init_app_db(app)

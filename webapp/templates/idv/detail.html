@@ -635,12 +635,10 @@
       </ul>
       {% if can_create and idv.status != 'Archiviert' %}
       <div class="card-footer bg-white">
-        <form method="post" action="{{ url_for('idv.neue_version', idv_db_id=idv.id) }}"
-          onsubmit="return confirm('Neue Version anlegen? Die aktuelle IDV wird als Vorgänger verknüpft.')">
-          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-            <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
-          </button>
-        </form>
+        <button type="button" class="btn btn-sm btn-outline-primary w-100"
+                data-bs-toggle="modal" data-bs-target="#modal-neue-version">
+          <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
+        </button>
         {% if ist_wesentlich %}
         <div class="mt-1 text-muted text-center" style="font-size:.75rem">
           <i class="bi bi-info-circle me-1"></i>Wesentliche IDV: neue Version erfordert erneute Freigabe
@@ -648,6 +646,71 @@
         {% endif %}
       </div>
       {% endif %}
+
+      <!-- Modal: Neue Version anlegen -->
+      <div class="modal fade" id="modal-neue-version" tabindex="-1">
+        <div class="modal-dialog">
+          <form method="post" action="{{ url_for('idv.neue_version', idv_db_id=idv.id) }}">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Neue Version anlegen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label class="form-label fw-500">Art der Änderung <span class="text-danger">*</span></label>
+                  <select name="aenderungsart" class="form-select form-select-sm" required
+                          id="aenderungsart-select">
+                    <option value="">– bitte wählen –</option>
+                    <option value="wesentlich">Wesentliche Änderung</option>
+                    <option value="unwesentlich">Unwesentliche Änderung</option>
+                  </select>
+                  <div class="form-text" id="aenderungsart-hinweis"></div>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label fw-500">Begründung <span class="text-danger">*</span></label>
+                  <textarea name="aenderungsbegruendung" class="form-control form-control-sm" rows="3"
+                            required
+                            placeholder="Beschreiben Sie die wesentlichen Änderungen dieser Version …"></textarea>
+                  <div class="form-text">
+                    Begründung warum es sich um eine wesentliche bzw. unwesentliche Änderung handelt.
+                  </div>
+                </div>
+                <div class="alert alert-info py-2 mb-0 mt-2" style="font-size:.82rem">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Die aktuelle IDV wird als Vorgänger verknüpft. Eine <strong>wesentliche Änderung</strong>
+                  erfordert ein erneutes Test- und Freigabeverfahren.
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="submit" class="btn btn-sm btn-primary">
+                  <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      <script>
+      (function() {
+        var sel = document.getElementById('aenderungsart-select');
+        var hint = document.getElementById('aenderungsart-hinweis');
+        if (sel && hint) {
+          sel.addEventListener('change', function() {
+            if (this.value === 'wesentlich') {
+              hint.textContent = '⚠ Erfordert erneutes Test- und Freigabeverfahren.';
+              hint.className = 'form-text text-warning fw-500';
+            } else if (this.value === 'unwesentlich') {
+              hint.textContent = '✓ Kein Testverfahren erforderlich.';
+              hint.className = 'form-text text-success';
+            } else {
+              hint.textContent = '';
+            }
+          });
+        }
+      })();
+      </script>
     </div>
 
     <!-- Test- und Freigabeverfahren -->
@@ -657,17 +720,39 @@
         <span><i class="bi bi-shield-check me-2"></i>Test & Freigabe</span>
         {% set offene_freigabe = freigaben | selectattr('status', 'equalto', 'Ausstehend') | list %}
         {% set freigegebene = freigaben | selectattr('status', 'equalto', 'Bestanden') | list %}
+        {% set abgebrochene = freigaben | selectattr('status', 'equalto', 'Abgebrochen') | list %}
         {% if offene_freigabe %}
         <span class="badge bg-warning text-dark">{{ offene_freigabe[0].schritt }}</span>
         {% elif freigegebene | length == 4 %}
         <span class="badge bg-success">Freigegeben</span>
+        {% elif abgebrochene %}
+        <span class="badge bg-secondary">Abgebrochen</span>
         {% endif %}
       </div>
 
       {% if freigaben %}
+      {# Versionskommentar und Freigabeanforderer aus dem ersten Schritt #}
+      {% set erster_schritt = freigaben | first %}
+      {% if erster_schritt and (erster_schritt.versions_kommentar or erster_schritt.freigabeanforderer_id) %}
+      <div class="px-3 pt-2 pb-1 border-bottom" style="background:#f8f9fa;font-size:.82rem">
+        {% if erster_schritt.freigabeanforderer_id %}
+        <div><span class="text-muted">Freigabeanforderer:</span>
+          <strong>
+            {% set anf = freigaben | first %}
+            {{ anf.freigabeanforderer if anf.freigabeanforderer is defined else '–' }}
+          </strong>
+        </div>
+        {% endif %}
+        {% if erster_schritt.versions_kommentar %}
+        <div><span class="text-muted">Versionskommentar:</span>
+          <em>{{ erster_schritt.versions_kommentar }}</em>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <ul class="list-group list-group-flush">
-        {% set schritte_reihenfolge = ['Fachlicher Test', 'Technischer Test', 'Fachliche Abnahme', 'Technische Abnahme']
-        %}
+        {% set schritte_reihenfolge = ['Fachlicher Test', 'Technischer Test', 'Fachliche Abnahme', 'Technische Abnahme'] %}
         {% for schritt_name in schritte_reihenfolge %}
         {% set schritt_rows = freigaben | selectattr('schritt', 'equalto', schritt_name) | list %}
         {% set letzter = schritt_rows[-1] if schritt_rows else none %}
@@ -675,16 +760,18 @@
           <div class="d-flex align-items-center gap-2">
             {% if letzter %}
             {% if letzter.status == 'Bestanden' %}
-            <i class="bi bi-check-circle-fill text-success"></i>
+            <i class="bi bi-check-circle-fill text-success flex-shrink-0"></i>
             {% elif letzter.status == 'Nicht bestanden' %}
-            <i class="bi bi-x-circle-fill text-danger"></i>
+            <i class="bi bi-x-circle-fill text-danger flex-shrink-0"></i>
             {% elif letzter.status == 'Ausstehend' %}
-            <i class="bi bi-hourglass-split text-warning"></i>
+            <i class="bi bi-hourglass-split text-warning flex-shrink-0"></i>
+            {% elif letzter.status == 'Abgebrochen' %}
+            <i class="bi bi-slash-circle text-secondary flex-shrink-0"></i>
             {% else %}
-            <i class="bi bi-dash-circle text-secondary"></i>
+            <i class="bi bi-dash-circle text-secondary flex-shrink-0"></i>
             {% endif %}
             {% else %}
-            <i class="bi bi-circle text-muted"></i>
+            <i class="bi bi-circle text-muted flex-shrink-0"></i>
             {% endif %}
             <span style="font-size:.83rem;font-weight:500">{{ schritt_name }}</span>
             {% if letzter %}
@@ -692,31 +779,149 @@
                 {% if letzter.status == 'Bestanden' %}bg-success
                 {% elif letzter.status == 'Nicht bestanden' %}bg-danger
                 {% elif letzter.status == 'Ausstehend' %}bg-warning text-dark
+                {% elif letzter.status == 'Abgebrochen' %}bg-secondary
                 {% else %}bg-secondary{% endif %}
                 ms-auto" style="font-size:.65rem">{{ letzter.status }}</span>
             {% else %}
-            <span class="badge bg-light text-muted border ms-auto" style="font-size:.65rem">Ausstehend</span>
+            <span class="badge bg-light text-muted border ms-auto" style="font-size:.65rem">–</span>
             {% endif %}
           </div>
+
+          {# Wer hat diesen Schritt erledigt #}
           {% if letzter and letzter.durchgefuehrt_von %}
-          <div class="text-muted ms-4" style="font-size:.75rem">
-            {{ letzter.durchgefuehrt_von }} · {{ letzter.durchgefuehrt_am[:10] if letzter.durchgefuehrt_am else '' }}
+          <div class="ms-4 mt-1" style="font-size:.76rem;color:#495057">
+            <i class="bi bi-person-check me-1 text-muted"></i>
+            <strong>{{ letzter.durchgefuehrt_von }}</strong>
+            <span class="text-muted ms-1">· {{ letzter.durchgefuehrt_am[:10] if letzter.durchgefuehrt_am else '' }}</span>
           </div>
           {% endif %}
+
+          {# Nachweise und Befunde #}
+          {% if letzter and (letzter.befunde or letzter.nachweise_text or letzter.nachweis_datei_name) %}
+          <div class="ms-4 mt-1" style="font-size:.76rem">
+            {% if letzter.befunde %}
+            <div class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>{{ letzter.befunde }}</div>
+            {% endif %}
+            {% if letzter.nachweise_text %}
+            <div class="text-muted"><i class="bi bi-card-text me-1"></i>{{ letzter.nachweise_text }}</div>
+            {% endif %}
+            {% if letzter.nachweis_datei_name %}
+            <div>
+              <i class="bi bi-paperclip me-1"></i>
+              <a href="{{ url_for('freigaben.nachweis_download', filename=letzter.nachweis_datei_pfad) }}"
+                 class="text-decoration-none">{{ letzter.nachweis_datei_name }}</a>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {# Aktions-Buttons für offenen Schritt #}
           {% if letzter and letzter.status == 'Ausstehend' and can_create %}
-          <div class="ms-4 mt-1 d-flex gap-1">
-            <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=letzter.id) }}">
-              <button class="btn btn-xs btn-success">
-                <i class="bi bi-check2 me-1"></i>Bestanden
-              </button>
-            </form>
-            <form method="post" action="{{ url_for('freigaben.ablehnen', freigabe_id=letzter.id) }}">
-              <button class="btn btn-xs btn-outline-danger">
-                <i class="bi bi-x me-1"></i>Nicht bestanden
-              </button>
-            </form>
+          <div class="ms-4 mt-2">
+            <!-- Bestanden -->
+            <button type="button" class="btn btn-xs btn-success me-1"
+                    data-bs-toggle="modal"
+                    data-bs-target="#modal-bestanden-{{ letzter.id }}">
+              <i class="bi bi-check2 me-1"></i>Bestanden
+            </button>
+            <!-- Nicht bestanden -->
+            <button type="button" class="btn btn-xs btn-outline-danger"
+                    data-bs-toggle="modal"
+                    data-bs-target="#modal-ablehnen-{{ letzter.id }}">
+              <i class="bi bi-x me-1"></i>Nicht bestanden
+            </button>
+          </div>
+
+          <!-- Modal: Bestanden -->
+          <div class="modal fade" id="modal-bestanden-{{ letzter.id }}" tabindex="-1">
+            <div class="modal-dialog">
+              <form method="post"
+                    action="{{ url_for('freigaben.abschliessen', freigabe_id=letzter.id) }}"
+                    enctype="multipart/form-data">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-check-circle-fill text-success me-2"></i>{{ schritt_name }} – Bestanden</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    <div class="mb-3">
+                      <label class="form-label">Kommentar (optional)</label>
+                      <textarea name="kommentar" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Nachweise / Testprotokoll <small class="text-muted">(Text)</small></label>
+                      <textarea name="nachweise_text" class="form-control form-control-sm" rows="3"
+                                placeholder="Beschreibung der durchgeführten Tests, Testergebnisse …"></textarea>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Screenshot / Dokument hochladen <small class="text-muted">(optional)</small></label>
+                      <input type="file" name="nachweis_datei" class="form-control form-control-sm"
+                             accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
+                      <div class="form-text">Erlaubte Formate: PNG, JPG, PDF, Excel, Word, ZIP</div>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-sm btn-success">
+                      <i class="bi bi-check2 me-1"></i>Als Bestanden markieren
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Modal: Nicht bestanden -->
+          <div class="modal fade" id="modal-ablehnen-{{ letzter.id }}" tabindex="-1">
+            <div class="modal-dialog">
+              <form method="post"
+                    action="{{ url_for('freigaben.ablehnen', freigabe_id=letzter.id) }}"
+                    enctype="multipart/form-data">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-x-circle-fill text-danger me-2"></i>{{ schritt_name }} – Nicht bestanden</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    <div class="mb-3">
+                      <label class="form-label">Befunde <span class="text-danger">*</span></label>
+                      <textarea name="befunde" class="form-control form-control-sm" rows="3"
+                                required placeholder="Beschreiben Sie die festgestellten Mängel …"></textarea>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Kommentar (optional)</label>
+                      <textarea name="kommentar" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">Nachweise <small class="text-muted">(Text)</small></label>
+                      <textarea name="nachweise_text" class="form-control form-control-sm" rows="2"
+                                placeholder="Ergänzende Hinweise zu den Befunden …"></textarea>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Screenshot / Dokument hochladen <small class="text-muted">(optional)</small></label>
+                      <input type="file" name="nachweis_datei" class="form-control form-control-sm"
+                             accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-sm btn-danger">
+                      <i class="bi bi-x me-1"></i>Als nicht bestanden markieren
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
           </div>
           {% endif %}
+
+          {# Abbruch-Info #}
+          {% if letzter and letzter.status == 'Abgebrochen' and letzter.abbruch_kommentar %}
+          <div class="ms-4 mt-1 text-muted" style="font-size:.75rem">
+            <i class="bi bi-slash-circle me-1"></i>Abgebrochen: {{ letzter.abbruch_kommentar }}
+          </div>
+          {% endif %}
+
         </li>
         {% endfor %}
       </ul>
@@ -725,17 +930,102 @@
       <div class="card-footer bg-white">
         {% set hat_offenen_schritt = freigaben | selectattr('status', 'equalto', 'Ausstehend') | list | length > 0 %}
         {% if not hat_offenen_schritt and can_create %}
-        {% set person_id = session.get('person_id') %}
-        <form method="post" action="{{ url_for('freigaben.starten', idv_db_id=idv.id) }}">
-          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-            <i class="bi bi-play-circle me-1"></i>Freigabeverfahren starten
-          </button>
-        </form>
+
+        <!-- Freigabeverfahren starten (mit Anforderer + Versionskommentar) -->
+        <button type="button" class="btn btn-sm btn-outline-primary w-100"
+                data-bs-toggle="modal" data-bs-target="#modal-starten">
+          <i class="bi bi-play-circle me-1"></i>Freigabeverfahren starten
+        </button>
+
+        <!-- Modal: Verfahren starten -->
+        <div class="modal fade" id="modal-starten" tabindex="-1">
+          <div class="modal-dialog">
+            <form method="post" action="{{ url_for('freigaben.starten', idv_db_id=idv.id) }}">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title"><i class="bi bi-play-circle me-2"></i>Freigabeverfahren starten</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label class="form-label fw-500">Freigabeanforderer</label>
+                    <select name="freigabeanforderer_id" class="form-select form-select-sm">
+                      <option value="">– Person auswählen –</option>
+                      {% set all_persons = [] %}
+                      {% for p in [idv.fachverantwortlicher_id, idv.idv_koordinator_id] %}{% endfor %}
+                      <!-- Persons werden vom Server bereitgestellt – hier alle aktiven Personen -->
+                      {% if freigabe_persons is defined %}
+                      {% for p in freigabe_persons %}
+                      <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}
+                        {% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                      {% endfor %}
+                      {% endif %}
+                    </select>
+                    <div class="form-text">Person, die diese Freigabe anfordert / verantwortet.</div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label fw-500">Versionskommentar</label>
+                    <textarea name="versions_kommentar" class="form-control form-control-sm" rows="3"
+                              placeholder="Beschreiben Sie die wesentlichen Änderungen dieser Version …"></textarea>
+                    <div class="form-text">Wird mit der E-Mail-Benachrichtigung an die Prüfer versandt.</div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                  <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="bi bi-play-circle me-1"></i>Verfahren starten
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
         {% elif hat_offenen_schritt %}
         <div class="text-muted text-center" style="font-size:.8rem">
           <i class="bi bi-hourglass-split me-1"></i>Verfahren läuft – Schritt offen
         </div>
         {% endif %}
+
+        {# Admin: Verfahren abbrechen #}
+        {% if hat_offenen_schritt and session.get('user_role') == 'IDV-Administrator' %}
+        <button type="button" class="btn btn-sm btn-outline-danger w-100 mt-2"
+                data-bs-toggle="modal" data-bs-target="#modal-abbrechen">
+          <i class="bi bi-slash-circle me-1"></i>Verfahren abbrechen (Admin)
+        </button>
+
+        <div class="modal fade" id="modal-abbrechen" tabindex="-1">
+          <div class="modal-dialog">
+            <form method="post" action="{{ url_for('freigaben.abbrechen', idv_db_id=idv.id) }}">
+              <div class="modal-content">
+                <div class="modal-header border-danger">
+                  <h5 class="modal-title text-danger"><i class="bi bi-slash-circle me-2"></i>Freigabeverfahren abbrechen</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="alert alert-warning py-2 mb-3">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Das laufende Freigabeverfahren wird abgebrochen. Der Bearbeitungsstatus
+                    wird auf <strong>In Bearbeitung</strong> zurückgesetzt.
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label">Begründung für den Abbruch</label>
+                    <textarea name="abbruch_kommentar" class="form-control form-control-sm" rows="3"
+                              placeholder="Warum wird das Verfahren abgebrochen?"></textarea>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                  <button type="submit" class="btn btn-sm btn-danger">
+                    <i class="bi bi-slash-circle me-1"></i>Verfahren abbrechen
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+
       </div>
     </div>
     {% endif %}

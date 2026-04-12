@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file
-from . import (login_required, write_access_required, own_write_required,
+from . import (login_required, write_access_required, own_write_required, admin_required,
                get_db, can_write, can_create, can_read_all, current_person_id)
 import sys, os, io
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -139,9 +139,44 @@ def list_idv():
         ).fetchall()
     ]
 
+    from . import ROLE_ADMIN
+    is_admin = (session.get("user_role") == ROLE_ADMIN)
     return render_template("idv/list.html", idvs=idvs, can_write=can_write(),
+                           is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
                            share_roots=share_roots)
+
+
+# ── Bulk-Löschen (Admin) ───────────────────────────────────────────────────
+
+@bp.route("/bulk-loeschen", methods=["POST"])
+@admin_required
+def bulk_loeschen():
+    """Löscht mehrere IDVs auf einmal (nur IDV-Administrator)."""
+    db        = get_db()
+    person_id = session.get("person_id")
+    raw_ids   = request.form.getlist("idv_ids")
+
+    try:
+        idv_db_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        flash("Ungültige IDV-IDs.", "error")
+        return redirect(url_for("idv.list_idv"))
+
+    if not idv_db_ids:
+        flash("Keine IDVs ausgewählt.", "warning")
+        return redirect(url_for("idv.list_idv"))
+
+    deleted = 0
+    for idv_db_id in idv_db_ids:
+        row = db.execute("SELECT idv_id FROM idv_register WHERE id=?", (idv_db_id,)).fetchone()
+        if row:
+            db.execute("DELETE FROM idv_register WHERE id=?", (idv_db_id,))
+            deleted += 1
+
+    db.commit()
+    flash(f"{deleted} IDV(s) gelöscht.", "success")
+    return redirect(url_for("idv.list_idv"))
 
 
 # ── Detail ─────────────────────────────────────────────────────────────────
@@ -217,16 +252,24 @@ def detail_idv(idv_db_id):
     # Freigabe-Schritte
     try:
         freigaben = db.execute("""
-            SELECT f.*, p_b.nachname || ', ' || p_b.vorname AS beauftragt_von,
-                   p_d.nachname || ', ' || p_d.vorname AS durchgefuehrt_von
+            SELECT f.*,
+                   p_b.nachname || ', ' || p_b.vorname AS beauftragt_von,
+                   p_d.nachname || ', ' || p_d.vorname AS durchgefuehrt_von,
+                   p_a.nachname || ', ' || p_a.vorname AS freigabeanforderer
             FROM idv_freigaben f
-            LEFT JOIN persons p_b ON f.beauftragt_von_id    = p_b.id
-            LEFT JOIN persons p_d ON f.durchgefuehrt_von_id = p_d.id
+            LEFT JOIN persons p_b ON f.beauftragt_von_id      = p_b.id
+            LEFT JOIN persons p_d ON f.durchgefuehrt_von_id   = p_d.id
+            LEFT JOIN persons p_a ON f.freigabeanforderer_id  = p_a.id
             WHERE f.idv_id = ?
             ORDER BY f.erstellt_am
         """, (idv_db_id,)).fetchall()
     except Exception:
         freigaben = []
+
+    # Personen für Freigabeanforderer-Auswahl
+    freigabe_persons = db.execute(
+        "SELECT id, nachname, vorname, rolle FROM persons WHERE aktiv=1 ORDER BY nachname"
+    ).fetchall()
 
     ist_wesentlich = bool(
         idv["steuerungsrelevant"] or idv["rechnungslegungsrelevant"] or idv["dora_kritisch_wichtig"]
@@ -238,6 +281,7 @@ def detail_idv(idv_db_id):
         wesentlichkeit=wesentlichkeit,
         vorgaenger=vorgaenger, nachfolger=nachfolger,
         freigaben=freigaben, ist_wesentlich=ist_wesentlich,
+        freigabe_persons=freigabe_persons,
         bearbeitungsstatus_werte=_BEARBEITUNGSSTATUS_WERTE,
         dokumentationsstatus_werte=_DOKUMENTATIONSSTATUS_WERTE,
         can_create=can_create())
@@ -475,12 +519,18 @@ def neue_version(idv_db_id):
     except (ValueError, IndexError):
         new_version = version_str + ".1"
 
+    # Änderungsart aus Formular
+    aenderungsart      = request.form.get("aenderungsart", "").strip() or None
+    aenderungsbegruendung = request.form.get("aenderungsbegruendung", "").strip() or None
+
     # Daten aus Quell-IDV kopieren
     data = dict(src)
-    data["vorgaenger_idv_id"]    = idv_db_id
-    data["version"]              = new_version
-    data["bearbeitungsstatus"]   = "Wertung ausstehend"
-    data["dokumentationsstatus"] = "Nicht dokumentiert"
+    data["vorgaenger_idv_id"]             = idv_db_id
+    data["version"]                       = new_version
+    data["bearbeitungsstatus"]            = "Wertung ausstehend"
+    data["dokumentationsstatus"]          = "Nicht dokumentiert"
+    data["letzte_aenderungsart"]          = aenderungsart
+    data["letzte_aenderungsbegruendung"]  = aenderungsbegruendung
     # Felder entfernen, die create_idv selbst setzt
     for k in ("id", "idv_id", "status", "status_geaendert_am", "status_geaendert_von_id",
               "erstellt_am", "aktualisiert_am", "erfasst_von_id",
@@ -502,10 +552,16 @@ def neue_version(idv_db_id):
 
         # History-Eintrag auf Quell-IDV
         new_idv_row = db.execute("SELECT idv_id FROM idv_register WHERE id=?", (new_id,)).fetchone()
+        aenderung_info = ""
+        if aenderungsart:
+            aenderung_info = f" | Änderungsart: {aenderungsart}"
+            if aenderungsbegruendung:
+                aenderung_info += f" – {aenderungsbegruendung}"
         db.execute(
             "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
             (idv_db_id, "neue_version",
-             f"Nachfolger {new_idv_row['idv_id']} (v{new_version}) angelegt", person_id)
+             f"Nachfolger {new_idv_row['idv_id']} (v{new_version}) angelegt{aenderung_info}",
+             person_id)
         )
         db.commit()
 

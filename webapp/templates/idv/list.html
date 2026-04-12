@@ -79,10 +79,21 @@
 </form>
 
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
+<form id="bulk-form" method="post" action="{{ url_for('idv.bulk_loeschen') }}">
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-600"><i class="bi bi-list-ul me-2"></i>{{ idvs|length }} Einträge</span>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 align-items-center">
+      {% if is_admin %}
+      <span id="bulk-info" class="text-muted me-1" style="font-size:.82rem;display:none">
+        <span id="bulk-count">0</span> ausgewählt
+      </span>
+      <button type="button" id="btn-bulk-delete"
+              class="btn btn-sm btn-danger d-none"
+              onclick="confirmBulkDelete()">
+        <i class="bi bi-trash me-1"></i>Ausgewählte löschen
+      </button>
+      {% endif %}
       <a href="{{ url_for('idv.export_excel') }}" class="btn btn-sm btn-outline-success">
         <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
       </a>
@@ -97,6 +108,7 @@
     <table class="table table-hover mb-0 table-idv">
       <thead>
         <tr>
+          {% if is_admin %}<th style="width:36px"><input type="checkbox" id="select-all" class="form-check-input" title="Alle auswählen"></th>{% endif %}
           <th>IDV-ID</th>
           <th>Bezeichnung</th>
           <th>OE</th>
@@ -111,6 +123,9 @@
       <tbody>
         {% for r in idvs %}
         <tr>
+          {% if is_admin %}
+          <td><input type="checkbox" name="idv_ids" value="{{ r.id }}" class="form-check-input row-check"></td>
+          {% endif %}
           <td>
             <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
                class="fw-500 text-decoration-none font-monospace" style="font-size:.82rem">
@@ -168,7 +183,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="9" class="text-center text-muted py-5">
+          <td colspan="{{ 10 if is_admin else 9 }}" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine IDVs gefunden.
             {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}
@@ -179,10 +194,54 @@
     </table>
   </div>
 </div>
+</form>
 
 <style>
 .btn-xs { padding: .15rem .4rem; font-size: .75rem; }
 .fw-600 { font-weight: 600; }
 .fw-500 { font-weight: 500; }
 </style>
+
+{% if is_admin %}
+<script>
+(function() {
+  const selectAll = document.getElementById('select-all');
+  const rowChecks = () => document.querySelectorAll('.row-check');
+  const bulkBtn   = document.getElementById('btn-bulk-delete');
+  const bulkInfo  = document.getElementById('bulk-info');
+  const bulkCount = document.getElementById('bulk-count');
+
+  function updateBulkUI() {
+    const checked = [...rowChecks()].filter(c => c.checked);
+    const n = checked.length;
+    bulkCount.textContent = n;
+    if (n > 0) {
+      bulkBtn.classList.remove('d-none');
+      bulkInfo.style.display = '';
+    } else {
+      bulkBtn.classList.add('d-none');
+      bulkInfo.style.display = 'none';
+    }
+    selectAll.indeterminate = n > 0 && n < rowChecks().length;
+    selectAll.checked = n > 0 && n === rowChecks().length;
+  }
+
+  selectAll.addEventListener('change', () => {
+    rowChecks().forEach(c => c.checked = selectAll.checked);
+    updateBulkUI();
+  });
+
+  document.querySelectorAll('.row-check').forEach(c => {
+    c.addEventListener('change', updateBulkUI);
+  });
+
+  window.confirmBulkDelete = function() {
+    const n = [...rowChecks()].filter(c => c.checked).length;
+    if (confirm(`${n} IDV(s) unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
+      document.getElementById('bulk-form').submit();
+    }
+  };
+})();
+</script>
+{% endif %}
 {% endblock %}
