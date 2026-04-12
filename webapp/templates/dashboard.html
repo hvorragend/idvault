@@ -8,12 +8,12 @@
 <div class="row g-3 mb-4">
 
   {% set cards = [
-    ("gesamt_aktiv",     "IDVs gesamt",       "bi-archive",            "#1a3a5c", ""),
-    ("wesentlich",       "Wesentlich",        "bi-exclamation-triangle-fill","#842029",""),
-    ("nicht_wesentlich", "Nicht wesentlich",  "bi-check2-circle",      "#166534", ""),
-    ("genehmigt",        "Genehmigt",         "bi-check-circle",       "#166534", ""),
-    ("entwurf",          "Im Entwurf",        "bi-pencil-square",      "#854d0e", ""),
-    ("in_pruefung",      "In Prüfung",        "bi-clipboard2-check",   "#1e40af", ""),
+  ("gesamt_aktiv", "IDVs gesamt", "bi-archive", "#1a3a5c", ""),
+  ("wesentlich", "Wesentlich", "bi-exclamation-triangle-fill","#842029",""),
+  ("nicht_wesentlich", "Nicht wesentlich", "bi-check2-circle", "#166534", ""),
+  ("genehmigt", "Genehmigt", "bi-check-circle", "#166534", ""),
+  ("entwurf", "Im Entwurf", "bi-pencil-square", "#854d0e", ""),
+  ("in_pruefung", "In Prüfung", "bi-clipboard2-check", "#1e40af", ""),
   ] %}
 
   {% for key, label, icon, color, _ in cards %}
@@ -40,7 +40,8 @@
       <i class="bi bi-alarm-fill text-danger fs-5"></i>
       <div>
         <strong>{{ stats.pruefung_ueberfaellig }} Prüfung(en) überfällig</strong>
-        <div style="font-size:.8rem"><a href="{{ url_for('reviews.list_reviews') }}?filter=ueberfaellig">Jetzt anzeigen →</a></div>
+        <div style="font-size:.8rem"><a href="{{ url_for('reviews.list_reviews') }}?filter=ueberfaellig">Jetzt anzeigen
+            →</a></div>
       </div>
     </div>
   </div>
@@ -51,7 +52,8 @@
       <i class="bi bi-exclamation-triangle-fill fs-5"></i>
       <div>
         <strong>{{ stats.massnahmen_ueberfaellig }} Maßnahme(n) überfällig</strong>
-        <div style="font-size:.8rem"><a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig">Jetzt anzeigen →</a></div>
+        <div style="font-size:.8rem"><a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig">Jetzt
+            anzeigen →</a></div>
       </div>
     </div>
   </div>
@@ -62,7 +64,8 @@
       <i class="bi bi-info-circle-fill fs-5"></i>
       <div>
         <strong>{{ stats.unvollstaendig }} IDV(s) unvollständig</strong>
-        <div style="font-size:.8rem"><a href="{{ url_for('idv.list_idv') }}?filter=unvollstaendig">Jetzt anzeigen →</a></div>
+        <div style="font-size:.8rem"><a href="{{ url_for('idv.list_idv') }}?filter=unvollstaendig">Jetzt anzeigen →</a>
+        </div>
       </div>
     </div>
   </div>
@@ -83,34 +86,42 @@
         <table class="table table-hover mb-0 table-idv">
           <thead>
             <tr>
-              <th>IDV-ID</th><th>Bezeichnung</th><th>Wesentlichkeit</th><th>Status</th><th>Nächste Prüfung</th>
+              <th>IDV-ID</th>
+              <th>Bezeichnung</th>
+              <th>Wesentlichkeit</th>
+              <th>Status</th>
+              <th>Nächste Prüfung</th>
             </tr>
           </thead>
           <tbody>
             {% for r in kritische_idvs[:8] %}
             <tr>
-              <td><a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">{{ r.idv_id }}</a></td>
+              <td><a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">{{
+                  r.idv_id }}</a></td>
               <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
               <td>
                 <div style="font-size:.72rem">
-                  {% if r.steuerungsrelevant %}<span class="badge bg-primary">Steuerung</span> {% endif %}
-                  {% if r.rechnungslegungsrelevant %}<span class="badge bg-info text-dark">RL</span> {% endif %}
+                  {% if r.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span> {% endif %}
+                  {% if r.rechnungslegungsrelevant %}<span
+                    class="badge bg-info text-dark">Rechnungslegungsrelevant</span> {% endif %}
                   {% if r.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA</span>{% endif %}
                 </div>
               </td>
               <td><span class="badge status-{{ r.status }}">{{ r.status }}</span></td>
               <td>
                 {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
-                  <span class="text-danger fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
+                <span class="text-danger fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
                 {% elif r.pruefstatus == 'BALD FÄLLIG' %}
-                  <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
+                <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
                 {% else %}
-                  {{ r.naechste_pruefung|datefmt }}
+                {{ r.naechste_pruefung|datefmt }}
                 {% endif %}
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-center text-muted py-4">Keine kritischen IDVs gefunden.</td></tr>
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4">Keine kritischen IDVs gefunden.</td>
+            </tr>
             {% endfor %}
           </tbody>
         </table>
@@ -132,14 +143,15 @@
           {% for r in prueffaelligkeiten[:6] %}
           <li class="list-group-item d-flex justify-content-between align-items-center px-3 py-2">
             <div>
-              <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="text-decoration-none fw-500">{{ r.idv_id }}</a>
+              <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="text-decoration-none fw-500">{{ r.idv_id
+                }}</a>
               <div class="text-muted" style="font-size:.78rem">{{ r.bezeichnung|truncate(35) }}</div>
             </div>
             <div class="text-end">
               {% if r.faelligkeit == 'ÜBERFÄLLIG' %}
-                <span class="badge bg-danger">ÜBERFÄLLIG</span>
+              <span class="badge bg-danger">ÜBERFÄLLIG</span>
               {% else %}
-                <span class="text-muted" style="font-size:.8rem">{{ r.naechste_pruefung|datefmt }}</span>
+              <span class="text-muted" style="font-size:.8rem">{{ r.naechste_pruefung|datefmt }}</span>
               {% endif %}
             </div>
           </li>
@@ -162,9 +174,12 @@
           <li class="list-group-item px-3 py-2">
             <div class="d-flex justify-content-between">
               <span class="fw-500" style="font-size:.85rem">{{ m.titel|truncate(40) }}</span>
-              <span class="badge bg-{{ 'danger' if m.prioritaet == 'Kritisch' else 'warning text-dark' if m.prioritaet == 'Hoch' else 'secondary' }}">{{ m.prioritaet }}</span>
+              <span
+                class="badge bg-{{ 'danger' if m.prioritaet == 'Kritisch' else 'warning text-dark' if m.prioritaet == 'Hoch' else 'secondary' }}">{{
+                m.prioritaet }}</span>
             </div>
-            <div class="text-muted" style="font-size:.77rem">{{ m.idv_bezeichnung|truncate(30) }} · fällig {{ m.faellig_am|datefmt }}</div>
+            <div class="text-muted" style="font-size:.77rem">{{ m.idv_bezeichnung|truncate(30) }} · fällig {{
+              m.faellig_am|datefmt }}</div>
           </li>
           {% else %}
           <li class="list-group-item text-center text-muted py-3">Keine offenen Maßnahmen.</li>

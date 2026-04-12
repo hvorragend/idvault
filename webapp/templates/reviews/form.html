@@ -27,8 +27,7 @@
 
           <div class="col-md-4">
             <label class="form-label">Prüfungsdatum <span class="required-star">*</span></label>
-            <input type="date" name="pruefungsdatum" class="form-control" required
-                   value="{{ today }}">
+            <input type="date" name="pruefungsdatum" class="form-control" required value="{{ today }}">
           </div>
 
           <div class="col-md-6">
@@ -53,7 +52,7 @@
           <div class="col-12">
             <label class="form-label">Befunde / Feststellungen</label>
             <textarea name="befunde" class="form-control" rows="4"
-                      placeholder="Beschreibung der Befunde (falls vorhanden) …"></textarea>
+              placeholder="Beschreibung der Befunde (falls vorhanden) …"></textarea>
           </div>
 
           <div class="col-md-6">
@@ -64,8 +63,7 @@
 
           <div class="col-12">
             <label class="form-label">Kommentar</label>
-            <textarea name="kommentar" class="form-control" rows="2"
-                      placeholder="Zusätzliche Hinweise …"></textarea>
+            <textarea name="kommentar" class="form-control" rows="2" placeholder="Zusätzliche Hinweise …"></textarea>
           </div>
 
         </div>
@@ -93,7 +91,8 @@
           </li>
           <li class="list-group-item px-3 py-2">
             <div class="detail-label">Wesentlichkeit</div>
-            {% set ist_wesentlich = idv.steuerungsrelevant or idv.rechnungslegungsrelevant or idv.dora_kritisch_wichtig %}
+            {% set ist_wesentlich = idv.steuerungsrelevant or idv.rechnungslegungsrelevant or idv.dora_kritisch_wichtig
+            %}
             {% if ist_wesentlich %}
             <span class="badge bg-danger">Wesentlich</span>
             {% else %}

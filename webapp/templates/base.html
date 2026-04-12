@@ -341,7 +341,7 @@
     <div class="nav-label">Scanner</div>
     <a href="{{ url_for('scanner.eingang_funde') }}"
       class="nav-link {% if request.endpoint == 'scanner.eingang_funde' %}active{% endif %}">
-      <i class="bi bi-tray-arrow-down"></i> Eingang
+      <i class="bi bi-arrow-down-circle"></i> Eingang
       {% if scanner_eingang_count > 0 %}
       <span class="badge bg-danger ms-auto" style="font-size:.65rem">
         {{ scanner_eingang_count if scanner_eingang_count < 1000 else (scanner_eingang_count // 1000)|string + 'k' }}

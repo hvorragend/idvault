@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ 'IDV bearbeiten' if idv else 'Neue IDV erfassen' }}{% endblock %}
 {% block page_title %}
-  <i class="bi bi-{{ 'pencil' if idv else 'plus-circle' }} me-2"></i>
-  {{ 'IDV bearbeiten: ' + idv.bezeichnung if idv else 'Neue IDV erfassen' }}
+<i class="bi bi-{{ 'pencil' if idv else 'plus-circle' }} me-2"></i>
+{{ 'IDV bearbeiten: ' + idv.bezeichnung if idv else 'Neue IDV erfassen' }}
 {% endblock %}
 
 {% block content %}
@@ -11,7 +11,8 @@
   <!-- ── Scannerfund-Banner ───────────────────────────────────── -->
   {% if fund %}
   <input type="hidden" name="file_id" value="{{ prefill.file_id }}">
-  {% if prefill.extra_file_ids %}<input type="hidden" name="extra_file_ids" value="{{ prefill.extra_file_ids }}">{% endif %}
+  {% if prefill.extra_file_ids %}<input type="hidden" name="extra_file_ids" value="{{ prefill.extra_file_ids }}">{%
+  endif %}
   <div class="alert alert-info d-flex align-items-start gap-3 mb-3">
     <i class="bi bi-radar fs-4 flex-shrink-0 mt-1"></i>
     <div>
@@ -45,8 +46,7 @@
   <!-- ── Schritt-Anzeige ──────────────────────────────────────── -->
   <div class="d-flex gap-2 mb-4 flex-wrap">
     {% for label in ['Stammdaten','Wesentlichkeit','Risiko','Technik & Betrieb','Weitere Angaben','Verantwortliche'] %}
-    <div class="badge rounded-pill px-3 py-2"
-         style="background:{% if loop.index == 1 %}var(--idv-primary){% else %}#e2e8f0{% endif %};
+    <div class="badge rounded-pill px-3 py-2" style="background:{% if loop.index == 1 %}var(--idv-primary){% else %}#e2e8f0{% endif %};
                 color:{% if loop.index == 1 %}#fff{% else %}#475569{% endif %}">
       {{ loop.index }}. {{ label }}
     </div>
@@ -63,14 +63,14 @@
       <div class="col-md-8">
         <label class="form-label">Bezeichnung <span class="required-star">*</span></label>
         <input type="text" name="bezeichnung" class="form-control" required
-               value="{{ idv.bezeichnung if idv else prefill.get('bezeichnung', '') }}"
-               placeholder="z.B. GuV-Monatsabschluss Controlling">
+          value="{{ idv.bezeichnung if idv else prefill.get('bezeichnung', '') }}"
+          placeholder="z.B. GuV-Monatsabschluss Controlling">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Version</label>
-        <input type="text" name="version" class="form-control"
-               value="{{ (idv.version or '') if idv else '1.0' }}" placeholder="1.0">
+        <input type="text" name="version" class="form-control" value="{{ (idv.version or '') if idv else '1.0' }}"
+          placeholder="1.0">
       </div>
 
       <div class="col-md-4">
@@ -78,7 +78,7 @@
         {% set current_typ = idv.idv_typ if idv else prefill.get('idv_typ', 'unklassifiziert') %}
         <select name="idv_typ" class="form-select" required>
           {% for t in idv_typen %}
-          <option value="{{ t.wert }}" {{ 'selected' if current_typ == t.wert }}>{{ t.bezeichnung }}</option>
+          <option value="{{ t.wert }}" {{ 'selected' if current_typ==t.wert }}>{{ t.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
@@ -86,7 +86,7 @@
       <div class="col-md-4">
         <label class="form-label">Produktiv seit</label>
         <input type="date" name="produktiv_seit" class="form-control"
-               value="{{ idv.produktiv_seit[:10] if idv and idv.produktiv_seit else '' }}">
+          value="{{ idv.produktiv_seit[:10] if idv and idv.produktiv_seit else '' }}">
       </div>
 
       <div class="col-md-4">
@@ -94,7 +94,8 @@
         <select name="pruefintervall_monate" class="form-select">
           {% for p in pruefintervalle %}
           {% set m = p.wert|int %}
-          <option value="{{ p.wert }}" {{ 'selected' if (idv and idv.pruefintervall_monate == m) or (not idv and m == 12) }}>{{ p.bezeichnung }}</option>
+          <option value="{{ p.wert }}" {{ 'selected' if (idv and idv.pruefintervall_monate==m) or (not idv and m==12)
+            }}>{{ p.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
@@ -102,7 +103,7 @@
       <div class="col-12">
         <label class="form-label">Kurzbeschreibung</label>
         <textarea name="kurzbeschreibung" class="form-control" rows="3"
-                  placeholder="Zweck, Datenquellen, Nutzerkreis …">{{ (idv.kurzbeschreibung or '') if idv else '' }}</textarea>
+          placeholder="Zweck, Datenquellen, Nutzerkreis …">{{ (idv.kurzbeschreibung or '') if idv else '' }}</textarea>
       </div>
 
     </div>
@@ -120,7 +121,8 @@
       <select name="gp_id" class="form-select">
         <option value="">– aus Katalog wählen –</option>
         {% for gp in geschaeftsprozesse %}
-        <option value="{{ gp.id }}" {{ 'selected' if idv and idv.gp_id == gp.id }}>{{ gp.gp_nummer }} – {{ gp.bezeichnung }}{% if gp.ist_kritisch %} ⚠ kritisch{% endif %}{% if gp.ist_wesentlich %} · wesentlich{% endif %}</option>
+        <option value="{{ gp.id }}" {{ 'selected' if idv and idv.gp_id==gp.id }}>{{ gp.gp_nummer }} – {{ gp.bezeichnung
+          }}{% if gp.ist_kritisch %} ⚠ kritisch{% endif %}{% if gp.ist_wesentlich %} · wesentlich{% endif %}</option>
         {% endfor %}
       </select>
       <div class="form-text">Krit. Geschäftsprozess + GDA 4 ergibt DORA-kritisch/wichtig (Art. 28 Abs. 2).</div>
@@ -134,11 +136,9 @@
         {% set val = stufe.wert|int %}
         <div class="col-md-6 col-xl-3">
           <label class="d-block border rounded p-3 h-100
-            {{ 'border-danger bg-danger bg-opacity-10' if val == 4 else '' }}"
-            style="cursor:pointer">
-            <input type="radio" name="gda_wert" value="{{ val }}" class="form-check-input me-2"
-                   id="gda_{{ val }}"
-                   {{ 'checked' if (idv and idv.gda_wert == val) or (not idv and val == 1) }}>
+            {{ 'border-danger bg-danger bg-opacity-10' if val == 4 else '' }}" style="cursor:pointer">
+            <input type="radio" name="gda_wert" value="{{ val }}" class="form-check-input me-2" id="gda_{{ val }}"
+              {{ 'checked' if (idv and idv.gda_wert==val) or (not idv and val==1) }}>
             <strong>GDA {{ val }} – {{ stufe.bezeichnung }}</strong>
             <div class="text-muted mt-1" style="font-size:.78rem">{{ stufe.beschreibung or '' }}</div>
           </label>
@@ -148,7 +148,7 @@
       <div class="mt-2">
         <label class="form-label form-label-sm">GDA-Begründung <span class="required-star">*</span></label>
         <textarea name="gda_begruendung" class="form-control form-control-sm" rows="2"
-                  placeholder="Warum dieser GDA-Wert?">{{ (idv.gda_begruendung or '') if idv else '' }}</textarea>
+          placeholder="Warum dieser GDA-Wert?">{{ (idv.gda_begruendung or '') if idv else '' }}</textarea>
       </div>
     </div>
 
@@ -164,26 +164,27 @@
           <div class="d-flex align-items-center gap-2 mb-1">
             <span class="badge bg-secondary" style="font-size:.65rem">1</span>
             <div class="form-check form-switch mb-0">
-              <input class="form-check-input" type="checkbox" name="steuerungsrelevant" value="1"
-                     id="sw_steuerung"
-                     {{ 'checked' if idv and idv.steuerungsrelevant }}>
+              <input class="form-check-input" type="checkbox" name="steuerungsrelevant" value="1" id="sw_steuerung"
+                {{ 'checked' if idv and idv.steuerungsrelevant }}>
               <label class="form-check-label fw-500" for="sw_steuerung">Steuerungsrelevant</label>
             </div>
           </div>
-          <div class="text-muted mb-2" style="font-size:.78rem">MaRisk AT 7.2: Ergebnisse fließen in Steuerungsentscheidungen ein.</div>
+          <div class="text-muted mb-2" style="font-size:.78rem">MaRisk AT 7.2: Ergebnisse fließen in
+            Steuerungsentscheidungen ein.</div>
           <div class="row g-1 mb-2">
-            {% for fname, flabel in [('relevant_guv','GuV'),('relevant_meldewesen','Meldewesen'),('relevant_risikomanagement','Risikomgmt.')] %}
+            {% for fname, flabel in
+            [('relevant_guv','GuV'),('relevant_meldewesen','Meldewesen'),('relevant_risikomanagement','Risikomgmt.')] %}
             <div class="col-12">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="{{ fname }}" value="1"
-                       {{ 'checked' if idv and idv[fname] }}>
+                <input class="form-check-input" type="checkbox" name="{{ fname }}" value="1" {{ 'checked' if idv and
+                  idv[fname] }}>
                 <label class="form-check-label" style="font-size:.82rem">{{ flabel }}</label>
               </div>
             </div>
             {% endfor %}
           </div>
           <textarea name="steuerungsrelevanz_begr" class="form-control form-control-sm" rows="2"
-                    placeholder="Begründung (Pflicht wenn aktiv)">{{ (idv.steuerungsrelevanz_begr or '') if idv else '' }}</textarea>
+            placeholder="Begründung (Pflicht wenn aktiv)">{{ (idv.steuerungsrelevanz_begr or '') if idv else '' }}</textarea>
         </div>
       </div>
 
@@ -193,14 +194,15 @@
           <div class="d-flex align-items-center gap-2 mb-1">
             <span class="badge bg-secondary" style="font-size:.65rem">2</span>
             <div class="form-check form-switch mb-0">
-              <input class="form-check-input" type="checkbox" name="rechnungslegungsrelevant" value="1"
-                     id="sw_rl" {{ 'checked' if idv and idv.rechnungslegungsrelevant }}>
-              <label class="form-check-label fw-500" for="sw_rl">RL-relevant</label>
+              <input class="form-check-input" type="checkbox" name="rechnungslegungsrelevant" value="1" id="sw_rl"
+                {{ 'checked' if idv and idv.rechnungslegungsrelevant }}>
+              <label class="form-check-label fw-500" for="sw_rl">Rechnungslegungsrelevant</label>
             </div>
           </div>
-          <div class="text-muted mb-2" style="font-size:.78rem">Relevant für HGB-Abschluss, Jahresabschluss oder Meldewesen.</div>
+          <div class="text-muted mb-2" style="font-size:.78rem">Relevant für HGB-Abschluss, Jahresabschluss oder
+            Meldewesen.</div>
           <textarea name="rechnungslegungsrelevanz_begr" class="form-control form-control-sm mt-2" rows="4"
-                    placeholder="Begründung (Pflicht wenn aktiv)">{{ (idv.rechnungslegungsrelevanz_begr or '') if idv else '' }}</textarea>
+            placeholder="Begründung (Pflicht wenn aktiv)">{{ (idv.rechnungslegungsrelevanz_begr or '') if idv else '' }}</textarea>
         </div>
       </div>
 
@@ -213,10 +215,11 @@
             <span class="badge bg-light text-muted border ms-auto" style="font-size:.65rem">abgeleitet</span>
           </div>
           <div class="text-muted mb-2" style="font-size:.78rem">
-            Wird automatisch gesetzt wenn: Geschäftsprozess ist DORA-kritisch <strong>und</strong> GDA = 4 (vollständige Abhängigkeit). Kriterium gem. DORA Art. 28 Abs. 2.
+            Wird automatisch gesetzt wenn: Geschäftsprozess ist DORA-kritisch <strong>und</strong> GDA = 4 (vollständige
+            Abhängigkeit). Kriterium gem. DORA Art. 28 Abs. 2.
           </div>
           <div id="dora_status_box" class="rounded p-2 mb-2"
-               style="font-size:.82rem;background:#f8f9fa;border:1px solid #dee2e6">
+            style="font-size:.82rem;background:#f8f9fa;border:1px solid #dee2e6">
             <!-- Aktuellen Status anzeigen -->
             {% if idv and idv.dora_kritisch_wichtig %}
             <span class="badge bg-danger"><i class="bi bi-shield-exclamation me-1"></i>DORA-kritisch/wichtig</span>
@@ -228,7 +231,7 @@
             </div>
           </div>
           <textarea name="dora_begruendung" class="form-control form-control-sm" rows="2"
-                    placeholder="Ergänzende Notiz (optional)">{{ (idv.dora_begruendung or '') if idv else '' }}</textarea>
+            placeholder="Ergänzende Notiz (optional)">{{ (idv.dora_begruendung or '') if idv else '' }}</textarea>
         </div>
       </div>
 
@@ -247,10 +250,8 @@
           <div class="d-flex align-items-center gap-2 mb-1">
             <span class="badge bg-secondary" style="font-size:.65rem">{{ loop.index + 3 }}</span>
             <div class="form-check form-switch mb-0">
-              <input class="form-check-input" type="checkbox"
-                     name="kriterium_{{ k.id }}" value="1"
-                     id="sw_k{{ k.id }}"
-                     {{ 'checked' if ant.get('erfuellt') }}>
+              <input class="form-check-input" type="checkbox" name="kriterium_{{ k.id }}" value="1" id="sw_k{{ k.id }}"
+                {{ 'checked' if ant.get('erfuellt') }}>
               <label class="form-check-label fw-500" for="sw_k{{ k.id }}">{{ k.bezeichnung }}</label>
             </div>
           </div>
@@ -258,7 +259,7 @@
           <div class="text-muted mb-2" style="font-size:.78rem">{{ k.beschreibung }}</div>
           {% endif %}
           <textarea name="kriterium_begr_{{ k.id }}" class="form-control form-control-sm mt-1" rows="2"
-                    placeholder="Begründung{% if k.begruendung_pflicht %} (Pflicht wenn aktiv){% endif %}">{{ ant.get('begruendung', '') or '' }}</textarea>
+            placeholder="Begründung{% if k.begruendung_pflicht %} (Pflicht wenn aktiv){% endif %}">{{ ant.get('begruendung', '') or '' }}</textarea>
         </div>
       </div>
       {% endfor %}
@@ -278,7 +279,8 @@
         <select name="risikoklasse_id" class="form-select">
           <option value="">– noch nicht bewertet –</option>
           {% for rk in risikoklassen %}
-          <option value="{{ rk.id }}" {{ 'selected' if idv and idv.risikoklasse_id == rk.id }}>{{ rk.bezeichnung }}</option>
+          <option value="{{ rk.id }}" {{ 'selected' if idv and idv.risikoklasse_id==rk.id }}>{{ rk.bezeichnung }}
+          </option>
           {% endfor %}
         </select>
       </div>
@@ -287,17 +289,18 @@
         <div class="form-text mt-0">Bewertung von 1 (niedrig) bis 4 (kritisch)</div>
       </div>
       {% for fname, flabel, letter in [
-        ('risiko_verfuegbarkeit','Verfügbarkeit','A'),
-        ('risiko_vertraulichkeit','Vertraulichkeit','C'),
-        ('risiko_integritaet','Integrität','I'),
-        ('risiko_nachvollziehbarkeit','Authentizität','N'),
+      ('risiko_verfuegbarkeit','Verfügbarkeit','A'),
+      ('risiko_vertraulichkeit','Vertraulichkeit','C'),
+      ('risiko_integritaet','Integrität','I'),
+      ('risiko_nachvollziehbarkeit','Authentizität','N'),
       ] %}
       <div class="col-md-3">
-        <label class="form-label">{{ flabel }} <span class="badge bg-secondary" style="font-size:.65rem">{{ letter }}</span></label>
+        <label class="form-label">{{ flabel }} <span class="badge bg-secondary" style="font-size:.65rem">{{ letter
+            }}</span></label>
         <select name="{{ fname }}" class="form-select">
           <option value="">–</option>
           {% for i in range(1,5) %}
-          <option value="{{ i }}" {{ 'selected' if idv and idv[fname] == i }}>{{ i }}</option>
+          <option value="{{ i }}" {{ 'selected' if idv and idv[fname]==i }}>{{ i }}</option>
           {% endfor %}
         </select>
       </div>
@@ -316,21 +319,22 @@
         <select name="plattform_id" class="form-select">
           <option value="">–</option>
           {% for p in plattformen %}
-          <option value="{{ p.id }}" {{ 'selected' if idv and idv.plattform_id == p.id }}>{{ p.bezeichnung }}</option>
+          <option value="{{ p.id }}" {{ 'selected' if idv and idv.plattform_id==p.id }}>{{ p.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="col-md-4">
         <label class="form-label">Programmiersprache/Werkzeug</label>
         <input type="text" name="programmiersprache" class="form-control"
-               value="{{ (idv.programmiersprache or '') if idv else '' }}" placeholder="VBA, Python, DAX …">
+          value="{{ (idv.programmiersprache or '') if idv else '' }}" placeholder="VBA, Python, DAX …">
       </div>
       <div class="col-md-4">
         <label class="form-label">Nutzungsfrequenz</label>
         <select name="nutzungsfrequenz" class="form-select">
           <option value="">–</option>
           {% for nf in nutzungsfrequenzen %}
-          <option value="{{ nf.wert }}" {{ 'selected' if idv and idv.nutzungsfrequenz == nf.wert }}>{{ nf.bezeichnung }}</option>
+          <option value="{{ nf.wert }}" {{ 'selected' if idv and idv.nutzungsfrequenz==nf.wert }}>{{ nf.bezeichnung }}
+          </option>
           {% endfor %}
         </select>
       </div>
@@ -340,18 +344,18 @@
       <div class="col-12">
         <div class="row g-2">
           {% for fname, flabel in [
-            ('datenbankanbindung','Externe DB-Anbindung'),
-            ('netzwerkzugriff','Netzwerkzugriff / API'),
-            ('enthaelt_personendaten','Enthält Personendaten'),
-            ('dokumentation_vorhanden','Dokumentation vorhanden'),
-            ('testkonzept_vorhanden','Testkonzept vorhanden'),
-            ('zugriffsschutz','Zugriffsschutz aktiv'),
-            ('vier_augen_prinzip','4-Augen-Prinzip'),
+          ('datenbankanbindung','Externe DB-Anbindung'),
+          ('netzwerkzugriff','Netzwerkzugriff / API'),
+          ('enthaelt_personendaten','Enthält Personendaten'),
+          ('dokumentation_vorhanden','Dokumentation vorhanden'),
+          ('testkonzept_vorhanden','Testkonzept vorhanden'),
+          ('zugriffsschutz','Zugriffsschutz aktiv'),
+          ('vier_augen_prinzip','4-Augen-Prinzip'),
           ] %}
           <div class="col-md-3">
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="{{ fname }}" value="1"
-                     id="cb_{{ fname }}" {{ 'checked' if idv and idv[fname] }}>
+              <input class="form-check-input" type="checkbox" name="{{ fname }}" value="1" id="cb_{{ fname }}"
+                {{ 'checked' if idv and idv[fname] }}>
               <label class="form-check-label" for="cb_{{ fname }}">{{ flabel }}</label>
             </div>
           </div>
@@ -367,17 +371,19 @@
   <div class="form-section">
     <div class="form-section-title">5. Weitere Angaben</div>
     <p class="text-muted mb-3" style="font-size:.82rem">
-      Diese Angaben sind nicht Teil der Wesentlichkeitsbeurteilung, aber für die vollständige Dokumentation der IDV erforderlich.
+      Diese Angaben sind nicht Teil der Wesentlichkeitsbeurteilung, aber für die vollständige Dokumentation der IDV
+      erforderlich.
     </p>
     <div class="row g-3">
 
       <div class="col-md-12">
         <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="gobd_relevant" value="1"
-                 id="cb_gobd" {{ 'checked' if idv and idv.gobd_relevant }}>
+          <input class="form-check-input" type="checkbox" name="gobd_relevant" value="1" id="cb_gobd" {{ 'checked' if
+            idv and idv.gobd_relevant }}>
           <label class="form-check-label" for="cb_gobd">
             <strong>GoBD-relevant</strong>
-            <span class="text-muted ms-2" style="font-size:.82rem">Die Datei unterliegt den GoBD-Anforderungen (Buchführungspflicht, steuerrechtliche Aufbewahrung)</span>
+            <span class="text-muted ms-2" style="font-size:.82rem">Die Datei unterliegt den GoBD-Anforderungen
+              (Buchführungspflicht, steuerrechtliche Aufbewahrung)</span>
           </label>
         </div>
       </div>
@@ -385,31 +391,31 @@
       <div class="col-md-6">
         <label class="form-label">Datenquellen</label>
         <input type="text" name="datenquellen" class="form-control"
-               value="{{ (idv.datenquellen or '') if idv else '' }}"
-               placeholder="z.B. OSPlus-Export, Agree21, manuelle Eingabe …">
+          value="{{ (idv.datenquellen or '') if idv else '' }}"
+          placeholder="z.B. OSPlus-Export, Agree21, manuelle Eingabe …">
         <div class="form-text">Woher stammen die Eingangsdaten?</div>
       </div>
 
       <div class="col-md-6">
         <label class="form-label">Schnittstellen zu anderen Anwendungen</label>
         <input type="text" name="schnittstellen_beschr" class="form-control"
-               value="{{ (idv.schnittstellen_beschr or '') if idv else '' }}"
-               placeholder="z.B. API-Anbindung OSPlus, Excel-Import aus Agree21 …">
+          value="{{ (idv.schnittstellen_beschr or '') if idv else '' }}"
+          placeholder="z.B. API-Anbindung OSPlus, Excel-Import aus Agree21 …">
         <div class="form-text">Schnittstellen zu anderen Systemen oder IDVs</div>
       </div>
 
       <div class="col-md-6">
         <label class="form-label">Datenempfänger</label>
         <input type="text" name="datenempfaenger" class="form-control"
-               value="{{ (idv.datenempfaenger or '') if idv else '' }}"
-               placeholder="z.B. Vorstandsreporting, Bundesbank, Jahresabschluss …">
+          value="{{ (idv.datenempfaenger or '') if idv else '' }}"
+          placeholder="z.B. Vorstandsreporting, Bundesbank, Jahresabschluss …">
       </div>
 
       <div class="col-md-6">
         <label class="form-label">Erstellt für / Verwendungszweck</label>
         <input type="text" name="erstellt_fuer" class="form-control"
-               value="{{ (idv.erstellt_fuer or '') if idv else '' }}"
-               placeholder="z.B. Vorstand, Aufsichtsbehörde, Interne Revision …">
+          value="{{ (idv.erstellt_fuer or '') if idv else '' }}"
+          placeholder="z.B. Vorstand, Aufsichtsbehörde, Interne Revision …">
         <div class="form-text">Für wen oder für welchen Zweck wird die Datei erstellt?</div>
       </div>
 
@@ -427,7 +433,8 @@
         <select name="org_unit_id" class="form-select" required>
           <option value="">– bitte wählen –</option>
           {% for ou in org_units %}
-          <option value="{{ ou.id }}" {{ 'selected' if idv and idv.org_unit_id == ou.id }}>{{ ou.kuerzel }} – {{ ou.bezeichnung }}</option>
+          <option value="{{ ou.id }}" {{ 'selected' if idv and idv.org_unit_id==ou.id }}>{{ ou.kuerzel }} – {{
+            ou.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
@@ -436,7 +443,8 @@
         <select name="fachverantwortlicher_id" class="form-select" required>
           <option value="">– bitte wählen –</option>
           {% for p in persons %}
-          <option value="{{ p.id }}" {{ 'selected' if idv and idv.fachverantwortlicher_id == p.id }}>{{ p.nachname }}, {{ p.vorname }}</option>
+          <option value="{{ p.id }}" {{ 'selected' if idv and idv.fachverantwortlicher_id==p.id }}>{{ p.nachname }}, {{
+            p.vorname }}</option>
           {% endfor %}
         </select>
       </div>
@@ -445,7 +453,8 @@
         <select name="idv_entwickler_id" class="form-select">
           <option value="">–</option>
           {% for p in persons %}
-          <option value="{{ p.id }}" {{ 'selected' if idv and idv.idv_entwickler_id == p.id }}>{{ p.nachname }}, {{ p.vorname }}</option>
+          <option value="{{ p.id }}" {{ 'selected' if idv and idv.idv_entwickler_id==p.id }}>{{ p.nachname }}, {{
+            p.vorname }}</option>
           {% endfor %}
         </select>
       </div>

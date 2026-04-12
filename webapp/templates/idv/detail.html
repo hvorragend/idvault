@@ -177,7 +177,8 @@
             {% if ist_wesentlich %}
             <div class="d-flex gap-2 flex-wrap" style="font-size:.82rem">
               {% if idv.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span>{% endif %}
-              {% if idv.rechnungslegungsrelevant %}<span class="badge bg-info text-dark">RL-relevant</span>{% endif %}
+              {% if idv.rechnungslegungsrelevant %}<span
+                class="badge bg-info text-dark">Rechnungslegungsrelevant</span>{% endif %}
               {% if idv.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA-kritisch/wichtig</span>{% endif %}
               {% for k in wesentlichkeit %}{% if k.erfuellt %}<span class="badge bg-secondary">{{ k.bezeichnung
                 }}</span>{% endif %}{% endfor %}
@@ -256,7 +257,7 @@
         <!-- 2. RL-Relevanz -->
         <div class="col-sm-4">
           <div class="detail-label">
-            <span class="badge bg-secondary me-1" style="font-size:.6rem">2</span>RL-relevant
+            <span class="badge bg-secondary me-1" style="font-size:.6rem">2</span>Rechnungslegungsrelevant
           </div>
           <div class="detail-value">{{ idv.rechnungslegungsrelevant|yesno }}</div>
         </div>
