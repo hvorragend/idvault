@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ idv.idv_id }} – {{ idv.bezeichnung }}{% endblock %}
 {% block page_title %}
-  <span class="font-monospace text-muted me-2" style="font-size:.85rem">{{ idv.idv_id }}</span>
-  {{ idv.bezeichnung }}
+<span class="font-monospace text-muted me-2" style="font-size:.85rem">{{ idv.idv_id }}</span>
+{{ idv.bezeichnung }}
 {% endblock %}
 
 {% block content %}
@@ -16,10 +16,6 @@
     <span class="badge bg-secondary fs-6">Nicht wesentlich</span>
     {% endif %}
     <span class="badge status-{{ idv.status }} fs-6">{{ idv.status }}</span>
-    {% if idv.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span>{% endif %}
-    {% if idv.rechnungslegungsrelevant %}<span class="badge bg-info text-dark">RL-relevant</span>{% endif %}
-    {% if idv.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA-kritisch/wichtig</span>{% endif %}
-    {% if idv.gobd_relevant %}<span class="badge bg-warning text-dark">GoBD-relevant</span>{% endif %}
   </div>
   <div class="d-flex gap-2">
     <a href="{{ url_for('idv.edit_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary">
@@ -31,7 +27,8 @@
         <i class="bi bi-arrow-right-circle me-1"></i>Status ändern
       </button>
       <ul class="dropdown-menu dropdown-menu-end">
-        {% for s in ['Entwurf','In Prüfung','Genehmigt','Genehmigt mit Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
+        {% for s in ['Entwurf','In Prüfung','Genehmigt','Genehmigt mit Auflagen','Abgelehnt','Abgekündigt','Archiviert']
+        %}
         {% if s != idv.status %}
         <li>
           <form method="post" action="{{ url_for('idv.change_status_route', idv_db_id=idv.id) }}">
@@ -56,13 +53,13 @@
     <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Bearbeitungsstatus:</span>
     {% set bs = idv.bearbeitungsstatus or 'Wertung ausstehend' %}
     {% if bs == 'Freigegeben' %}
-      <span class="badge bg-success">{{ bs }}</span>
+    <span class="badge bg-success">{{ bs }}</span>
     {% elif bs == 'Freigabe ausstehend' %}
-      <span class="badge bg-warning text-dark">{{ bs }}</span>
+    <span class="badge bg-warning text-dark">{{ bs }}</span>
     {% elif bs == 'In Bearbeitung' %}
-      <span class="badge bg-info text-dark">{{ bs }}</span>
+    <span class="badge bg-info text-dark">{{ bs }}</span>
     {% else %}
-      <span class="badge bg-light text-dark border">{{ bs }}</span>
+    <span class="badge bg-light text-dark border">{{ bs }}</span>
     {% endif %}
     {% if can_create %}
     <div class="dropdown">
@@ -92,11 +89,11 @@
     <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Dokumentation:</span>
     {% set ds = idv.dokumentationsstatus or 'Nicht dokumentiert' %}
     {% if ds == 'Dokumentiert' %}
-      <span class="badge bg-success"><i class="bi bi-file-check me-1"></i>{{ ds }}</span>
+    <span class="badge bg-success"><i class="bi bi-file-check me-1"></i>{{ ds }}</span>
     {% elif ds == 'In Dokumentation' %}
-      <span class="badge bg-warning text-dark"><i class="bi bi-file-earmark-pen me-1"></i>{{ ds }}</span>
+    <span class="badge bg-warning text-dark"><i class="bi bi-file-earmark-pen me-1"></i>{{ ds }}</span>
     {% else %}
-      <span class="badge bg-light text-dark border"><i class="bi bi-file-x me-1"></i>{{ ds }}</span>
+    <span class="badge bg-light text-dark border"><i class="bi bi-file-x me-1"></i>{{ ds }}</span>
     {% endif %}
     {% if can_create %}
     <div class="dropdown">
@@ -130,14 +127,30 @@
     <div class="form-section">
       <div class="form-section-title">Stammdaten</div>
       <div class="row g-3">
-        <div class="col-sm-6"><div class="detail-label">IDV-ID</div><div class="detail-value font-monospace">{{ idv.idv_id }}</div></div>
-        <div class="col-sm-6"><div class="detail-label">Version</div><div class="detail-value">{{ idv.version }}</div></div>
-        <div class="col-12"><div class="detail-label">Bezeichnung</div><div class="detail-value">{{ idv.bezeichnung }}</div></div>
-        <div class="col-12"><div class="detail-label">Kurzbeschreibung</div><div>{{ idv.kurzbeschreibung or '–' }}</div></div>
-        <div class="col-sm-6"><div class="detail-label">IDV-Typ</div>
+        <div class="col-sm-6">
+          <div class="detail-label">IDV-ID</div>
+          <div class="detail-value font-monospace">{{ idv.idv_id }}</div>
+        </div>
+        <div class="col-sm-6">
+          <div class="detail-label">Version</div>
+          <div class="detail-value">{{ idv.version }}</div>
+        </div>
+        <div class="col-12">
+          <div class="detail-label">Bezeichnung</div>
+          <div class="detail-value">{{ idv.bezeichnung }}</div>
+        </div>
+        <div class="col-12">
+          <div class="detail-label">Kurzbeschreibung</div>
+          <div>{{ idv.kurzbeschreibung or '–' }}</div>
+        </div>
+        <div class="col-sm-6">
+          <div class="detail-label">IDV-Typ</div>
           <div><span class="badge bg-light text-dark border">{{ idv.idv_typ }}</span></div>
         </div>
-        <div class="col-sm-6"><div class="detail-label">Produktiv seit</div><div class="detail-value">{{ idv.produktiv_seit|datefmt }}</div></div>
+        <div class="col-sm-6">
+          <div class="detail-label">Produktiv seit</div>
+          <div class="detail-value">{{ idv.produktiv_seit|datefmt }}</div>
+        </div>
       </div>
     </div>
 
@@ -148,9 +161,10 @@
 
         <!-- Fazit der Beurteilung -->
         {% set ist_wesentlich = idv.steuerungsrelevant or idv.rechnungslegungsrelevant or idv.dora_kritisch_wichtig
-           or (wesentlichkeit | selectattr('erfuellt') | list | length > 0) %}
+        or (wesentlichkeit | selectattr('erfuellt') | list | length > 0) %}
         <div class="col-12">
-          <div class="rounded p-3 {{ 'bg-danger bg-opacity-10 border border-danger border-opacity-25' if ist_wesentlich else 'bg-light border' }}">
+          <div
+            class="rounded p-3 {{ 'bg-danger bg-opacity-10 border border-danger border-opacity-25' if ist_wesentlich else 'bg-light border' }}">
             <div class="fw-600 mb-2">
               {% if ist_wesentlich %}
               <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
@@ -165,7 +179,8 @@
               {% if idv.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span>{% endif %}
               {% if idv.rechnungslegungsrelevant %}<span class="badge bg-info text-dark">RL-relevant</span>{% endif %}
               {% if idv.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA-kritisch/wichtig</span>{% endif %}
-              {% for k in wesentlichkeit %}{% if k.erfuellt %}<span class="badge bg-secondary">{{ k.bezeichnung }}</span>{% endif %}{% endfor %}
+              {% for k in wesentlichkeit %}{% if k.erfuellt %}<span class="badge bg-secondary">{{ k.bezeichnung
+                }}</span>{% endif %}{% endfor %}
             </div>
             {% endif %}
           </div>
@@ -176,9 +191,11 @@
           <div class="detail-label">Geschäftsprozess</div>
           <div class="detail-value">
             {% if idv.geschaeftsprozess %}
-            <span class="font-monospace me-1" style="font-size:.82rem">{{ idv.gp_nummer }}</span>{{ idv.geschaeftsprozess }}
+            <span class="font-monospace me-1" style="font-size:.82rem">{{ idv.gp_nummer }}</span>{{
+            idv.geschaeftsprozess }}
             {% elif idv.gp_freitext %}
-            {{ idv.gp_freitext }} <span class="badge bg-light text-muted border ms-1" style="font-size:.6rem">Freitext</span>
+            {{ idv.gp_freitext }} <span class="badge bg-light text-muted border ms-1"
+              style="font-size:.6rem">Freitext</span>
             {% else %}
             <span class="text-muted">–</span>
             {% endif %}
@@ -195,12 +212,15 @@
             {% endif %}
           </div>
         </div>
-        <div class="col-12"><hr class="my-1"></div>
+        <div class="col-12">
+          <hr class="my-1">
+        </div>
 
         <!-- GDA -->
         <div class="col-sm-3">
           <div class="detail-label">GDA-Wert</div>
-          <div class="detail-value"><span class="badge badge-gda-{{ idv.gda_wert }} fs-6">{{ idv.gda_wert }}/4</span></div>
+          <div class="detail-value"><span class="badge badge-gda-{{ idv.gda_wert }} fs-6">{{ idv.gda_wert }}/4</span>
+          </div>
         </div>
         <div class="col-sm-9">
           <div class="detail-label">GDA-Begründung</div>
@@ -208,7 +228,9 @@
         </div>
 
         <!-- Standard-Kriterien -->
-        <div class="col-12"><hr class="my-1"><small class="text-muted">Standard-Wesentlichkeitskriterien</small></div>
+        <div class="col-12">
+          <hr class="my-1"><small class="text-muted">Standard-Wesentlichkeitskriterien</small>
+        </div>
 
         <!-- 1. Steuerungsrelevanz -->
         <div class="col-sm-4">
@@ -219,8 +241,10 @@
           {% if idv.steuerungsrelevant %}
           <div style="font-size:.78rem;color:#6c757d">
             {% if idv.relevant_guv %}<span class="badge bg-light text-dark border me-1">GuV</span>{% endif %}
-            {% if idv.relevant_meldewesen %}<span class="badge bg-light text-dark border me-1">Meldewesen</span>{% endif %}
-            {% if idv.relevant_risikomanagement %}<span class="badge bg-light text-dark border me-1">Risiko</span>{% endif %}
+            {% if idv.relevant_meldewesen %}<span class="badge bg-light text-dark border me-1">Meldewesen</span>{% endif
+            %}
+            {% if idv.relevant_risikomanagement %}<span class="badge bg-light text-dark border me-1">Risiko</span>{%
+            endif %}
           </div>
           {% endif %}
         </div>
@@ -267,14 +291,17 @@
         {% set aktive_kriterien = wesentlichkeit | selectattr('kriterium_aktiv') | list %}
         {% set inaktive_mit_antwort = wesentlichkeit | rejectattr('kriterium_aktiv') | selectattr('erfuellt') | list %}
         {% if aktive_kriterien or inaktive_mit_antwort %}
-        <div class="col-12"><hr class="my-1"><small class="text-muted">Weitere Wesentlichkeitskriterien</small></div>
+        <div class="col-12">
+          <hr class="my-1"><small class="text-muted">Weitere Wesentlichkeitskriterien</small>
+        </div>
         {% for k in wesentlichkeit %}
         {% if k.kriterium_aktiv or k.erfuellt %}
         <div class="col-sm-4">
           <div class="detail-label">
             <span class="badge bg-secondary me-1" style="font-size:.6rem">{{ loop.index + 3 }}</span>
             {{ k.bezeichnung }}
-            {% if not k.kriterium_aktiv %}<span class="badge bg-warning text-dark ms-1" style="font-size:.6rem">inaktiv</span>{% endif %}
+            {% if not k.kriterium_aktiv %}<span class="badge bg-warning text-dark ms-1"
+              style="font-size:.6rem">inaktiv</span>{% endif %}
           </div>
           <div class="detail-value">{{ k.erfuellt|yesno }}</div>
         </div>
@@ -299,22 +326,23 @@
         </div>
         <div class="col-12"><small class="text-muted">Schutzziele (ACIN)</small></div>
         {% for label, letter, val in [
-          ('Verfügbarkeit',   'A', idv.risiko_verfuegbarkeit),
-          ('Vertraulichkeit', 'C', idv.risiko_vertraulichkeit),
-          ('Integrität',      'I', idv.risiko_integritaet),
-          ('Authentizität',   'N', idv.risiko_nachvollziehbarkeit),
+        ('Verfügbarkeit', 'A', idv.risiko_verfuegbarkeit),
+        ('Vertraulichkeit', 'C', idv.risiko_vertraulichkeit),
+        ('Integrität', 'I', idv.risiko_integritaet),
+        ('Authentizität', 'N', idv.risiko_nachvollziehbarkeit),
         ] %}
         <div class="col-sm-6">
-          <div class="detail-label">{{ label }} <span class="badge bg-secondary" style="font-size:.6rem">{{ letter }}</span></div>
+          <div class="detail-label">{{ label }} <span class="badge bg-secondary" style="font-size:.6rem">{{ letter
+              }}</span></div>
           <div class="d-flex align-items-center gap-2">
             {% if val %}
-              {% for i in range(1,5) %}
-              <span style="width:14px;height:14px;border-radius:3px;display:inline-block;
+            {% for i in range(1,5) %}
+            <span style="width:14px;height:14px;border-radius:3px;display:inline-block;
                 background:{{ '#dc3545' if i <= val else '#dee2e6' }}"></span>
-              {% endfor %}
-              <span class="text-muted ms-1" style="font-size:.8rem">{{ val }}/4</span>
+            {% endfor %}
+            <span class="text-muted ms-1" style="font-size:.8rem">{{ val }}/4</span>
             {% else %}
-              <span class="text-muted">–</span>
+            <span class="text-muted">–</span>
             {% endif %}
           </div>
         </div>
@@ -326,16 +354,40 @@
     <div class="form-section">
       <div class="form-section-title">Technische Angaben</div>
       <div class="row g-3">
-        <div class="col-sm-4"><div class="detail-label">Programmiersprache</div><div class="detail-value">{{ idv.programmiersprache or '–' }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">DB-Anbindung</div><div class="detail-value">{{ idv.datenbankanbindung|yesno }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">Netzwerkzugriff</div><div class="detail-value">{{ idv.netzwerkzugriff|yesno }}</div></div>
+        <div class="col-sm-4">
+          <div class="detail-label">Programmiersprache</div>
+          <div class="detail-value">{{ idv.programmiersprache or '–' }}</div>
+        </div>
+        <div class="col-sm-4">
+          <div class="detail-label">DB-Anbindung</div>
+          <div class="detail-value">{{ idv.datenbankanbindung|yesno }}</div>
+        </div>
+        <div class="col-sm-4">
+          <div class="detail-label">Netzwerkzugriff</div>
+          <div class="detail-value">{{ idv.netzwerkzugriff|yesno }}</div>
+        </div>
         {% if idv.datenbankanbindung %}
-        <div class="col-12"><div class="detail-label">DB-Beschreibung</div><div>{{ idv.datenbankanbindung_beschr or '–' }}</div></div>
+        <div class="col-12">
+          <div class="detail-label">DB-Beschreibung</div>
+          <div>{{ idv.datenbankanbindung_beschr or '–' }}</div>
+        </div>
         {% endif %}
-        <div class="col-sm-4"><div class="detail-label">Dokumentation</div><div class="detail-value">{{ idv.dokumentation_vorhanden|yesno }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">Testkonzept</div><div class="detail-value">{{ idv.testkonzept_vorhanden|yesno }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">4-Augen-Prinzip</div><div class="detail-value">{{ idv.vier_augen_prinzip|yesno }}</div></div>
-        <div class="col-sm-4"><div class="detail-label">Nutzungsfrequenz</div><div class="detail-value">{{ idv.nutzungsfrequenz or '–' }}</div></div>
+        <div class="col-sm-4">
+          <div class="detail-label">Dokumentation</div>
+          <div class="detail-value">{{ idv.dokumentation_vorhanden|yesno }}</div>
+        </div>
+        <div class="col-sm-4">
+          <div class="detail-label">Testkonzept</div>
+          <div class="detail-value">{{ idv.testkonzept_vorhanden|yesno }}</div>
+        </div>
+        <div class="col-sm-4">
+          <div class="detail-label">4-Augen-Prinzip</div>
+          <div class="detail-value">{{ idv.vier_augen_prinzip|yesno }}</div>
+        </div>
+        <div class="col-sm-4">
+          <div class="detail-label">Nutzungsfrequenz</div>
+          <div class="detail-value">{{ idv.nutzungsfrequenz or '–' }}</div>
+        </div>
       </div>
     </div>
 
@@ -384,13 +436,35 @@
           </div>
         </div>
         <div class="row g-2 mt-1" style="font-size:.82rem">
-          <div class="col-12"><div class="detail-label">Pfad</div><div class="hash-mono">{{ file.full_path }}</div></div>
-          <div class="col-sm-4"><div class="detail-label">SHA-256</div><div class="hash-mono" title="{{ file.file_hash }}">{{ file.file_hash[:16] if file.file_hash else '–' }}…</div></div>
-          <div class="col-sm-4"><div class="detail-label">Größe</div><div>{{ file.size_bytes|mb }}</div></div>
-          <div class="col-sm-4"><div class="detail-label">Zuletzt geändert</div><div>{{ file.modified_at|datefmt }}</div></div>
-          <div class="col-sm-4"><div class="detail-label">Makros</div><div>{{ file.has_macros|yesno }}</div></div>
-          <div class="col-sm-4"><div class="detail-label">Ext. Links</div><div>{{ file.has_external_links|yesno }}</div></div>
-          <div class="col-sm-4"><div class="detail-label">Tabellenblätter</div><div>{{ file.sheet_count or '–' }}</div></div>
+          <div class="col-12">
+            <div class="detail-label">Pfad</div>
+            <div class="hash-mono">{{ file.full_path }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">SHA-256</div>
+            <div class="hash-mono" title="{{ file.file_hash }}">{{ file.file_hash[:16] if file.file_hash else '–' }}…
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Größe</div>
+            <div>{{ file.size_bytes|mb }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Zuletzt geändert</div>
+            <div>{{ file.modified_at|datefmt }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Makros</div>
+            <div>{{ file.has_macros|yesno }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Ext. Links</div>
+            <div>{{ file.has_external_links|yesno }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Tabellenblätter</div>
+            <div>{{ file.sheet_count or '–' }}</div>
+          </div>
         </div>
       </div>
       {% endif %}
@@ -402,11 +476,12 @@
           <div>
             <span class="badge bg-secondary me-1">Projektdatei</span>
             <span class="fw-500">{{ ef.file_name }}</span>
-            <span class="text-muted ms-2" style="font-size:.78rem">verknüpft {{ ef.linked_at[:10] if ef.linked_at else '' }}</span>
+            <span class="text-muted ms-2" style="font-size:.78rem">verknüpft {{ ef.linked_at[:10] if ef.linked_at else
+              '' }}</span>
           </div>
           {% if can_create %}
           <form method="post" action="{{ url_for('idv.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}"
-                onsubmit="return confirm('Verknüpfung mit {{ ef.file_name }} aufheben?')">
+            onsubmit="return confirm('Verknüpfung mit {{ ef.file_name }} aufheben?')">
             <button type="submit" class="btn btn-xs btn-outline-danger" title="Verknüpfung aufheben">
               <i class="bi bi-x-lg"></i>
             </button>
@@ -414,14 +489,22 @@
           {% endif %}
         </div>
         <div class="row g-2 mt-1" style="font-size:.82rem">
-          <div class="col-12"><div class="detail-label">Pfad</div>
+          <div class="col-12">
+            <div class="detail-label">Pfad</div>
             <div class="hash-mono text-truncate" title="{{ ef.full_path }}">{{ ef.full_path }}</div>
           </div>
-          <div class="col-sm-4"><div class="detail-label">SHA-256</div>
+          <div class="col-sm-4">
+            <div class="detail-label">SHA-256</div>
             <div class="hash-mono" title="{{ ef.file_hash }}">{{ ef.file_hash[:16] if ef.file_hash else '–' }}…</div>
           </div>
-          <div class="col-sm-4"><div class="detail-label">Größe</div><div>{{ ef.size_bytes|mb }}</div></div>
-          <div class="col-sm-4"><div class="detail-label">Zuletzt geändert</div><div>{{ ef.modified_at|datefmt }}</div></div>
+          <div class="col-sm-4">
+            <div class="detail-label">Größe</div>
+            <div>{{ ef.size_bytes|mb }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Zuletzt geändert</div>
+            <div>{{ ef.modified_at|datefmt }}</div>
+          </div>
         </div>
       </div>
       {% endfor %}
@@ -446,9 +529,9 @@
       <div class="card-header bg-white fw-600"><i class="bi bi-people me-2"></i>Verantwortlichkeiten</div>
       <ul class="list-group list-group-flush">
         {% for label, val in [
-          ('Org.-Einheit',         idv.org_einheit),
-          ('Fachverantwortlicher', idv.fachverantwortlicher),
-          ('Entwickler',           idv.entwickler),
+        ('Org.-Einheit', idv.org_einheit),
+        ('Fachverantwortlicher', idv.fachverantwortlicher),
+        ('Entwickler', idv.entwickler),
         ] %}
         <li class="list-group-item px-3 py-2">
           <div class="detail-label">{{ label }}</div>
@@ -498,7 +581,9 @@
         <li class="list-group-item px-3 py-2">
           <div class="d-flex justify-content-between">
             <span style="font-size:.83rem;font-weight:500">{{ m.titel|truncate(30) }}</span>
-            <span class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' }}">{{ m.status }}</span>
+            <span
+              class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' }}">{{
+              m.status }}</span>
           </div>
           <div class="text-muted" style="font-size:.75rem">fällig {{ m.faellig_am|datefmt }}</div>
         </li>
@@ -520,8 +605,7 @@
         {% if vorgaenger %}
         <li class="list-group-item px-3 py-2">
           <div class="detail-label text-muted">Vorgänger</div>
-          <a href="{{ url_for('idv.detail_idv', idv_db_id=vorgaenger.id) }}"
-             class="text-decoration-none fw-500">
+          <a href="{{ url_for('idv.detail_idv', idv_db_id=vorgaenger.id) }}" class="text-decoration-none fw-500">
             <span class="font-monospace me-1" style="font-size:.8rem">{{ vorgaenger.idv_id }}</span>
             v{{ vorgaenger.version }}
           </a>
@@ -536,8 +620,7 @@
         {% for nf in nachfolger %}
         <li class="list-group-item px-3 py-2">
           <div class="detail-label text-muted">Nachfolger</div>
-          <a href="{{ url_for('idv.detail_idv', idv_db_id=nf.id) }}"
-             class="text-decoration-none fw-500">
+          <a href="{{ url_for('idv.detail_idv', idv_db_id=nf.id) }}" class="text-decoration-none fw-500">
             <span class="font-monospace me-1" style="font-size:.8rem">{{ nf.idv_id }}</span>
             v{{ nf.version }}
           </a>
@@ -553,7 +636,7 @@
       {% if can_create and idv.status != 'Archiviert' %}
       <div class="card-footer bg-white">
         <form method="post" action="{{ url_for('idv.neue_version', idv_db_id=idv.id) }}"
-              onsubmit="return confirm('Neue Version anlegen? Die aktuelle IDV wird als Vorgänger verknüpft.')">
+          onsubmit="return confirm('Neue Version anlegen? Die aktuelle IDV wird als Vorgänger verknüpft.')">
           <button type="submit" class="btn btn-sm btn-outline-primary w-100">
             <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
           </button>
@@ -583,35 +666,36 @@
 
       {% if freigaben %}
       <ul class="list-group list-group-flush">
-        {% set schritte_reihenfolge = ['Fachlicher Test', 'Technischer Test', 'Fachliche Abnahme', 'Technische Abnahme'] %}
+        {% set schritte_reihenfolge = ['Fachlicher Test', 'Technischer Test', 'Fachliche Abnahme', 'Technische Abnahme']
+        %}
         {% for schritt_name in schritte_reihenfolge %}
-          {% set schritt_rows = freigaben | selectattr('schritt', 'equalto', schritt_name) | list %}
-          {% set letzter = schritt_rows[-1] if schritt_rows else none %}
+        {% set schritt_rows = freigaben | selectattr('schritt', 'equalto', schritt_name) | list %}
+        {% set letzter = schritt_rows[-1] if schritt_rows else none %}
         <li class="list-group-item px-3 py-2">
           <div class="d-flex align-items-center gap-2">
             {% if letzter %}
-              {% if letzter.status == 'Bestanden' %}
-                <i class="bi bi-check-circle-fill text-success"></i>
-              {% elif letzter.status == 'Nicht bestanden' %}
-                <i class="bi bi-x-circle-fill text-danger"></i>
-              {% elif letzter.status == 'Ausstehend' %}
-                <i class="bi bi-hourglass-split text-warning"></i>
-              {% else %}
-                <i class="bi bi-dash-circle text-secondary"></i>
-              {% endif %}
+            {% if letzter.status == 'Bestanden' %}
+            <i class="bi bi-check-circle-fill text-success"></i>
+            {% elif letzter.status == 'Nicht bestanden' %}
+            <i class="bi bi-x-circle-fill text-danger"></i>
+            {% elif letzter.status == 'Ausstehend' %}
+            <i class="bi bi-hourglass-split text-warning"></i>
             {% else %}
-              <i class="bi bi-circle text-muted"></i>
+            <i class="bi bi-dash-circle text-secondary"></i>
+            {% endif %}
+            {% else %}
+            <i class="bi bi-circle text-muted"></i>
             {% endif %}
             <span style="font-size:.83rem;font-weight:500">{{ schritt_name }}</span>
             {% if letzter %}
-              <span class="badge
+            <span class="badge
                 {% if letzter.status == 'Bestanden' %}bg-success
                 {% elif letzter.status == 'Nicht bestanden' %}bg-danger
                 {% elif letzter.status == 'Ausstehend' %}bg-warning text-dark
                 {% else %}bg-secondary{% endif %}
                 ms-auto" style="font-size:.65rem">{{ letzter.status }}</span>
             {% else %}
-              <span class="badge bg-light text-muted border ms-auto" style="font-size:.65rem">Ausstehend</span>
+            <span class="badge bg-light text-muted border ms-auto" style="font-size:.65rem">Ausstehend</span>
             {% endif %}
           </div>
           {% if letzter and letzter.durchgefuehrt_von %}
@@ -641,16 +725,16 @@
       <div class="card-footer bg-white">
         {% set hat_offenen_schritt = freigaben | selectattr('status', 'equalto', 'Ausstehend') | list | length > 0 %}
         {% if not hat_offenen_schritt and can_create %}
-          {% set person_id = session.get('person_id') %}
-          <form method="post" action="{{ url_for('freigaben.starten', idv_db_id=idv.id) }}">
-            <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-              <i class="bi bi-play-circle me-1"></i>Freigabeverfahren starten
-            </button>
-          </form>
+        {% set person_id = session.get('person_id') %}
+        <form method="post" action="{{ url_for('freigaben.starten', idv_db_id=idv.id) }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+            <i class="bi bi-play-circle me-1"></i>Freigabeverfahren starten
+          </button>
+        </form>
         {% elif hat_offenen_schritt %}
-          <div class="text-muted text-center" style="font-size:.8rem">
-            <i class="bi bi-hourglass-split me-1"></i>Verfahren läuft – Schritt offen
-          </div>
+        <div class="text-muted text-center" style="font-size:.8rem">
+          <i class="bi bi-hourglass-split me-1"></i>Verfahren läuft – Schritt offen
+        </div>
         {% endif %}
       </div>
     </div>
@@ -666,7 +750,8 @@
             <div class="timeline-dot mt-1"></div>
             <div>
               <div style="font-size:.82rem;font-weight:500">{{ h.aktion }}</div>
-              {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(50) }}</div>{% endif %}
+              {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(50) }}</div>
+              {% endif %}
               <div class="text-muted" style="font-size:.75rem">{{ h.durchgefuehrt_am|datefmt('%d.%m.%Y %H:%M') }}</div>
             </div>
           </div>
