@@ -118,7 +118,10 @@ def list_idv():
 
     sql = f"""
         SELECT r.*, v.*,
-          CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich
+          CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich,
+          EXISTS(SELECT 1 FROM idv_register x WHERE x.vorgaenger_idv_id = r.id) AS hat_nachfolger,
+          (CASE WHEN r.file_id IS NOT NULL THEN 1 ELSE 0 END
+           + (SELECT COUNT(*) FROM idv_file_links lnk WHERE lnk.idv_db_id = r.id)) AS datei_anzahl
         FROM v_idv_uebersicht v
         JOIN idv_register r ON r.idv_id = v.idv_id
         {where_sql}
@@ -192,6 +195,51 @@ def bulk_loeschen():
     return redirect(url_for("idv.list_idv"))
 
 
+# ── Bulk-Statusänderung (Admin + Koordinator) ─────────────────────────────
+
+_BULK_STATUS_ERLAUBT = [
+    "Entwurf", "In Prüfung", "Genehmigt", "Genehmigt mit Auflagen",
+    "Abgelehnt", "Abgekündigt", "Archiviert",
+]
+
+@bp.route("/bulk-status", methods=["POST"])
+@write_access_required
+def bulk_status():
+    """Setzt den Status mehrerer IDVs auf einmal (Admin + Koordinator)."""
+    db        = get_db()
+    person_id = session.get("person_id")
+    raw_ids   = request.form.getlist("idv_ids")
+    neuer_status = request.form.get("neuer_status", "").strip()
+
+    if neuer_status not in _BULK_STATUS_ERLAUBT:
+        flash("Bitte einen gültigen Zielstatus auswählen.", "error")
+        return redirect(url_for("idv.list_idv"))
+
+    try:
+        idv_db_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        flash("Ungültige IDV-IDs.", "error")
+        return redirect(url_for("idv.list_idv"))
+
+    if not idv_db_ids:
+        flash("Keine IDVs ausgewählt.", "warning")
+        return redirect(url_for("idv.list_idv"))
+
+    updated = errors = 0
+    for idv_db_id in idv_db_ids:
+        try:
+            change_status(db, idv_db_id, neuer_status, geaendert_von_id=person_id)
+            updated += 1
+        except Exception:
+            errors += 1
+
+    msg = f'{updated} IDV(s) auf "{neuer_status}" gesetzt.'
+    if errors:
+        msg += f" {errors} konnten nicht geändert werden."
+    flash(msg, "success" if not errors else "warning")
+    return redirect(url_for("idv.list_idv"))
+
+
 # ── Detail ─────────────────────────────────────────────────────────────────
 
 @bp.route("/<int:idv_db_id>")
@@ -258,7 +306,9 @@ def detail_idv(idv_db_id):
             (idv["vorgaenger_idv_id"],)
         ).fetchone()
     nachfolger = db.execute(
-        "SELECT id, idv_id, bezeichnung, version, status FROM idv_register WHERE vorgaenger_idv_id=?",
+        """SELECT id, idv_id, bezeichnung, version, status,
+                  letzte_aenderungsart, letzte_aenderungsbegruendung
+           FROM idv_register WHERE vorgaenger_idv_id=?""",
         (idv_db_id,)
     ).fetchall()
 

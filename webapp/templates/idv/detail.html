@@ -561,6 +561,13 @@
           <div class="detail-label text-muted">Aktuelle Version</div>
           <span class="fw-600">v{{ idv.version }}</span>
           <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese IDV</span>
+          {% if idv.letzte_aenderungsart %}
+            <span class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
+                  style="font-size:.6rem"
+                  {% if idv.letzte_aenderungsbegruendung %}title="{{ idv.letzte_aenderungsbegruendung }}"{% endif %}>
+              {{ idv.letzte_aenderungsart }}
+            </span>
+          {% endif %}
         </li>
         {% for nf in nachfolger %}
         <li class="list-group-item px-3 py-2">
@@ -570,6 +577,13 @@
             v{{ nf.version }}
           </a>
           <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ nf.status }}</span>
+          {% if nf.letzte_aenderungsart %}
+            <span class="badge ms-1 {% if nf.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
+                  style="font-size:.6rem"
+                  {% if nf.letzte_aenderungsbegruendung %}title="{{ nf.letzte_aenderungsbegruendung }}"{% endif %}>
+              {{ nf.letzte_aenderungsart }}
+            </span>
+          {% endif %}
         </li>
         {% endfor %}
         {% if not vorgaenger and not nachfolger %}
