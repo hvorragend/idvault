@@ -17,6 +17,52 @@ import sys
 # Projektverzeichnis zum Pfad hinzufügen
 sys.path.insert(0, os.path.dirname(__file__))
 
+# ── Sidecar-Update: Override-Verzeichnis vor gebündelten Modulen laden ───────
+import importlib.util
+
+
+class _SidecarFinder:
+    """Lädt .py-Dateien aus updates/ vor dem PyInstaller-FrozenImporter."""
+    def __init__(self, base):
+        self._base = base
+
+    def find_spec(self, fullname, path, target=None):
+        rel = fullname.replace('.', os.sep)
+        candidate = os.path.join(self._base, rel + '.py')
+        if os.path.isfile(candidate):
+            return importlib.util.spec_from_file_location(fullname, candidate)
+        pkg = os.path.join(self._base, rel, '__init__.py')
+        if os.path.isfile(pkg):
+            return importlib.util.spec_from_file_location(
+                fullname, pkg,
+                submodule_search_locations=[os.path.join(self._base, rel)]
+            )
+        return None
+
+
+def _get_updates_dir():
+    base = (os.path.dirname(sys.executable) if getattr(sys, 'frozen', False)
+            else os.path.dirname(os.path.abspath(__file__)))
+    p = os.path.join(base, 'updates')
+    return p if os.path.isdir(p) else None
+
+
+_upd = _get_updates_dir()
+if _upd:
+    sys.meta_path.insert(0, _SidecarFinder(_upd))
+    sys.path.insert(0, _upd)
+    # Aktive Version für create_app bereitstellen
+    _vf = os.path.join(_upd, 'version.json')
+    if os.path.isfile(_vf):
+        try:
+            import json as _json
+            with open(_vf, encoding='utf-8') as _f:
+                os.environ['IDV_ACTIVE_VERSION'] = _json.load(_f).get('version', '')
+        except Exception:
+            pass
+    print(f"  [update] Override aktiv: {_upd}")
+# ─────────────────────────────────────────────────────────────────────────────
+
 # --scan Modus: Die exe startet als Scanner-Subprocess (PyInstaller-Kompatibilität).
 # Im Bundle existiert keine separate idv_scanner.py mehr – stattdessen ruft
 # admin.py den gleichen Executable mit --scan auf.

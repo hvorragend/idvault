@@ -6,8 +6,11 @@ import sys
 import json
 import re
 import hashlib
+import shutil
 import subprocess
+import tempfile
 import threading
+import zipfile
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app
 from . import login_required, admin_required, write_access_required, get_db
 from datetime import datetime, timezone, timedelta
@@ -996,3 +999,135 @@ def import_geschaeftsprozesse():
     db.commit()
     flash(f"GP-Import: {created} neu, {updated} aktualisiert, {errors} Fehler.", "success")
     return redirect(url_for("admin.index") + "#geschaeftsprozesse")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Software-Update (Sidecar-Mechanismus)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _updates_dir() -> str:
+    """Sidecar-Verzeichnis neben der .exe (bzw. neben run.py im Dev-Betrieb)."""
+    if getattr(sys, 'frozen', False):
+        return os.path.join(os.path.dirname(sys.executable), 'updates')
+    return os.path.join(os.path.dirname(current_app.root_path), 'updates')
+
+
+_ALLOWED_UPDATE_EXTS = {'.py', '.html', '.sql', '.json', '.css', '.js'}
+
+
+def _validate_zip_member(name: str) -> bool:
+    """Prüft, ob ein ZIP-Eintrag sicher extrahiert werden darf."""
+    if os.path.isabs(name):
+        return False
+    parts = os.path.normpath(name).replace('\\', '/').split('/')
+    if '..' in parts or '__pycache__' in parts:
+        return False
+    if not name.endswith('/'):
+        ext = os.path.splitext(name)[1].lower()
+        if ext not in _ALLOWED_UPDATE_EXTS:
+            return False
+    return True
+
+
+@bp.route("/update")
+@admin_required
+def update_index():
+    upd_dir = _updates_dir()
+    version_info = None
+    changelog = None
+    version_file = os.path.join(upd_dir, 'version.json')
+    if os.path.isfile(version_file):
+        try:
+            with open(version_file, encoding='utf-8') as f:
+                version_info = json.load(f)
+            changelog = version_info.get('changelog', [])
+        except Exception:
+            pass
+
+    bundled_version = current_app.config.get('APP_VERSION', '0.1.0')
+    active_version = (version_info or {}).get('version', bundled_version)
+    update_active = os.path.isdir(upd_dir)
+
+    return render_template(
+        "admin/update.html",
+        bundled_version=bundled_version,
+        active_version=active_version,
+        update_active=update_active,
+        changelog=changelog,
+        upd_dir=upd_dir,
+    )
+
+
+@bp.route("/update/upload", methods=["POST"])
+@admin_required
+def update_upload():
+    f = request.files.get("update_zip")
+    if not f or not f.filename:
+        flash("Keine Datei ausgewählt.", "error")
+        return redirect(url_for("admin.update_index"))
+
+    if not f.filename.lower().endswith('.zip'):
+        flash("Nur ZIP-Dateien sind erlaubt.", "error")
+        return redirect(url_for("admin.update_index"))
+
+    upd_dir = _updates_dir()
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+            tmp_path = tmp.name
+            f.save(tmp)
+
+        with zipfile.ZipFile(tmp_path, 'r') as zf:
+            members = zf.namelist()
+            bad = [m for m in members if not _validate_zip_member(m)]
+            if bad:
+                flash(f"ZIP enthält unerlaubte Dateien: {', '.join(bad[:5])}", "error")
+                return redirect(url_for("admin.update_index"))
+
+            os.makedirs(upd_dir, exist_ok=True)
+            for member in members:
+                zf.extract(member, upd_dir)
+
+        flash(f"Update eingespielt ({len(members)} Einträge). Bitte App neu starten.", "success")
+
+    except zipfile.BadZipFile:
+        flash("Ungültige ZIP-Datei.", "error")
+    except Exception as exc:
+        flash(f"Fehler beim Einspielen: {exc}", "error")
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+    return redirect(url_for("admin.update_index"))
+
+
+@bp.route("/update/restart", methods=["POST"])
+@admin_required
+def update_restart():
+    """Startet den Prozess neu, damit Sidecar-Dateien wirksam werden."""
+    def _do_restart():
+        import time
+        time.sleep(1.5)
+        os.execv(sys.executable, sys.argv)
+
+    threading.Thread(target=_do_restart, daemon=True).start()
+    return render_template("admin/update_restarting.html")
+
+
+@bp.route("/update/rollback", methods=["POST"])
+@admin_required
+def update_rollback():
+    """Löscht das updates/-Verzeichnis – nach Neustart läuft wieder die gebündelte Version."""
+    upd_dir = _updates_dir()
+    if os.path.isdir(upd_dir):
+        try:
+            shutil.rmtree(upd_dir)
+            flash("Override-Verzeichnis entfernt. Nach Neustart läuft wieder die gebündelte Version.", "success")
+        except Exception as exc:
+            flash(f"Fehler beim Rollback: {exc}", "error")
+    else:
+        flash("Kein aktives Update vorhanden.", "info")
+    return redirect(url_for("admin.update_index"))

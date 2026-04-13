@@ -27,6 +27,16 @@ def create_app(db_path: str = None) -> Flask:
 
     app = Flask(__name__, instance_relative_config=True, template_folder=_tpl)
 
+    # Sidecar-Template-Override: templates aus updates/ haben Vorrang
+    from jinja2 import ChoiceLoader, FileSystemLoader as _FSL
+    if getattr(sys, 'frozen', False):
+        _exe_dir = os.path.dirname(sys.executable)
+    else:
+        _exe_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _ovr_tpl = os.path.join(_exe_dir, 'updates', 'templates')
+    if os.path.isdir(_ovr_tpl):
+        app.jinja_loader = ChoiceLoader([_FSL(_ovr_tpl), app.jinja_loader])
+
     _instance_path = os.environ.get("IDV_INSTANCE_PATH",
                                     _instance_default or app.instance_path)
     upload_folder = os.path.join(_instance_path, "uploads", "freigaben")
@@ -39,7 +49,7 @@ def create_app(db_path: str = None) -> Flask:
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
         APP_NAME="idvault",
-        APP_VERSION="0.1.0",
+        APP_VERSION=os.environ.get('IDV_ACTIVE_VERSION') or os.environ.get('APP_VERSION', '0.1.0'),
     )
 
     os.makedirs(_instance_path, exist_ok=True)
