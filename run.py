@@ -28,14 +28,24 @@ os.environ.setdefault('IDV_PROJECT_ROOT', _PROJECT_ROOT)
 
 # ── Fehler-Log: stderr → Datei umleiten (nur als EXE) ───────────────────────
 # Schreibt Python-Tracebacks und PyInstaller-Bootloader-Fehler nach
-# instance/idvault.log, damit Abstürze auch ohne sichtbare Konsole
-# nachvollziehbar sind.
+# instance/idvault_crash.log (getrennt vom Flask-App-Log, damit der
+# RotatingFileHandler in webapp/__init__.py die idvault.log ohne Windows-
+# Dateisperren rotieren kann).
+# Einfaches Logrotate: Datei > 2 MB wird vor dem Öffnen zu .1 umbenannt.
 if getattr(sys, 'frozen', False):
     _log_dir = os.path.join(_PROJECT_ROOT, 'instance')
     os.makedirs(_log_dir, exist_ok=True)
     try:
+        _crash_log_path = os.path.join(_log_dir, 'idvault_crash.log')
+        _crash_log_bak  = _crash_log_path + '.1'
+        _MAX_CRASH_LOG  = 2 * 1024 * 1024  # 2 MB
+        if os.path.exists(_crash_log_path) and \
+                os.path.getsize(_crash_log_path) > _MAX_CRASH_LOG:
+            if os.path.exists(_crash_log_bak):
+                os.remove(_crash_log_bak)
+            os.rename(_crash_log_path, _crash_log_bak)
         _log_fh = open(
-            os.path.join(_log_dir, 'idvault.log'),
+            _crash_log_path,
             'a', encoding='utf-8', errors='replace', buffering=1
         )
         sys.stderr = _log_fh

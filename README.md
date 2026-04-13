@@ -789,6 +789,23 @@ Archiviert
 
 ---
 
+## Log-Dateien
+
+Alle Log-Dateien liegen im Verzeichnis `instance/` neben der Datenbank.
+
+| Datei | Inhalt | Rotation |
+|---|---|---|
+| `idvault.log` | Flask-App-Meldungen (WARNING und höher) | 1 MB pro Segment, 7 Backups (`idvault.log.1` … `.7`) |
+| `idvault.log.1` … `.7` | Rotierte Segmente (automatisch verwaltet) | — |
+| `idvault_crash.log` | Python-Tracebacks / PyInstaller-Startfehler (nur EXE-Betrieb) | Umbenennung zu `.1` bei > 2 MB beim nächsten Start |
+| `idvault_crash.log.1` | Backup des vorherigen Crash-Logs | — |
+
+> Ältere Dateien (`.1` … `.7`) werden von Python automatisch beim Überschreiten
+> des Grenzwerts angelegt und verwaltet. Es ist kein Cron-Job oder Windows-Task
+> erforderlich.
+
+---
+
 ## Komponenten
 
 | Verzeichnis / Datei | Inhalt |
