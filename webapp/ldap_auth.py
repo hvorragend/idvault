@@ -44,10 +44,11 @@ def decrypt_password(encrypted: str, secret_key: str) -> str:
 # LDAP-Konfiguration aus DB lesen
 # ---------------------------------------------------------------------------
 
-def get_ldap_config(db) -> Optional[object]:
+def get_ldap_config(db) -> Optional[dict]:
     """Gibt die LDAP-Konfiguration zurück oder None wenn nicht vorhanden/deaktiviert."""
     try:
-        return db.execute("SELECT * FROM ldap_config WHERE id = 1").fetchone()
+        row = db.execute("SELECT * FROM ldap_config WHERE id = 1").fetchone()
+        return dict(row) if row else None
     except Exception:
         return None
 
