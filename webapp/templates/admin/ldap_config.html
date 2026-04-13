@@ -61,7 +61,7 @@
             <label class="form-label fw-600">Server-URL <span class="text-danger">*</span></label>
             <input type="text" name="server_url" class="form-control font-monospace"
                    value="{{ cfg.server_url if cfg else '' }}"
-                   placeholder="ldaps://idfp.rz.bankenit.de" required>
+                   placeholder="ldaps://ldap.ihre-bank.de" required>
             <div class="form-text">Protokoll <code>ldaps://</code> für verschlüsselte Verbindung (empfohlen)</div>
           </div>
 
@@ -78,7 +78,7 @@
             <label class="form-label fw-600">Base-DN <span class="text-danger">*</span></label>
             <input type="text" name="base_dn" class="form-control font-monospace"
                    value="{{ cfg.base_dn if cfg else '' }}"
-                   placeholder="OU=4024,OU=Tenants,DC=idfp,DC=rz,DC=bankenit,DC=de" required>
+                   placeholder="OU=Benutzer,DC=ihre-bank,DC=de" required>
             <div class="form-text">Suchbasis für Benutzer im Verzeichnis</div>
           </div>
 
@@ -87,7 +87,7 @@
             <label class="form-label fw-600">Technischer Benutzer (Bind-DN) <span class="text-danger">*</span></label>
             <input type="text" name="bind_dn" class="form-control font-monospace"
                    value="{{ cfg.bind_dn if cfg else '' }}"
-                   placeholder="CN=svcidvault,OU=Users,OU=4024,OU=Tenants,DC=idfp,DC=rz,DC=bankenit,DC=de" required>
+                   placeholder="CN=svc-idvault,OU=ServiceAccounts,DC=ihre-bank,DC=de" required>
             <div class="form-text">Service-Account für LDAP-Suche (nur Leserechte benötigt)</div>
           </div>
 

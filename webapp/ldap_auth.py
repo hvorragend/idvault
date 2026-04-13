@@ -2,7 +2,7 @@
 LDAP-Authentifizierung für idvault
 ====================================
 Authentifiziert Benutzer per LDAP-Bind (LDAPS, Port 636) gegen ein
-Active Directory (z. B. BankenIT / idfp.rz.bankenit.de).
+Active Directory über LDAPS.
 
 Ablauf:
   1. Verbindung mit Service-Account → User-DN per sAMAccountName suchen
