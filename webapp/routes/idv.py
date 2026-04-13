@@ -404,8 +404,7 @@ def detail_idv(idv_db_id):
         phase1_gestartet=phase1_gestartet, phase1_bestanden=phase1_bestanden,
         phase2_gestartet=phase2_gestartet, phase2_bestanden=phase2_bestanden,
         hat_offenen_schritt=hat_offenen_schritt,
-        bearbeitungsstatus_werte=_BEARBEITUNGSSTATUS_WERTE,
-        dokumentationsstatus_werte=_DOKUMENTATIONSSTATUS_WERTE,
+        teststatus_werte=_TESTSTATUS_WERTE,
         can_create=can_create())
 
 
@@ -547,35 +546,32 @@ def change_status_route(idv_db_id):
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 
-_BEARBEITUNGSSTATUS_WERTE = [
+_TESTSTATUS_WERTE = [
     "Wertung ausstehend", "In Bearbeitung", "Freigabe ausstehend", "Freigegeben"
 ]
-_DOKUMENTATIONSSTATUS_WERTE = [
-    "Nicht dokumentiert", "In Dokumentation", "Dokumentiert"
-]
 
 
-@bp.route("/<int:idv_db_id>/bearbeitungsstatus", methods=["POST"])
+@bp.route("/<int:idv_db_id>/teststatus", methods=["POST"])
 @own_write_required
-def change_bearbeitungsstatus(idv_db_id):
+def change_teststatus(idv_db_id):
     db  = get_db()
-    val = request.form.get("bearbeitungsstatus", "")
-    if val not in _BEARBEITUNGSSTATUS_WERTE:
-        flash("Ungültiger Bearbeitungsstatus.", "error")
+    val = request.form.get("teststatus", "")
+    if val not in _TESTSTATUS_WERTE:
+        flash("Ungültiger Teststatus.", "error")
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
     person_id = session.get("person_id")
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
     db.execute(
-        "UPDATE idv_register SET bearbeitungsstatus=?, aktualisiert_am=? WHERE id=?",
+        "UPDATE idv_register SET teststatus=?, aktualisiert_am=? WHERE id=?",
         (val, now, idv_db_id)
     )
     db.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "bearbeitungsstatus_geaendert", f"Bearbeitungsstatus → {val}", person_id)
+        (idv_db_id, "teststatus_geaendert", f"Teststatus → {val}", person_id)
     )
     db.commit()
-    flash(f"Bearbeitungsstatus geändert zu: {val}", "success")
+    flash(f"Teststatus geändert zu: {val}", "success")
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 
@@ -598,30 +594,6 @@ def unlink_file(idv_db_id, link_id):
     )
     db.commit()
     flash(f"Verknüpfung mit \"{row['file_name']}\" aufgehoben.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
-
-
-@bp.route("/<int:idv_db_id>/dokumentationsstatus", methods=["POST"])
-@own_write_required
-def change_dokumentationsstatus(idv_db_id):
-    db  = get_db()
-    val = request.form.get("dokumentationsstatus", "")
-    if val not in _DOKUMENTATIONSSTATUS_WERTE:
-        flash("Ungültiger Dokumentationsstatus.", "error")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
-    person_id = session.get("person_id")
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
-    db.execute(
-        "UPDATE idv_register SET dokumentationsstatus=?, aktualisiert_am=? WHERE id=?",
-        (val, now, idv_db_id)
-    )
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "dokumentationsstatus_geaendert", f"Dokumentationsstatus → {val}", person_id)
-    )
-    db.commit()
-    flash(f"Dokumentationsstatus geändert zu: {val}", "success")
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 
@@ -655,8 +627,7 @@ def neue_version(idv_db_id):
     data = dict(src)
     data["vorgaenger_idv_id"]             = idv_db_id
     data["version"]                       = new_version
-    data["bearbeitungsstatus"]            = "Wertung ausstehend"
-    data["dokumentationsstatus"]          = "Nicht dokumentiert"
+    data["teststatus"]                    = "Wertung ausstehend"
     data["letzte_aenderungsart"]          = aenderungsart
     data["letzte_aenderungsbegruendung"]  = aenderungsbegruendung
     # Felder entfernen, die create_idv selbst setzt oder die versionsexklusiv sind.

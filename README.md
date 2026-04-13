@@ -731,9 +731,9 @@ Ist kein Override aktiv, stimmen beide Werte überein.
 
 ## Workflow und Statusfelder
 
-idvault verwendet mehrere parallele Statusfelder, die unterschiedliche Aspekte
-des IDV-Lebenszyklus abbilden. Die folgende Dokumentation beschreibt den
-Gesamtablauf und was bei jedem Statuswechsel passiert.
+idvault verwendet zwei parallele Statusfelder auf dem IDV-Register sowie
+separate Status für Scanner-Dateien, Prüfungen und Maßnahmen. Die folgende
+Dokumentation beschreibt den Gesamtablauf und was bei jedem Statuswechsel passiert.
 
 ### Gesamtablauf (Übersicht)
 
@@ -806,10 +806,10 @@ Genehmigt mit Auflagen → Genehmigt
 Der Statuswechsel kann einzeln oder per Bulk-Aktion (mehrere IDVs gleichzeitig)
 erfolgen. Jeder Wechsel erzeugt einen Eintrag in `idv_history`.
 
-### Statusfeld 3: Bearbeitungsstatus (`idv_register.bearbeitungsstatus`)
+### Statusfeld 3: Teststatus (`idv_register.teststatus`)
 
-Internes Fortschrittsfeld, das den Bearbeitungsstand der IDV-Dokumentation
-und des Freigabeverfahrens abbildet.
+Bildet den Fortschritt im Test- und Freigabeverfahren ab. Wird automatisch
+vom Freigabeverfahren gesteuert und kann auch manuell gesetzt werden.
 
 ```
 Wertung ausstehend → In Bearbeitung → Freigabe ausstehend → Freigegeben
@@ -823,26 +823,9 @@ Wertung ausstehend → In Bearbeitung → Freigabe ausstehend → Freigegeben
 | **Wertung ausstehend** | Neu angelegt, noch keine inhaltliche Bearbeitung | Standardwert bei Neuanlage und bei neuer Version |
 | **In Bearbeitung** | Wird aktiv bearbeitet / nachgebessert | Manuell oder automatisch nach Ablehnung/Abbruch im Freigabeverfahren |
 | **Freigabe ausstehend** | Test-/Freigabeverfahren läuft | Automatisch beim Start von Phase 1 des Freigabeverfahrens |
-| **Freigegeben** | Alle 4 Freigabe-Schritte bestanden | Automatisch nach Abschluss von Phase 2 |
+| **Freigegeben** | Alle 4 Freigabe-Schritte bestanden | Automatisch nach Abschluss von Phase 2. Setzt gleichzeitig `dokumentation_vorhanden = 1`. |
 
 Jeder Wechsel erzeugt einen History-Eintrag.
-
-### Statusfeld 4: Dokumentationsstatus (`idv_register.dokumentationsstatus`)
-
-Zeigt den Stand der fachlichen und technischen Dokumentation.
-
-```
-Nicht dokumentiert → In Dokumentation → Dokumentiert
-```
-
-| Status | Bedeutung | Auslöser |
-|---|---|---|
-| **Nicht dokumentiert** | Keine oder unvollständige Dokumentation | Standardwert bei Neuanlage und bei neuer Version |
-| **In Dokumentation** | Dokumentation wird erstellt | Manuell durch Bearbeiter |
-| **Dokumentiert** | Dokumentation vollständig | Manuell oder automatisch nach erfolgreichem Freigabeverfahren |
-
-Bei erfolgreichem Abschluss des Freigabeverfahrens (alle 4 Schritte bestanden)
-wird der Dokumentationsstatus automatisch auf `Dokumentiert` gesetzt.
 
 ### Test- und Freigabeverfahren (`idv_freigaben`)
 
@@ -866,18 +849,18 @@ Phase 1 (parallel):          Phase 2 (parallel):
 |---|---|
 | **Ausstehend** | Schritt angelegt, wartet auf Durchführung |
 | **Bestanden** | Erfolgreich abgeschlossen |
-| **Nicht bestanden** | Abgelehnt mit Befunden → Bearbeitungsstatus wechselt zurück auf `In Bearbeitung` |
-| **Abgebrochen** | Durch Administrator abgebrochen → Bearbeitungsstatus wechselt zurück auf `In Bearbeitung` |
+| **Nicht bestanden** | Abgelehnt mit Befunden → Teststatus wechselt zurück auf `In Bearbeitung` |
+| **Abgebrochen** | Durch Administrator abgebrochen → Teststatus wechselt zurück auf `In Bearbeitung` |
 
 **Funktionstrennung:** Der als Entwickler eingetragene Mitarbeiter darf keine
 Freigabe-Schritte abschließen oder ablehnen (Ausnahme: Administratoren).
 
 **Seiteneffekte:**
-- Start Phase 1 → Bearbeitungsstatus wechselt auf `Freigabe ausstehend`, E-Mail an zugewiesene Prüfer und Koordinatoren
+- Start Phase 1 → Teststatus wechselt auf `Freigabe ausstehend`, E-Mail an zugewiesene Prüfer und Koordinatoren
 - Start Phase 2 → E-Mail an zugewiesene Prüfer und Koordinatoren
-- Alle 4 Schritte bestanden → Bearbeitungsstatus `Freigegeben`, Dokumentationsstatus `Dokumentiert`, E-Mail an Koordinatoren/Admins/Entwickler
-- Schritt nicht bestanden → Bearbeitungsstatus zurück auf `In Bearbeitung`
-- Abbruch durch Admin → alle offenen Schritte auf `Abgebrochen`, Bearbeitungsstatus zurück auf `In Bearbeitung`
+- Alle 4 Schritte bestanden → Teststatus `Freigegeben`, `dokumentation_vorhanden` wird gesetzt, E-Mail an Koordinatoren/Admins/Entwickler
+- Schritt nicht bestanden → Teststatus zurück auf `In Bearbeitung`
+- Abbruch durch Admin → alle offenen Schritte auf `Abgebrochen`, Teststatus zurück auf `In Bearbeitung`
 
 ### Genehmigungen (`genehmigungen`)
 
@@ -948,8 +931,7 @@ Bei überfälligen Maßnahmen (Fälligkeitsdatum überschritten, Status nicht
 Über *„Neue Version erstellen"* auf der IDV-Detailseite wird eine Kopie
 der IDV mit neuer Versionsnummer angelegt. Dabei:
 
-- `bearbeitungsstatus` wird auf `Wertung ausstehend` zurückgesetzt
-- `dokumentationsstatus` wird auf `Nicht dokumentiert` zurückgesetzt
+- `teststatus` wird auf `Wertung ausstehend` zurückgesetzt
 - `letzte_aenderungsart` wird auf `wesentlich` oder `unwesentlich` gesetzt
 - Die alte IDV wird als `vorgaenger_idv_id` verknüpft
 - Bei `letzte_aenderungsart = 'unwesentlich'` entfällt das Freigabeverfahren

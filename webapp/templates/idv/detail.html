@@ -46,20 +46,19 @@
   </div>
 </div>
 
-<!-- ── Bearbeitungs- und Dokumentationsstatus ─────────────────────── -->
+<!-- ── Teststatus (Freigabeverfahren) ──────────────────────────────── -->
 <div class="d-flex gap-3 align-items-center mb-4 flex-wrap p-3 bg-light rounded border">
-  <!-- Bearbeitungsstatus -->
   <div class="d-flex align-items-center gap-2">
-    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Bearbeitungsstatus:</span>
-    {% set bs = idv.bearbeitungsstatus or 'Wertung ausstehend' %}
-    {% if bs == 'Freigegeben' %}
-    <span class="badge bg-success">{{ bs }}</span>
-    {% elif bs == 'Freigabe ausstehend' %}
-    <span class="badge bg-warning text-dark">{{ bs }}</span>
-    {% elif bs == 'In Bearbeitung' %}
-    <span class="badge bg-info text-dark">{{ bs }}</span>
+    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Teststatus:</span>
+    {% set ts = idv.teststatus or 'Wertung ausstehend' %}
+    {% if ts == 'Freigegeben' %}
+    <span class="badge bg-success">{{ ts }}</span>
+    {% elif ts == 'Freigabe ausstehend' %}
+    <span class="badge bg-warning text-dark">{{ ts }}</span>
+    {% elif ts == 'In Bearbeitung' %}
+    <span class="badge bg-info text-dark">{{ ts }}</span>
     {% else %}
-    <span class="badge bg-light text-dark border">{{ bs }}</span>
+    <span class="badge bg-light text-dark border">{{ ts }}</span>
     {% endif %}
     {% if can_create %}
     <div class="dropdown">
@@ -67,45 +66,11 @@
         <i class="bi bi-pencil-fill"></i>
       </button>
       <ul class="dropdown-menu">
-        {% for s in bearbeitungsstatus_werte %}
-        {% if s != bs %}
+        {% for s in teststatus_werte %}
+        {% if s != ts %}
         <li>
-          <form method="post" action="{{ url_for('idv.change_bearbeitungsstatus', idv_db_id=idv.id) }}">
-            <input type="hidden" name="bearbeitungsstatus" value="{{ s }}">
-            <button class="dropdown-item">→ {{ s }}</button>
-          </form>
-        </li>
-        {% endif %}
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-  </div>
-
-  <span class="text-muted">|</span>
-
-  <!-- Dokumentationsstatus -->
-  <div class="d-flex align-items-center gap-2">
-    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Dokumentation:</span>
-    {% set ds = idv.dokumentationsstatus or 'Nicht dokumentiert' %}
-    {% if ds == 'Dokumentiert' %}
-    <span class="badge bg-success"><i class="bi bi-file-check me-1"></i>{{ ds }}</span>
-    {% elif ds == 'In Dokumentation' %}
-    <span class="badge bg-warning text-dark"><i class="bi bi-file-earmark-pen me-1"></i>{{ ds }}</span>
-    {% else %}
-    <span class="badge bg-light text-dark border"><i class="bi bi-file-x me-1"></i>{{ ds }}</span>
-    {% endif %}
-    {% if can_create %}
-    <div class="dropdown">
-      <button class="btn btn-xs btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-        <i class="bi bi-pencil-fill"></i>
-      </button>
-      <ul class="dropdown-menu">
-        {% for s in dokumentationsstatus_werte %}
-        {% if s != ds %}
-        <li>
-          <form method="post" action="{{ url_for('idv.change_dokumentationsstatus', idv_db_id=idv.id) }}">
-            <input type="hidden" name="dokumentationsstatus" value="{{ s }}">
+          <form method="post" action="{{ url_for('idv.change_teststatus', idv_db_id=idv.id) }}">
+            <input type="hidden" name="teststatus" value="{{ s }}">
             <button class="dropdown-item">→ {{ s }}</button>
           </form>
         </li>

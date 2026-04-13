@@ -414,8 +414,7 @@ CREATE TABLE IF NOT EXISTS idv_register (
     gobd_relevant               INTEGER NOT NULL DEFAULT 0,
     erstellt_fuer               TEXT,
     schnittstellen_beschr       TEXT,
-    bearbeitungsstatus          TEXT NOT NULL DEFAULT 'Wertung ausstehend',
-    dokumentationsstatus        TEXT NOT NULL DEFAULT 'Nicht dokumentiert',
+    teststatus                  TEXT NOT NULL DEFAULT 'Wertung ausstehend',
     vorgaenger_idv_id           INTEGER REFERENCES idv_register(id),
     -- Änderungsart bei neuer Version
     letzte_aenderungsart        TEXT,          -- 'wesentlich' | 'unwesentlich'

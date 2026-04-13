@@ -448,7 +448,7 @@ def nicht_wesentliche_idvs():
 
     nicht_wesentliche = db.execute(f"""
         SELECT r.id AS idv_db_id, r.idv_id, r.bezeichnung, r.status,
-               r.bearbeitungsstatus AS idv_bearbeitungsstatus,
+               r.teststatus AS idv_teststatus,
                f.file_name, f.full_path, f.share_root,
                f.id AS file_id,
                p.nachname || ', ' || p.vorname AS fachverantwortlicher,
