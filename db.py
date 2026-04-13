@@ -95,6 +95,18 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
             "ALTER TABLE geschaeftsprozesse ADD COLUMN ist_wesentlich INTEGER NOT NULL DEFAULT 0"
         )
 
+    # geschaeftsprozesse: ISM-Import-Felder
+    for col, typedef in [
+        ("schutzbedarf",  "TEXT"),          # z.B. "A1 C3 I3 N3"
+        ("extern_id",     "TEXT"),          # UUID aus externer ISM-Quelle (ID-Spalte)
+        ("master_id",     "TEXT"),          # UUID Master-ID
+        ("anwendungen",   "TEXT"),          # Anzahl / IDs verknüpfter Anwendungen
+        ("extern_url",    "TEXT"),          # Link ins externe ISM-Portal
+        ("verantwortung", "TEXT"),          # Verantwortliche Einheit (Freitext-Fallback)
+    ]:
+        if not has_column("geschaeftsprozesse", col):
+            conn.execute(f"ALTER TABLE geschaeftsprozesse ADD COLUMN {col} {typedef}")
+
     conn.commit()
 
 
