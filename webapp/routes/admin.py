@@ -477,6 +477,19 @@ def delete_gp(gid):
     return redirect(url_for("admin.index"))
 
 
+@bp.route("/gp/alle-loeschen", methods=["POST"])
+@admin_required
+def delete_all_gp():
+    """Löscht alle Geschäftsprozesse unwiderruflich.
+    Verknüpfungen in idv_register.gp_id werden dabei auf NULL gesetzt."""
+    db = get_db()
+    db.execute("UPDATE idv_register SET gp_id=NULL WHERE gp_id IS NOT NULL")
+    db.execute("DELETE FROM geschaeftsprozesse")
+    db.commit()
+    flash("Alle Geschäftsprozesse wurden gelöscht.", "success")
+    return redirect(url_for("admin.index") + "#geschaeftsprozesse")
+
+
 # ── Plattformen ────────────────────────────────────────────────────────────
 
 @bp.route("/plattform/neu", methods=["POST"])
@@ -880,6 +893,7 @@ def import_geschaeftsprozesse():
                             schutzbedarf_c=COALESCE(?,schutzbedarf_c),
                             schutzbedarf_i=COALESCE(?,schutzbedarf_i),
                             schutzbedarf_n=COALESCE(?,schutzbedarf_n),
+                            aktiv=1,
                             updated_at=?
                         WHERE gp_nummer=?
                     """, (bezeichnung, beschreibung,
@@ -928,7 +942,8 @@ def import_geschaeftsprozesse():
                         UPDATE geschaeftsprozesse
                         SET bezeichnung=?, bereich=COALESCE(?,bereich),
                             ist_kritisch=?, ist_wesentlich=?,
-                            beschreibung=COALESCE(?,beschreibung), updated_at=?
+                            beschreibung=COALESCE(?,beschreibung),
+                            aktiv=1, updated_at=?
                         WHERE gp_nummer=?
                     """, (bezeichnung, bereich, ist_kritisch, ist_wesentlich,
                           beschreibung, now, gp_nummer))
