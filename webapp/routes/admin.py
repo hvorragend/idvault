@@ -1129,6 +1129,13 @@ def update_upload():
                     skipped += 1
                     continue
 
+                # __init__.py überspringen: Package-Inits müssen aus dem Bundle
+                # stammen, sonst schlägt der Import von gebündelten C-Extensions
+                # (z.B. unicodedata.pyd) im frozen EXE fehl.
+                if os.path.basename(rel) == '__init__.py':
+                    skipped += 1
+                    continue
+
                 # Pfad-Remapping (webapp/templates/ → templates/)
                 rel = _zip_remap(rel)
 

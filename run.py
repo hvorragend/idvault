@@ -40,12 +40,9 @@ class _SidecarFinder:
         candidate = os.path.join(self._base, rel + '.py')
         if os.path.isfile(candidate):
             return importlib.util.spec_from_file_location(fullname, candidate)
-        pkg = os.path.join(self._base, rel, '__init__.py')
-        if os.path.isfile(pkg):
-            return importlib.util.spec_from_file_location(
-                fullname, pkg,
-                submodule_search_locations=[os.path.join(self._base, rel)]
-            )
+        # Package-__init__.py NICHT aus dem Sidecar laden: Pakete müssen aus dem
+        # Bundle stammen damit gebündelte C-Extensions (z.B. unicodedata.pyd)
+        # korrekt gefunden werden.
         return None
 
 
