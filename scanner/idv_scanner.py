@@ -434,6 +434,56 @@ def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
     }
 
 
+def safe_walk(top: str, followlinks: bool = False, logger: logging.Logger = None):
+    """os.walk-Ersatz mit robuster Fehlerbehandlung für Netzlaufwerke.
+
+    Fängt PermissionError, OSError und Windows-Control-Signale (die Python als
+    KeyboardInterrupt darstellt) beim Verzeichnis-Listing ab. Unzugängliche
+    Verzeichnisse werden übersprungen und als Warnung geloggt.
+
+    Wie os.walk unterstützt diese Funktion das in-place Filtern von dirs durch
+    den Aufrufer, um den Abstieg in bestimmte Unterverzeichnisse zu verhindern.
+    """
+    try:
+        with os.scandir(top) as it:
+            entries = list(it)
+    except PermissionError as e:
+        if logger:
+            logger.warning(f"Kein Zugriff auf Verzeichnis (übersprungen): {top} – {e.strerror}")
+        return
+    except OSError as e:
+        if logger:
+            logger.warning(f"Lesefehler Verzeichnis (übersprungen): {top} – {e.strerror}")
+        return
+    except BaseException as e:
+        # Auf Netzlaufwerken kann Windows ein Control-Signal senden,
+        # das Python als KeyboardInterrupt darstellt – analog zum bekannten
+        # Verhalten von GetFileSecurity auf geschützten Freigaben.
+        if logger:
+            logger.warning(
+                f"Verzeichnis-Listing unterbrochen (übersprungen): {top} – {type(e).__name__}"
+            )
+        return
+
+    dirs = []
+    nondirs = []
+    for entry in entries:
+        try:
+            is_dir = entry.is_dir(follow_symlinks=followlinks)
+        except OSError:
+            is_dir = False
+        if is_dir:
+            dirs.append(entry.name)
+        else:
+            nondirs.append(entry.name)
+
+    yield top, dirs, nondirs
+
+    # dirs kann vom Aufrufer in-place gefiltert worden sein (wie bei os.walk)
+    for dirname in dirs:
+        yield from safe_walk(os.path.join(top, dirname), followlinks=followlinks, logger=logger)
+
+
 def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                   logger: logging.Logger, scan_since_ts: Optional[float] = None):
     """Generator: liefert Metadaten-Dicts für alle gefundenen Dateien.
@@ -444,7 +494,7 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
     extensions = set(e.lower() for e in config["extensions"])
     excludes   = config["exclude_paths"]
 
-    for root, dirs, files in os.walk(scan_path, followlinks=False):
+    for root, dirs, files in safe_walk(scan_path, followlinks=False, logger=logger):
         # Ausschlusspfade: dirs in-place filtern (verhindert Abstieg)
         dirs[:] = [
             d for d in dirs
