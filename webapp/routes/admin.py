@@ -3,6 +3,7 @@ import csv
 import io
 import os
 import json
+import re
 import hashlib
 import subprocess
 import threading
@@ -213,6 +214,14 @@ def _hash_pw(pw: str) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _extract_hyperlink_url(cell: str) -> str:
+    """Extrahiert die URL aus einer Excel-HYPERLINK-Formel, z.B.
+    =HYPERLINK("https://...") → https://...
+    Falls kein HYPERLINK-Muster erkannt wird, wird der Rohwert zurückgegeben."""
+    m = re.search(r'HYPERLINK\("([^"]+)"', cell)
+    return m.group(1) if m else cell.strip()
 
 
 # ── Übersicht ──────────────────────────────────────────────────────────────
@@ -801,9 +810,16 @@ def import_gp_template():
 @admin_required
 def import_geschaeftsprozesse():
     """
-    CSV-Import für Geschäftsprozesse.
-    Pflicht-Spalten: gp_nummer, bezeichnung
-    Optional: bereich, ist_kritisch (0/1), ist_wesentlich (0/1), beschreibung
+    CSV-Import für Geschäftsprozesse – zwei Formate werden unterstützt:
+
+    Standard-Format (Spalten): gp_nummer; bezeichnung; bereich;
+        ist_kritisch (0/1); ist_wesentlich (0/1); beschreibung
+    Upsert-Schlüssel: gp_nummer
+
+    ISM-Format (Spalten): Kategorie; Bezeichnung; Verantwortung;
+        Kritische oder wichtige Funktion; Wesentlichkeit; Schutzbedarf;
+        Anwendungen; Master-ID; ID; URL
+    Upsert-Schlüssel: ID (UUID aus dem ISM-Portal)
     """
     f = request.files.get("csv_file")
     if not f or not f.filename:
@@ -818,45 +834,133 @@ def import_geschaeftsprozesse():
     created = updated = errors = 0
     now     = _now()
 
-    for row in reader:
-        try:
-            r = {k.strip().lower(): (v or "").strip() for k, v in row.items()}
-            gp_nummer   = r.get("gp_nummer", "").strip()
-            bezeichnung = r.get("bezeichnung", "").strip()
-            if not gp_nummer or not bezeichnung:
+    # Format-Erkennung anhand der Header-Zeile
+    raw_fields = [k.strip() for k in (reader.fieldnames or []) if k and k.strip()]
+    fields_lower = [f.lower() for f in raw_fields]
+    is_ism = (
+        "bezeichnung" in fields_lower
+        and "id" in fields_lower
+        and "gp_nummer" not in fields_lower
+    )
+
+    if is_ism:
+        # ── ISM-Format ───────────────────────────────────────────────────────
+        for row in reader:
+            try:
+                r = {k.strip(): (v or "").strip() for k, v in row.items() if k and k.strip()}
+
+                bezeichnung = r.get("Bezeichnung", "").strip()
+                extern_id   = r.get("ID", "").strip()
+                if not bezeichnung or not extern_id:
+                    errors += 1
+                    continue
+
+                kategorie     = r.get("Kategorie") or None
+                verantwortung = r.get("Verantwortung") or None
+                kritisch_raw  = r.get("Kritische oder wichtige Funktion", "nein").strip().lower()
+                ist_kritisch  = 1 if kritisch_raw in ("ja", "1", "true", "x", "kritisch", "wichtig") else 0
+                wesentl_raw   = r.get("Wesentlichkeit", "").strip().lower()
+                ist_wesentlich = 0 if "(nicht wesentlich)" in wesentl_raw or not wesentl_raw else 1
+                schutzbedarf  = r.get("Schutzbedarf") or None
+                anwendungen   = r.get("Anwendungen") or None
+                master_id     = r.get("Master-ID") or None
+                url_raw       = r.get("URL", "")
+                extern_url    = _extract_hyperlink_url(url_raw) if url_raw else None
+
+                # Verantwortung → org_unit_id auflösen (optional)
+                org_unit_id = None
+                if verantwortung:
+                    ou = db.execute(
+                        "SELECT id FROM org_units WHERE kuerzel=? OR bezeichnung=?",
+                        (verantwortung, verantwortung)
+                    ).fetchone()
+                    if ou:
+                        org_unit_id = ou["id"]
+
+                existing = db.execute(
+                    "SELECT id FROM geschaeftsprozesse WHERE extern_id=?",
+                    (extern_id,)
+                ).fetchone()
+
+                if existing:
+                    db.execute("""
+                        UPDATE geschaeftsprozesse
+                        SET bezeichnung=?,
+                            bereich=COALESCE(?,bereich),
+                            org_unit_id=COALESCE(?,org_unit_id),
+                            ist_kritisch=?,
+                            ist_wesentlich=?,
+                            schutzbedarf=COALESCE(?,schutzbedarf),
+                            anwendungen=COALESCE(?,anwendungen),
+                            master_id=COALESCE(?,master_id),
+                            extern_url=COALESCE(?,extern_url),
+                            verantwortung=COALESCE(?,verantwortung),
+                            updated_at=?
+                        WHERE extern_id=?
+                    """, (bezeichnung, kategorie, org_unit_id,
+                          ist_kritisch, ist_wesentlich,
+                          schutzbedarf, anwendungen, master_id, extern_url,
+                          verantwortung, now, extern_id))
+                    updated += 1
+                else:
+                    db.execute("""
+                        INSERT INTO geschaeftsprozesse
+                            (gp_nummer, bezeichnung, bereich, org_unit_id,
+                             ist_kritisch, ist_wesentlich,
+                             schutzbedarf, anwendungen, master_id,
+                             extern_id, extern_url, verantwortung,
+                             created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """, (extern_id, bezeichnung, kategorie, org_unit_id,
+                          ist_kritisch, ist_wesentlich,
+                          schutzbedarf, anwendungen, master_id,
+                          extern_id, extern_url, verantwortung,
+                          now, now))
+                    created += 1
+            except Exception:
                 errors += 1
-                continue
 
-            bereich       = r.get("bereich") or None
-            ist_kritisch  = 1 if r.get("ist_kritisch", "0") in ("1", "ja", "true", "x") else 0
-            ist_wesentlich = 1 if r.get("ist_wesentlich", "0") in ("1", "ja", "true", "x") else 0
-            beschreibung  = r.get("beschreibung") or None
+    else:
+        # ── Standard-Format ──────────────────────────────────────────────────
+        for row in reader:
+            try:
+                r = {k.strip().lower(): (v or "").strip() for k, v in row.items()}
+                gp_nummer   = r.get("gp_nummer", "").strip()
+                bezeichnung = r.get("bezeichnung", "").strip()
+                if not gp_nummer or not bezeichnung:
+                    errors += 1
+                    continue
 
-            existing = db.execute(
-                "SELECT id FROM geschaeftsprozesse WHERE gp_nummer=?", (gp_nummer,)
-            ).fetchone()
+                bereich        = r.get("bereich") or None
+                ist_kritisch   = 1 if r.get("ist_kritisch", "0") in ("1", "ja", "true", "x") else 0
+                ist_wesentlich = 1 if r.get("ist_wesentlich", "0") in ("1", "ja", "true", "x") else 0
+                beschreibung   = r.get("beschreibung") or None
 
-            if existing:
-                db.execute("""
-                    UPDATE geschaeftsprozesse
-                    SET bezeichnung=?, bereich=COALESCE(?,bereich),
-                        ist_kritisch=?, ist_wesentlich=?,
-                        beschreibung=COALESCE(?,beschreibung), updated_at=?
-                    WHERE gp_nummer=?
-                """, (bezeichnung, bereich, ist_kritisch, ist_wesentlich,
-                      beschreibung, now, gp_nummer))
-                updated += 1
-            else:
-                db.execute("""
-                    INSERT INTO geschaeftsprozesse
-                        (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
-                         beschreibung, created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?)
-                """, (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
-                      beschreibung, now, now))
-                created += 1
-        except Exception:
-            errors += 1
+                existing = db.execute(
+                    "SELECT id FROM geschaeftsprozesse WHERE gp_nummer=?", (gp_nummer,)
+                ).fetchone()
+
+                if existing:
+                    db.execute("""
+                        UPDATE geschaeftsprozesse
+                        SET bezeichnung=?, bereich=COALESCE(?,bereich),
+                            ist_kritisch=?, ist_wesentlich=?,
+                            beschreibung=COALESCE(?,beschreibung), updated_at=?
+                        WHERE gp_nummer=?
+                    """, (bezeichnung, bereich, ist_kritisch, ist_wesentlich,
+                          beschreibung, now, gp_nummer))
+                    updated += 1
+                else:
+                    db.execute("""
+                        INSERT INTO geschaeftsprozesse
+                            (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
+                             beschreibung, created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?)
+                    """, (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
+                          beschreibung, now, now))
+                    created += 1
+            except Exception:
+                errors += 1
 
     db.commit()
     flash(f"GP-Import: {created} neu, {updated} aktualisiert, {errors} Fehler.", "success")

@@ -267,9 +267,14 @@
             <div class="col-md-8">
               <input type="file" name="csv_file" accept=".csv,.txt" class="form-control form-control-sm" required>
               <div class="form-text">
-                Spalten: <code>gp_nummer; bezeichnung; bereich; ist_kritisch (0/1); ist_wesentlich (0/1); beschreibung</code>
-                &nbsp;·&nbsp; Trennzeichen: <code>;</code> oder <code>,</code>
-                &nbsp;·&nbsp; Bestehende GP-Nummern werden aktualisiert.
+                <strong>Standard-Format:</strong>
+                <code>gp_nummer; bezeichnung; bereich; ist_kritisch (0/1); ist_wesentlich (0/1); beschreibung</code>
+                &nbsp;·&nbsp; Upsert per <code>gp_nummer</code>.<br>
+                <strong>ISM-Export-Format:</strong>
+                <code>Kategorie; Bezeichnung; Verantwortung; Kritische oder wichtige Funktion; Wesentlichkeit; Schutzbedarf; Anwendungen; Master-ID; ID; URL</code>
+                &nbsp;·&nbsp; Upsert per <code>ID</code> (UUID).
+                HYPERLINK-Formeln in der URL-Spalte werden automatisch aufgelöst.
+                Trennzeichen: <code>;</code> oder <code>,</code>.
               </div>
             </div>
             <div class="col-md-4">
