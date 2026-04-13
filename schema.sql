@@ -768,9 +768,9 @@ ORDER BY r.naechste_pruefung ASC;
 CREATE TABLE IF NOT EXISTS ldap_config (
     id              INTEGER PRIMARY KEY DEFAULT 1 CHECK(id = 1),
     enabled         INTEGER NOT NULL DEFAULT 0,      -- 0 = deaktiviert, lokaler Login
-    server_url      TEXT NOT NULL DEFAULT '',         -- ldaps://idfp.rz.bankenit.de
+    server_url      TEXT NOT NULL DEFAULT '',         -- ldaps://ldap.ihre-bank.de
     port            INTEGER NOT NULL DEFAULT 636,
-    base_dn         TEXT NOT NULL DEFAULT '',         -- OU=4024,OU=Tenants,...
+    base_dn         TEXT NOT NULL DEFAULT '',         -- OU=Benutzer,DC=ihre-bank,DC=de
     bind_dn         TEXT NOT NULL DEFAULT '',         -- CN=svcacc,...
     bind_password   TEXT NOT NULL DEFAULT '',         -- Fernet-verschlüsselt
     user_attr       TEXT NOT NULL DEFAULT 'sAMAccountName',

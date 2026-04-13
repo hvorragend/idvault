@@ -129,10 +129,10 @@ Administration → LDAP / Active Directory → LDAP konfigurieren
 | Feld | Beschreibung | Beispiel |
 |---|---|---|
 | LDAP aktivieren | Schaltet die LDAP-Authentifizierung ein/aus | ☑ |
-| Server-URL | Adresse des LDAP-Servers (mit Protokoll) | `ldaps://idfp.rz.bankenit.de` |
+| Server-URL | Adresse des LDAP-Servers (mit Protokoll) | `ldaps://ldap.ihre-bank.de` |
 | Port | LDAPS: 636 (Standard), LDAP: 389 | `636` |
-| Base-DN | Suchbasis für Benutzerkonten | `OU=4024,OU=Tenants,DC=idfp,DC=rz,DC=bankenit,DC=de` |
-| Technischer Benutzer (Bind-DN) | Service-Account für LDAP-Suche | `CN=svcidvault,OU=Users,OU=4024,...` |
+| Base-DN | Suchbasis für Benutzerkonten | `OU=Benutzer,DC=ihre-bank,DC=de` |
+| Technischer Benutzer (Bind-DN) | Service-Account für LDAP-Suche | `CN=svc-idvault,OU=ServiceAccounts,DC=ihre-bank,DC=de` |
 | Kennwort | Passwort des Service-Accounts (verschlüsselt gespeichert) | |
 | Benutzer-Attribut | Attribut für den Anmeldenamen | `sAMAccountName` (empfohlen) |
 | TLS-Zertifikat prüfen | Zertifikat des Servers verifizieren (empfohlen) | ☑ |
@@ -151,11 +151,11 @@ die Rolle der ersten passenden Gruppe (Reihenfolge ist konfigurierbar).
 
 | idvault-Rolle | Beispiel-Gruppen-DN |
 |---|---|
-| IDV-Administrator | `CN=IDV-Administratoren,OU=Groups,OU=4024,...` |
-| IDV-Koordinator | `CN=IDV-Koordinatoren,OU=Groups,OU=4024,...` |
-| Fachverantwortlicher | `CN=IDV-Fachverantwortliche,OU=Groups,OU=4024,...` |
-| Revision | `CN=IDV-Revision,OU=Groups,OU=4024,...` |
-| IT-Sicherheit | `CN=IDV-IT-Sicherheit,OU=Groups,OU=4024,...` |
+| IDV-Administrator | `CN=IDV-Administratoren,OU=Gruppen,DC=ihre-bank,DC=de` |
+| IDV-Koordinator | `CN=IDV-Koordinatoren,OU=Gruppen,DC=ihre-bank,DC=de` |
+| Fachverantwortlicher | `CN=IDV-Fachverantwortliche,OU=Gruppen,DC=ihre-bank,DC=de` |
+| Revision | `CN=IDV-Revision,OU=Gruppen,DC=ihre-bank,DC=de` |
+| IT-Sicherheit | `CN=IDV-IT-Sicherheit,OU=Gruppen,DC=ihre-bank,DC=de` |
 
 > Den vollständigen DN einer Gruppe ermitteln Sie in PowerShell:
 > ```powershell
