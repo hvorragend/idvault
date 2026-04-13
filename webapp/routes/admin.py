@@ -1178,29 +1178,35 @@ def update_restart():
         import subprocess
         time.sleep(1.5)
         if getattr(sys, 'frozen', False):
-            # PyInstaller setzt _MEIPASS2 als Umgebungsvariable damit
-            # multiprocessing-Kindprozesse das gleiche Extraktionsverzeichnis
-            # wiederverwenden. Wenn wir eine *neue* EXE-Instanz starten,
-            # würde das Kind diesen Wert erben, die eigene Extraktion
-            # überspringen und das Verzeichnis des Elternprozesses nutzen.
-            # Sobald der Elternprozess endet und _MEIPASS löscht, findet das
-            # Kind keine DLLs mehr → sofortiger Absturz ohne Fehlermeldung.
-            # Lösung: _MEIPASS2 und den _MEIPASS-Pfad aus PATH entfernen,
-            # damit der Kindprozess unabhängig bootet.
-            env = os.environ.copy()
-            env.pop('_MEIPASS2', None)
-            if hasattr(sys, '_MEIPASS'):
-                sep = os.pathsep
-                meipass = os.path.normcase(sys._MEIPASS)
-                env['PATH'] = sep.join(
-                    p for p in env.get('PATH', '').split(sep)
-                    if os.path.normcase(p) != meipass
-                )
+            # PyInstaller-Kindprozesse erben _MEIPASS2 und den modifizierten
+            # PATH des Elternprozesses. Das führt dazu, dass der Kindprozess
+            # das temporäre Extraktionsverzeichnis des Elternprozesses nutzt
+            # statt ein eigenes anzulegen. Zusätzlich kann der geerbte PATH
+            # dazu führen, dass C-Extensions (unicodedata.pyd etc.) aus dem
+            # inzwischen gelöschten Eltern-_MEIPASS geladen werden sollen.
+            #
+            # Lösung: Eine Batch-Datei neben der EXE, die alle PyInstaller-
+            # Umgebungsvariablen löscht und PATH auf Systemstandard setzt,
+            # BEVOR die EXE gestartet wird. cmd.exe läuft unsichtbar
+            # (CREATE_NO_WINDOW), die EXE bekommt über "start" ihr eigenes
+            # sichtbares Konsolenfenster.
+            exe = sys.executable
+            bat_path = os.path.join(os.path.dirname(exe), '_idvault_restart.bat')
+            bat = (
+                '@echo off\r\n'
+                'set _MEIPASS2=\r\n'
+                'set _PYI_ARCHIVE_FILE=\r\n'
+                'set PATH=%SystemRoot%\\system32;%SystemRoot%;'
+                '%SystemRoot%\\System32\\Wbem\r\n'
+                'ping -n 4 127.0.0.1 > nul\r\n'
+                'start "" "{exe}"\r\n'
+                'del "%~f0"\r\n'
+            ).format(exe=exe)
+            with open(bat_path, 'w', encoding='ascii') as _f:
+                _f.write(bat)
             subprocess.Popen(
-                [sys.executable],
-                env=env,
-                creationflags=subprocess.CREATE_NEW_CONSOLE
-                              | subprocess.CREATE_NEW_PROCESS_GROUP,
+                ['cmd.exe', '/c', bat_path],
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
         else:
             subprocess.Popen([sys.executable] + sys.argv)
