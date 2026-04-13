@@ -45,6 +45,7 @@ die in der Mitarbeiterverwaltung (`Administration → Personen`) hinterlegt wird
 | Maßnahmen anlegen | ✓ | ✓ | — | — | — |
 | Maßnahmen anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Scanner-Funde anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Scan starten (Schaltfläche in Scanner-Views) | ✓ | ✓ | — | — | — |
 | IDV aus Scannerfund registrieren | ✓ | ✓ | — | — | — |
 | Excel-Export | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Administration (Stammdaten) | ✓ | ✓ | — | — | — |
@@ -319,6 +320,19 @@ eine Maßnahme mit Erledigungsdatum abgeschlossen.
 Zeigt alle Dateien, die der IDV-Scanner auf Netzlaufwerken gefunden hat.
 Über den Button *„Als IDV registrieren"* wird das IDV-Formular mit vorausgefüllten
 Daten (Dateiname, IDV-Typ aus Erweiterung, Makro-Flag) geöffnet.
+
+**Scan starten**
+
+In allen Scanner-Views (Funde, Eingang, Scan-Läufe, Bewertete, Zusammenfassen)
+ist für **Administratoren** und **Koordinatoren** oben rechts eine
+Schaltfläche *„Scan starten"* sichtbar. Ein Klick startet den Scanner im
+Hintergrund; der Button zeigt einen Spinner und eine Fertigmeldung,
+sobald der Scan abgeschlossen ist. Lesende Rollen (Revision, IT-Sicherheit)
+sehen die Schaltfläche nicht.
+
+> Voraussetzung: Scan-Pfade müssen unter
+> *Administration → Scanner-Einstellungen* konfiguriert sein.
+> Fehlen Pfade, ist der Button deaktiviert.
 
 **Filter:**
 - Alle aktiven Dateien

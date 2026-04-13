@@ -44,6 +44,7 @@ python idv_scanner.py --config config.json
 | `max_workers` | Integer | `4` | Reserviert (zukünftige Parallelisierung) |
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (s.u.) |
 | `scan_since` | String\|null | `null` | Startdatum im Format `"YYYY-MM-DD"`. Nur Dateien, deren Änderungsdatum ≥ diesem Datum liegt, werden verarbeitet. `null` = alle Dateien. |
+| `read_file_owner` | Boolean | `true` | Dateibesitzer über die Windows-API (`pywin32`) auslesen. Auf Netzlaufwerken kann dieser API-Aufruf den Scan stark verlangsamen oder mit einem Fehler abbrechen — in dem Fall auf `false` setzen. |
 
 ### Mehrere Teilscans (große Verzeichnisse aufteilen)
 
@@ -294,6 +295,21 @@ python idv_export.py --db idv_register.db --output IDV_Export.xlsx
 ---
 
 ## Als Scheduled Task (Windows)
+
+**Option A – Standalone-Executable (idvault.exe)**
+
+Wenn idvault als Standalone-Executable betrieben wird, übernimmt dieselbe
+Datei auch den Scanner-Modus:
+
+1. Aufgabenplanung öffnen
+2. Neue Aufgabe:
+   ```
+   C:\idvault\idvault.exe --scan --config C:\idvault\scanner\config.json
+   ```
+3. Trigger: wöchentlich (z.B. Montag 06:00 Uhr)
+4. Ausführen als: Dienstkonto mit Lesezugriff auf alle Shares
+
+**Option B – Python-Skript (Quellinstallation)**
 
 1. Aufgabenplanung öffnen
 2. Neue Aufgabe: `python C:\IDV-Scanner\idv_scanner.py --config C:\IDV-Scanner\config.json`
