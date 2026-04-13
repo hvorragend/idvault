@@ -4,6 +4,9 @@ idvault – E-Mail-Benachrichtigungs-Service
 Sendet transaktionale E-Mails via SMTP (TLS/STARTTLS).
 Konfiguration wird aus der app_settings-Tabelle gelesen.
 
+Alle E-Mail-Vorlagen (Betreff + HTML-Body) sind über die Admin-Oberfläche
+konfigurierbar. Platzhalter werden im Format {name} ersetzt.
+
 Umgebungsvariablen (überschreiben DB-Einstellungen):
     IDV_SMTP_HOST, IDV_SMTP_PORT, IDV_SMTP_USER,
     IDV_SMTP_PASSWORD, IDV_SMTP_FROM, IDV_SMTP_TLS
@@ -40,15 +43,7 @@ def _get_smtp_config(db) -> dict:
 
 def send_mail(db, to: str | list[str], subject: str,
               body_html: str, body_text: str = "") -> bool:
-    """Sendet eine E-Mail. Gibt True bei Erfolg zurück.
-
-    Args:
-        db:         Datenbankverbindung (für Konfiguration)
-        to:         Empfänger-Adresse(n) als String oder Liste
-        subject:    Betreff
-        body_html:  HTML-Body
-        body_text:  Fallback-Textversion (optional)
-    """
+    """Sendet eine E-Mail. Gibt True bei Erfolg zurück."""
     cfg = _get_smtp_config(db)
     if not cfg["host"] or not cfg["from"]:
         log.warning("E-Mail nicht konfiguriert (smtp_host / smtp_from fehlen).")
@@ -89,7 +84,235 @@ def send_mail(db, to: str | list[str], subject: str,
 
 
 # ---------------------------------------------------------------------------
-# Benachrichtigungs-Templates
+# Zentrale Template-Mechanik
+# ---------------------------------------------------------------------------
+
+def _replace_placeholders(template: str, placeholders: dict) -> str:
+    """Ersetzt {name}-Platzhalter im Template."""
+    for key, val in placeholders.items():
+        template = template.replace("{" + key + "}", str(val))
+    return template
+
+
+def _load_template(db, tpl_key: str, default_subject: str, default_body: str,
+                   placeholders: dict) -> tuple[str, str]:
+    """Lädt Betreff und HTML-Body für einen Template-Key aus app_settings.
+
+    Gibt (subject, html_body) zurück mit ersetzten Platzhaltern.
+    Fällt auf die übergebenen Defaults zurück, wenn kein DB-Eintrag existiert.
+    """
+    subject_key = f"email_tpl_{tpl_key}_subject"
+    body_key    = f"email_tpl_{tpl_key}_body"
+
+    try:
+        row_s = db.execute(
+            "SELECT value FROM app_settings WHERE key=?", (subject_key,)
+        ).fetchone()
+        row_b = db.execute(
+            "SELECT value FROM app_settings WHERE key=?", (body_key,)
+        ).fetchone()
+    except Exception:
+        row_s = row_b = None
+
+    subject = (row_s["value"] if row_s and row_s["value"] else default_subject)
+    body    = (row_b["value"] if row_b and row_b["value"] else default_body)
+
+    return (
+        _replace_placeholders(subject, placeholders),
+        _replace_placeholders(body, placeholders),
+    )
+
+
+def _strip_html_tags(html: str) -> str:
+    """Einfache HTML→Text-Konvertierung für den Fallback-Plaintext."""
+    import re
+    text = re.sub(r'<br\s*/?>', '\n', html)
+    text = re.sub(r'</?(p|div|h[1-6]|li|tr|td|th)[^>]*>', '\n', text)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
+# ---------------------------------------------------------------------------
+# Default-Templates (Fallback, wenn nichts in app_settings konfiguriert)
+# ---------------------------------------------------------------------------
+
+_DEFAULTS = {}
+
+# ── 1. Neue Datei erkannt ─────────────────────────────────────────────────
+
+_DEFAULTS["neue_datei_subject"] = "[idvault] Neue IDV-Datei erkannt: {dateiname}"
+_DEFAULTS["neue_datei_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#0d6efd;">idvault – Neue Datei erkannt</h2>
+<p>Der idvault-Scanner hat eine neue Datei entdeckt, die noch nicht im IDV-Register
+   erfasst ist:</p>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td>
+      <td style="padding:6px;">{dateiname}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pfad</td>
+      <td style="padding:6px;font-family:monospace;font-size:12px;">{pfad}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold;">Erstmals erkannt</td>
+      <td style="padding:6px;">{erkannt_am}</td></tr>
+</table>
+<p style="margin-top:20px;">Bitte melden Sie sich in idvault an und erfassen
+   Sie die Datei im IDV-Register.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+# ── 2. Prüfung fällig ────────────────────────────────────────────────────
+
+_DEFAULTS["pruefung_faellig_subject"] = "[idvault] Prüfung fällig: {idv_id} – {bezeichnung}"
+_DEFAULTS["pruefung_faellig_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#fd7e14;">idvault – Prüfung fällig</h2>
+<p>Die Prüfung für folgendes IDV ist fällig oder überfällig:</p>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
+      <td style="padding:6px;">{idv_id}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
+      <td style="padding:6px;">{bezeichnung}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold;">Fällig am</td>
+      <td style="padding:6px;">{faellig_am}</td></tr>
+</table>
+<p style="margin-top:16px;">Bitte melden Sie sich in idvault an und führen
+   Sie die Prüfung durch.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+# ── 3. Freigabe-Schritt offen ────────────────────────────────────────────
+
+_DEFAULTS["freigabe_schritt_subject"] = "[idvault] Freigabe-Schritt offen: {schritt} – {idv_id}"
+_DEFAULTS["freigabe_schritt_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#0d6efd;">idvault – Test &amp; Freigabe</h2>
+<p>Für die folgende IDV steht ein Freigabe-Schritt zur Bearbeitung bereit:</p>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
+      <td style="padding:6px;">{idv_id}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
+      <td style="padding:6px;">{bezeichnung}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold;">Schritt</td>
+      <td style="padding:6px;font-weight:bold;color:#0d6efd;">{schritt}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Versionskommentar</td>
+      <td style="padding:6px;font-style:italic;">{versionskommentar}</td></tr>
+</table>
+<p style="margin-top:16px;color:#6c757d;font-size:12px;">
+  Bitte melden Sie sich in idvault an und schließen Sie den Schritt ab.<br>
+  Hinweis: Gemäß Funktionstrennung darf der Entwickler der IDV keine
+  Freigabe-Schritte abschließen.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:16px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+# ── 4. IDV freigegeben (alle 4 Schritte bestanden) ───────────────────────
+
+_DEFAULTS["freigabe_abgeschlossen_subject"] = "[idvault] IDV freigegeben: {idv_id} – {bezeichnung}"
+_DEFAULTS["freigabe_abgeschlossen_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#198754;">idvault – IDV freigegeben</h2>
+<p>Alle vier Freigabe-Schritte wurden erfolgreich abgeschlossen:</p>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
+      <td style="padding:6px;">{idv_id}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
+      <td style="padding:6px;">{bezeichnung}</td></tr>
+</table>
+<ul style="margin-top:12px;">
+  <li>Fachlicher Test – bestanden</li>
+  <li>Technischer Test – bestanden</li>
+  <li>Fachliche Abnahme – bestanden</li>
+  <li>Technische Abnahme – bestanden</li>
+</ul>
+<p>Die IDV wurde auf Status <strong>Freigegeben</strong> und Dokumentationsstatus
+   <strong>Dokumentiert</strong> gesetzt.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+# ── 5. Bewertungsanforderung (an Datei-Ersteller) ────────────────────────
+
+_DEFAULTS["bewertung_subject"] = "[idvault] Bitte um Bewertung: {dateiname}"
+_DEFAULTS["bewertung_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2>
+<p>Sehr geehrte/r {ersteller},</p>
+<p>die folgende Datei wurde vom idvault-Scanner erkannt und ist Ihnen als
+   Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Datei als
+   <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2
+   einzustufen ist.</p>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td>
+      <td style="padding:6px;">{dateiname}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pfad</td>
+      <td style="padding:6px;font-family:monospace;font-size:12px;">{pfad}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold;">Formeln</td>
+      <td style="padding:6px;">{formelanzahl}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Makros</td>
+      <td style="padding:6px;">{makros}</td></tr>
+</table>
+<p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen
+   Sie die Bewertung vor.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+# ── 6. Überfällige Maßnahme ──────────────────────────────────────────────
+
+_DEFAULTS["massnahme_ueberfaellig_subject"] = "[idvault] Überfällige Maßnahme: {titel}"
+_DEFAULTS["massnahme_ueberfaellig_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#dc3545;">idvault – Überfällige Maßnahme</h2>
+<p>Die folgende Maßnahme ist überfällig:</p>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold;width:160px;">Titel</td>
+      <td style="padding:6px;">{titel}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Fällig am</td>
+      <td style="padding:6px;">{faellig_am}</td></tr>
+</table>
+<p style="margin-top:16px;">Bitte melden Sie sich in idvault an und bearbeiten
+   Sie die Maßnahme.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+
+# ---------------------------------------------------------------------------
+# Template-Registry (für Admin-UI und Validierung)
+# ---------------------------------------------------------------------------
+
+EMAIL_TEMPLATES = {
+    "neue_datei": {
+        "label": "Neue Datei erkannt",
+        "placeholders": ["dateiname", "pfad", "erkannt_am"],
+    },
+    "pruefung_faellig": {
+        "label": "Prüfung fällig",
+        "placeholders": ["idv_id", "bezeichnung", "faellig_am"],
+    },
+    "freigabe_schritt": {
+        "label": "Freigabe-Schritt offen",
+        "placeholders": ["idv_id", "bezeichnung", "schritt", "versionskommentar"],
+    },
+    "freigabe_abgeschlossen": {
+        "label": "IDV freigegeben (alle Schritte bestanden)",
+        "placeholders": ["idv_id", "bezeichnung"],
+    },
+    "bewertung": {
+        "label": "Bewertungsanforderung an Datei-Ersteller",
+        "placeholders": ["dateiname", "pfad", "ersteller", "formelanzahl", "makros"],
+    },
+    "massnahme_ueberfaellig": {
+        "label": "Überfällige Maßnahme",
+        "placeholders": ["titel", "faellig_am"],
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Benachrichtigungs-Funktionen
 # ---------------------------------------------------------------------------
 
 def notify_new_scanner_file(db, file_row, responsible_emails: list[str]) -> bool:
@@ -107,34 +330,19 @@ def notify_new_scanner_file(db, file_row, responsible_emails: list[str]) -> bool
     fpath    = file_row["full_path"] if hasattr(file_row, "__getitem__") else ""
     detected = file_row["first_seen_at"] if hasattr(file_row, "__getitem__") else ""
 
-    subject = f"[idvault] Neue IDV-Datei erkannt: {fname}"
-    html = f"""
-    <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-    <h2 style="color:#0d6efd;">idvault – Neue Datei erkannt</h2>
-    <p>Der idvault-Scanner hat eine neue Datei entdeckt, die noch nicht im IDV-Register
-       erfasst ist:</p>
-    <table style="border-collapse:collapse;width:100%">
-      <tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td>
-          <td style="padding:6px;">{fname}</td></tr>
-      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pfad</td>
-          <td style="padding:6px;font-family:monospace;font-size:12px;">{fpath}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold;">Erstmals erkannt</td>
-          <td style="padding:6px;">{detected[:10] if detected else '–'}</td></tr>
-    </table>
-    <p style="margin-top:20px;">
-      <a href="#" style="background:#0d6efd;color:white;padding:8px 16px;
-         text-decoration:none;border-radius:4px;">Im IDV-Register erfassen</a>
-    </p>
-    <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-      Diese Nachricht wurde automatisch von idvault gesendet.
-    </p>
-    </body></html>
-    """
-    text = (
-        f"idvault – Neue Datei erkannt\n\n"
-        f"Datei: {fname}\nPfad:  {fpath}\nErkannt: {detected[:10] if detected else '–'}\n\n"
-        f"Bitte im IDV-Register erfassen."
+    placeholders = {
+        "dateiname":  fname,
+        "pfad":       fpath,
+        "erkannt_am": detected[:10] if detected else "–",
+    }
+
+    subject, html = _load_template(
+        db, "neue_datei",
+        _DEFAULTS["neue_datei_subject"],
+        _DEFAULTS["neue_datei_body"],
+        placeholders,
     )
+    text = _strip_html_tags(html)
     return send_mail(db, responsible_emails, subject, html, text)
 
 
@@ -144,25 +352,19 @@ def notify_review_due(db, idv_row, responsible_email: str) -> bool:
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
     datum  = idv_row["naechste_pruefung"] if hasattr(idv_row, "__getitem__") else ""
 
-    subject = f"[idvault] Prüfung fällig: {idv_id} – {name}"
-    html = f"""
-    <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-    <h2 style="color:#fd7e14;">idvault – Prüfung fällig</h2>
-    <p>Die Prüfung für folgendes IDV ist fällig oder überfällig:</p>
-    <table style="border-collapse:collapse;width:100%">
-      <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
-          <td style="padding:6px;">{idv_id}</td></tr>
-      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
-          <td style="padding:6px;">{name}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold;">Fällig am</td>
-          <td style="padding:6px;">{datum[:10] if datum else '–'}</td></tr>
-    </table>
-    <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-      Diese Nachricht wurde automatisch von idvault gesendet.
-    </p>
-    </body></html>
-    """
-    text = f"Prüfung fällig: {idv_id} – {name}\nFällig am: {datum[:10] if datum else '–'}"
+    placeholders = {
+        "idv_id":      idv_id,
+        "bezeichnung": name,
+        "faellig_am":  datum[:10] if datum else "–",
+    }
+
+    subject, html = _load_template(
+        db, "pruefung_faellig",
+        _DEFAULTS["pruefung_faellig_subject"],
+        _DEFAULTS["pruefung_faellig_body"],
+        placeholders,
+    )
+    text = _strip_html_tags(html)
     return send_mail(db, responsible_email, subject, html, text)
 
 
@@ -173,41 +375,20 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
 
-    kommentar_zeile = ""
-    if versions_kommentar:
-        kommentar_zeile = f"""
-      <tr><td style="padding:6px;font-weight:bold;">Versionskommentar</td>
-          <td style="padding:6px;font-style:italic;">{versions_kommentar}</td></tr>"""
+    placeholders = {
+        "idv_id":             idv_id,
+        "bezeichnung":        name,
+        "schritt":            schritt,
+        "versionskommentar":  versions_kommentar or "–",
+    }
 
-    subject = f"[idvault] Freigabe-Schritt offen: {schritt} – {idv_id}"
-    html = f"""
-    <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-    <h2 style="color:#0d6efd;">idvault – Test &amp; Freigabe</h2>
-    <p>Für die folgende IDV steht ein Freigabe-Schritt zur Bearbeitung bereit:</p>
-    <table style="border-collapse:collapse;width:100%">
-      <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
-          <td style="padding:6px;">{idv_id}</td></tr>
-      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
-          <td style="padding:6px;">{name}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold;">Schritt</td>
-          <td style="padding:6px;font-weight:bold;color:#0d6efd;">{schritt}</td></tr>
-      {kommentar_zeile}
-    </table>
-    <p style="margin-top:16px;color:#6c757d;font-size:12px;">
-      Bitte melden Sie sich in idvault an und schließen Sie den Schritt ab.<br>
-      Hinweis: Gemäß Funktionstrennung darf der Entwickler der IDV keine Freigabe-Schritte abschließen.
-    </p>
-    <p style="color:#6c757d;font-size:12px;margin-top:16px;">
-      Diese Nachricht wurde automatisch von idvault gesendet.
-    </p>
-    </body></html>
-    """
-    text = (
-        f"idvault – Freigabe-Schritt offen\n\n"
-        f"IDV: {idv_id} – {name}\nSchritt: {schritt}\n"
-        + (f"Versionskommentar: {versions_kommentar}\n" if versions_kommentar else "")
-        + "\nBitte in idvault anmelden und Schritt abschließen."
+    subject, html = _load_template(
+        db, "freigabe_schritt",
+        _DEFAULTS["freigabe_schritt_subject"],
+        _DEFAULTS["freigabe_schritt_body"],
+        placeholders,
     )
+    text = _strip_html_tags(html)
     return send_mail(db, recipient_emails, subject, html, text)
 
 
@@ -216,36 +397,18 @@ def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
 
-    subject = f"[idvault] IDV freigegeben: {idv_id} – {name}"
-    html = f"""
-    <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-    <h2 style="color:#198754;">idvault – IDV freigegeben</h2>
-    <p>Alle vier Freigabe-Schritte wurden erfolgreich abgeschlossen:</p>
-    <table style="border-collapse:collapse;width:100%">
-      <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
-          <td style="padding:6px;">{idv_id}</td></tr>
-      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
-          <td style="padding:6px;">{name}</td></tr>
-    </table>
-    <ul style="margin-top:12px;">
-      <li>✅ Fachlicher Test</li>
-      <li>✅ Technischer Test</li>
-      <li>✅ Fachliche Abnahme</li>
-      <li>✅ Technische Abnahme</li>
-    </ul>
-    <p>Die IDV wurde auf Status <strong>Freigegeben</strong> und Dokumentationsstatus
-       <strong>Dokumentiert</strong> gesetzt.</p>
-    <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-      Diese Nachricht wurde automatisch von idvault gesendet.
-    </p>
-    </body></html>
-    """
-    text = (
-        f"idvault – IDV freigegeben\n\n"
-        f"IDV: {idv_id} – {name}\n"
-        f"Alle 4 Freigabe-Schritte bestanden.\n"
-        f"Status: Freigegeben / Dokumentiert"
+    placeholders = {
+        "idv_id":      idv_id,
+        "bezeichnung": name,
+    }
+
+    subject, html = _load_template(
+        db, "freigabe_abgeschlossen",
+        _DEFAULTS["freigabe_abgeschlossen_subject"],
+        _DEFAULTS["freigabe_abgeschlossen_body"],
+        placeholders,
     )
+    text = _strip_html_tags(html)
     return send_mail(db, recipient_emails, subject, html, text)
 
 
@@ -257,95 +420,39 @@ def notify_file_bewertung(db, file_row, recipient_email: str) -> bool:
     has_macros = file_row["has_macros"] if hasattr(file_row, "__getitem__") else 0
     ersteller = (file_row.get("file_owner") or file_row.get("office_author") or "–") if hasattr(file_row, "__getitem__") else "–"
 
-    # Template aus Einstellungen laden
-    try:
-        tpl_subject = db.execute(
-            "SELECT value FROM app_settings WHERE key='email_tpl_bewertung_subject'"
-        ).fetchone()
-        tpl_body = db.execute(
-            "SELECT value FROM app_settings WHERE key='email_tpl_bewertung_body'"
-        ).fetchone()
-    except Exception:
-        tpl_subject = None
-        tpl_body = None
-
     placeholders = {
-        "dateiname": fname,
-        "pfad": fpath,
-        "ersteller": ersteller,
+        "dateiname":    fname,
+        "pfad":         fpath,
+        "ersteller":    ersteller,
         "formelanzahl": str(formula_count or 0),
-        "makros": "Ja" if has_macros else "Nein",
+        "makros":       "Ja" if has_macros else "Nein",
     }
 
-    if tpl_subject and tpl_subject["value"]:
-        subject = tpl_subject["value"]
-    else:
-        subject = "[idvault] Bitte um Bewertung: {dateiname}"
-
-    if tpl_body and tpl_body["value"]:
-        html = tpl_body["value"]
-    else:
-        html = _default_bewertung_html()
-
-    # Platzhalter ersetzen
-    for key, val in placeholders.items():
-        subject = subject.replace("{" + key + "}", val)
-        html = html.replace("{" + key + "}", val)
-
-    text = (
-        f"idvault – Bewertung angefordert\n\n"
-        f"Datei: {fname}\nPfad: {fpath}\n"
-        f"Formeln: {formula_count or 0}\nMakros: {'Ja' if has_macros else 'Nein'}\n\n"
-        f"Bitte melden Sie sich in idvault an und nehmen Sie die Bewertung vor."
+    subject, html = _load_template(
+        db, "bewertung",
+        _DEFAULTS["bewertung_subject"],
+        _DEFAULTS["bewertung_body"],
+        placeholders,
     )
+    text = _strip_html_tags(html)
     return send_mail(db, recipient_email, subject, html, text)
-
-
-def _default_bewertung_html() -> str:
-    return """<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-    <h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2>
-    <p>Sehr geehrte/r {ersteller},</p>
-    <p>die folgende Datei wurde vom idvault-Scanner erkannt und ist Ihnen als
-       Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Datei als
-       <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2
-       einzustufen ist.</p>
-    <table style="border-collapse:collapse;width:100%">
-      <tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td>
-          <td style="padding:6px;">{dateiname}</td></tr>
-      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pfad</td>
-          <td style="padding:6px;font-family:monospace;font-size:12px;">{pfad}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold;">Formeln</td>
-          <td style="padding:6px;">{formelanzahl}</td></tr>
-      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Makros</td>
-          <td style="padding:6px;">{makros}</td></tr>
-    </table>
-    <p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen
-       Sie die Bewertung vor.</p>
-    <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-      Diese Nachricht wurde automatisch von idvault gesendet.</p>
-    </body></html>"""
 
 
 def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:
     """Eskalation für überfällige Maßnahme."""
-    titel  = massnahme_row["titel"] if hasattr(massnahme_row, "__getitem__") else str(massnahme_row)
+    titel   = massnahme_row["titel"] if hasattr(massnahme_row, "__getitem__") else str(massnahme_row)
     faellig = massnahme_row["faellig_am"] if hasattr(massnahme_row, "__getitem__") else ""
 
-    subject = f"[idvault] Überfällige Maßnahme: {titel}"
-    html = f"""
-    <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-    <h2 style="color:#dc3545;">idvault – Überfällige Maßnahme</h2>
-    <p>Die folgende Maßnahme ist überfällig:</p>
-    <table style="border-collapse:collapse;width:100%">
-      <tr><td style="padding:6px;font-weight:bold;width:160px;">Titel</td>
-          <td style="padding:6px;">{titel}</td></tr>
-      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Fällig am</td>
-          <td style="padding:6px;">{faellig[:10] if faellig else '–'}</td></tr>
-    </table>
-    <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-      Diese Nachricht wurde automatisch von idvault gesendet.
-    </p>
-    </body></html>
-    """
-    text = f"Überfällige Maßnahme: {titel}\nFällig am: {faellig[:10] if faellig else '–'}"
+    placeholders = {
+        "titel":      titel,
+        "faellig_am": faellig[:10] if faellig else "–",
+    }
+
+    subject, html = _load_template(
+        db, "massnahme_ueberfaellig",
+        _DEFAULTS["massnahme_ueberfaellig_subject"],
+        _DEFAULTS["massnahme_ueberfaellig_body"],
+        placeholders,
+    )
+    text = _strip_html_tags(html)
     return send_mail(db, responsible_email, subject, html, text)

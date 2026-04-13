@@ -731,13 +731,16 @@ def index():
         SELECT * FROM wesentlichkeitskriterien ORDER BY sort_order, id
     """).fetchall()
 
+    from ..email_service import EMAIL_TEMPLATES as _email_tpls, _DEFAULTS as _email_defaults
     return render_template("admin/index.html",
         org_units=org_units, persons=persons,
         geschaeftsprozesse=geschaeftsprozesse, plattformen=plattformen,
         settings=settings,
         klassifizierungen=klassifizierungen,
         klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE,
-        wesentlichkeitskriterien=wesentlichkeitskriterien)
+        wesentlichkeitskriterien=wesentlichkeitskriterien,
+        email_templates=_email_tpls,
+        email_defaults=_email_defaults)
 
 
 # ── Personen ───────────────────────────────────────────────────────────────
@@ -1026,14 +1029,18 @@ def save_settings():
     db = get_db()
     keys = ["smtp_host", "smtp_port", "smtp_user", "smtp_password",
             "smtp_from", "smtp_tls", "notify_new_file", "local_login_enabled",
-            "auto_ignore_no_formula",
-            "email_tpl_bewertung_subject", "email_tpl_bewertung_body"]
+            "auto_ignore_no_formula"]
+    # Dynamisch alle E-Mail-Template-Keys aufnehmen
+    from ..email_service import EMAIL_TEMPLATES
+    for tpl_key in EMAIL_TEMPLATES:
+        keys.append(f"email_tpl_{tpl_key}_subject")
+        keys.append(f"email_tpl_{tpl_key}_body")
     for k in keys:
         val = request.form.get(k, "")
         db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", (k, val))
     db.commit()
     flash("Einstellungen gespeichert.", "success")
-    return redirect(url_for("admin.index"))
+    return redirect(url_for("admin.index") + "#email-vorlagen")
 
 
 # ── Mitarbeiter-Import ─────────────────────────────────────────────────────
