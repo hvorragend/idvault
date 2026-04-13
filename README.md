@@ -409,11 +409,26 @@ Anschließend:
 
 Der Browser leitet nach einigen Sekunden automatisch weiter. Das Update ist damit aktiv.
 
-### ZIP-Paket-Format
+### GitHub-Repository-ZIP direkt verwenden
+
+Der einfachste Weg ist der direkte Download-Link des GitHub-Repositories:
+
+```
+https://github.com/hvorragend/idvault/archive/refs/heads/main.zip
+```
+
+Dieses ZIP kann ohne Anpassung hochgeladen werden. Die Anwendung:
+- erkennt automatisch das `idvault-main/`-Präfix und entfernt es
+- überspringt nicht-relevante Dateien (`.md`, `.txt`, `.spec`, `.gitignore` usw.) stillschweigend
+- mappt `webapp/templates/` auf `templates/` wie vom Sidecar-Lader erwartet
+
+### Manuelles ZIP-Paket-Format
+
+Für selektive Updates (nur einzelne Dateien) kann auch ein eigenes ZIP erstellt werden:
 
 ```
 update-v0.2.0.zip
-├── version.json                 ← Pflicht: Versionsmetadaten
+├── version.json                 ← Versionsmetadaten
 ├── webapp/
 │   └── routes/
 │       └── admin.py             ← überschreibt webapp.routes.admin
@@ -422,7 +437,8 @@ update-v0.2.0.zip
         └── update.html          ← überschreibt Template
 ```
 
-> **Wichtig:** Templates liegen im ZIP unter `templates/` (nicht `webapp/templates/`).
+> Templates liegen im manuellen ZIP unter `templates/` (nicht `webapp/templates/`).
+> Im GitHub-ZIP sind sie unter `webapp/templates/` — das wird automatisch umgemappt.
 
 **`version.json`-Format:**
 
