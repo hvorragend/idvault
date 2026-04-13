@@ -100,12 +100,7 @@
                   r.idv_id }}</a></td>
               <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
               <td>
-                <div style="font-size:.72rem">
-                  {% if r.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span> {% endif %}
-                  {% if r.rechnungslegungsrelevant %}<span
-                    class="badge bg-info text-dark">Rechnungslegungsrelevant</span> {% endif %}
-                  {% if r.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA</span>{% endif %}
-                </div>
+                <span class="badge bg-danger" style="font-size:.72rem">Wesentlich</span>
               </td>
               <td><span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span></td>
               <td>
