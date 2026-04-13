@@ -21,3 +21,7 @@ pywin32>=306
 
 # Optional: Schnelleres Hashing großer Dateien
 xxhash>=3.0.0
+
+# Teams-Scanner: Microsoft Graph API (optional, nur für teams_scanner.py benötigt)
+msal>=1.28.0
+requests>=2.31.0
