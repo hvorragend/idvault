@@ -1168,13 +1168,19 @@ def update_restart():
     """Startet den Prozess neu, damit Sidecar-Dateien wirksam werden."""
     def _do_restart():
         import time
+        import subprocess
         time.sleep(1.5)
+        # subprocess.Popen startet den neuen Prozess unabhängig vom aktuellen.
+        # Danach beendet os._exit(0) den alten Prozess sofort — Port 5000 wird
+        # freigegeben bevor der neue Prozess Flask bindet. Das ist auf Windows
+        # zuverlässiger als os.execv, das intern einen Spawn + Kill durchführt
+        # und dabei den Port kurz blockieren kann.
         if getattr(sys, 'frozen', False):
-            # PyInstaller-EXE: sys.argv[0] ist bereits der EXE-Pfad
-            os.execv(sys.executable, sys.argv)
+            cmd = [sys.executable] + sys.argv[1:]
         else:
-            # Dev-Modus: sys.argv = ['run.py'] — Interpreter muss als argv[0] vorangestellt werden
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            cmd = [sys.executable] + sys.argv
+        subprocess.Popen(cmd)
+        os._exit(0)
 
     threading.Thread(target=_do_restart, daemon=True).start()
     return render_template("admin/update_restarting.html")
