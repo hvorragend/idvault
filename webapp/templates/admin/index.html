@@ -212,13 +212,12 @@
       </div>
       <div style="max-height:280px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0">
-          <thead class="table-light"><tr><th>GP-Nr.</th><th>Bezeichnung</th><th>Bereich</th><th>DORA</th><th>MaRisk</th><th>Aktiv</th><th></th></tr></thead>
+          <thead class="table-light"><tr><th>GP-Nr.</th><th>Bezeichnung</th><th>DORA</th><th>MaRisk</th><th>Aktiv</th><th></th></tr></thead>
           <tbody>
             {% for gp in geschaeftsprozesse %}
             <tr class="{{ '' if gp.aktiv else 'text-muted' }}">
               <td><code>{{ gp.gp_nummer }}</code></td>
               <td>{{ gp.bezeichnung }}</td>
-              <td style="font-size:.78rem">{{ gp.bereich or '–' }}</td>
               <td class="text-center">{{ '✓' if gp.ist_kritisch else '–' }}</td>
               <td class="text-center">{{ '✓' if gp.ist_wesentlich else '–' }}</td>
               <td class="text-center">{% if gp.aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
