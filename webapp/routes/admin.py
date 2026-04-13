@@ -140,17 +140,23 @@ def scanner_starten():
         if _scan_is_running():
             return jsonify({"ok": False, "msg": "Ein Scan läuft bereits."})
 
-        script = _scanner_script_path()
         config = _scanner_config_path()
 
-        if not os.path.isfile(script):
-            return jsonify({"ok": False, "msg": f"Scanner-Skript nicht gefunden: {script}"})
         if not os.path.isfile(config):
             return jsonify({"ok": False, "msg": f"Konfiguration nicht gefunden: {config}"})
 
+        if getattr(sys, 'frozen', False):
+            # Im PyInstaller-Bundle: gleichen Executable mit --scan Flag aufrufen
+            cmd = [sys.executable, "--scan", "--config", config]
+        else:
+            script = _scanner_script_path()
+            if not os.path.isfile(script):
+                return jsonify({"ok": False, "msg": f"Scanner-Skript nicht gefunden: {script}"})
+            cmd = ["python3", script, "--config", config]
+
         try:
             proc = subprocess.Popen(
-                ["python3", script, "--config", config],
+                cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 cwd=_scanner_dir(),

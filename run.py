@@ -17,6 +17,15 @@ import sys
 # Projektverzeichnis zum Pfad hinzufügen
 sys.path.insert(0, os.path.dirname(__file__))
 
+# --scan Modus: Die exe startet als Scanner-Subprocess (PyInstaller-Kompatibilität).
+# Im Bundle existiert keine separate idv_scanner.py mehr – stattdessen ruft
+# admin.py den gleichen Executable mit --scan auf.
+if '--scan' in sys.argv:
+    sys.argv = [a for a in sys.argv if a != '--scan']
+    import idv_scanner
+    idv_scanner.main()
+    sys.exit(0)
+
 from webapp import create_app
 
 # Optional: Demo-Daten beim ersten Start laden
