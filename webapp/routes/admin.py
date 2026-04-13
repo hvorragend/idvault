@@ -1169,27 +1169,22 @@ def update_upload():
     return redirect(url_for("admin.update_index"))
 
 
-@bp.route("/update/restart", methods=["POST"])
-@admin_required
-def update_restart():
-    """Startet den Prozess neu, damit Sidecar-Dateien wirksam werden."""
-    def _do_restart():
+def _trigger_restart():
+    """Startet die EXE sauber neu (gemeinsame Logik für Update & Rollback).
+
+    Schreibt eine Batch-Datei neben die EXE, die:
+      1. PyInstaller-Umgebungsvariablen löscht (_MEIPASS2 etc.)
+      2. PATH auf Windows-Systemstandard zurücksetzt
+      3. ~3 Sekunden wartet, bis Port 5000 freigegeben ist
+      4. Die EXE über "start" in einem neuen Konsolenfenster startet
+      5. Sich selbst löscht
+    cmd.exe läuft unsichtbar (CREATE_NO_WINDOW), die neue EXE-Instanz
+    bekommt ein eigenes, sichtbares Konsolenfenster.
+    """
+    def _do():
         import time
-        import subprocess
         time.sleep(1.5)
         if getattr(sys, 'frozen', False):
-            # PyInstaller-Kindprozesse erben _MEIPASS2 und den modifizierten
-            # PATH des Elternprozesses. Das führt dazu, dass der Kindprozess
-            # das temporäre Extraktionsverzeichnis des Elternprozesses nutzt
-            # statt ein eigenes anzulegen. Zusätzlich kann der geerbte PATH
-            # dazu führen, dass C-Extensions (unicodedata.pyd etc.) aus dem
-            # inzwischen gelöschten Eltern-_MEIPASS geladen werden sollen.
-            #
-            # Lösung: Eine Batch-Datei neben der EXE, die alle PyInstaller-
-            # Umgebungsvariablen löscht und PATH auf Systemstandard setzt,
-            # BEVOR die EXE gestartet wird. cmd.exe läuft unsichtbar
-            # (CREATE_NO_WINDOW), die EXE bekommt über "start" ihr eigenes
-            # sichtbares Konsolenfenster.
             exe = sys.executable
             bat_path = os.path.join(os.path.dirname(exe), '_idvault_restart.bat')
             bat = (
@@ -1212,21 +1207,64 @@ def update_restart():
             subprocess.Popen([sys.executable] + sys.argv)
         os._exit(0)
 
-    threading.Thread(target=_do_restart, daemon=True).start()
+    threading.Thread(target=_do, daemon=True).start()
+
+
+@bp.route("/update/restart", methods=["POST"])
+@admin_required
+def update_restart():
+    """Startet den Prozess neu, damit Sidecar-Dateien wirksam werden."""
+    _trigger_restart()
     return render_template("admin/update_restarting.html")
 
 
 @bp.route("/update/rollback", methods=["POST"])
 @admin_required
 def update_rollback():
-    """Löscht das updates/-Verzeichnis – nach Neustart läuft wieder die gebündelte Version."""
+    """Benennt das updates/-Verzeichnis um und startet neu (gebündelte Version)."""
     upd_dir = _updates_dir()
-    if os.path.isdir(upd_dir):
-        try:
-            shutil.rmtree(upd_dir)
-            flash("Override-Verzeichnis entfernt. Nach Neustart läuft wieder die gebündelte Version.", "success")
-        except Exception as exc:
-            flash(f"Fehler beim Rollback: {exc}", "error")
-    else:
+    if not os.path.isdir(upd_dir):
         flash("Kein aktives Update vorhanden.", "info")
-    return redirect(url_for("admin.update_index"))
+        return redirect(url_for("admin.update_index"))
+
+    # os.rename ist auf Windows auch bei geöffneten Dateien (z.B. importierten
+    # .pyc-Dateien) zuverlässig, während shutil.rmtree mit PermissionError
+    # scheitern kann. Nach dem Rename gibt es kein updates/-Verzeichnis mehr;
+    # die neue EXE-Instanz startet mit der gebündelten Version.
+    bak_dir = upd_dir.rstrip(os.sep) + '.bak'
+    try:
+        if os.path.exists(bak_dir):
+            shutil.rmtree(bak_dir, ignore_errors=True)
+        os.rename(upd_dir, bak_dir)
+    except Exception as exc:
+        current_app.logger.exception("Rollback fehlgeschlagen")
+        flash(f"Rollback fehlgeschlagen: {exc}", "error")
+        return redirect(url_for("admin.update_index"))
+
+    # Backup im Hintergrund löschen (nach dem Rename keine Locking-Probleme mehr)
+    def _del_bak():
+        import time
+        time.sleep(2)
+        shutil.rmtree(bak_dir, ignore_errors=True)
+    threading.Thread(target=_del_bak, daemon=True).start()
+
+    _trigger_restart()
+    return render_template("admin/update_restarting.html")
+
+
+@bp.route("/update/log")
+@admin_required
+def update_log():
+    """Gibt die letzten 500 Zeilen des App-Logs als Plaintext zurück."""
+    log_path = os.path.join(
+        os.path.dirname(current_app.config['DATABASE']), 'idvault.log'
+    )
+    if not os.path.isfile(log_path):
+        return Response("Keine Log-Datei vorhanden.", mimetype='text/plain; charset=utf-8')
+    try:
+        with open(log_path, encoding='utf-8', errors='replace') as _f:
+            lines = _f.readlines()
+        content = "".join(lines[-500:])
+    except Exception as exc:
+        content = f"Fehler beim Lesen der Log-Datei: {exc}"
+    return Response(content, mimetype='text/plain; charset=utf-8')

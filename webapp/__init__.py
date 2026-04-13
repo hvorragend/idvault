@@ -56,6 +56,21 @@ def create_app(db_path: str = None) -> Flask:
     os.makedirs(_instance_path, exist_ok=True)
     os.makedirs(upload_folder, exist_ok=True)
 
+    # Datei-Logging: Fehler (WARNING+) → instance/idvault.log
+    import logging
+    from logging.handlers import RotatingFileHandler as _RFH
+    _fh = _RFH(
+        os.path.join(_instance_path, 'idvault.log'),
+        maxBytes=5 * 1024 * 1024, backupCount=2, encoding='utf-8'
+    )
+    _fh.setLevel(logging.WARNING)
+    _fh.setFormatter(logging.Formatter(
+        '[%(asctime)s] %(levelname)s %(name)s: %(message)s'
+    ))
+    app.logger.addHandler(_fh)
+    app.logger.setLevel(logging.WARNING)
+    logging.getLogger().addHandler(_fh)  # Root-Logger: werkzeug, sqlalchemy etc.
+
     # Datenbank
     init_app_db(app)
 
