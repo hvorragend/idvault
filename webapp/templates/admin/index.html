@@ -363,7 +363,7 @@
             <input type="email" name="smtp_from" class="form-control form-control-sm"
                    value="{{ settings.get('smtp_from','') }}" placeholder="idvault@bank.de">
           </div>
-          <div class="col-md-4 d-flex align-items-end gap-3">
+          <div class="col-md-8 d-flex align-items-end gap-3 flex-wrap">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="smtp_tls" value="1" id="smtp_tls"
                      {{ 'checked' if settings.get('smtp_tls','1')=='1' else '' }}>
@@ -374,11 +374,85 @@
                      {{ 'checked' if settings.get('notify_new_file','1')=='1' else '' }}>
               <label class="form-check-label" for="notify_nf">Neue Dateien benachrichtigen</label>
             </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="auto_ignore_no_formula" value="1" id="auto_ign"
+                     {{ 'checked' if settings.get('auto_ignore_no_formula','0')=='1' else '' }}>
+              <label class="form-check-label" for="auto_ign">
+                Dateien ohne Formeln automatisch ignorieren
+              </label>
+            </div>
           </div>
           <div class="col-md-4 d-flex align-items-end">
             <button type="submit" class="btn btn-sm btn-primary">
               <i class="bi bi-floppy me-1"></i>Einstellungen speichern
             </button>
+          </div>
+          <!-- ── E-Mail-Vorlagen (alle konfigurierbar) ─── -->
+          <div class="col-12 mt-3" id="email-vorlagen">
+            <hr class="my-2">
+            <h6 class="fw-600 mb-3"><i class="bi bi-envelope-paper me-1"></i>E-Mail-Vorlagen</h6>
+            <p class="text-muted mb-3" style="font-size:.82rem">
+              Alle E-Mail-Texte sind konfigurierbar. Leere Felder verwenden den
+              eingebauten Standard-Text. Platzhalter im Format <code>{name}</code>
+              werden beim Versand automatisch ersetzt.
+            </p>
+
+            <div class="accordion" id="email-tpl-accordion">
+              {% for tpl_key, tpl_meta in email_templates.items() %}
+              {% set subj_key = 'email_tpl_' + tpl_key + '_subject' %}
+              {% set body_key = 'email_tpl_' + tpl_key + '_body' %}
+              {% set default_subj = email_defaults.get(tpl_key + '_subject', '') %}
+              {% set default_body = email_defaults.get(tpl_key + '_body', '') %}
+              {% set has_custom = settings.get(subj_key, '') or settings.get(body_key, '') %}
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed py-2" type="button"
+                          data-bs-toggle="collapse" data-bs-target="#tpl-{{ tpl_key }}"
+                          style="font-size:.85rem">
+                    <i class="bi bi-envelope me-2 text-primary"></i>
+                    {{ tpl_meta.label }}
+                    {% if has_custom %}
+                    <span class="badge bg-info ms-2" style="font-size:.68rem">angepasst</span>
+                    {% endif %}
+                  </button>
+                </h2>
+                <div id="tpl-{{ tpl_key }}" class="accordion-collapse collapse"
+                     data-bs-parent="#email-tpl-accordion">
+                  <div class="accordion-body py-2">
+                    <div class="mb-2">
+                      <span class="text-muted" style="font-size:.78rem">Platzhalter:
+                        {% for ph in tpl_meta.placeholders %}
+                        <code>{<span>{{ ph }}</span>}</code>{{ ', ' if not loop.last }}
+                        {% endfor %}
+                      </span>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label form-label-sm fw-600">Betreff</label>
+                      <input type="text" name="{{ subj_key }}" class="form-control form-control-sm"
+                             value="{{ settings.get(subj_key, '') }}"
+                             placeholder="{{ default_subj }}">
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label form-label-sm fw-600">HTML-Inhalt</label>
+                      <textarea name="{{ body_key }}" class="form-control form-control-sm" rows="8"
+                                style="font-family:monospace;font-size:.76rem"
+                                placeholder="Standard-Vorlage wird verwendet wenn leer">{{ settings.get(body_key, '') }}</textarea>
+                    </div>
+                    {% if has_custom %}
+                    <div class="text-end">
+                      <button type="button" class="btn btn-xs btn-outline-secondary"
+                              onclick="this.closest('.accordion-body').querySelector('input[name={{ subj_key }}]').value='';
+                                       this.closest('.accordion-body').querySelector('textarea[name={{ body_key }}]').value='';
+                                       this.remove();">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Auf Standard zurücksetzen
+                      </button>
+                    </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
           </div>
           <div class="col-12">
             <div class="alert alert-info py-2 mb-0" style="font-size:.83rem">

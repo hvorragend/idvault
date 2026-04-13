@@ -399,18 +399,15 @@ def eingang_funde():
 @bp.route("/bewertet")
 @login_required
 def bewertet():
-    """Übersicht bewerteter Eigenentwicklungen:
-    a) Ignorierte Scanner-Funde (keine Formeln o.ä.)
-    b) Nicht wesentliche IDVs aus dem Scanner
-    """
+    """Redirect zur Ignoriert-Seite (Abwärtskompatibilität)."""
+    return redirect(url_for("scanner.ignorierte_dateien"))
+
+
+@bp.route("/ignorierte")
+@login_required
+def ignorierte_dateien():
+    """Eigene Seite: Ignorierte Scanner-Funde."""
     db = get_db()
-
-    _WESENTLICH_SQL = """(
-        r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
-        OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
-    )"""
-
-    # a) Ignorierte Scanner-Funde
     ignorierte = db.execute("""
         SELECT f.*,
                reg.idv_id      AS reg_idv_id,
@@ -426,7 +423,29 @@ def bewertet():
         LIMIT 500
     """).fetchall()
 
-    # b) Nicht wesentliche IDVs, die aus dem Scanner stammen (file_id gesetzt)
+    ignoriert_count = db.execute(
+        "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Ignoriert'"
+    ).fetchone()[0]
+
+    return render_template("scanner/ignorierte.html",
+        ignorierte=ignorierte,
+        ignoriert_count=ignoriert_count,
+        idv_typ_vorschlag=_idv_typ_vorschlag,
+        **_scan_btn_ctx(),
+    )
+
+
+@bp.route("/nicht-wesentliche")
+@login_required
+def nicht_wesentliche_idvs():
+    """Eigene Seite: Nicht wesentliche IDVs aus dem Scanner."""
+    db = get_db()
+
+    _WESENTLICH_SQL = """(
+        r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
+        OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
+    )"""
+
     nicht_wesentliche = db.execute(f"""
         SELECT r.id AS idv_db_id, r.idv_id, r.bezeichnung, r.status,
                r.bearbeitungsstatus AS idv_bearbeitungsstatus,
@@ -444,8 +463,7 @@ def bewertet():
         LIMIT 500
     """).fetchall()
 
-    return render_template("scanner/bewertet.html",
-        ignorierte=ignorierte,
+    return render_template("scanner/nicht_wesentliche.html",
         nicht_wesentliche=nicht_wesentliche,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         **_scan_btn_ctx(),
@@ -591,7 +609,7 @@ def bulk_aktion():
         ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
         return redirect(url_for("scanner.zusammenfassen") + "?" + ids_qs)
 
-    if aktion not in ("ignorieren", "zur_registrierung", "owner_aendern"):
+    if aktion not in ("ignorieren", "zur_registrierung", "owner_aendern", "bewertung_anfordern"):
         flash("Ungültige Aktion.", "error")
         return redirect(url_for("scanner.list_funde"))
 
@@ -670,6 +688,48 @@ def bulk_aktion():
                 f"{len(file_ids)} Datei(en): Dateieigentümer auf \"{new_owner}\" gesetzt.",
                 "success"
             )
+
+    elif aktion == "bewertung_anfordern":
+        from ..email_service import notify_file_bewertung
+        placeholders = ",".join("?" * len(file_ids))
+        dateien = db.execute(
+            f"SELECT * FROM idv_files WHERE id IN ({placeholders})", file_ids
+        ).fetchall()
+
+        gesendet = 0
+        kein_empfaenger = 0
+        fehler = 0
+        for datei in dateien:
+            # Empfänger ermitteln: file_owner oder office_author → persons.email
+            owner = datei["file_owner"] or datei["office_author"] or ""
+            email = None
+            if owner:
+                person = db.execute(
+                    "SELECT email FROM persons WHERE (user_id = ? OR kuerzel = ? OR ad_name = ?) AND aktiv = 1 AND email IS NOT NULL",
+                    (owner, owner, owner)
+                ).fetchone()
+                if person:
+                    email = person["email"]
+            if not email:
+                kein_empfaenger += 1
+                continue
+            try:
+                ok = notify_file_bewertung(db, datei, email)
+                if ok:
+                    gesendet += 1
+                else:
+                    fehler += 1
+            except Exception:
+                fehler += 1
+
+        msg_parts = []
+        if gesendet:
+            msg_parts.append(f"{gesendet} Bewertungsanforderung(en) gesendet")
+        if kein_empfaenger:
+            msg_parts.append(f"{kein_empfaenger} ohne zugeordnete E-Mail-Adresse")
+        if fehler:
+            msg_parts.append(f"{fehler} Fehler beim Versand")
+        flash(". ".join(msg_parts) + ".", "success" if gesendet and not fehler else "warning")
 
     return_to = request.form.get("return_to", "")
     if return_to == "eingang":

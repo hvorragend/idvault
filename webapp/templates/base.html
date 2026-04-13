@@ -354,9 +354,13 @@
       class="nav-link {% if request.endpoint == 'scanner.list_funde' %}active{% endif %}">
       <i class="bi bi-radar"></i> Alle Funde
     </a>
-    <a href="{{ url_for('scanner.bewertet') }}"
-      class="nav-link {% if request.endpoint == 'scanner.bewertet' %}active{% endif %}">
-      <i class="bi bi-check2-all"></i> Bewertet
+    <a href="{{ url_for('scanner.ignorierte_dateien') }}"
+      class="nav-link {% if request.endpoint == 'scanner.ignorierte_dateien' %}active{% endif %}">
+      <i class="bi bi-eye-slash"></i> Ignorierte Dateien
+    </a>
+    <a href="{{ url_for('scanner.nicht_wesentliche_idvs') }}"
+      class="nav-link {% if request.endpoint == 'scanner.nicht_wesentliche_idvs' %}active{% endif %}">
+      <i class="bi bi-dash-circle"></i> Nicht wesentliche
     </a>
     <a href="{{ url_for('scanner.scan_laeufe') }}"
       class="nav-link {% if request.endpoint == 'scanner.scan_laeufe' %}active{% endif %}">

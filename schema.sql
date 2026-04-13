@@ -162,7 +162,8 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('smtp_password', ''),
     ('smtp_from',     ''),
     ('smtp_tls',      '1'),
-    ('notify_new_file', '1');
+    ('notify_new_file', '1'),
+    ('auto_ignore_no_formula', '0');
 
 -- Konfigurierbare Klassifizierungskriterien
 CREATE TABLE IF NOT EXISTS klassifizierungen (
