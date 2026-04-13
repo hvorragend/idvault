@@ -22,8 +22,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 # admin.py den gleichen Executable mit --scan auf.
 if '--scan' in sys.argv:
     sys.argv = [a for a in sys.argv if a != '--scan']
-    import idv_scanner
-    idv_scanner.main()
+    _crash_log = os.path.join(os.path.dirname(sys.executable), 'scanner_crash.log')
+    try:
+        import idv_scanner
+        idv_scanner.main()
+    except Exception:
+        import traceback
+        with open(_crash_log, 'w', encoding='utf-8') as _f:
+            traceback.print_exc(file=_f)
     sys.exit(0)
 
 from webapp import create_app
