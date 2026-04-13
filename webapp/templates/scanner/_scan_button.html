@@ -1,65 +1,199 @@
 {#
   Wiederverwendbare Scan-Schaltfläche.
   Erwartet Template-Variablen:
-    can_write      – bool, ob Benutzer scannen darf
-    scan_running   – bool, ob gerade ein Scan läuft
-    has_scan_paths – bool, ob Scan-Pfade konfiguriert sind
+    can_write       – bool, ob Benutzer scannen darf
+    scan_running    – bool, ob gerade ein Scan läuft
+    scan_paused     – bool, ob der Scan pausiert ist
+    has_scan_paths  – bool, ob Scan-Pfade konfiguriert sind
+    has_checkpoint  – bool, ob ein Checkpoint zum Fortsetzen vorhanden ist
+
+  Zustände:
+    1. Scan läuft (nicht pausiert)  → [Pause]  [Abbrechen]
+    2. Scan pausiert                → [Fortsetzen]  [Abbrechen]
+    3. Kein Scan, Checkpoint vorh.  → [Scan fortsetzen ↻]  [Neu starten]
+    4. Kein Scan, kein Checkpoint   → [Scan starten]
 #}
 {% if can_write %}
-<button id="btn-scan-start" type="button" class="btn btn-sm btn-success"
-        {{ 'disabled' if scan_running or not has_scan_paths }}
-        title="{{ 'Scan-Pfade zuerst unter Scanner-Einstellungen konfigurieren' if not has_scan_paths }}">
-  {% if scan_running %}
-    <span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft …
+<span id="scan-ctrl-wrap">
+
+  {% if scan_running and not scan_paused %}
+  {# Zustand 1: läuft #}
+  <button id="btn-scan-pause" type="button" class="btn btn-sm btn-warning"
+          title="Scan nach dem aktuellen Verzeichnis unterbrechen">
+    <i class="bi bi-pause-fill me-1"></i>Pause
+  </button>
+  <button id="btn-scan-abbrechen" type="button" class="btn btn-sm btn-danger"
+          onclick="if(!confirm('Scan wirklich abbrechen? Der Fortschritt wird als Checkpoint gespeichert.'))return;"
+          title="Scan abbrechen (Checkpoint wird gespeichert)">
+    <i class="bi bi-stop-fill me-1"></i>Abbrechen
+  </button>
+  <span class="spinner-border spinner-border-sm text-warning ms-1" role="status"></span>
+  <span class="small text-muted ms-1">Scan läuft …</span>
+
+  {% elif scan_running and scan_paused %}
+  {# Zustand 2: pausiert #}
+  <button id="btn-scan-fortsetzen" type="button" class="btn btn-sm btn-success"
+          title="Scan fortsetzen">
+    <i class="bi bi-play-fill me-1"></i>Fortsetzen
+  </button>
+  <button id="btn-scan-abbrechen" type="button" class="btn btn-sm btn-danger"
+          onclick="if(!confirm('Scan wirklich abbrechen? Der Fortschritt wird als Checkpoint gespeichert.'))return;"
+          title="Scan abbrechen (Checkpoint wird gespeichert)">
+    <i class="bi bi-stop-fill me-1"></i>Abbrechen
+  </button>
+  <span class="badge bg-warning text-dark ms-1">Pausiert</span>
+
+  {% elif not scan_running and has_checkpoint %}
+  {# Zustand 3: kein Scan, aber Checkpoint vorhanden #}
+  <button id="btn-scan-resume" type="button" class="btn btn-sm btn-primary"
+          title="Scan ab dem letzten Checkpoint fortsetzen">
+    <i class="bi bi-arrow-clockwise me-1"></i>Scan fortsetzen
+  </button>
+  <button id="btn-scan-start" type="button" class="btn btn-sm btn-outline-secondary"
+          {{ 'disabled' if not has_scan_paths }}
+          title="{{ 'Scan-Pfade zuerst unter Scanner-Einstellungen konfigurieren' if not has_scan_paths else 'Checkpoint verwerfen und neu starten' }}">
+    <i class="bi bi-play-fill me-1"></i>Neu starten
+  </button>
+
   {% else %}
+  {# Zustand 4: kein Scan, kein Checkpoint #}
+  <button id="btn-scan-start" type="button" class="btn btn-sm btn-success"
+          {{ 'disabled' if not has_scan_paths }}
+          title="{{ 'Scan-Pfade zuerst unter Scanner-Einstellungen konfigurieren' if not has_scan_paths }}">
     <i class="bi bi-play-fill me-1"></i>Scan starten
+  </button>
   {% endif %}
-</button>
+
+</span>
 <span id="scan-inline-msg" class="small ms-2" style="display:none"></span>
+
 <script>
 (function () {
-  const btn = document.getElementById("btn-scan-start");
-  if (!btn) return;
-  const msg = document.getElementById("scan-inline-msg");
-
-  function setRunning(v) {
-    btn.disabled = v;
-    btn.innerHTML = v
-      ? '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft \u2026'
-      : '<i class="bi bi-play-fill me-1"></i>Scan starten';
+  function post(url, params) {
+    var fd = new FormData();
+    Object.keys(params || {}).forEach(function(k){ fd.append(k, params[k]); });
+    return fetch(url, { method: "POST", body: fd });
   }
   function showMsg(text, ok) {
-    msg.textContent  = text;
-    msg.className    = "small ms-2 " + (ok ? "text-success" : "text-danger");
-    msg.style.display = "";
+    var m = document.getElementById("scan-inline-msg");
+    if (!m) return;
+    m.textContent   = text;
+    m.className     = "small ms-2 " + (ok ? "text-success" : "text-danger");
+    m.style.display = "";
   }
 
-  {% if scan_running %}setRunning(true); pollStatus();{% endif %}
-
-  btn.addEventListener("click", function () {
-    btn.disabled = true;
-    fetch("{{ url_for('admin.scanner_starten') }}", {
-      method: "POST", headers: { "X-CSRFToken": "" }
-    })
-    .then(r => r.json())
-    .then(d => {
-      if (d.ok) { showMsg(d.msg, true);  setRunning(true); pollStatus(); }
-      else      { showMsg(d.msg, false); btn.disabled = false; }
-    })
-    .catch(e => { showMsg("Netzwerkfehler: " + e, false); btn.disabled = false; });
-  });
-
-  function pollStatus() {
+  function startPoll() {
     setTimeout(function check() {
       fetch("{{ url_for('admin.scanner_status') }}")
-      .then(r => r.json())
-      .then(d => {
-        if (d.running) { setTimeout(check, 3000); }
-        else { setRunning(false); showMsg("Scan abgeschlossen.", true); }
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        updateUI(d);
+        if (d.running || d.has_checkpoint) {
+          setTimeout(check, 3000);
+        }
       })
-      .catch(() => setTimeout(check, 5000));
-    }, 3000);
+      .catch(function(){ setTimeout(check, 5000); });
+    }, 2000);
   }
+
+  function updateUI(d) {
+    var wrap = document.getElementById("scan-ctrl-wrap");
+    if (!wrap) return;
+    var noPath = {{ 'true' if not has_scan_paths else 'false' }};
+
+    if (d.running && !d.paused) {
+      wrap.innerHTML =
+        '<button class="btn btn-sm btn-warning" id="btn-scan-pause" title="Pause">' +
+          '<i class="bi bi-pause-fill me-1"></i>Pause</button> ' +
+        '<button class="btn btn-sm btn-danger" id="btn-scan-abbrechen">' +
+          '<i class="bi bi-stop-fill me-1"></i>Abbrechen</button> ' +
+        '<span class="spinner-border spinner-border-sm text-warning ms-1" role="status"></span>' +
+        '<span class="small text-muted ms-1">Scan läuft \u2026</span>';
+      bindButtons();
+    } else if (d.running && d.paused) {
+      wrap.innerHTML =
+        '<button class="btn btn-sm btn-success" id="btn-scan-fortsetzen">' +
+          '<i class="bi bi-play-fill me-1"></i>Fortsetzen</button> ' +
+        '<button class="btn btn-sm btn-danger" id="btn-scan-abbrechen">' +
+          '<i class="bi bi-stop-fill me-1"></i>Abbrechen</button> ' +
+        '<span class="badge bg-warning text-dark ms-1">Pausiert</span>';
+      bindButtons();
+    } else if (!d.running && d.has_checkpoint) {
+      wrap.innerHTML =
+        '<button class="btn btn-sm btn-primary" id="btn-scan-resume">' +
+          '<i class="bi bi-arrow-clockwise me-1"></i>Scan fortsetzen</button> ' +
+        '<button class="btn btn-sm btn-outline-secondary" id="btn-scan-start"' +
+          (noPath ? ' disabled title="Scan-Pfade zuerst konfigurieren"' : ' title="Checkpoint verwerfen und neu starten"') + '>' +
+          '<i class="bi bi-play-fill me-1"></i>Neu starten</button>';
+      bindButtons();
+    } else {
+      wrap.innerHTML =
+        '<button class="btn btn-sm btn-success" id="btn-scan-start"' +
+          (noPath ? ' disabled title="Scan-Pfade zuerst konfigurieren"' : '') + '>' +
+          '<i class="bi bi-play-fill me-1"></i>Scan starten</button>';
+      bindButtons();
+    }
+  }
+
+  function bindButtons() {
+    var b;
+    b = document.getElementById("btn-scan-start");
+    if (b) b.addEventListener("click", function() {
+      b.disabled = true;
+      post("{{ url_for('admin.scanner_starten') }}")
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          showMsg(d.msg, d.ok);
+          if (d.ok) startPoll();
+          else b.disabled = false;
+        })
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+    });
+
+    b = document.getElementById("btn-scan-resume");
+    if (b) b.addEventListener("click", function() {
+      b.disabled = true;
+      post("{{ url_for('admin.scanner_starten') }}", { resume: "1" })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          showMsg(d.msg, d.ok);
+          if (d.ok) startPoll();
+          else b.disabled = false;
+        })
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+    });
+
+    b = document.getElementById("btn-scan-pause");
+    if (b) b.addEventListener("click", function() {
+      b.disabled = true;
+      post("{{ url_for('admin.scanner_pause') }}")
+        .then(function(r){ return r.json(); })
+        .then(function(d){ showMsg(d.msg, d.ok); startPoll(); })
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+    });
+
+    b = document.getElementById("btn-scan-fortsetzen");
+    if (b) b.addEventListener("click", function() {
+      b.disabled = true;
+      post("{{ url_for('admin.scanner_fortsetzen') }}")
+        .then(function(r){ return r.json(); })
+        .then(function(d){ showMsg(d.msg, d.ok); startPoll(); })
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+    });
+
+    b = document.getElementById("btn-scan-abbrechen");
+    if (b) b.addEventListener("click", function() {
+      if (!confirm("Scan wirklich abbrechen?\nDer Fortschritt wird als Checkpoint gespeichert.")) return;
+      b.disabled = true;
+      post("{{ url_for('admin.scanner_abbrechen') }}")
+        .then(function(r){ return r.json(); })
+        .then(function(d){ showMsg(d.msg, d.ok); startPoll(); })
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+    });
+  }
+
+  bindButtons();
+  {% if scan_running %}startPoll();{% endif %}
 })();
 </script>
 {% endif %}

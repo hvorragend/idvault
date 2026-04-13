@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS scan_runs (
     moved_files     INTEGER DEFAULT 0,
     restored_files  INTEGER DEFAULT 0,
     archived_files  INTEGER DEFAULT 0,
-    errors          INTEGER DEFAULT 0
+    errors          INTEGER DEFAULT 0,
+    scan_status     TEXT NOT NULL DEFAULT 'completed'
+    -- 'running' | 'completed' | 'cancelled' | 'checkpoint'
 );
 
 CREATE TABLE IF NOT EXISTS idv_files (

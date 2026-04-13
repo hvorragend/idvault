@@ -8,11 +8,16 @@ bp = Blueprint("scanner", __name__, url_prefix="/scanner")
 
 def _scan_btn_ctx() -> dict:
     """Liefert die Variablen für das _scan_button.html-Include."""
-    from webapp.routes.admin import _scan_is_running, _load_scanner_config
+    from webapp.routes.admin import (
+        _scan_is_running, _load_scanner_config, _scan_is_paused, _has_checkpoint
+    )
+    running = _scan_is_running()
     return {
         "can_write":      can_write(),
-        "scan_running":   _scan_is_running(),
+        "scan_running":   running,
+        "scan_paused":    _scan_is_paused() if running else False,
         "has_scan_paths": bool(_load_scanner_config().get("scan_paths")),
+        "has_checkpoint": _has_checkpoint(),
     }
 
 _EXT_TO_TYP = {

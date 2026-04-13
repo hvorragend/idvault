@@ -137,6 +137,12 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
                 "INSERT OR IGNORE INTO ldap_config (id) VALUES (1)"
             )
 
+    # scan_runs: scan_status (Pause/Checkpoint/Cancel-Unterstützung)
+    if not has_column("scan_runs", "scan_status"):
+        conn.execute(
+            "ALTER TABLE scan_runs ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'completed'"
+        )
+
     conn.commit()
 
 
