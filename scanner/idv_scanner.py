@@ -18,6 +18,7 @@ import zipfile
 import logging
 import argparse
 import json
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -102,6 +103,15 @@ def setup_logging(log_path: str) -> logging.Logger:
     logger.addHandler(fh)
     logger.addHandler(ch)
     return logger
+
+
+def _flush_log(logger: logging.Logger) -> None:
+    """Flusht alle Handler, damit Log-Einträge auch bei Crash auf der Platte landen."""
+    for handler in logger.handlers:
+        try:
+            handler.flush()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +205,8 @@ def init_db(db_path: str) -> sqlite3.Connection:
 # Hash-Berechnung
 # ---------------------------------------------------------------------------
 
-def sha256_file(path: str, chunk_size: int = 65536) -> Optional[str]:
+def sha256_file(path: str, chunk_size: int = 65536,
+                logger: logging.Logger = None) -> Optional[str]:
     """SHA-256-Hash einer Datei. Gibt None zurück bei Fehler."""
     h = hashlib.sha256()
     try:
@@ -203,7 +214,15 @@ def sha256_file(path: str, chunk_size: int = 65536) -> Optional[str]:
             while chunk := f.read(chunk_size):
                 h.update(chunk)
         return h.hexdigest()
-    except (PermissionError, OSError):
+    except (PermissionError, OSError) as e:
+        if logger:
+            logger.debug(f"Hash-Fehler (übersprungen): {path} – {e}")
+        return None
+    except BaseException as e:
+        # Windows kann auf Netzlaufwerken ein Control-Signal senden
+        # (KeyboardInterrupt). Hash dann einfach überspringen.
+        if logger:
+            logger.warning(f"Hash-Berechnung unterbrochen: {path} – {type(e).__name__}: {e}")
         return None
 
 
@@ -478,7 +497,8 @@ def _check_and_handle_signals(signal_dir: Optional[str], logger: logging.Logger)
 # Scanner-Kern
 # ---------------------------------------------------------------------------
 
-def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
+def scan_file(path: str, config: dict, scan_paths: list,
+              logger: logging.Logger = None) -> Optional[dict]:
     """Analysiert eine einzelne Datei und gibt ein Metadaten-Dict zurück."""
     ext = Path(path).suffix.lower()
     fs  = get_fs_metadata(path, config)
@@ -487,7 +507,7 @@ def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
     size_limit = config.get("hash_size_limit_mb", 500) * 1024 * 1024
     file_hash  = None
     if fs["size_bytes"] is not None and fs["size_bytes"] <= size_limit:
-        file_hash = sha256_file(path)
+        file_hash = sha256_file(path, logger=logger)
 
     # OOXML-Analyse für Office-Dateien
     ooxml_exts = {".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
@@ -610,11 +630,11 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                     pass  # bei Lesefehler: Datei trotzdem verarbeiten
 
             try:
-                data = scan_file(full_path, config, all_scan_paths)
+                data = scan_file(full_path, config, all_scan_paths, logger=logger)
                 if data:
                     yield data
-            except Exception as e:
-                logger.warning(f"Fehler bei {full_path}: {e}")
+            except BaseException as e:
+                logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
 def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
@@ -643,11 +663,11 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
             except OSError:
                 pass
         try:
-            data = scan_file(full_path, config, all_scan_paths)
+            data = scan_file(full_path, config, all_scan_paths, logger=logger)
             if data:
                 yield data
-        except Exception as e:
-            logger.warning(f"Fehler bei {full_path}: {e}")
+        except BaseException as e:
+            logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
 def _get_toplevel_dirs(scan_path: str, excludes: list) -> list:
@@ -669,7 +689,9 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
     """Verarbeitet alle Dateien eines Generators, prüft alle 50 Dateien die Signale."""
     file_counter = 0
     for data in chunk_gen:
+        current_path = data.get("full_path", "?")
         try:
+            logger.debug(f"Verarbeite: {current_path}")
             change = upsert_file(conn, data, scan_run_id, now, logger, move_mode)
             stats["total"]  += 1
             stats[change]   += 1
@@ -677,15 +699,31 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
 
             if file_counter % 50 == 0:
                 _check_and_handle_signals(signal_dir, logger)
+                _flush_log(logger)
 
             if stats["total"] % 100 == 0:
                 conn.commit()
                 logger.info(f"  … {stats['total']} Dateien verarbeitet")
         except ScanCancelledError:
             raise
-        except Exception as e:
-            logger.error(f"DB-Fehler bei {data.get('full_path')}: {e}")
+        except BaseException as e:
+            # BaseException fängt auch KeyboardInterrupt ab, den Windows bei
+            # Netzwerk-Problemen als Control-Signal senden kann.
+            logger.error(
+                f"Fehler bei {current_path}: {type(e).__name__}: {e}\n"
+                f"{traceback.format_exc()}"
+            )
+            _flush_log(logger)
             stats["errors"] += 1
+            # Bei echtem KeyboardInterrupt (Ctrl+C vom Benutzer) abbrechen;
+            # bei Netzwerk-Signalen weiter scannen.
+            if isinstance(e, KeyboardInterrupt):
+                # Prüfen ob ein Abbruch-Signal vorliegt (bewusster Abbruch)
+                sig = check_signals(signal_dir) if signal_dir else "ok"
+                if sig == "cancel":
+                    raise ScanCancelledError()
+                # Kein Signal → vermutlich Windows-Netzwerk-Signal, weiter scannen
+                logger.warning("KeyboardInterrupt ohne Abbruch-Signal – setze Scan fort")
 
 
 # ---------------------------------------------------------------------------
@@ -1088,6 +1126,51 @@ def run_scan(config: dict, logger: logging.Logger,
                        f"({len(completed_dirs)} Verzeichnisse abgeschlossen)")
         logger.warning("  Resume mit: --resume (oder über die Webapp)")
         logger.warning("=" * 60)
+        _flush_log(logger)
+
+    except BaseException as e:
+        # ── Unerwarteter Crash – so viel wie möglich sichern ─────────────
+        logger.critical("=" * 60)
+        logger.critical(f"UNERWARTETER FEHLER in Scan #{scan_run_id}")
+        logger.critical(f"  Typ:     {type(e).__name__}")
+        logger.critical(f"  Meldung: {e}")
+        logger.critical(f"  Bisher verarbeitet: {stats['total']} Dateien "
+                        f"({len(completed_dirs)} Verzeichnisse)")
+        logger.critical(f"  Traceback:\n{traceback.format_exc()}")
+        logger.critical("=" * 60)
+        _flush_log(logger)
+
+        # DB-Zustand sichern, soweit möglich
+        try:
+            conn.commit()
+            finished = datetime.now(timezone.utc).isoformat()
+            conn.execute("""
+                UPDATE scan_runs SET
+                    finished_at = ?, total_files = ?, new_files = ?,
+                    changed_files = ?, moved_files = ?, restored_files = ?,
+                    archived_files = 0, errors = ?, scan_status = 'crashed'
+                WHERE id = ?
+            """, (finished, stats["total"], stats["new"], stats["changed"],
+                  stats["moved"], stats["restored"], stats["errors"] + 1, scan_run_id))
+            conn.commit()
+        except Exception as db_err:
+            logger.critical(f"DB-Sicherung fehlgeschlagen: {db_err}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        # Checkpoint schreiben für Resume
+        if signal_dir:
+            try:
+                write_checkpoint(signal_dir, scan_run_id, scan_paths,
+                                 completed_dirs, stats)
+            except Exception as cp_err:
+                logger.critical(f"Checkpoint-Sicherung fehlgeschlagen: {cp_err}")
+            clean_signals(signal_dir)
+
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -1121,7 +1204,21 @@ def main():
 
     signal_dir = os.path.dirname(os.path.abspath(args.config))
     logger = setup_logging(config["log_path"])
-    run_scan(config, logger, signal_dir=signal_dir, resume=args.resume)
+
+    try:
+        run_scan(config, logger, signal_dir=signal_dir, resume=args.resume)
+    except BaseException as e:
+        # Letzter Rettungsanker: Crash-Details in Log UND stderr schreiben,
+        # damit die Ursache auch ohne Zugriff auf die Konsole erkennbar ist.
+        tb = traceback.format_exc()
+        try:
+            logger.critical(f"Scanner abgestürzt: {type(e).__name__}: {e}\n{tb}")
+            _flush_log(logger)
+        except Exception:
+            pass
+        # Auch in stderr schreiben (wird von der Webapp nach scanner_output.log umgeleitet)
+        print(f"FATAL: {type(e).__name__}: {e}\n{tb}", file=sys.stderr)
+        sys.exit(2)
 
 
 if __name__ == "__main__":
