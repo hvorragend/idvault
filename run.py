@@ -17,6 +17,15 @@ import sys
 # Projektverzeichnis zum Pfad hinzufügen
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Absoluter Projektpfad – muss gesetzt sein bevor irgendein Modul geladen wird,
+# damit create_app() korrekte Pfade ermittelt auch wenn webapp/__init__.py
+# aus dem Sidecar-Override stammt.
+if getattr(sys, 'frozen', False):
+    _PROJECT_ROOT = os.path.dirname(sys.executable)
+else:
+    _PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+os.environ.setdefault('IDV_PROJECT_ROOT', _PROJECT_ROOT)
+
 # ── Sidecar-Update: Override-Verzeichnis vor gebündelten Modulen laden ───────
 import importlib.util
 
