@@ -14,31 +14,31 @@ from .db_flask import get_db, close_db, init_app_db
 
 
 def create_app(db_path: str = None) -> Flask:
-    # PyInstaller-Kompatibilität: Im gefrorenen Bundle gibt es kein echtes
-    # Package-Verzeichnis mehr – deshalb template_folder explizit setzen.
+    # Absoluter Projektpfad – von run.py gesetzt, bevor irgendein Modul
+    # importiert wird. Dadurch bleiben alle Pfade korrekt, auch wenn
+    # webapp/__init__.py aus dem Sidecar-Override (updates/) geladen wurde.
+    _project_root = os.environ.get(
+        'IDV_PROJECT_ROOT',
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+
     if getattr(sys, 'frozen', False):
         _tpl = str(Path(sys._MEIPASS) / 'webapp' / 'templates')
-        # Im Bundle zeigt app.instance_path auf den temporären _MEIPASS-Ordner.
-        # Stattdessen: instance/ dauerhaft neben der .exe ablegen.
         _instance_default = os.path.join(os.path.dirname(sys.executable), 'instance')
     else:
-        _tpl = 'templates'  # Flask-Default relativ zum Package
-        _instance_default = None  # wird unten von app.instance_path geholt
+        # Absoluter Pfad – unabhängig davon, von wo __init__.py geladen wurde
+        _tpl = os.path.join(_project_root, 'webapp', 'templates')
+        _instance_default = os.path.join(_project_root, 'instance')
 
     app = Flask(__name__, instance_relative_config=True, template_folder=_tpl)
 
     # Sidecar-Template-Override: templates aus updates/ haben Vorrang
     from jinja2 import ChoiceLoader, FileSystemLoader as _FSL
-    if getattr(sys, 'frozen', False):
-        _exe_dir = os.path.dirname(sys.executable)
-    else:
-        _exe_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _ovr_tpl = os.path.join(_exe_dir, 'updates', 'templates')
+    _ovr_tpl = os.path.join(_project_root, 'updates', 'templates')
     if os.path.isdir(_ovr_tpl):
         app.jinja_loader = ChoiceLoader([_FSL(_ovr_tpl), app.jinja_loader])
 
-    _instance_path = os.environ.get("IDV_INSTANCE_PATH",
-                                    _instance_default or app.instance_path)
+    _instance_path = os.environ.get("IDV_INSTANCE_PATH", _instance_default)
     upload_folder = os.path.join(_instance_path, "uploads", "freigaben")
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-change-in-production-!"),
