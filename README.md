@@ -361,8 +361,128 @@ Verwaltung der Stammdaten:
 - **Geschäftsprozesse** — Prozesskatalog (Basis für Kritikalitätsbewertung)
 - **Plattformen** — Technologie-Katalog (Excel, Python, Power BI …)
 - **E-Mail-Einstellungen** — SMTP-Konfiguration für automatische Benachrichtigungen
+- **Software-Update** — Anwendungs-Updates einspielen ohne EXE-Austausch
 
 → Detailbeschreibung: [Benutzer- und Berechtigungskonzept](#benutzer--und-berechtigungskonzept), [E-Mail-Benachrichtigungen](#e-mail-benachrichtigungen), [Administration](#administration-1), [Mitarbeiterdaten importieren](#mitarbeiterdaten-importieren-csv)
+
+---
+
+## Software-Update
+
+idvault unterstützt einen **Update-Mechanismus ohne EXE-Austausch**, der speziell
+für Umgebungen mit AppLocker oder eingeschränkten Berechtigungen entwickelt wurde.
+
+### Funktionsprinzip
+
+Die `idvault.exe` wird **niemals verändert** — AppLocker-Hash-Regeln bleiben dauerhaft gültig.
+Aktualisierungen werden stattdessen als Python-Dateien und Templates in einem
+`updates/`-Ordner neben der EXE abgelegt. Beim nächsten Start lädt die Anwendung
+diese Dateien bevorzugt vor den gebündelten.
+
+```
+idvault.exe          ← unveränderlich (AppLocker-Ausnahme bleibt gültig)
+instance/
+  idvault.db
+updates/             ← wird beim Update-Import angelegt
+  version.json       ← aktive Versionsinformation
+  webapp/
+    routes/
+      admin.py       ← überschreibt die gebündelte Version
+  templates/
+    admin/
+      update.html    ← überschreibt das gebündelte Template
+```
+
+### Update einspielen
+
+Voraussetzung: Zugang zur Web-Oberfläche mit der Rolle **IDV-Administrator**.
+
+```
+System → Software-Update → ZIP-Datei auswählen → „ZIP hochladen & einspielen"
+```
+
+Anschließend:
+
+```
+„App neu starten" klicken
+```
+
+Der Browser leitet nach einigen Sekunden automatisch weiter. Das Update ist damit aktiv.
+
+### ZIP-Paket-Format
+
+```
+update-v0.2.0.zip
+├── version.json                 ← Pflicht: Versionsmetadaten
+├── webapp/
+│   └── routes/
+│       └── admin.py             ← überschreibt webapp.routes.admin
+└── templates/
+    └── admin/
+        └── update.html          ← überschreibt Template
+```
+
+> **Wichtig:** Templates liegen im ZIP unter `templates/` (nicht `webapp/templates/`).
+
+**`version.json`-Format:**
+
+```json
+{
+  "version": "0.2.0",
+  "released": "2026-04-14",
+  "changelog": [
+    {
+      "version": "0.2.0",
+      "date": "2026-04-14",
+      "changes": [
+        "Bugfix: Datumsfilter bei leeren Feldern",
+        "Neue Exportoption im Bericht"
+      ]
+    }
+  ]
+}
+```
+
+### Erlaubte Dateitypen im ZIP
+
+| Typ | Erlaubt |
+|---|:---:|
+| `.py` | ✓ |
+| `.html` | ✓ |
+| `.json` | ✓ |
+| `.sql` | ✓ |
+| `.css` / `.js` | ✓ |
+| `.exe`, `.dll`, `.bat`, `.sh` | — |
+
+Dateien außerhalb dieser Liste werden abgelehnt, bevor etwas extrahiert wird.
+
+### Rollback
+
+```
+System → Software-Update → „Rollback (Update entfernen)"
+```
+
+Der `updates/`-Ordner wird gelöscht. Nach erneutem Neustart läuft wieder die
+gebündelte Version der EXE.
+
+### Versionsinformation
+
+Die Update-Seite zeigt immer beide Versionen:
+
+| Bezeichnung | Bedeutung |
+|---|---|
+| **Gebündelte Version** | Version, mit der die EXE gebaut wurde (unveränderlich) |
+| **Aktive Version** | Version des eingespielten Updates (aus `updates/version.json`) |
+
+Ist kein Override aktiv, stimmen beide Werte überein.
+
+### Sicherheitshinweise
+
+- Nur Benutzer mit der Rolle **IDV-Administrator** können Updates einspielen.
+- Jeder ZIP-Eintrag wird vor der Extraktion auf Dateityp und Path-Traversal geprüft.
+- Die maximale Upload-Größe beträgt **32 MB** (Werkzeug-Limit).
+- Der `updates/`-Ordner liegt neben der EXE — derselbe Benutzer, der die App
+  startet, muss Schreibrechte in diesem Verzeichnis haben.
 
 ---
 

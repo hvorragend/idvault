@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Software-Update{% endblock %}
+{% block page_title %}<i class="bi bi-cloud-arrow-up me-2"></i>Software-Update{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.88rem">
+    Anwendungs-Updates einspielen ohne Austausch der EXE-Datei
+  </span>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Zurück zur Administration
+  </a>
+</div>
+
+<div class="row g-4">
+
+  <!-- ── Versionsstatus ─────────────────────────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-info-circle me-2"></i>Aktuelle Version
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3">Gebündelte Version</dt>
+          <dd class="col-sm-9">
+            <code>{{ bundled_version }}</code>
+            <span class="text-muted ms-2" style="font-size:.82rem">(fest in der EXE, unveränderlich)</span>
+          </dd>
+          <dt class="col-sm-3">Aktive Version</dt>
+          <dd class="col-sm-9">
+            <code>{{ active_version }}</code>
+            {% if update_active %}
+            <span class="badge bg-info ms-2">Override aktiv</span>
+            {% endif %}
+          </dd>
+          {% if update_active %}
+          <dt class="col-sm-3">Override-Verzeichnis</dt>
+          <dd class="col-sm-9">
+            <code style="font-size:.8rem; word-break:break-all">{{ upd_dir }}</code>
+          </dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ZIP-Upload ────────────────────────────────────────────────── -->
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-upload me-2"></i>Update einspielen
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.update_upload') }}"
+              enctype="multipart/form-data">
+          <div class="mb-3">
+            <label class="form-label fw-600">Update-ZIP</label>
+            <input type="file" name="update_zip" class="form-control" accept=".zip" required>
+            <div class="form-text mt-2">
+              <strong>Erlaubte Dateitypen:</strong> .py, .html, .sql, .json, .css, .js<br>
+              <strong>ZIP-Struktur:</strong><br>
+              <code style="font-size:.78rem">
+                version.json<br>
+                webapp/routes/admin.py<br>
+                templates/admin/update.html
+              </code>
+              <br><br>
+              <i class="bi bi-info-circle me-1"></i>
+              Templates liegen im ZIP unter <code>templates/</code> (nicht unter <code>webapp/templates/</code>).
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-cloud-arrow-up me-1"></i>ZIP hochladen &amp; einspielen
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Steuerung ─────────────────────────────────────────────────── -->
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-arrow-clockwise me-2"></i>Steuerung
+      </div>
+      <div class="card-body d-flex flex-column gap-3">
+
+        <div>
+          <p class="text-muted mb-2" style="font-size:.88rem">
+            Nach dem Einspielen eines Updates muss die Anwendung neu gestartet werden,
+            damit die aktualisierten Dateien geladen werden.
+          </p>
+          <form method="post" action="{{ url_for('admin.update_restart') }}"
+                onsubmit="return confirm('App jetzt neu starten? Alle offenen Verbindungen werden getrennt.')">
+            <button type="submit" class="btn btn-warning w-100">
+              <i class="bi bi-arrow-clockwise me-1"></i>App neu starten
+            </button>
+          </form>
+        </div>
+
+        {% if update_active %}
+        <div>
+          <p class="text-muted mb-2" style="font-size:.88rem">
+            Rollback entfernt alle eingespielten Updates. Nach Neustart läuft
+            wieder die gebündelte Version.
+          </p>
+          <form method="post" action="{{ url_for('admin.update_rollback') }}"
+                onsubmit="return confirm('Override-Verzeichnis löschen und zur gebündelten Version zurückkehren?')">
+            <button type="submit" class="btn btn-outline-danger w-100">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Rollback (Update entfernen)
+            </button>
+          </form>
+        </div>
+        {% endif %}
+
+        <div class="alert alert-secondary py-2 mb-0" style="font-size:.82rem">
+          <i class="bi bi-shield-check me-1"></i>
+          Die EXE-Datei wird <strong>nicht verändert</strong> – AppLocker-Regeln bleiben gültig.
+          Aktualisierungen werden als Python-Dateien neben der EXE gespeichert.
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Changelog ─────────────────────────────────────────────────── -->
+  {% if changelog %}
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-card-list me-2"></i>Änderungshistorie
+      </div>
+      <div class="card-body">
+        {% for entry in changelog %}
+        <div class="mb-3">
+          <div class="fw-600">
+            {{ entry.version }}
+            <span class="text-muted fw-normal ms-2" style="font-size:.82rem">{{ entry.date }}</span>
+          </div>
+          <ul class="mb-0 mt-1" style="font-size:.88rem">
+            {% for item in entry.changes %}
+            <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div><!-- /row -->
+
+<style>
+.fw-600 { font-weight: 600; }
+</style>
+
+{% endblock %}

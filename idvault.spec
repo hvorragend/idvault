@@ -28,6 +28,8 @@ openpyxl_d, openpyxl_b, openpyxl_h = collect_all('openpyxl')
 datas = [
     # Pflicht: Datenbankschema (wird von db.py beim ersten Start geladen)
     ('schema.sql', '.'),
+    # Versionsinformationen
+    ('version.json', '.'),
     # Pflicht: alle Jinja2-Templates
     ('webapp/templates', 'webapp/templates'),
     # Framework-Daten

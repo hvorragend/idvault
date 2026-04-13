@@ -382,8 +382,11 @@
 
     {% if _is_admin %}
     <div class="nav-label">System</div>
-    <a href="{{ url_for('admin.index') }}" class="nav-link {% if request.blueprint == 'admin' %}active{% endif %}">
+    <a href="{{ url_for('admin.index') }}" class="nav-link {% if request.blueprint == 'admin' and request.endpoint != 'admin.update_index' %}active{% endif %}">
       <i class="bi bi-gear"></i> Administration
+    </a>
+    <a href="{{ url_for('admin.update_index') }}" class="nav-link {% if request.endpoint == 'admin.update_index' %}active{% endif %}">
+      <i class="bi bi-cloud-arrow-up"></i> Software-Update
     </a>
     {% endif %}
 
