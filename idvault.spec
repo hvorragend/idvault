@@ -43,6 +43,9 @@ datas = [
 # automatisch erkannt. Deshalb hier explizit auflisten.
 # ---------------------------------------------------------------------------
 hiddenimports = [
+    # Scanner-Module (liegen in scanner/, werden über pathex gefunden)
+    'idv_scanner',
+    'idv_export',
     # Eigene Module
     'webapp',
     'webapp.db_flask',
@@ -76,7 +79,7 @@ hiddenimports = [
 # ---------------------------------------------------------------------------
 a = Analysis(
     ['run.py'],
-    pathex=['.'],
+    pathex=['.', 'scanner'],  # scanner/ damit idv_scanner.py gefunden wird
     binaries=[*flask_b, *jinja2_b, *werkzeug_b, *openpyxl_b],
     datas=datas,
     hiddenimports=hiddenimports,
