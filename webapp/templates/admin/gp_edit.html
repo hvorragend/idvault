@@ -10,27 +10,46 @@
       <div class="card-body">
         <form method="post">
           <div class="row g-3">
-            <div class="col-md-3">
+            <div class="col-md-4">
               <label class="form-label fw-600">GP-Nummer <span class="text-danger">*</span></label>
               <input type="text" name="gp_nummer" class="form-control" value="{{ gp.gp_nummer }}" required>
             </div>
-            <div class="col-md-9">
+            <div class="col-md-8">
               <label class="form-label fw-600">Bezeichnung <span class="text-danger">*</span></label>
               <input type="text" name="bezeichnung" class="form-control" value="{{ gp.bezeichnung }}" required>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-600">Bereich</label>
-              <select name="bereich" class="form-select">
-                <option value="">– keiner –</option>
-                {% for b in ['Markt','Marktfolge','Steuerung','Betrieb'] %}
-                <option {{ 'selected' if gp.bereich == b else '' }}>{{ b }}</option>
-                {% endfor %}
-              </select>
             </div>
             <div class="col-12">
               <label class="form-label fw-600">Beschreibung</label>
               <textarea name="beschreibung" class="form-control" rows="3">{{ gp.beschreibung or '' }}</textarea>
             </div>
+
+            <!-- Schutzbedarf -->
+            <div class="col-12">
+              <label class="form-label fw-600">Schutzbedarf</label>
+              <div class="row g-2">
+                <div class="col-3">
+                  <label class="form-label small text-muted mb-1">A – Verfügbarkeit</label>
+                  <input type="text" name="schutzbedarf_a" class="form-control form-control-sm"
+                         value="{{ gp.schutzbedarf_a or '' }}" placeholder="z.B. 3">
+                </div>
+                <div class="col-3">
+                  <label class="form-label small text-muted mb-1">C – Vertraulichkeit</label>
+                  <input type="text" name="schutzbedarf_c" class="form-control form-control-sm"
+                         value="{{ gp.schutzbedarf_c or '' }}" placeholder="z.B. 3">
+                </div>
+                <div class="col-3">
+                  <label class="form-label small text-muted mb-1">I – Integrität</label>
+                  <input type="text" name="schutzbedarf_i" class="form-control form-control-sm"
+                         value="{{ gp.schutzbedarf_i or '' }}" placeholder="z.B. 3">
+                </div>
+                <div class="col-3">
+                  <label class="form-label small text-muted mb-1">N – Verbindlichkeit</label>
+                  <input type="text" name="schutzbedarf_n" class="form-control form-control-sm"
+                         value="{{ gp.schutzbedarf_n or '' }}" placeholder="z.B. 3">
+                </div>
+              </div>
+            </div>
+
             <div class="col-md-4">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="ist_kritisch" value="1" id="gp_krit"

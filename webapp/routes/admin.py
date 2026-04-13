@@ -446,16 +446,21 @@ def edit_gp(gid):
     if request.method == "POST":
         db.execute("""
             UPDATE geschaeftsprozesse SET
-                gp_nummer=?, bezeichnung=?, bereich=?, ist_kritisch=?, ist_wesentlich=?,
-                beschreibung=?, aktiv=?, updated_at=?
+                gp_nummer=?, bezeichnung=?, ist_kritisch=?, ist_wesentlich=?,
+                beschreibung=?,
+                schutzbedarf_a=?, schutzbedarf_c=?, schutzbedarf_i=?, schutzbedarf_n=?,
+                aktiv=?, updated_at=?
             WHERE id=?
         """, (
             request.form.get("gp_nummer", "").strip(),
             request.form.get("bezeichnung", "").strip(),
-            request.form.get("bereich") or None,
             1 if request.form.get("ist_kritisch") else 0,
             1 if request.form.get("ist_wesentlich") else 0,
             request.form.get("beschreibung") or None,
+            request.form.get("schutzbedarf_a") or None,
+            request.form.get("schutzbedarf_c") or None,
+            request.form.get("schutzbedarf_i") or None,
+            request.form.get("schutzbedarf_n") or None,
             1 if request.form.get("aktiv") else 0,
             _now(), gid
         ))
