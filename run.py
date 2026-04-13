@@ -26,6 +26,24 @@ else:
     _PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 os.environ.setdefault('IDV_PROJECT_ROOT', _PROJECT_ROOT)
 
+# ── Fehler-Log: stderr → Datei umleiten (nur als EXE) ───────────────────────
+# Schreibt Python-Tracebacks und PyInstaller-Bootloader-Fehler nach
+# instance/idvault.log, damit Abstürze auch ohne sichtbare Konsole
+# nachvollziehbar sind.
+if getattr(sys, 'frozen', False):
+    _log_dir = os.path.join(_PROJECT_ROOT, 'instance')
+    os.makedirs(_log_dir, exist_ok=True)
+    try:
+        _log_fh = open(
+            os.path.join(_log_dir, 'idvault.log'),
+            'a', encoding='utf-8', errors='replace', buffering=1
+        )
+        sys.stderr = _log_fh
+        os.dup2(_log_fh.fileno(), 2)   # C-Level fd 2 → Datei (PyInstaller-Fehler)
+    except Exception:
+        pass  # Logging-Fehler dürfen den Start nicht verhindern
+# ─────────────────────────────────────────────────────────────────────────────
+
 # ── Sidecar-Update: Override-Verzeichnis vor gebündelten Modulen laden ───────
 import importlib.util
 
