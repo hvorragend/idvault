@@ -52,6 +52,9 @@ die in der Mitarbeiterverwaltung (`Administration → Personen`) hinterlegt wird
 | Stammdaten löschen / deaktivieren | ✓ | — | — | — | — |
 | E-Mail-Einstellungen (SMTP) | ✓ | — | — | — | — |
 | Mitarbeiter-Import (CSV) | ✓ | — | — | — | — |
+| LDAP konfigurieren / Gruppen-Mapping | ✓ | — | — | — | — |
+| Mitarbeiter aus LDAP importieren | ✓ | — | — | — | — |
+| Lokalen Notfall-Zugang aktivieren | ✓ | — | — | — | — |
 
 > **Eigene IDVs** = IDVs, in denen die Person als Fachverantwortlicher,
 > Entwickler, IDV-Koordinator oder Stellvertreter eingetragen ist.
@@ -80,7 +83,9 @@ Passwörter werden über `Administration → Person bearbeiten` gesetzt.
 
 **LDAP / Active Directory:** Wenn LDAP aktiviert ist, erfolgt die Anmeldung
 mit dem Windows-Benutzernamen und -Passwort — kein separates idvault-Passwort
-nötig. Lokale Logins bleiben als Fallback erhalten (z.B. für den Notfall-Admin).
+nötig. Bei einem LDAP-Serverausfall wechselt idvault automatisch auf lokale
+Passwörter. Für einen Bypass bei laufendem LDAP-Server steht ein manuell
+aktivierbarer Notfall-Zugang bereit.
 → Einrichtung: [LDAP / Active Directory](#ldap--active-directory)
 
 **Demo-Fallback** (für Erstinstallation / wenn keine Persons-Einträge mit
@@ -201,13 +206,69 @@ sich die Gruppen-Mitgliedschaft geändert hat.
 
 ### Fallback und Notfall-Zugang
 
-- **Lokaler Login bleibt erhalten:** Benutzer mit hinterlegtem `password_hash`
-  können sich weiterhin lokal anmelden — unabhängig davon, ob LDAP aktiviert ist.
-- **Demo-Admin:** Der eingebaute `admin`-Fallback funktioniert immer (solange
-  keine lokale Person mit User-ID `admin` und Passwort-Hash existiert).
-- **LDAP deaktivierbar:** Unter `Administration → LDAP konfigurieren` kann
-  LDAP jederzeit wieder deaktiviert werden; bestehende Personenkonten bleiben
-  erhalten.
+#### Automatischer Fallback bei LDAP-Serverausfall
+
+Ist der LDAP-Server **nicht erreichbar** (Netzwerkfehler, Server down), wechselt
+idvault automatisch auf den lokalen Login — ohne Konfigurationsänderung. In diesem
+Fall greifen:
+
+- Personen mit gesetztem `password_hash` (vergeben über `Administration → Person bearbeiten`)
+- Der eingebaute Demo-Account `admin` / `idvault2025`
+
+#### Manuell aktivierbarer Notfall-Zugang
+
+Wenn der LDAP-Server **erreichbar** ist, aber ein lokaler Bypass benötigt wird
+(z.B. für einen Break-Glass-Account), kann im Admin-Bereich ein Notfall-Zugang
+freigeschaltet werden:
+
+```
+Administration → LDAP / Active Directory → „Lokalen Notfall-Zugang im Login-Fenster anzeigen" aktivieren
+```
+
+Danach erscheint im Login-Formular ein aufklappbarer Bereich **„Lokaler Notfall-Zugang"**
+mit einem eigenen Benutzername/Passwort-Formular. Dieser Pfad umgeht LDAP vollständig
+und prüft ausschließlich den lokalen `password_hash`.
+
+**Notfall-Konto einrichten:**
+
+1. Person in idvault anlegen (oder vorhandene Person verwenden)
+2. `Administration → Person bearbeiten → Passwort` setzen
+3. Notfall-Zugang im Admin-Bereich aktivieren (s. o.)
+
+> Den Toggle nur im Bedarfsfall aktivieren und nach dem Einsatz wieder deaktivieren.
+
+#### LDAP deaktivieren
+
+Unter `Administration → LDAP konfigurieren` kann LDAP jederzeit deaktiviert werden.
+Alle vorhandenen Personenkonten und Passwort-Hashes bleiben erhalten.
+
+### Mitarbeiter aus LDAP importieren
+
+Über `Administration → LDAP / Active Directory → Mitarbeiter importieren` können alle
+aktivierten AD-Benutzerkonten auf einmal in die idvault-Personen-Tabelle übernommen werden.
+
+**Ablauf:**
+
+1. Seite aufrufen — idvault lädt automatisch alle aktiven AD-Konten (deaktivierte
+   Konten per `userAccountControl`-Flag werden übersprungen)
+2. Optional: LDAP-Filter eingeben, um nur bestimmte Abteilungen zu laden,
+   z.B. `(department=Finanzen)` oder `(&(l=Berlin)(department=IT))`
+3. Benutzer in der Vorschautabelle auswählen (bereits vorhandene Personen sind grün markiert)
+4. **„Ausgewählte importieren"** klicken
+
+**Was passiert beim Import:**
+
+| Situation | Ergebnis |
+|---|---|
+| Person mit gleicher User-ID noch nicht vorhanden | Neuanlage mit Kürzel aus Initialen |
+| Person mit gleicher User-ID bereits vorhanden | Aktualisierung (Name, E-Mail, Telefon, Rolle) |
+| Rolle aus Gruppen-Mapping ermittelbar | Rolle wird automatisch gesetzt |
+| Kein passendes Gruppen-Mapping | Feld bleibt leer (manuell nachpflegen) |
+
+> Der Import erfordert eine funktionierende LDAP-Konfiguration mit Service-Account.
+> Als Alternative steht weiterhin der [CSV-Import](#mitarbeiterdaten-importieren-csv) zur Verfügung.
+
+---
 
 ### Sicherheitshinweise
 
