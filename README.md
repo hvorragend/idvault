@@ -534,6 +534,7 @@ sehen die Schaltfläche nicht.
 - Noch nicht registriert (kein IDV-Eintrag verknüpft)
 - Mit Makros (VBA)
 - Bereits registriert
+- Zur Registrierung vorgemerkt
 - **Archiv** — Dateien, die beim letzten Scan nicht mehr gefunden wurden
   (verschoben, umbenannt oder gelöscht). Die Verknüpfung zum IDV-Register
   bleibt erhalten. Taucht eine Datei wieder auf, wird sie automatisch reaktiviert.
@@ -545,6 +546,36 @@ Dazu in `scanner/config.json` setzen:
 ```
 
 → Weitere Details: [`scanner/README.md`](scanner/README.md)
+
+### Scanner-Eingang und Vormerkung
+
+Der **Eingang** (*Scanner → Eingang*) zeigt ausschließlich unbearbeitete
+Dateien (`bearbeitungsstatus = 'Neu'`). Von hier aus werden Dateien triagiert:
+
+| Aktion | Wirkung |
+|---|---|
+| **Zur Registrierung vormerken** | Setzt `bearbeitungsstatus` auf `Zur Registrierung`. Die Datei verschwindet aus dem Eingang und erscheint im separaten Zähler „Zur Registrierung". |
+| **Ignorieren** | Setzt `bearbeitungsstatus` auf `Ignoriert`. Die Datei wird bei künftigen Scans nicht erneut als „Neu" angezeigt. |
+| **Direkt registrieren** | Öffnet das IDV-Formular; nach dem Speichern wird `bearbeitungsstatus` automatisch auf `Registriert` gesetzt. |
+
+**Bearbeitungsstatus einer Datei (Lebenszyklus):**
+
+```
+Neu → Zur Registrierung → Registriert
+ │                              ↑
+ ├── direkt registrieren ───────┘
+ └── Ignoriert
+```
+
+- **Neu** — Vom Scanner entdeckt, noch nicht gesichtet.
+- **Zur Registrierung** — Vorgemerkt: Die Datei soll als IDV erfasst werden,
+  die eigentliche Registrierung steht noch aus. Dient als Arbeitsliste.
+- **Registriert** — Einem IDV-Register-Eintrag zugeordnet.
+- **Ignoriert** — Bewusst ausgeschlossen (z. B. keine IDV-relevante Datei).
+
+Die Vormerkung ist eine reine Organisationshilfe (Triage). Es werden dabei
+keine fachlichen Daten erzeugt — lediglich der Bearbeitungsstatus wechselt.
+Die Bulk-Aktion erlaubt es, mehrere Dateien gleichzeitig vorzumerken.
 
 ---
 
@@ -703,19 +734,21 @@ Ist kein Override aktiv, stimmen beide Werte überein.
 ```
 1. Scanner läuft (wöchentlich per Scheduled Task)
         ↓
-2. Scanner-Funde → „Als IDV registrieren"
+2. Eingang sichten → „Zur Registrierung vormerken" oder ignorieren
         ↓
-3. IDV-Formular ausfüllen (GDA, Klassifizierung, Verantwortliche)
+3. Vorgemerkte Dateien → „Als IDV registrieren"
         ↓
-4. Status: Entwurf → In Prüfung → Genehmigt
+4. IDV-Formular ausfüllen (Wesentlichkeit, Klassifizierung, Verantwortliche)
         ↓
-5. Regelprüfung fällig (nach pruefintervall_monate)
+5. Status: Entwurf → In Prüfung → Genehmigt
         ↓
-6. Prüfung dokumentieren → Ergebnis + nächstes Prüfdatum
+6. Regelprüfung fällig (nach pruefintervall_monate)
         ↓
-7. Bei Befund: Maßnahme anlegen → verfolgen bis Erledigt
+7. Prüfung dokumentieren → Ergebnis + nächstes Prüfdatum
         ↓
-8. Dashboard zeigt Gesamtstatus jederzeit aktuell
+8. Bei Befund: Maßnahme anlegen → verfolgen bis Erledigt
+        ↓
+9. Dashboard zeigt Gesamtstatus jederzeit aktuell
 ```
 
 ---
