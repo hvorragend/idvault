@@ -2,6 +2,7 @@
 import csv
 import io
 import os
+import sys
 import json
 import re
 import hashlib
@@ -20,6 +21,9 @@ _scan_state = {"pid": None, "started": None}   # veränderlich, kein global nöt
 
 
 def _scanner_dir():
+    if getattr(sys, 'frozen', False):
+        # Im PyInstaller-Bundle: Ordner neben der .exe (persistent & beschreibbar)
+        return os.path.join(os.path.dirname(sys.executable), "scanner")
     return os.path.join(os.path.dirname(current_app.root_path), "scanner")
 
 
@@ -68,7 +72,9 @@ def _load_scanner_config() -> dict:
 
 
 def _save_scanner_config(cfg: dict):
-    with open(_scanner_config_path(), "w", encoding="utf-8") as f:
+    path = _scanner_config_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 
