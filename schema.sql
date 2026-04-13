@@ -759,3 +759,30 @@ LEFT JOIN org_units ou ON r.org_unit_id = ou.id
 WHERE r.naechste_pruefung < date('now', '+90 days')
   AND r.status NOT IN ('Archiviert', 'Abgekündigt')
 ORDER BY r.naechste_pruefung ASC;
+
+-- -----------------------------------------------------------------------------
+-- 12. LDAP-KONFIGURATION & GRUPPEN-ROLLEN-MAPPING
+-- -----------------------------------------------------------------------------
+
+-- Genau ein Eintrag (id=1) – LDAP-Server-Konfiguration
+CREATE TABLE IF NOT EXISTS ldap_config (
+    id              INTEGER PRIMARY KEY DEFAULT 1 CHECK(id = 1),
+    enabled         INTEGER NOT NULL DEFAULT 0,      -- 0 = deaktiviert, lokaler Login
+    server_url      TEXT NOT NULL DEFAULT '',         -- ldaps://idfp.rz.bankenit.de
+    port            INTEGER NOT NULL DEFAULT 636,
+    base_dn         TEXT NOT NULL DEFAULT '',         -- OU=4024,OU=Tenants,...
+    bind_dn         TEXT NOT NULL DEFAULT '',         -- CN=svcacc,...
+    bind_password   TEXT NOT NULL DEFAULT '',         -- Fernet-verschlüsselt
+    user_attr       TEXT NOT NULL DEFAULT 'sAMAccountName',
+    ssl_verify      INTEGER NOT NULL DEFAULT 1,       -- 1 = Zertifikat prüfen
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now','utc'))
+);
+
+-- Gruppen-DN → idvault-Rolle
+CREATE TABLE IF NOT EXISTS ldap_group_role_mapping (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_dn    TEXT NOT NULL UNIQUE,    -- vollständiger DN der AD-Gruppe
+    group_name  TEXT,                   -- Anzeigename (manuell oder aus LDAP)
+    rolle       TEXT NOT NULL,          -- IDV-Administrator | IDV-Koordinator | ...
+    sort_order  INTEGER NOT NULL DEFAULT 99
+);
