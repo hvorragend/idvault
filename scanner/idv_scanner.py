@@ -53,9 +53,9 @@ DEFAULT_CONFIG = {
     "exclude_paths": [
         "~$",          # Office-Sperrdateien
         ".tmp",
-        "\\$RECYCLE.BIN\\",
-        "\\System Volume Information\\",
-        "\\AppData\\",
+        "$RECYCLE.BIN",
+        "System Volume Information",
+        "AppData",
     ],
     "db_path": "idv_register.db",
     "log_path": "idv_scanner.log",

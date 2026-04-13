@@ -43,9 +43,9 @@ _DEFAULT_SCANNER_CFG = {
     ],
     "exclude_paths": [
         "~$", ".tmp",
-        "\\$RECYCLE.BIN\\",
-        "\\System Volume Information\\",
-        "\\AppData\\",
+        "$RECYCLE.BIN",
+        "System Volume Information",
+        "AppData",
     ],
     "db_path": "../instance/idvault.db",
     "log_path": "idv_scanner.log",
