@@ -229,4 +229,17 @@ System → Software-Update → ZIP-Datei auswählen → „ZIP hochladen & einsp
 Alternativ: ZIP-Inhalt manuell in den `updates/`-Ordner neben der EXE entpacken
 und die Anwendung neu starten.
 
+### GitHub-Repository-ZIP direkt verwenden (empfohlen)
+
+Statt eines manuell erstellten Pakets kann der direkte GitHub-Download-Link
+verwendet werden:
+
+```
+https://github.com/hvorragend/idvault/archive/refs/heads/main.zip
+```
+
+Die Anwendung erkennt das `idvault-main/`-Präfix automatisch, überspringt
+nicht-relevante Dateien (`.md`, `.gitignore`, `.spec` usw.) und mappt
+`webapp/templates/` korrekt auf `templates/` um.
+
 → Weitere Details: [Software-Update in README.md](README.md#software-update)

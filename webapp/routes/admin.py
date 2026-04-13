@@ -1058,6 +1058,32 @@ def update_index():
     )
 
 
+def _zip_strip_prefix(members: list[str]) -> str:
+    """
+    Erkennt automatisch ein gemeinsames Top-Level-Verzeichnis im ZIP
+    (z.B. 'idvault-main/' bei GitHub-Repository-Downloads) und gibt
+    es als zu entfernenden Präfix zurück. Gibt '' zurück falls keiner.
+    """
+    top_dirs = {m.split('/')[0] for m in members if '/' in m}
+    if len(top_dirs) == 1:
+        prefix = top_dirs.pop() + '/'
+        # Nur als Präfix verwenden wenn alle Einträge darunter liegen
+        if all(m.startswith(prefix) or m == prefix.rstrip('/') for m in members):
+            return prefix
+    return ''
+
+
+def _zip_remap(rel: str) -> str:
+    """
+    Mappt Pfade aus dem ZIP auf die Sidecar-Verzeichnisstruktur.
+    GitHub-ZIPs enthalten Templates unter webapp/templates/ —
+    der ChoiceLoader erwartet sie jedoch direkt unter templates/.
+    """
+    if rel.startswith('webapp/templates/'):
+        return rel[len('webapp/'):]   # → templates/...
+    return rel
+
+
 @bp.route("/update/upload", methods=["POST"])
 @admin_required
 def update_upload():
@@ -1079,16 +1105,48 @@ def update_upload():
 
         with zipfile.ZipFile(tmp_path, 'r') as zf:
             members = zf.namelist()
-            bad = [m for m in members if not _validate_zip_member(m)]
-            if bad:
-                flash(f"ZIP enthält unerlaubte Dateien: {', '.join(bad[:5])}", "error")
-                return redirect(url_for("admin.update_index"))
+            prefix = _zip_strip_prefix(members)
 
             os.makedirs(upd_dir, exist_ok=True)
-            for member in members:
-                zf.extract(member, upd_dir)
+            extracted = skipped = 0
 
-        flash(f"Update eingespielt ({len(members)} Einträge). Bitte App neu starten.", "success")
+            for member in members:
+                # Top-Level-Präfix entfernen
+                rel = member[len(prefix):] if prefix and member.startswith(prefix) else member
+
+                # Verzeichniseinträge und leere Pfade überspringen
+                if not rel or rel.endswith('/'):
+                    continue
+
+                # Sicherheitsprüfung: path-traversal und __pycache__
+                parts = os.path.normpath(rel).replace('\\', '/').split('/')
+                if '..' in parts or '__pycache__' in parts:
+                    continue
+
+                # Nur erlaubte Dateiendungen extrahieren, Rest still überspringen
+                ext = os.path.splitext(rel)[1].lower()
+                if ext not in _ALLOWED_UPDATE_EXTS:
+                    skipped += 1
+                    continue
+
+                # Pfad-Remapping (webapp/templates/ → templates/)
+                rel = _zip_remap(rel)
+
+                target = os.path.join(upd_dir, rel)
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with zf.open(member) as src, open(target, 'wb') as dst:
+                    dst.write(src.read())
+                extracted += 1
+
+        if extracted == 0:
+            flash("Keine verwertbaren Dateien im ZIP gefunden.", "warning")
+        else:
+            flash(
+                f"Update eingespielt: {extracted} Dateien extrahiert"
+                + (f", {skipped} übersprungen" if skipped else "")
+                + ". Bitte App neu starten.",
+                "success",
+            )
 
     except zipfile.BadZipFile:
         flash("Ungültige ZIP-Datei.", "error")
