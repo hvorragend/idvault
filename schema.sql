@@ -643,7 +643,6 @@ SELECT
     CASE WHEN r.fachverantwortlicher_id IS NULL THEN 1 ELSE 0 END AS fehlt_fachverantwortlicher,
     CASE WHEN r.gp_id IS NULL AND r.gp_freitext IS NULL THEN 1 ELSE 0 END AS fehlt_geschaeftsprozess,
     CASE WHEN r.idv_typ = 'unklassifiziert' THEN 1 ELSE 0 END AS fehlt_typ,
-    CASE WHEN r.gda_begruendung IS NULL OR r.gda_begruendung = '' THEN 1 ELSE 0 END AS fehlt_gda_begruendung,
     CASE WHEN r.steuerungsrelevant = 1 AND (r.steuerungsrelevanz_begr IS NULL OR r.steuerungsrelevanz_begr = '') THEN 1 ELSE 0 END AS fehlt_steuerungsbegruendung,
     CASE WHEN r.risikoklasse_id IS NULL THEN 1 ELSE 0 END AS fehlt_risikoklasse,
     r.erstellt_am,

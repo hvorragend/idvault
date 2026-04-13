@@ -217,44 +217,19 @@
           <hr class="my-1">
         </div>
 
-        <!-- GDA -->
-        <div class="col-sm-3">
-          <div class="detail-label">GDA-Wert</div>
-          <div class="detail-value"><span class="badge badge-gda-{{ idv.gda_wert }} fs-6">{{ idv.gda_wert }}/4</span>
-          </div>
-        </div>
-        <div class="col-sm-9">
-          <div class="detail-label">GDA-Begründung</div>
-          <div>{{ idv.gda_begruendung or '–' }}</div>
-        </div>
-
-        <!-- Standard-Kriterien -->
-        <div class="col-12">
-          <hr class="my-1"><small class="text-muted">Standard-Wesentlichkeitskriterien</small>
-        </div>
-
-        <!-- 1. Steuerungsrelevanz -->
+        <!-- 1. Steuerungsrelevant -->
         <div class="col-sm-4">
           <div class="detail-label">
             <span class="badge bg-secondary me-1" style="font-size:.6rem">1</span>Steuerungsrelevant
           </div>
           <div class="detail-value">{{ idv.steuerungsrelevant|yesno }}</div>
-          {% if idv.steuerungsrelevant %}
-          <div style="font-size:.78rem;color:#6c757d">
-            {% if idv.relevant_guv %}<span class="badge bg-light text-dark border me-1">GuV</span>{% endif %}
-            {% if idv.relevant_meldewesen %}<span class="badge bg-light text-dark border me-1">Meldewesen</span>{% endif
-            %}
-            {% if idv.relevant_risikomanagement %}<span class="badge bg-light text-dark border me-1">Risiko</span>{%
-            endif %}
-          </div>
-          {% endif %}
         </div>
         <div class="col-sm-8">
           <div class="detail-label">Begründung</div>
           <div>{{ idv.steuerungsrelevanz_begr or '–' }}</div>
         </div>
 
-        <!-- 2. RL-Relevanz -->
+        <!-- 2. Rechnungslegungsrelevant -->
         <div class="col-sm-4">
           <div class="detail-label">
             <span class="badge bg-secondary me-1" style="font-size:.6rem">2</span>Rechnungslegungsrelevant
@@ -266,7 +241,7 @@
           <div>{{ idv.rechnungslegungsrelevanz_begr or '–' }}</div>
         </div>
 
-        <!-- 3. DORA (abgeleitet) -->
+        <!-- 3. DORA-kritisch/wichtig (abgeleitet) mit GDA -->
         <div class="col-sm-4">
           <div class="detail-label">
             <span class="badge bg-secondary me-1" style="font-size:.6rem">3</span>DORA-kritisch/wichtig
@@ -275,12 +250,12 @@
           <div class="detail-value">
             {% if idv.dora_kritisch_wichtig %}
             <span class="badge bg-danger">Ja</span>
-            <div style="font-size:.75rem;color:#6c757d" class="mt-1">
-              Krit. GP + GDA 4 → DORA Art. 28 Abs. 2
-            </div>
             {% else %}
             <span class="text-muted">Nein</span>
             {% endif %}
+          </div>
+          <div class="mt-1" style="font-size:.78rem;color:#6c757d">
+            Grad der Abhängigkeit: <span class="badge badge-gda-{{ idv.gda_wert }}">{{ idv.gda_wert }}/4</span>
           </div>
         </div>
         <div class="col-sm-8">
