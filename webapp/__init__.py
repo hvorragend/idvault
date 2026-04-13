@@ -6,13 +6,22 @@ von Eigenentwicklungen (Individuelle Datenverarbeitung).
 """
 
 import os
+import sys
+from pathlib import Path
 from datetime import datetime, date
 from flask import Flask
 from .db_flask import get_db, close_db, init_app_db
 
 
 def create_app(db_path: str = None) -> Flask:
-    app = Flask(__name__, instance_relative_config=True)
+    # PyInstaller-Kompatibilität: Im gefrorenen Bundle gibt es kein echtes
+    # Package-Verzeichnis mehr – deshalb template_folder explizit setzen.
+    if getattr(sys, 'frozen', False):
+        _tpl = str(Path(sys._MEIPASS) / 'webapp' / 'templates')
+    else:
+        _tpl = 'templates'  # Flask-Default relativ zum Package
+
+    app = Flask(__name__, instance_relative_config=True, template_folder=_tpl)
 
     upload_folder = os.path.join(
         os.environ.get("IDV_INSTANCE_PATH", app.instance_path),

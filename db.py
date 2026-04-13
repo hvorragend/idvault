@@ -5,12 +5,20 @@ Initialisierung, Migration und Basisfunktionen für das IDV-Register.
 Wird von Scanner und Web-Frontend gemeinsam genutzt.
 """
 
+import sys
 import sqlite3
 import json
 import calendar
 from datetime import datetime, timezone, date
 from pathlib import Path
 from typing import Optional
+
+
+def _resource_path(relative: str) -> Path:
+    """Gibt den korrekten Pfad zurück – auch im PyInstaller-Bundle."""
+    if hasattr(sys, '_MEIPASS'):
+        return Path(sys._MEIPASS) / relative
+    return Path(__file__).parent / relative
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +37,7 @@ def get_connection(db_path: str) -> sqlite3.Connection:
 def init_register_db(db_path: str) -> sqlite3.Connection:
     """Initialisiert die Datenbank anhand von schema.sql."""
     conn = get_connection(db_path)
-    schema_path = Path(__file__).parent / "schema.sql"
+    schema_path = _resource_path("schema.sql")
     if not schema_path.exists():
         raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
     sql = schema_path.read_text(encoding="utf-8")

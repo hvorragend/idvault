@@ -1,0 +1,4 @@
+# Build-Abhängigkeiten für den PyInstaller Standalone-Build
+# Installieren mit: pip install -r requirements-build.txt
+
+pyinstaller>=6.0
