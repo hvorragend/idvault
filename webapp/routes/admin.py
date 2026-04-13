@@ -1261,6 +1261,13 @@ def ldap_config():
     return redirect(url_for("admin.index"))
 
 
+@bp.route("/ldap-gruppen", methods=["GET", "POST"])
+@admin_required
+def ldap_gruppen():
+    flash("LDAP-Gruppen-Mapping ist in dieser Version nicht verfügbar.", "info")
+    return redirect(url_for("admin.index"))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Software-Update (Sidecar-Mechanismus)
 # ══════════════════════════════════════════════════════════════════════════════
