@@ -494,6 +494,187 @@ def scanner_db_importieren():
     return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
 
 
+# ── Teams-Scanner-Konfiguration & Scan-Trigger ──────────────────────────────
+
+_teams_scan_lock  = threading.Lock()
+_teams_scan_state = {"pid": None, "started": None}
+
+_DEFAULT_TEAMS_EXTENSIONS = [
+    ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
+    ".accdb", ".mdb", ".accde", ".accdr",
+    ".ida", ".idv",
+    ".pbix", ".pbit",
+    ".dotm", ".pptm",
+    ".py", ".r", ".rmd", ".sql",
+]
+
+
+def _teams_config_path() -> str:
+    return os.path.join(_scanner_dir(), "teams_config.json")
+
+
+def _teams_script_path() -> str:
+    return os.path.join(_scanner_dir(), "teams_scanner.py")
+
+
+def _default_teams_cfg() -> dict:
+    return {
+        "tenant_id":          "",
+        "client_id":          "",
+        "client_secret":      "",
+        "db_path":            current_app.config["DATABASE"],
+        "log_path":           "teams_scanner.log",
+        "hash_size_limit_mb": 100,
+        "download_for_ooxml": True,
+        "move_detection":     "name_and_hash",
+        "extensions":         _DEFAULT_TEAMS_EXTENSIONS,
+        "teams":              [],
+    }
+
+
+def _load_teams_config() -> dict:
+    cfg = _default_teams_cfg()
+    try:
+        with open(_teams_config_path(), encoding="utf-8") as f:
+            cfg.update(json.load(f))
+    except Exception:
+        pass
+    return cfg
+
+
+def _save_teams_config(cfg: dict) -> None:
+    path = _teams_config_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+
+def _teams_scan_is_running() -> bool:
+    pid = _teams_scan_state.get("pid")
+    if pid is None:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, OSError):
+        _teams_scan_state["pid"]     = None
+        _teams_scan_state["started"] = None
+        return False
+
+
+@bp.route("/teams-einstellungen", methods=["GET", "POST"])
+@admin_required
+def teams_einstellungen():
+    cfg = _load_teams_config()
+
+    if request.method == "POST":
+        tenant_id     = request.form.get("tenant_id",     "").strip()
+        client_id     = request.form.get("client_id",     "").strip()
+        client_secret = request.form.get("client_secret", "").strip()
+        extensions    = [e.strip().lower() for e in request.form.get("extensions", "").splitlines() if e.strip()]
+        move_det      = request.form.get("move_detection", "name_and_hash")
+
+        try:
+            hash_limit = max(1, int(request.form.get("hash_size_limit_mb", 100)))
+        except ValueError:
+            hash_limit = 100
+
+        download_ooxml = request.form.get("download_for_ooxml") == "1"
+
+        # Teams-Liste aus JSON-Feld (wird per JS aus der Tabelle serialisiert)
+        try:
+            teams_raw = request.form.get("teams_json", "[]")
+            teams = json.loads(teams_raw)
+            if not isinstance(teams, list):
+                teams = []
+        except (ValueError, TypeError):
+            teams = []
+            flash("Teams-Liste konnte nicht gelesen werden – bitte prüfen.", "warning")
+
+        cfg.update({
+            "tenant_id":          tenant_id,
+            "client_id":          client_id,
+            "client_secret":      client_secret,
+            "extensions":         extensions or _DEFAULT_TEAMS_EXTENSIONS,
+            "hash_size_limit_mb": hash_limit,
+            "download_for_ooxml": download_ooxml,
+            "move_detection":     move_det,
+            "teams":              teams,
+        })
+        try:
+            _save_teams_config(cfg)
+            flash("Teams-Konfiguration gespeichert.", "success")
+        except Exception as exc:
+            flash(f"Fehler beim Speichern: {exc}", "error")
+        return redirect(url_for("admin.teams_einstellungen"))
+
+    return render_template("admin/teams_einstellungen.html",
+                           cfg=cfg,
+                           teams_scan_running=_teams_scan_is_running())
+
+
+@bp.route("/teams/starten", methods=["POST"])
+@write_access_required
+def teams_scan_starten():
+    with _teams_scan_lock:
+        if _teams_scan_is_running():
+            return jsonify({"ok": False, "msg": "Ein Teams-Scan läuft bereits."})
+
+        config_path = _teams_config_path()
+        if not os.path.isfile(config_path):
+            return jsonify({"ok": False, "msg": "Teams-Konfiguration nicht gefunden. Bitte zuerst speichern."})
+
+        cfg = _load_teams_config()
+        if not cfg.get("teams"):
+            return jsonify({"ok": False, "msg": "Keine Teams/Sites konfiguriert."})
+        if not cfg.get("tenant_id") or not cfg.get("client_id"):
+            return jsonify({"ok": False, "msg": "Azure AD Zugangsdaten (tenant_id, client_id) fehlen."})
+
+        scanner_dir = _scanner_dir()
+        os.makedirs(scanner_dir, exist_ok=True)
+
+        script = _teams_script_path()
+        if not os.path.isfile(script):
+            return jsonify({"ok": False, "msg": f"Teams-Scanner nicht gefunden: {script}"})
+
+        cmd = [sys.executable, script, "--config", config_path]
+        output_log = os.path.join(scanner_dir, "teams_scanner_output.log")
+
+        try:
+            log_fh = open(output_log, "w", encoding="utf-8")
+            proc   = subprocess.Popen(
+                cmd,
+                stdout=log_fh,
+                stderr=log_fh,
+                cwd=scanner_dir,
+            )
+            _teams_scan_state["pid"]     = proc.pid
+            _teams_scan_state["started"] = datetime.now(timezone.utc).isoformat()
+
+            def _watch():
+                proc.wait()
+                log_fh.close()
+                with _teams_scan_lock:
+                    if _teams_scan_state.get("pid") == proc.pid:
+                        _teams_scan_state["pid"]     = None
+                        _teams_scan_state["started"] = None
+
+            threading.Thread(target=_watch, daemon=True).start()
+            return jsonify({"ok": True, "msg": f"Teams-Scan gestartet (PID {proc.pid}).", "pid": proc.pid})
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": str(exc)})
+
+
+@bp.route("/teams/status")
+@login_required
+def teams_scan_status():
+    running = _teams_scan_is_running()
+    return jsonify({
+        "running": running,
+        "started": _teams_scan_state.get("started"),
+    })
+
+
 def _hash_pw(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
 
