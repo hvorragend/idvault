@@ -26,13 +26,21 @@
       {% endfor %}
     {% endwith %}
 
+    {% if ldap_active %}
+    <div class="alert alert-info py-2 mb-3" style="font-size:.82rem">
+      <i class="bi bi-diagram-3 me-1"></i>
+      <strong>Active Directory aktiv</strong> – Anmeldung mit Ihrem AD-Benutzernamen und Windows-Passwort.
+    </div>
+    {% endif %}
+
     <form method="post">
       <div class="mb-3">
         <label class="form-label">Benutzername</label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-person"></i></span>
           <input type="text" name="username" class="form-control" autofocus
-                 placeholder="admin" autocomplete="username">
+                 placeholder="{{ 'AD-Anmeldename' if ldap_active else 'admin' }}"
+                 autocomplete="username">
         </div>
       </div>
       <div class="mb-4">
@@ -48,12 +56,14 @@
       </button>
     </form>
 
+    {% if not ldap_active %}
     <div class="mt-4 p-3 rounded" style="background:#f8f9fa;font-size:.78rem">
       <strong>Demo-Zugänge:</strong><br>
       <code>admin</code> / <code>idvault2025</code> (Administrator)<br>
       <code>koordinator</code> / <code>demo</code><br>
       <code>fachverantwortlicher</code> / <code>demo</code>
     </div>
+    {% endif %}
   </div>
 </body>
 </html>

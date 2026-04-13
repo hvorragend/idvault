@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}LDAP-Konfiguration{% endblock %}
+{% block page_title %}<i class="bi bi-diagram-3 me-2"></i>LDAP / Active Directory{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.88rem">
+    Verbindung zu LDAP / Active Directory konfigurieren (LDAPS, Port 636)
+  </span>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin.ldap_gruppen') }}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-people me-1"></i>Gruppen-Rollen-Mapping
+    </a>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Zurück zur Administration
+    </a>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ 'success' if cat == 'success' else 'danger' }} alert-dismissible fade show">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<div class="row g-4">
+
+  <!-- ── Konfigurationsformular ─────────────────────────────────────────── -->
+  <div class="col-lg-8">
+    <form method="post" action="{{ url_for('admin.ldap_config') }}">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-server me-2"></i>Server-Konfiguration
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+
+          <!-- Aktiviert -->
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="enabled"
+                     id="enabled" value="1"
+                     {{ 'checked' if cfg and cfg.enabled else '' }}>
+              <label class="form-check-label fw-600" for="enabled">
+                LDAP-Authentifizierung aktivieren
+              </label>
+            </div>
+            <div class="form-text text-warning">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Wenn aktiviert, werden alle Benutzer zuerst gegen LDAP geprüft.
+              Lokale Logins ohne Passwort-Hash bleiben weiterhin möglich (Notfall-Admin).
+            </div>
+          </div>
+
+          <!-- Server-URL -->
+          <div class="col-md-8">
+            <label class="form-label fw-600">Server-URL <span class="text-danger">*</span></label>
+            <input type="text" name="server_url" class="form-control font-monospace"
+                   value="{{ cfg.server_url if cfg else '' }}"
+                   placeholder="ldaps://ldap.ihre-bank.de" required>
+            <div class="form-text">Protokoll <code>ldaps://</code> für verschlüsselte Verbindung (empfohlen)</div>
+          </div>
+
+          <!-- Port -->
+          <div class="col-md-4">
+            <label class="form-label fw-600">Port</label>
+            <input type="number" name="port" class="form-control"
+                   value="{{ cfg.port if cfg else 636 }}" min="1" max="65535">
+            <div class="form-text">Standard: 636 (LDAPS) oder 389 (LDAP)</div>
+          </div>
+
+          <!-- Base-DN -->
+          <div class="col-12">
+            <label class="form-label fw-600">Base-DN <span class="text-danger">*</span></label>
+            <input type="text" name="base_dn" class="form-control font-monospace"
+                   value="{{ cfg.base_dn if cfg else '' }}"
+                   placeholder="OU=Benutzer,DC=ihre-bank,DC=de" required>
+            <div class="form-text">Suchbasis für Benutzer im Verzeichnis</div>
+          </div>
+
+          <!-- Technischer Benutzer -->
+          <div class="col-12">
+            <label class="form-label fw-600">Technischer Benutzer (Bind-DN) <span class="text-danger">*</span></label>
+            <input type="text" name="bind_dn" class="form-control font-monospace"
+                   value="{{ cfg.bind_dn if cfg else '' }}"
+                   placeholder="CN=svc-idvault,OU=ServiceAccounts,DC=ihre-bank,DC=de" required>
+            <div class="form-text">Service-Account für LDAP-Suche (nur Leserechte benötigt)</div>
+          </div>
+
+          <!-- Kennwort -->
+          <div class="col-12">
+            <label class="form-label fw-600">Kennwort Service-Account</label>
+            <input type="password" name="bind_password" class="form-control"
+                   placeholder="{{ 'Leer lassen = unverändert' if cfg and cfg.bind_password else 'Kennwort eingeben' }}">
+            <div class="form-text">
+              Wird verschlüsselt gespeichert (Fernet/AES-128).
+              {% if cfg and cfg.bind_password %}
+              <span class="text-success"><i class="bi bi-check-circle me-1"></i>Kennwort ist hinterlegt.</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Benutzer-Attribut & SSL-Verify -->
+          <div class="col-md-6">
+            <label class="form-label fw-600">Benutzer-Attribut</label>
+            <select name="user_attr" class="form-select">
+              {% for attr in ['sAMAccountName', 'userPrincipalName', 'cn', 'uid'] %}
+              <option value="{{ attr }}" {{ 'selected' if cfg and cfg.user_attr == attr else '' }}>{{ attr }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text"><code>sAMAccountName</code> = Anmeldename (empfohlen für AD)</div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-600">TLS-Zertifikat</label>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" name="ssl_verify"
+                     id="ssl_verify" value="1"
+                     {{ 'checked' if not cfg or cfg.ssl_verify else '' }}>
+              <label class="form-check-label" for="ssl_verify">
+                Zertifikat verifizieren (empfohlen)
+              </label>
+            </div>
+            <div class="form-text">Deaktivieren nur bei selbstsignierten Zertifikaten im Test</div>
+          </div>
+
+        </div>
+      </div>
+      <div class="card-footer bg-white d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-secondary" id="btnTest">
+          <i class="bi bi-plug me-1"></i>Verbindung testen
+        </button>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-floppy me-1"></i>Speichern
+        </button>
+      </div>
+    </div>
+    </form>
+  </div>
+
+  <!-- ── Info-Panel ─────────────────────────────────────────────────────── -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-info-circle me-2"></i>Login-Ablauf
+      </div>
+      <div class="card-body" style="font-size:.85rem">
+        <ol class="ps-3 mb-0">
+          <li class="mb-2">Benutzer gibt <strong>Anmeldename + Passwort</strong> in idvault ein</li>
+          <li class="mb-2">idvault verbindet via <strong>LDAPS</strong> mit dem Server</li>
+          <li class="mb-2">Suche nach Benutzerkonto per <code>sAMAccountName</code></li>
+          <li class="mb-2"><strong>LDAP-Bind</strong> mit User-DN + eingegebenem Passwort</li>
+          <li class="mb-2">Gruppen-Mitgliedschaft → <strong>idvault-Rolle</strong></li>
+          <li>Person wird automatisch angelegt/aktualisiert</li>
+        </ol>
+      </div>
+    </div>
+
+    {% if cfg and cfg.updated_at %}
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-body" style="font-size:.82rem">
+        <i class="bi bi-clock me-1"></i>
+        Letzte Änderung: {{ cfg.updated_at | datefmt('%d.%m.%Y %H:%M') }} UTC
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Test-Ergebnis -->
+    <div id="testResult" class="mt-3" style="display:none">
+      <div class="alert mb-0" id="testAlert"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.getElementById('btnTest').addEventListener('click', function() {
+  const btn = this;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Teste…';
+
+  fetch('{{ url_for("admin.ldap_test") }}', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+      const div  = document.getElementById('testResult');
+      const alert = document.getElementById('testAlert');
+      div.style.display = 'block';
+      alert.className = 'alert ' + (data.ok ? 'alert-success' : 'alert-danger') + ' mb-0';
+      alert.innerHTML = (data.ok ? '<i class="bi bi-check-circle me-1"></i>' : '<i class="bi bi-x-circle me-1"></i>') + data.msg;
+    })
+    .catch(e => {
+      document.getElementById('testResult').style.display = 'block';
+      document.getElementById('testAlert').className = 'alert alert-danger mb-0';
+      document.getElementById('testAlert').textContent = 'Fehler: ' + e;
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-plug me-1"></i>Verbindung testen';
+    });
+});
+</script>
+
+{% endblock %}

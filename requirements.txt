@@ -7,6 +7,12 @@ flask>=3.0.0
 # Excel-Export
 openpyxl>=3.1.0
 
+# LDAP-Authentifizierung (Active Directory / LDAPS)
+ldap3>=2.9.1
+
+# Verschlüsselung für LDAP-Service-Account-Passwort
+cryptography>=42.0.0
+
 # Produktion (optional)
 gunicorn>=21.0.0
 

@@ -17,10 +17,12 @@ block_cipher = None
 # ---------------------------------------------------------------------------
 # Abhängigkeiten vollständig einsammeln (Binaries, Daten, Hidden-Imports)
 # ---------------------------------------------------------------------------
-flask_d,    flask_b,    flask_h    = collect_all('flask')
-jinja2_d,   jinja2_b,   jinja2_h   = collect_all('jinja2')
-werkzeug_d, werkzeug_b, werkzeug_h = collect_all('werkzeug')
-openpyxl_d, openpyxl_b, openpyxl_h = collect_all('openpyxl')
+flask_d,        flask_b,        flask_h        = collect_all('flask')
+jinja2_d,       jinja2_b,       jinja2_h       = collect_all('jinja2')
+werkzeug_d,     werkzeug_b,     werkzeug_h     = collect_all('werkzeug')
+openpyxl_d,     openpyxl_b,     openpyxl_h     = collect_all('openpyxl')
+cryptography_d, cryptography_b, cryptography_h = collect_all('cryptography')
+ldap3_d,        ldap3_b,        ldap3_h        = collect_all('ldap3')
 
 # ---------------------------------------------------------------------------
 # Datei-Ressourcen
@@ -37,6 +39,8 @@ datas = [
     *jinja2_d,
     *werkzeug_d,
     *openpyxl_d,
+    *cryptography_d,
+    *ldap3_d,
 ]
 
 # ---------------------------------------------------------------------------
@@ -63,7 +67,15 @@ hiddenimports = [
     'webapp.routes.scanner',
     'webapp.routes.reports',
     'webapp.routes.freigaben',
+    'webapp.ldap_auth',
     'db',
+    # LDAP + Verschlüsselung
+    'ldap3',
+    *ldap3_h,
+    'cryptography',
+    'cryptography.fernet',
+    'cryptography.hazmat.primitives.ciphers.algorithms',
+    *cryptography_h,
     # Scanner – optional (werden ignoriert wenn nicht installiert)
     'xxhash',
     'win32security',
@@ -82,7 +94,7 @@ hiddenimports = [
 a = Analysis(
     ['run.py'],
     pathex=['.', 'scanner'],  # scanner/ damit idv_scanner.py gefunden wird
-    binaries=[*flask_b, *jinja2_b, *werkzeug_b, *openpyxl_b],
+    binaries=[*flask_b, *jinja2_b, *werkzeug_b, *openpyxl_b, *cryptography_b, *ldap3_b],
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

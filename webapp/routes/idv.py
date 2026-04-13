@@ -288,12 +288,15 @@ def detail_idv(idv_db_id):
         SELECT r.*, v.*,
           p_fv.nachname || ', ' || p_fv.vorname AS fachverantwortlicher,
           p_en.nachname || ', ' || p_en.vorname AS entwickler,
-          ou.bezeichnung AS org_einheit
+          ou.bezeichnung AS org_einheit,
+          gp.schutzbedarf_a, gp.schutzbedarf_c,
+          gp.schutzbedarf_i, gp.schutzbedarf_n
         FROM idv_register r
         LEFT JOIN v_idv_uebersicht v ON v.idv_id = r.idv_id
         LEFT JOIN persons p_fv ON r.fachverantwortlicher_id = p_fv.id
         LEFT JOIN persons p_en ON r.idv_entwickler_id = p_en.id
         LEFT JOIN org_units ou ON r.org_unit_id = ou.id
+        LEFT JOIN geschaeftsprozesse gp ON r.gp_id = gp.id
         WHERE r.id = ?
     """, (idv_db_id,)).fetchone()
 
@@ -747,10 +750,6 @@ def _form_to_dict(form) -> dict:
         "dora_kritisch_wichtig":     chk("dora_kritisch_wichtig"),
         "dora_begruendung":          form.get("dora_begruendung") or None,
         "risikoklasse_id":           _int_or_none(form.get("risikoklasse_id")),
-        "risiko_verfuegbarkeit":     _int_or_none(form.get("risiko_verfuegbarkeit")),
-        "risiko_integritaet":        _int_or_none(form.get("risiko_integritaet")),
-        "risiko_vertraulichkeit":    _int_or_none(form.get("risiko_vertraulichkeit")),
-        "risiko_nachvollziehbarkeit":_int_or_none(form.get("risiko_nachvollziehbarkeit")),
         "org_unit_id":               _int_or_none(form.get("org_unit_id")),
         "fachverantwortlicher_id":   _int_or_none(form.get("fachverantwortlicher_id")),
         "idv_entwickler_id":         _int_or_none(form.get("idv_entwickler_id")),

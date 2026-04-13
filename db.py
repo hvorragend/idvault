@@ -120,10 +120,28 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
         ("schutzbedarf_a", "TEXT"),         # Verfügbarkeit (Availability)
         ("schutzbedarf_c", "TEXT"),         # Vertraulichkeit (Confidentiality)
         ("schutzbedarf_i", "TEXT"),         # Integrität (Integrity)
-        ("schutzbedarf_n", "TEXT"),         # Verbindlichkeit (Non-repudiation)
+        ("schutzbedarf_n", "TEXT"),         # Authentizität (Authenticity)
     ]:
         if not has_column("geschaeftsprozesse", col):
             conn.execute(f"ALTER TABLE geschaeftsprozesse ADD COLUMN {col} {typedef}")
+
+    # LDAP-Konfiguration (Singleton-Zeile sicherstellen)
+    def has_table(name: str) -> bool:
+        return conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone()[0] > 0
+
+    if has_table("ldap_config"):
+        if conn.execute("SELECT COUNT(*) FROM ldap_config").fetchone()[0] == 0:
+            conn.execute(
+                "INSERT OR IGNORE INTO ldap_config (id) VALUES (1)"
+            )
+
+    # scan_runs: scan_status (Pause/Checkpoint/Cancel-Unterstützung)
+    if not has_column("scan_runs", "scan_status"):
+        conn.execute(
+            "ALTER TABLE scan_runs ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'completed'"
+        )
 
     conn.commit()
 

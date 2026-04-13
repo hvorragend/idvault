@@ -102,6 +102,26 @@ def _scan_is_running() -> bool:
         return False
 
 
+def _pause_path() -> str:
+    return os.path.join(_scanner_dir(), "scanner_pause.signal")
+
+
+def _cancel_path() -> str:
+    return os.path.join(_scanner_dir(), "scanner_cancel.signal")
+
+
+def _checkpoint_path() -> str:
+    return os.path.join(_scanner_dir(), "scanner_checkpoint.json")
+
+
+def _scan_is_paused() -> bool:
+    return os.path.exists(_pause_path())
+
+
+def _has_checkpoint() -> bool:
+    return os.path.exists(_checkpoint_path())
+
+
 @bp.route("/scanner-einstellungen", methods=["GET", "POST"])
 @admin_required
 def scanner_einstellungen():
@@ -159,16 +179,20 @@ def scanner_starten():
             return jsonify({"ok": False, "msg": f"Konfiguration nicht gefunden: {config}"})
 
         scanner_dir = _scanner_dir()
-        os.makedirs(scanner_dir, exist_ok=True)  # Ordner anlegen falls noch nicht vorhanden
+        os.makedirs(scanner_dir, exist_ok=True)
+
+        resume = request.form.get("resume") == "1" and _has_checkpoint()
 
         if getattr(sys, 'frozen', False):
-            # Im PyInstaller-Bundle: gleichen Executable mit --scan Flag aufrufen
             cmd = [sys.executable, "--scan", "--config", config]
         else:
             script = _scanner_script_path()
             if not os.path.isfile(script):
                 return jsonify({"ok": False, "msg": f"Scanner-Skript nicht gefunden: {script}"})
             cmd = ["python3", script, "--config", config]
+
+        if resume:
+            cmd.append("--resume")
 
         output_log = os.path.join(scanner_dir, "scanner_output.log")
         try:
@@ -191,16 +215,57 @@ def scanner_starten():
                         _scan_state["started"] = None
 
             threading.Thread(target=_watch, daemon=True).start()
-            return jsonify({"ok": True, "msg": f"Scan gestartet (PID {proc.pid}).", "pid": proc.pid})
+            mode_label = "fortgesetzt" if resume else "gestartet"
+            return jsonify({"ok": True, "msg": f"Scan {mode_label} (PID {proc.pid}).", "pid": proc.pid})
         except Exception as exc:
             return jsonify({"ok": False, "msg": str(exc)})
 
 
 @bp.route("/scanner/status")
-@admin_required
+@login_required
 def scanner_status():
     running = _scan_is_running()
-    return jsonify({"running": running, "started": _scan_state.get("started")})
+    return jsonify({
+        "running":        running,
+        "started":        _scan_state.get("started"),
+        "paused":         _scan_is_paused() if running else False,
+        "has_checkpoint": _has_checkpoint(),
+    })
+
+
+@bp.route("/scanner/pause", methods=["POST"])
+@write_access_required
+def scanner_pause():
+    if not _scan_is_running():
+        return jsonify({"ok": False, "msg": "Kein Scan aktiv."})
+    os.makedirs(_scanner_dir(), exist_ok=True)
+    open(_pause_path(), "w").close()
+    return jsonify({"ok": True, "msg": "Pause angefordert."})
+
+
+@bp.route("/scanner/fortsetzen", methods=["POST"])
+@write_access_required
+def scanner_fortsetzen():
+    try:
+        os.remove(_pause_path())
+    except FileNotFoundError:
+        pass
+    return jsonify({"ok": True, "msg": "Fortsetzung signalisiert."})
+
+
+@bp.route("/scanner/abbrechen", methods=["POST"])
+@write_access_required
+def scanner_abbrechen():
+    if not _scan_is_running():
+        return jsonify({"ok": False, "msg": "Kein Scan aktiv."})
+    os.makedirs(_scanner_dir(), exist_ok=True)
+    # Pause zuerst aufheben, dann Abbruch signalisieren
+    try:
+        os.remove(_pause_path())
+    except FileNotFoundError:
+        pass
+    open(_cancel_path(), "w").close()
+    return jsonify({"ok": True, "msg": "Abbruch angefordert."})
 
 
 @bp.route("/scanner/bereinigen", methods=["POST"])
@@ -237,6 +302,188 @@ def scanner_bereinigen():
         "success"
     )
     return redirect(url_for("admin.scanner_einstellungen") + "#bereinigung")
+
+
+@bp.route("/scanner/db-importieren", methods=["POST"])
+@admin_required
+def scanner_db_importieren():
+    """Importiert Scanner-Ergebnisse aus einer externen SQLite-Datei (Multi-Scanner-Merge)."""
+    import sqlite3 as _sqlite3
+
+    src_path = request.form.get("src_db_path", "").strip()
+    if not src_path:
+        flash("Bitte einen Datenbankpfad angeben.", "error")
+        return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
+
+    if not os.path.isfile(src_path):
+        flash(f"Datei nicht gefunden: {src_path}", "error")
+        return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
+
+    try:
+        src = _sqlite3.connect(src_path)
+        src.row_factory = _sqlite3.Row
+    except Exception as exc:
+        flash(f"Quelldatenbank kann nicht geöffnet werden: {exc}", "error")
+        return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
+
+    dst = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+
+    stats = {"runs": 0, "files_new": 0, "files_updated": 0, "history": 0}
+
+    try:
+        # ── 1. scan_runs importieren ──────────────────────────────────────
+        run_id_map = {}   # src_run_id → dst_run_id
+        src_runs = src.execute(
+            "SELECT * FROM scan_runs ORDER BY id"
+        ).fetchall()
+        for run in src_runs:
+            cur = dst.execute("""
+                INSERT INTO scan_runs
+                    (started_at, finished_at, scan_paths,
+                     total_files, new_files, changed_files, moved_files,
+                     restored_files, archived_files, errors)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                run["started_at"], run["finished_at"], run["scan_paths"],
+                run["total_files"] or 0, run["new_files"] or 0,
+                run["changed_files"] or 0, run["moved_files"] or 0,
+                run["restored_files"] or 0, run["archived_files"] or 0,
+                run["errors"] or 0,
+            ))
+            run_id_map[run["id"]] = cur.lastrowid
+            stats["runs"] += 1
+
+        # ── 2. idv_files zusammenführen ──────────────────────────────────
+        file_id_map = {}  # src_file_id → dst_file_id
+        src_files = src.execute("SELECT * FROM idv_files ORDER BY id").fetchall()
+        for f in src_files:
+            existing = dst.execute(
+                "SELECT id, last_seen_at FROM idv_files WHERE full_path = ?",
+                (f["full_path"],)
+            ).fetchone()
+
+            if existing is None:
+                # Neue Datei einfügen
+                cur = dst.execute("""
+                    INSERT INTO idv_files (
+                        file_hash, full_path, file_name, extension, share_root,
+                        relative_path, size_bytes, created_at, modified_at, file_owner,
+                        office_author, office_last_author, office_created, office_modified,
+                        has_macros, has_external_links, sheet_count, named_ranges_count,
+                        formula_count, has_sheet_protection, protected_sheets_count,
+                        sheet_protection_has_pw, workbook_protected,
+                        first_seen_at, last_seen_at, last_scan_run_id, status
+                    ) VALUES (
+                        :file_hash, :full_path, :file_name, :extension, :share_root,
+                        :relative_path, :size_bytes, :created_at, :modified_at, :file_owner,
+                        :office_author, :office_last_author, :office_created, :office_modified,
+                        :has_macros, :has_external_links, :sheet_count, :named_ranges_count,
+                        :formula_count, :has_sheet_protection, :protected_sheets_count,
+                        :sheet_protection_has_pw, :workbook_protected,
+                        :first_seen_at, :last_seen_at, :last_scan_run_id, :status
+                    )
+                """, {
+                    "file_hash":          f["file_hash"],
+                    "full_path":          f["full_path"],
+                    "file_name":          f["file_name"],
+                    "extension":          f["extension"],
+                    "share_root":         f["share_root"],
+                    "relative_path":      f["relative_path"],
+                    "size_bytes":         f["size_bytes"],
+                    "created_at":         f["created_at"],
+                    "modified_at":        f["modified_at"],
+                    "file_owner":         f["file_owner"],
+                    "office_author":      f["office_author"],
+                    "office_last_author": f["office_last_author"],
+                    "office_created":     f["office_created"],
+                    "office_modified":    f["office_modified"],
+                    "has_macros":         f["has_macros"] or 0,
+                    "has_external_links": f["has_external_links"] or 0,
+                    "sheet_count":        f["sheet_count"],
+                    "named_ranges_count": f["named_ranges_count"],
+                    "formula_count":      f["formula_count"] or 0,
+                    "has_sheet_protection":    f["has_sheet_protection"] or 0,
+                    "protected_sheets_count":  f["protected_sheets_count"] or 0,
+                    "sheet_protection_has_pw": f["sheet_protection_has_pw"] or 0,
+                    "workbook_protected":      f["workbook_protected"] or 0,
+                    "first_seen_at":      f["first_seen_at"] or now,
+                    "last_seen_at":       f["last_seen_at"] or now,
+                    "last_scan_run_id":   run_id_map.get(f["last_scan_run_id"]),
+                    "status":             f["status"] or "active",
+                })
+                file_id_map[f["id"]] = cur.lastrowid
+                stats["files_new"] += 1
+            else:
+                # Vorhandene Datei: aktualisieren wenn Quelle neuer
+                file_id_map[f["id"]] = existing["id"]
+                src_ts  = f["last_seen_at"] or ""
+                dst_ts  = existing["last_seen_at"] or ""
+                if src_ts > dst_ts:
+                    dst.execute("""
+                        UPDATE idv_files SET
+                            file_hash = ?, size_bytes = ?,
+                            modified_at = ?, file_owner = ?,
+                            office_author = ?, office_last_author = ?,
+                            office_modified = ?,
+                            has_macros = ?, has_external_links = ?,
+                            sheet_count = ?, named_ranges_count = ?,
+                            formula_count = ?,
+                            has_sheet_protection = ?, protected_sheets_count = ?,
+                            sheet_protection_has_pw = ?, workbook_protected = ?,
+                            last_seen_at = ?, last_scan_run_id = ?, status = ?
+                        WHERE id = ?
+                    """, (
+                        f["file_hash"], f["size_bytes"],
+                        f["modified_at"], f["file_owner"],
+                        f["office_author"], f["office_last_author"],
+                        f["office_modified"],
+                        f["has_macros"] or 0, f["has_external_links"] or 0,
+                        f["sheet_count"], f["named_ranges_count"],
+                        f["formula_count"] or 0,
+                        f["has_sheet_protection"] or 0, f["protected_sheets_count"] or 0,
+                        f["sheet_protection_has_pw"] or 0, f["workbook_protected"] or 0,
+                        f["last_seen_at"], run_id_map.get(f["last_scan_run_id"]),
+                        f["status"] or "active",
+                        existing["id"],
+                    ))
+                    stats["files_updated"] += 1
+
+        # ── 3. idv_file_history übertragen ────────────────────────────────
+        src_hist = src.execute("SELECT * FROM idv_file_history ORDER BY id").fetchall()
+        for h in src_hist:
+            dst_file_id = file_id_map.get(h["file_id"])
+            dst_run_id  = run_id_map.get(h["scan_run_id"])
+            if dst_file_id is None or dst_run_id is None:
+                continue
+            dst.execute("""
+                INSERT INTO idv_file_history
+                    (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at, details)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                dst_file_id, dst_run_id,
+                h["change_type"], h["old_hash"], h["new_hash"],
+                h["changed_at"], h["details"],
+            ))
+            stats["history"] += 1
+
+        dst.commit()
+        src.close()
+
+        flash(
+            f"Import abgeschlossen: {stats['runs']} Scan-Läufe, "
+            f"{stats['files_new']} neue Dateien, "
+            f"{stats['files_updated']} aktualisiert, "
+            f"{stats['history']} History-Einträge.",
+            "success"
+        )
+
+    except Exception as exc:
+        dst.rollback()
+        src.close()
+        flash(f"Fehler beim Import: {exc}", "error")
+
+    return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
 
 
 def _hash_pw(pw: str) -> str:

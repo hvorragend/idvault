@@ -11,6 +11,7 @@ Lizenz: intern
 
 import os
 import sys
+import time
 import hashlib
 import sqlite3
 import zipfile
@@ -119,7 +120,8 @@ CREATE TABLE IF NOT EXISTS scan_runs (
     moved_files     INTEGER DEFAULT 0,
     restored_files  INTEGER DEFAULT 0,
     archived_files  INTEGER DEFAULT 0,
-    errors          INTEGER DEFAULT 0
+    errors          INTEGER DEFAULT 0,
+    scan_status     TEXT NOT NULL DEFAULT 'completed'
 );
 
 CREATE TABLE IF NOT EXISTS idv_files (
@@ -179,6 +181,13 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     conn.commit()
+    # Incremental migration: scan_status für bestehende Datenbanken
+    col_names = {r[1] for r in conn.execute("PRAGMA table_info(scan_runs)").fetchall()}
+    if "scan_status" not in col_names:
+        conn.execute(
+            "ALTER TABLE scan_runs ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'completed'"
+        )
+        conn.commit()
     return conn
 
 
@@ -384,6 +393,88 @@ def get_share_root(path: str, scan_paths: list) -> tuple:
 
 
 # ---------------------------------------------------------------------------
+# Pause / Abbrechen / Checkpoint
+# ---------------------------------------------------------------------------
+
+class ScanCancelledError(Exception):
+    """Wird ausgelöst, wenn der Benutzer den Scan abbricht."""
+
+
+def check_signals(signal_dir: Optional[str]) -> str:
+    """Gibt 'cancel', 'pause' oder 'ok' zurück."""
+    if not signal_dir:
+        return "ok"
+    if os.path.exists(os.path.join(signal_dir, "scanner_cancel.signal")):
+        return "cancel"
+    if os.path.exists(os.path.join(signal_dir, "scanner_pause.signal")):
+        return "pause"
+    return "ok"
+
+
+def write_checkpoint(signal_dir: str, scan_run_id: int, scan_paths: list,
+                     completed_dirs: list, stats: dict) -> None:
+    """Schreibt den Fortschrittsstand in eine JSON-Datei."""
+    data = {
+        "scan_run_id":     scan_run_id,
+        "scan_paths":      scan_paths,
+        "completed_dirs":  completed_dirs,
+        "stats":           stats,
+        "checkpointed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    path = os.path.join(signal_dir, "scanner_checkpoint.json")
+    tmp  = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+def read_checkpoint(signal_dir: str) -> Optional[dict]:
+    """Liest den letzten Checkpoint. Gibt None zurück, wenn keiner vorhanden."""
+    path = os.path.join(signal_dir, "scanner_checkpoint.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def remove_checkpoint(signal_dir: str) -> None:
+    """Löscht die Checkpoint-Datei (nach erfolgreichem Scan)."""
+    try:
+        os.remove(os.path.join(signal_dir, "scanner_checkpoint.json"))
+    except FileNotFoundError:
+        pass
+
+
+def clean_signals(signal_dir: str) -> None:
+    """Löscht Pause- und Abbruch-Signaldateien."""
+    for name in ("scanner_pause.signal", "scanner_cancel.signal"):
+        try:
+            os.remove(os.path.join(signal_dir, name))
+        except FileNotFoundError:
+            pass
+
+
+def _check_and_handle_signals(signal_dir: Optional[str], logger: logging.Logger) -> None:
+    """Blockiert bei Pause, löst ScanCancelledError bei Abbruch aus."""
+    sig = check_signals(signal_dir)
+    if sig == "cancel":
+        logger.info("Abbruch-Signal empfangen.")
+        raise ScanCancelledError()
+    elif sig == "pause":
+        logger.info("Pause-Signal empfangen – Scan unterbrochen. Warte auf Fortsetzung …")
+        while True:
+            time.sleep(2)
+            sig = check_signals(signal_dir)
+            if sig == "cancel":
+                logger.info("Abbruch-Signal während Pause empfangen.")
+                raise ScanCancelledError()
+            if sig != "pause":
+                logger.info("Pause aufgehoben – Scan wird fortgesetzt.")
+                break
+
+
+# ---------------------------------------------------------------------------
 # Scanner-Kern
 # ---------------------------------------------------------------------------
 
@@ -434,6 +525,56 @@ def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
     }
 
 
+def safe_walk(top: str, followlinks: bool = False, logger: logging.Logger = None):
+    """os.walk-Ersatz mit robuster Fehlerbehandlung für Netzlaufwerke.
+
+    Fängt PermissionError, OSError und Windows-Control-Signale (die Python als
+    KeyboardInterrupt darstellt) beim Verzeichnis-Listing ab. Unzugängliche
+    Verzeichnisse werden übersprungen und als Warnung geloggt.
+
+    Wie os.walk unterstützt diese Funktion das in-place Filtern von dirs durch
+    den Aufrufer, um den Abstieg in bestimmte Unterverzeichnisse zu verhindern.
+    """
+    try:
+        with os.scandir(top) as it:
+            entries = list(it)
+    except PermissionError as e:
+        if logger:
+            logger.warning(f"Kein Zugriff auf Verzeichnis (übersprungen): {top} – {e.strerror}")
+        return
+    except OSError as e:
+        if logger:
+            logger.warning(f"Lesefehler Verzeichnis (übersprungen): {top} – {e.strerror}")
+        return
+    except BaseException as e:
+        # Auf Netzlaufwerken kann Windows ein Control-Signal senden,
+        # das Python als KeyboardInterrupt darstellt – analog zum bekannten
+        # Verhalten von GetFileSecurity auf geschützten Freigaben.
+        if logger:
+            logger.warning(
+                f"Verzeichnis-Listing unterbrochen (übersprungen): {top} – {type(e).__name__}"
+            )
+        return
+
+    dirs = []
+    nondirs = []
+    for entry in entries:
+        try:
+            is_dir = entry.is_dir(follow_symlinks=followlinks)
+        except OSError:
+            is_dir = False
+        if is_dir:
+            dirs.append(entry.name)
+        else:
+            nondirs.append(entry.name)
+
+    yield top, dirs, nondirs
+
+    # dirs kann vom Aufrufer in-place gefiltert worden sein (wie bei os.walk)
+    for dirname in dirs:
+        yield from safe_walk(os.path.join(top, dirname), followlinks=followlinks, logger=logger)
+
+
 def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                   logger: logging.Logger, scan_since_ts: Optional[float] = None):
     """Generator: liefert Metadaten-Dicts für alle gefundenen Dateien.
@@ -444,7 +585,7 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
     extensions = set(e.lower() for e in config["extensions"])
     excludes   = config["exclude_paths"]
 
-    for root, dirs, files in os.walk(scan_path, followlinks=False):
+    for root, dirs, files in safe_walk(scan_path, followlinks=False, logger=logger):
         # Ausschlusspfade: dirs in-place filtern (verhindert Abstieg)
         dirs[:] = [
             d for d in dirs
@@ -474,6 +615,77 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                     yield data
             except Exception as e:
                 logger.warning(f"Fehler bei {full_path}: {e}")
+
+
+def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
+                    logger: logging.Logger, scan_since_ts: Optional[float] = None):
+    """Generator: liefert Metadaten-Dicts für Dateien direkt im scan_path (keine Rekursion)."""
+    extensions = set(e.lower() for e in config["extensions"])
+    excludes   = config["exclude_paths"]
+    try:
+        entries = os.listdir(scan_path)
+    except OSError as e:
+        logger.warning(f"Kann Verzeichnis nicht öffnen: {scan_path}: {e}")
+        return
+    for fname in entries:
+        full_path = os.path.join(scan_path, fname)
+        if not os.path.isfile(full_path):
+            continue
+        ext = Path(fname).suffix.lower()
+        if ext not in extensions:
+            continue
+        if should_exclude(full_path, excludes):
+            continue
+        if scan_since_ts is not None:
+            try:
+                if os.stat(full_path).st_mtime < scan_since_ts:
+                    continue
+            except OSError:
+                pass
+        try:
+            data = scan_file(full_path, config, all_scan_paths)
+            if data:
+                yield data
+        except Exception as e:
+            logger.warning(f"Fehler bei {full_path}: {e}")
+
+
+def _get_toplevel_dirs(scan_path: str, excludes: list) -> list:
+    """Gibt eine sortierte Liste der direkten Unterverzeichnisse zurück."""
+    try:
+        return sorted([
+            os.path.join(scan_path, d)
+            for d in os.listdir(scan_path)
+            if os.path.isdir(os.path.join(scan_path, d))
+            and not should_exclude(os.path.join(scan_path, d), excludes)
+        ])
+    except OSError:
+        return []
+
+
+def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
+                   now: str, logger: logging.Logger, move_mode: str,
+                   stats: dict, signal_dir: Optional[str]) -> None:
+    """Verarbeitet alle Dateien eines Generators, prüft alle 50 Dateien die Signale."""
+    file_counter = 0
+    for data in chunk_gen:
+        try:
+            change = upsert_file(conn, data, scan_run_id, now, logger, move_mode)
+            stats["total"]  += 1
+            stats[change]   += 1
+            file_counter    += 1
+
+            if file_counter % 50 == 0:
+                _check_and_handle_signals(signal_dir, logger)
+
+            if stats["total"] % 100 == 0:
+                conn.commit()
+                logger.info(f"  … {stats['total']} Dateien verarbeitet")
+        except ScanCancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"DB-Fehler bei {data.get('full_path')}: {e}")
+            stats["errors"] += 1
 
 
 # ---------------------------------------------------------------------------
@@ -698,7 +910,14 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
 # Hauptprogramm
 # ---------------------------------------------------------------------------
 
-def run_scan(config: dict, logger: logging.Logger):
+def run_scan(config: dict, logger: logging.Logger,
+             signal_dir: Optional[str] = None, resume: bool = False):
+    """Führt den Scan durch. Unterstützt Pause/Abbrechen/Checkpoint/Resume.
+
+    signal_dir: Verzeichnis für Signaldateien (scanner_pause.signal etc.).
+                Üblicherweise das Verzeichnis der config.json.
+    resume:     Wenn True und ein Checkpoint existiert, wird dort fortgesetzt.
+    """
     scan_paths = config["scan_paths"]
     if not scan_paths:
         logger.error("Keine Scan-Pfade konfiguriert. Bitte config.json anpassen.")
@@ -707,24 +926,14 @@ def run_scan(config: dict, logger: logging.Logger):
     conn = init_db(config["db_path"])
     now  = datetime.now(timezone.utc).isoformat()
 
-    # Scan-Run starten
-    cur = conn.execute(
-        "INSERT INTO scan_runs (started_at, scan_paths) VALUES (?, ?)",
-        (now, json.dumps(scan_paths))
-    )
-    conn.commit()
-    scan_run_id = cur.lastrowid
-    logger.info(f"Scan-Run #{scan_run_id} gestartet | Pfade: {scan_paths}")
-
     move_mode = config.get("move_detection", "name_and_hash")
     logger.info(f"Move-Detection-Modus: {move_mode}")
 
     # Startdatum-Filter auswerten
-    scan_since     = config.get("scan_since") or None   # z.B. "2024-07-01"
-    scan_since_ts  = None                               # Unix-Timestamp für st_mtime-Vergleich
+    scan_since    = config.get("scan_since") or None
+    scan_since_ts = None
     if scan_since:
         try:
-            from datetime import date as _date
             dt = datetime.fromisoformat(scan_since)
             scan_since_ts = dt.timestamp()
             logger.info(f"Startdatum-Filter aktiv: nur Dateien >= {scan_since}")
@@ -732,58 +941,153 @@ def run_scan(config: dict, logger: logging.Logger):
             logger.warning(f"Ungültiges scan_since-Format '{scan_since}' – Filter deaktiviert")
             scan_since = None
 
-    stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0,
-             "moved": 0, "restored": 0, "errors": 0}
+    # ── Checkpoint laden (Resume) ──────────────────────────────────────────
+    completed_dirs: list = []
+    checkpoint_run_id: Optional[int] = None
 
-    for scan_path in scan_paths:
-        if not os.path.exists(scan_path):
-            logger.warning(f"Pfad nicht erreichbar: {scan_path}")
-            stats["errors"] += 1
-            continue
+    if resume and signal_dir:
+        cp = read_checkpoint(signal_dir)
+        if cp:
+            completed_dirs    = cp.get("completed_dirs", [])
+            checkpoint_run_id = cp.get("scan_run_id")
+            cp_stats          = cp.get("stats", {})
+            logger.info(
+                f"Setze Scan #{checkpoint_run_id} fort. "
+                f"{len(completed_dirs)} Verzeichnisse bereits abgeschlossen."
+            )
+        else:
+            logger.warning("--resume angegeben, aber kein Checkpoint gefunden – starte neu.")
 
-        logger.info(f"Scanne: {scan_path}")
-        for data in walk_and_scan(scan_path, config, scan_paths, logger, scan_since_ts):
-            try:
-                change = upsert_file(conn, data, scan_run_id, now, logger, move_mode)
-                stats["total"]   += 1
-                stats[change]    += 1
+    # ── Scan-Run anlegen oder fortsetzen ───────────────────────────────────
+    if checkpoint_run_id:
+        scan_run_id = checkpoint_run_id
+        conn.execute(
+            "UPDATE scan_runs SET scan_status = 'running' WHERE id = ?",
+            (scan_run_id,)
+        )
+        conn.commit()
+        stats = {
+            "total":     cp_stats.get("total",     0),
+            "new":       cp_stats.get("new",       0),
+            "changed":   cp_stats.get("changed",   0),
+            "unchanged": cp_stats.get("unchanged", 0),
+            "moved":     cp_stats.get("moved",     0),
+            "restored":  cp_stats.get("restored",  0),
+            "errors":    cp_stats.get("errors",    0),
+        }
+    else:
+        cur = conn.execute(
+            "INSERT INTO scan_runs (started_at, scan_paths, scan_status) VALUES (?, ?, 'running')",
+            (now, json.dumps(scan_paths))
+        )
+        conn.commit()
+        scan_run_id = cur.lastrowid
+        stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0,
+                 "moved": 0, "restored": 0, "errors": 0}
 
-                if stats["total"] % 100 == 0:
-                    conn.commit()
-                    logger.info(f"  … {stats['total']} Dateien verarbeitet")
+    logger.info(f"Scan-Run #{scan_run_id} gestartet | Pfade: {scan_paths}")
 
-            except Exception as e:
-                logger.error(f"DB-Fehler bei {data.get('full_path')}: {e}")
+    # ── Abbruch-Signale aus vorherigem Lauf bereinigen ────────────────────
+    if signal_dir:
+        clean_signals(signal_dir)
+
+    # ── Hauptschleife über Scan-Pfade ─────────────────────────────────────
+    try:
+        excludes = config["exclude_paths"]
+
+        for scan_path in scan_paths:
+            if not os.path.exists(scan_path):
+                logger.warning(f"Pfad nicht erreichbar: {scan_path}")
                 stats["errors"] += 1
+                continue
 
-    conn.commit()
+            logger.info(f"Scanne: {scan_path}")
 
-    # Nicht mehr gefundene Dateien archivieren – nur im Geltungsbereich der gescannten Pfade
-    deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, scan_paths)
-    conn.commit()
+            # Dateien direkt im Wurzelverzeichnis (kein Subdir-Abstieg)
+            root_chunk = f"__ROOT__{scan_path}"
+            if root_chunk not in completed_dirs:
+                _process_chunk(
+                    walk_root_files(scan_path, config, scan_paths, logger, scan_since_ts),
+                    conn, scan_run_id, now, logger, move_mode, stats, signal_dir
+                )
+                conn.commit()
+                completed_dirs.append(root_chunk)
+                if signal_dir:
+                    write_checkpoint(signal_dir, scan_run_id, scan_paths,
+                                     completed_dirs, stats)
 
-    finished = datetime.now(timezone.utc).isoformat()
-    conn.execute("""
-        UPDATE scan_runs SET
-            finished_at = ?, total_files = ?, new_files = ?,
-            changed_files = ?, moved_files = ?, restored_files = ?,
-            archived_files = ?, errors = ?
-        WHERE id = ?
-    """, (finished, stats["total"], stats["new"], stats["changed"],
-          stats["moved"], stats["restored"], deleted, stats["errors"], scan_run_id))
-    conn.commit()
-    conn.close()
+            # Top-Level-Unterverzeichnisse als einzelne Checkpunkt-Einheiten
+            for subdir in _get_toplevel_dirs(scan_path, excludes):
+                if subdir in completed_dirs:
+                    logger.info(f"  Überspringe (bereits abgeschlossen): {subdir}")
+                    continue
 
-    logger.info("=" * 60)
-    logger.info(f"Scan abgeschlossen in Run #{scan_run_id}")
-    logger.info(f"  Gesamt gefunden : {stats['total']}")
-    logger.info(f"  Neu             : {stats['new']}")
-    logger.info(f"  Geändert        : {stats['changed']}")
-    logger.info(f"  Verschoben      : {stats['moved']}")
-    logger.info(f"  Wiederhergest.  : {stats['restored']}")
-    logger.info(f"  Archiviert      : {deleted}")
-    logger.info(f"  Fehler          : {stats['errors']}")
-    logger.info("=" * 60)
+                logger.info(f"  Unterverzeichnis: {subdir}")
+                _process_chunk(
+                    walk_and_scan(subdir, config, scan_paths, logger, scan_since_ts),
+                    conn, scan_run_id, now, logger, move_mode, stats, signal_dir
+                )
+                conn.commit()
+                completed_dirs.append(subdir)
+                if signal_dir:
+                    write_checkpoint(signal_dir, scan_run_id, scan_paths,
+                                     completed_dirs, stats)
+
+        # ── Erfolgreich abgeschlossen ──────────────────────────────────────
+        deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, scan_paths)
+        conn.commit()
+
+        finished = datetime.now(timezone.utc).isoformat()
+        conn.execute("""
+            UPDATE scan_runs SET
+                finished_at = ?, total_files = ?, new_files = ?,
+                changed_files = ?, moved_files = ?, restored_files = ?,
+                archived_files = ?, errors = ?, scan_status = 'completed'
+            WHERE id = ?
+        """, (finished, stats["total"], stats["new"], stats["changed"],
+              stats["moved"], stats["restored"], deleted, stats["errors"], scan_run_id))
+        conn.commit()
+        conn.close()
+
+        if signal_dir:
+            remove_checkpoint(signal_dir)
+
+        logger.info("=" * 60)
+        logger.info(f"Scan abgeschlossen in Run #{scan_run_id}")
+        logger.info(f"  Gesamt gefunden : {stats['total']}")
+        logger.info(f"  Neu             : {stats['new']}")
+        logger.info(f"  Geändert        : {stats['changed']}")
+        logger.info(f"  Verschoben      : {stats['moved']}")
+        logger.info(f"  Wiederhergest.  : {stats['restored']}")
+        logger.info(f"  Archiviert      : {deleted}")
+        logger.info(f"  Fehler          : {stats['errors']}")
+        logger.info("=" * 60)
+
+    except ScanCancelledError:
+        # ── Scan abgebrochen – Zwischenstand sichern ──────────────────────
+        conn.commit()
+        finished = datetime.now(timezone.utc).isoformat()
+        conn.execute("""
+            UPDATE scan_runs SET
+                finished_at = ?, total_files = ?, new_files = ?,
+                changed_files = ?, moved_files = ?, restored_files = ?,
+                archived_files = 0, errors = ?, scan_status = 'cancelled'
+            WHERE id = ?
+        """, (finished, stats["total"], stats["new"], stats["changed"],
+              stats["moved"], stats["restored"], stats["errors"], scan_run_id))
+        conn.commit()
+        conn.close()
+
+        if signal_dir:
+            clean_signals(signal_dir)
+            # Checkpoint-Datei bleibt erhalten, damit Resume möglich ist
+
+        logger.warning("=" * 60)
+        logger.warning(f"Scan #{scan_run_id} ABGEBROCHEN durch Benutzer.")
+        logger.warning(f"  Bisher verarbeitet: {stats['total']} Dateien "
+                       f"({len(completed_dirs)} Verzeichnisse abgeschlossen)")
+        logger.warning("  Resume mit: --resume (oder über die Webapp)")
+        logger.warning("=" * 60)
 
 
 # ---------------------------------------------------------------------------
@@ -796,6 +1100,8 @@ def main():
                         help="Pfad zur Konfigurationsdatei (default: config.json)")
     parser.add_argument("--init-config", action="store_true",
                         help="Erstellt eine Beispiel-config.json und beendet sich")
+    parser.add_argument("--resume", action="store_true",
+                        help="Setzt einen unterbrochenen Scan (Checkpoint) fort")
     args = parser.parse_args()
 
     if args.init_config:
@@ -813,8 +1119,9 @@ def main():
         print(f"Keine config.json gefunden. Starte mit: python idv_scanner.py --init-config")
         sys.exit(1)
 
+    signal_dir = os.path.dirname(os.path.abspath(args.config))
     logger = setup_logging(config["log_path"])
-    run_scan(config, logger)
+    run_scan(config, logger, signal_dir=signal_dir, resume=args.resume)
 
 
 if __name__ == "__main__":

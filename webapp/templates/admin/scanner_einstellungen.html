@@ -276,6 +276,51 @@
 })();
 </script>
 
+<!-- ══════════════════════════════════════════════════════════════
+     Scanner-DB importieren (Multi-Scanner-Merge)
+     ══════════════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm mb-4" id="db-import">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-database-up me-2 text-primary"></i>Scanner-Datenbank importieren
+  </div>
+  <div class="card-body">
+    <p class="text-muted mb-3" style="font-size:.87rem">
+      Wurden Scans auf anderen Rechnern mit einer <strong>eigenen Datenbank</strong>
+      durchgeführt (<code>db_path</code> in <code>config.json</code> auf eine lokale Datei
+      gesetzt), können die Ergebnisse hier in die zentrale idvault-Datenbank zusammengeführt
+      werden.<br>
+      Vorhandene Pfade werden nicht dupliziert – neuere Scan-Daten überschreiben ältere.
+    </p>
+
+    <div class="alert alert-light border py-2 mb-3" style="font-size:.83rem">
+      <i class="bi bi-info-circle me-1 text-secondary"></i>
+      <strong>Typischer Ablauf:</strong>
+      <ol class="mb-0 mt-1 ps-3">
+        <li>Scanner auf Rechner B mit eigenem <code>db_path</code> laufen lassen, z.&nbsp;B.
+            <code>scan_B.db</code></li>
+        <li><code>scan_B.db</code> auf den Server kopieren (z.&nbsp;B. per USB / Netzwerk)</li>
+        <li>Hier den Pfad zur kopierten Datei angeben und importieren</li>
+      </ol>
+    </div>
+
+    <form method="post" action="{{ url_for('admin.scanner_db_importieren') }}">
+      <div class="mb-3">
+        <label class="form-label form-label-sm fw-600" for="src-db-path">
+          Pfad zur Scanner-Datenbank
+        </label>
+        <input type="text" class="form-control form-control-sm font-monospace"
+               id="src-db-path" name="src_db_path"
+               placeholder="z.B. C:\Scans\scan_B.db oder \\server\share\scan_B.db"
+               required>
+        <div class="form-text">Vollständiger Pfad zur SQLite-Datei des anderen Scanners.</div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-database-up me-1"></i>Importieren
+      </button>
+    </form>
+  </div>
+</div>
+
 <style>
 .fw-600 { font-weight: 600; }
 </style>

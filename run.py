@@ -116,7 +116,7 @@ if '--scan' in sys.argv:
     try:
         import idv_scanner
         idv_scanner.main()
-    except Exception:
+    except BaseException:
         import traceback
         with open(_crash_log, 'w', encoding='utf-8') as _f:
             traceback.print_exc(file=_f)

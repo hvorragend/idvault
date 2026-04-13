@@ -294,6 +294,123 @@ python idv_export.py --db idv_register.db --output IDV_Export.xlsx
 
 ---
 
+## Pause, Abbrechen und Checkpoint
+
+Bei sehr großen Netzwerkstrukturen kann der Scan **pausiert**, **abgebrochen** und
+später **fortgesetzt** werden.
+
+### Steuerung über die Webapp
+
+Die Scan-Schaltfläche in allen Scanner-Ansichten zeigt je nach Zustand:
+
+| Zustand | Angezeigte Buttons |
+|---|---|
+| Scan läuft | **Pause** · **Abbrechen** |
+| Scan pausiert | **Fortsetzen** · **Abbrechen** |
+| Scan abgebrochen, Checkpoint vorhanden | **Scan fortsetzen** · **Neu starten** |
+| Kein aktiver Scan | **Scan starten** |
+
+Ein Abbruch hält den Fortschritt in einer Checkpoint-Datei fest. Beim nächsten
+Start über **„Scan fortsetzen"** (oder `--resume`) werden bereits abgeschlossene
+Verzeichnisse übersprungen.
+
+### Steuerung über Signaldateien (CLI / Taskplanung)
+
+Im Scanner-Verzeichnis (Ordner der `config.json`) werden folgende Dateien ausgewertet:
+
+| Datei | Bedeutung |
+|---|---|
+| `scanner_pause.signal` | Existiert = Pause nach dem nächsten Verzeichnis |
+| `scanner_cancel.signal` | Existiert = Abbruch nach dem nächsten Verzeichnis |
+| `scanner_checkpoint.json` | Fortschrittsstand (automatisch geschrieben/gelöscht) |
+
+**Pause anlegen:**
+```cmd
+echo. > C:\idvault\scanner\scanner_pause.signal
+```
+
+**Pause aufheben (Scan fortsetzen):**
+```cmd
+del C:\idvault\scanner\scanner_pause.signal
+```
+
+**Abbrechen:**
+```cmd
+echo. > C:\idvault\scanner\scanner_cancel.signal
+```
+
+**Nach Abbruch fortsetzen:**
+```cmd
+idvault.exe --scan --config C:\idvault\scanner\config.json --resume
+REM oder:
+python idv_scanner.py --config config.json --resume
+```
+
+### Granularität des Checkpoints
+
+Der Checkpoint wird nach jedem vollständig abgeschlossenen **Top-Level-Unterverzeichnis**
+geschrieben. Bei einem 10-TB-Share mit 20 Abteilungsordnern kann ein abgebrochener
+Scan z.B. bei Abteilung 14 wiederaufgenommen werden – ohne die ersten 13 erneut zu scannen.
+
+---
+
+## Multi-Scanner – Mehrere Rechner parallel
+
+### Strategie 1: Gemeinsame Datenbank (sequentieller Betrieb)
+
+Alle Scanner schreiben in dieselbe `.db`-Datei auf dem Server:
+
+```json
+{
+  "db_path": "\\\\server\\idvault\\instance\\idvault.db",
+  "scan_paths": ["\\\\server\\freigabe\\Abteilung_A"]
+}
+```
+
+SQLite im WAL-Modus (bereits aktiv) verträgt mehrere **sequentielle** Schreiber
+gut. **Gleichzeitige** Schreiber von verschiedenen Rechnern können die Datenbank
+beschädigen.
+
+→ **Empfehlung:** Nur wenn die Scans zeitlich getrennt laufen (z.B. per Scheduled
+  Task zu verschiedenen Uhrzeiten).
+
+---
+
+### Strategie 2: Separate Datenbanken + Import (empfohlen für Parallelbetrieb)
+
+Jeder Rechner scannt in eine eigene lokale `.db`-Datei. Anschließend werden die
+Ergebnisse über die Webapp zusammengeführt.
+
+```
+Rechner A: config_A.json  →  scan_A.db  ─┐
+Rechner B: config_B.json  →  scan_B.db  ─┼→  idvault.db  (Import via Webapp)
+Rechner C: config_C.json  →  scan_C.db  ─┘
+```
+
+**Konfiguration (Beispiel Rechner B):**
+```json
+{
+  "db_path": "C:\\Scans\\scan_B.db",
+  "scan_paths": ["\\\\server\\freigabe\\Abteilung_B"]
+}
+```
+
+**Import in die zentrale Datenbank:**
+
+1. `scan_B.db` auf den Server kopieren
+2. In idvault: *Admin → Scanner-Einstellungen → Scanner-Datenbank importieren*
+3. Pfad zur kopierten Datei angeben und **Importieren** klicken
+
+**Ergebnis:** Alle Dateien aus `scan_B.db` erscheinen in Scanner-Funde.
+Vorhandene Pfade werden nicht dupliziert – neuere Scan-Daten überschreiben ältere.
+
+**Vorteile:**
+- Scans laufen parallel ohne Locking-Probleme
+- Netzwerkunterbrechungen beeinflussen andere Rechner nicht
+- Jeder Scanner hat einen eigenen Checkpoint
+
+---
+
 ## Als Scheduled Task (Windows)
 
 **Option A – Standalone-Executable (idvault.exe)**

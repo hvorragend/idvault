@@ -45,7 +45,7 @@
 
   <!-- ── Schritt-Anzeige ──────────────────────────────────────── -->
   <div class="d-flex gap-2 mb-4 flex-wrap">
-    {% for label in ['Stammdaten','Wesentlichkeit','Risiko','Technik & Betrieb','Weitere Angaben','Verantwortliche'] %}
+    {% for label in ['Stammdaten','Wesentlichkeit','Technik & Betrieb','Weitere Angaben','Verantwortliche'] %}
     <div class="badge rounded-pill px-3 py-2" style="background:{% if loop.index == 1 %}var(--idv-primary){% else %}#e2e8f0{% endif %};
                 color:{% if loop.index == 1 %}#fff{% else %}#475569{% endif %}">
       {{ loop.index }}. {{ label }}
@@ -132,13 +132,38 @@
         {% endfor %}
       </select>
       <div class="form-text">Krit. Geschäftsprozess + GDA 4 ergibt DORA-kritisch/wichtig (Art. 28 Abs. 2).</div>
+      <!-- Schutzbedarf aus Prozess (lesend) -->
+      <div id="gp_schutzbedarf" class="mt-1 text-muted" style="font-size:.78rem; display:none">
+        <span class="me-1">Schutzbedarf:</span>
+        <span class="badge bg-light text-dark border me-1">A <span id="gp_sb_a">–</span></span>
+        <span class="badge bg-light text-dark border me-1">C <span id="gp_sb_c">–</span></span>
+        <span class="badge bg-light text-dark border me-1">I <span id="gp_sb_i">–</span></span>
+        <span class="badge bg-light text-dark border">N <span id="gp_sb_n">–</span></span>
+      </div>
     </div>
     <script>
+    var _gpSchutz = { {% for gp in geschaeftsprozesse %}{{ gp.id }}:{a:"{{ gp.schutzbedarf_a or '' }}",c:"{{ gp.schutzbedarf_c or '' }}",i:"{{ gp.schutzbedarf_i or '' }}",n:"{{ gp.schutzbedarf_n or '' }}"},{% endfor %} };
+    function updateGPSchutzbedarf() {
+      var sel = document.getElementById('gp_id_select');
+      var box = document.getElementById('gp_schutzbedarf');
+      var d = _gpSchutz[sel.value];
+      if (d && (d.a || d.c || d.i || d.n)) {
+        document.getElementById('gp_sb_a').textContent = d.a || '–';
+        document.getElementById('gp_sb_c').textContent = d.c || '–';
+        document.getElementById('gp_sb_i').textContent = d.i || '–';
+        document.getElementById('gp_sb_n').textContent = d.n || '–';
+        box.style.display = '';
+      } else {
+        box.style.display = 'none';
+      }
+    }
+    document.getElementById('gp_id_select').addEventListener('change', updateGPSchutzbedarf);
+    document.addEventListener('DOMContentLoaded', updateGPSchutzbedarf);
     function filterGPOptions(q) {
       q = q.trim().toLowerCase();
-      const sel = document.getElementById('gp_id_select');
+      var sel = document.getElementById('gp_id_select');
       Array.from(sel.options).forEach(function(opt) {
-        if (!opt.value) return; // keep placeholder
+        if (!opt.value) return;
         opt.hidden = q.length > 0 && opt.text.toLowerCase().indexOf(q) === -1;
       });
     }
@@ -243,7 +268,7 @@
             <span class="text-muted"><i class="bi bi-shield me-1"></i>Nicht DORA-kritisch/wichtig</span>
             {% endif %}
             <div class="text-muted mt-1" style="font-size:.75rem">
-              Wird beim Speichern aus Geschäftsprozess-Zuordnung (Schritt 5) und GDA neu berechnet.
+              Wird beim Speichern aus Geschäftsprozess-Zuordnung (Schritt 4) und GDA neu berechnet.
             </div>
           </div>
           <textarea name="dora_begruendung" class="form-control form-control-sm" rows="2"
@@ -285,50 +310,10 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <!-- 3. RISIKOBEWERTUNG                                         -->
+  <!-- 3. TECHNIK & BETRIEB                                       -->
   <!-- ═══════════════════════════════════════════════════════════ -->
   <div class="form-section">
-    <div class="form-section-title">3. Risikobewertung</div>
-    <div class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label">Risikoklasse</label>
-        <select name="risikoklasse_id" class="form-select">
-          <option value="">– noch nicht bewertet –</option>
-          {% for rk in risikoklassen %}
-          <option value="{{ rk.id }}" {{ 'selected' if idv and idv.risikoklasse_id==rk.id }}>{{ rk.bezeichnung }}
-          </option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-12">
-        <label class="form-label mb-0">Schutzziele (ACIN)</label>
-        <div class="form-text mt-0">Bewertung von 1 (niedrig) bis 4 (kritisch)</div>
-      </div>
-      {% for fname, flabel, letter in [
-      ('risiko_verfuegbarkeit','Verfügbarkeit','A'),
-      ('risiko_vertraulichkeit','Vertraulichkeit','C'),
-      ('risiko_integritaet','Integrität','I'),
-      ('risiko_nachvollziehbarkeit','Authentizität','N'),
-      ] %}
-      <div class="col-md-3">
-        <label class="form-label">{{ flabel }} <span class="badge bg-secondary" style="font-size:.65rem">{{ letter
-            }}</span></label>
-        <select name="{{ fname }}" class="form-select">
-          <option value="">–</option>
-          {% for i in range(1,5) %}
-          <option value="{{ i }}" {{ 'selected' if idv and idv[fname]==i }}>{{ i }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════════════ -->
-  <!-- 4. TECHNIK & BETRIEB                                       -->
-  <!-- ═══════════════════════════════════════════════════════════ -->
-  <div class="form-section">
-    <div class="form-section-title">4. Technik & Betrieb</div>
+    <div class="form-section-title">3. Technik & Betrieb</div>
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Plattform</label>
@@ -354,7 +339,7 @@
           {% endfor %}
         </select>
       </div>
-      {# Datenquellen, Datenempfänger und Schnittstellen: → Schritt 5 "Weitere Angaben" #}
+      {# Datenquellen, Datenempfänger und Schnittstellen: → Schritt 4 "Weitere Angaben" #}
 
       <!-- Checkboxen -->
       <div class="col-12">
@@ -382,15 +367,26 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <!-- 5. WEITERE ANGABEN (nicht Teil der Wesentlichkeit)         -->
+  <!-- 4. WEITERE ANGABEN (nicht Teil der Wesentlichkeit)         -->
   <!-- ═══════════════════════════════════════════════════════════ -->
   <div class="form-section">
-    <div class="form-section-title">5. Weitere Angaben</div>
+    <div class="form-section-title">4. Weitere Angaben</div>
     <p class="text-muted mb-3" style="font-size:.82rem">
       Diese Angaben sind nicht Teil der Wesentlichkeitsbeurteilung, aber für die vollständige Dokumentation der IDV
       erforderlich.
     </p>
     <div class="row g-3">
+
+      <div class="col-md-4">
+        <label class="form-label">Risikoklasse</label>
+        <select name="risikoklasse_id" class="form-select">
+          <option value="">– noch nicht bewertet –</option>
+          {% for rk in risikoklassen %}
+          <option value="{{ rk.id }}" {{ 'selected' if idv and idv.risikoklasse_id==rk.id }}>{{ rk.bezeichnung }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
 
       <div class="col-md-12">
         <div class="form-check">
@@ -439,10 +435,10 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <!-- 6. VERANTWORTLICHE                                         -->
+  <!-- 5. VERANTWORTLICHE                                         -->
   <!-- ═══════════════════════════════════════════════════════════ -->
   <div class="form-section">
-    <div class="form-section-title">6. Verantwortliche</div>
+    <div class="form-section-title">5. Verantwortliche</div>
     <div class="row g-3">
       <div class="col-md-6">
         <label class="form-label">Organisationseinheit <span class="required-star">*</span></label>
