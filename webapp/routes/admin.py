@@ -9,7 +9,7 @@ import hashlib
 import subprocess
 import threading
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app
-from . import login_required, admin_required, get_db
+from . import login_required, admin_required, write_access_required, get_db
 from datetime import datetime, timezone, timedelta
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -144,7 +144,7 @@ def scanner_einstellungen():
 
 
 @bp.route("/scanner/starten", methods=["POST"])
-@admin_required
+@write_access_required
 def scanner_starten():
     with _scan_lock:
         if _scan_is_running():

@@ -1,9 +1,19 @@
 """Scanner-Funde Blueprint"""
 import json
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
-from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN
+from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
 
 bp = Blueprint("scanner", __name__, url_prefix="/scanner")
+
+
+def _scan_btn_ctx() -> dict:
+    """Liefert die Variablen für das _scan_button.html-Include."""
+    from webapp.routes.admin import _scan_is_running, _load_scanner_config
+    return {
+        "can_write":      can_write(),
+        "scan_running":   _scan_is_running(),
+        "has_scan_paths": bool(_load_scanner_config().get("scan_paths")),
+    }
 
 _EXT_TO_TYP = {
     ".xlsx": "Excel-Tabelle",
@@ -219,6 +229,7 @@ def list_funde():
         duplicate_hashes=duplicate_hashes,
         is_admin=is_admin,
         webapp_db_path=current_app.config['DATABASE'],
+        **_scan_btn_ctx(),
     )
 
 
@@ -343,6 +354,7 @@ def eingang_funde():
         duplicate_hashes=duplicate_hashes,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         is_admin=is_admin,
+        **_scan_btn_ctx(),
     )
 
 
@@ -398,6 +410,7 @@ def bewertet():
         ignorierte=ignorierte,
         nicht_wesentliche=nicht_wesentliche,
         idv_typ_vorschlag=_idv_typ_vorschlag,
+        **_scan_btn_ctx(),
     )
 
 
@@ -418,7 +431,8 @@ def scan_laeufe():
     except Exception:
         laeufe = []
     return render_template("scanner/laeufe.html", laeufe=laeufe,
-                           scan_run_label=_scan_run_label)
+                           scan_run_label=_scan_run_label,
+                           **_scan_btn_ctx())
 
 
 @bp.route("/funde/zusammenfassen", methods=["GET", "POST"])
@@ -521,6 +535,7 @@ def zusammenfassen():
         dateien=dateien,
         idvs=idvs,
         idv_typ_vorschlag=_idv_typ_vorschlag,
+        **_scan_btn_ctx(),
     )
 
 
