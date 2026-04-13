@@ -1177,16 +1177,27 @@ def update_restart():
         import time
         import subprocess
         time.sleep(1.5)
-        # subprocess.Popen startet den neuen Prozess unabhängig vom aktuellen.
-        # Danach beendet os._exit(0) den alten Prozess sofort — Port 5000 wird
-        # freigegeben bevor der neue Prozess Flask bindet. Das ist auf Windows
-        # zuverlässiger als os.execv, das intern einen Spawn + Kill durchführt
-        # und dabei den Port kurz blockieren kann.
         if getattr(sys, 'frozen', False):
-            cmd = [sys.executable] + sys.argv[1:]
+            # PyInstaller one-file EXE: subprocess.Popen erbt die PATH-Variable
+            # des Elternprozesses, die auf das temporäre _MEIPASS-Verzeichnis
+            # zeigt. Wenn der Elternprozess endet, löscht PyInstaller _MEIPASS —
+            # der Kindprozess kann dann C-Extensions (z.B. unicodedata.pyd) nicht
+            # mehr laden (ModuleNotFoundError).
+            # Lösung: Neustart über cmd.exe /c bat mit "start" (ShellExecuteEx)
+            # — startet die EXE komplett neu ohne ererbte _MEIPASS-Umgebung.
+            import tempfile
+            exe = sys.executable.replace('"', '\\"')
+            bat = '@echo off\r\nping -n 3 127.0.0.1 > nul\r\nstart "" "{}"\r\n'.format(exe)
+            bat_path = os.path.join(tempfile.gettempdir(), 'idvault_restart.bat')
+            with open(bat_path, 'w', encoding='ascii') as _f:
+                _f.write(bat)
+            subprocess.Popen(
+                ['cmd.exe', '/c', bat_path],
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                close_fds=True,
+            )
         else:
-            cmd = [sys.executable] + sys.argv
-        subprocess.Popen(cmd)
+            subprocess.Popen([sys.executable] + sys.argv)
         os._exit(0)
 
     threading.Thread(target=_do_restart, daemon=True).start()
