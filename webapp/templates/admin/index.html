@@ -267,13 +267,12 @@
             <div class="col-md-8">
               <input type="file" name="csv_file" accept=".csv,.txt" class="form-control form-control-sm" required>
               <div class="form-text">
+                <strong>Prozess-Export-Format:</strong>
+                <code>Prozess_ID; Prozess_Titel; Beschreibung; Prozesswesentlichkeit; Kritisch_Wichtig; Schutzbedarf_A; Schutzbedarf_C; Schutzbedarf_I; Schutzbedarf_N; …</code>
+                &nbsp;·&nbsp; Upsert per <code>Prozess_ID</code>.<br>
                 <strong>Standard-Format:</strong>
                 <code>gp_nummer; bezeichnung; bereich; ist_kritisch (0/1); ist_wesentlich (0/1); beschreibung</code>
-                &nbsp;·&nbsp; Upsert per <code>gp_nummer</code>.<br>
-                <strong>ISM-Export-Format:</strong>
-                <code>Kategorie; Bezeichnung; Verantwortung; Kritische oder wichtige Funktion; Wesentlichkeit; Schutzbedarf; Anwendungen; Master-ID; ID; URL</code>
-                &nbsp;·&nbsp; Upsert per <code>ID</code> (UUID).
-                HYPERLINK-Formeln in der URL-Spalte werden automatisch aufgelöst.
+                &nbsp;·&nbsp; Upsert per <code>gp_nummer</code>.
                 Trennzeichen: <code>;</code> oder <code>,</code>.
               </div>
             </div>

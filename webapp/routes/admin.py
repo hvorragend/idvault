@@ -812,14 +812,18 @@ def import_geschaeftsprozesse():
     """
     CSV-Import für Geschäftsprozesse – zwei Formate werden unterstützt:
 
-    Standard-Format (Spalten): gp_nummer; bezeichnung; bereich;
-        ist_kritisch (0/1); ist_wesentlich (0/1); beschreibung
-    Upsert-Schlüssel: gp_nummer
+    Prozess-Export-Format (Spalten):
+        Nummer; Prozess_ID; Prozess_Titel; Beschreibung; Ebene; Zustand; Herkunft;
+        Version; Prozesswesentlichkeit; Zeitkritikalitaet; Schutzbedarf_A;
+        Schutzbedarf_C; Schutzbedarf_I; Schutzbedarf_N; Kritisch_Wichtig;
+        Begründung_Kritisch_Wichtig; RTO; RPO; Auswirkung_Unterbrechung;
+        Vorgaenger; Nummer_Bestandsprozess; Kommentare
+    Upsert-Schlüssel: Prozess_ID → gp_nummer
 
-    ISM-Format (Spalten): Kategorie; Bezeichnung; Verantwortung;
-        Kritische oder wichtige Funktion; Wesentlichkeit; Schutzbedarf;
-        Anwendungen; Master-ID; ID; URL
-    Upsert-Schlüssel: ID (UUID aus dem ISM-Portal)
+    Standard-Format (Spalten):
+        gp_nummer; bezeichnung; bereich; ist_kritisch (0/1); ist_wesentlich (0/1);
+        beschreibung
+    Upsert-Schlüssel: gp_nummer
     """
     f = request.files.get("csv_file")
     if not f or not f.filename:
@@ -835,86 +839,65 @@ def import_geschaeftsprozesse():
     now     = _now()
 
     # Format-Erkennung anhand der Header-Zeile
-    raw_fields = [k.strip() for k in (reader.fieldnames or []) if k and k.strip()]
+    raw_fields   = [k.strip() for k in (reader.fieldnames or []) if k and k.strip()]
     fields_lower = [f.lower() for f in raw_fields]
-    is_ism = (
-        "bezeichnung" in fields_lower
-        and "id" in fields_lower
-        and "gp_nummer" not in fields_lower
-    )
+    is_prozess_export = "prozess_id" in fields_lower
 
-    if is_ism:
-        # ── ISM-Format ───────────────────────────────────────────────────────
+    if is_prozess_export:
+        # ── Prozess-Export-Format ────────────────────────────────────────────
         for row in reader:
             try:
                 r = {k.strip(): (v or "").strip() for k, v in row.items() if k and k.strip()}
 
-                bezeichnung = r.get("Bezeichnung", "").strip()
-                extern_id   = r.get("ID", "").strip()
-                if not bezeichnung or not extern_id:
+                gp_nummer   = r.get("Prozess_ID", "").strip()
+                bezeichnung = r.get("Prozess_Titel", "").strip()
+                if not gp_nummer or not bezeichnung:
                     errors += 1
                     continue
 
-                kategorie     = r.get("Kategorie") or None
-                verantwortung = r.get("Verantwortung") or None
-                kritisch_raw  = r.get("Kritische oder wichtige Funktion", "nein").strip().lower()
-                ist_kritisch  = 1 if kritisch_raw in ("ja", "1", "true", "x", "kritisch", "wichtig") else 0
-                wesentl_raw   = r.get("Wesentlichkeit", "").strip().lower()
-                ist_wesentlich = 0 if "(nicht wesentlich)" in wesentl_raw or not wesentl_raw else 1
-                schutzbedarf  = r.get("Schutzbedarf") or None
-                anwendungen   = r.get("Anwendungen") or None
-                master_id     = r.get("Master-ID") or None
-                url_raw       = r.get("URL", "")
-                extern_url    = _extract_hyperlink_url(url_raw) if url_raw else None
-
-                # Verantwortung → org_unit_id auflösen (optional)
-                org_unit_id = None
-                if verantwortung:
-                    ou = db.execute(
-                        "SELECT id FROM org_units WHERE kuerzel=? OR bezeichnung=?",
-                        (verantwortung, verantwortung)
-                    ).fetchone()
-                    if ou:
-                        org_unit_id = ou["id"]
+                beschreibung   = r.get("Beschreibung") or None
+                wesentl_raw    = r.get("Prozesswesentlichkeit", "").strip().lower()
+                ist_wesentlich = 1 if wesentl_raw == "wesentlich" else 0
+                kritisch_raw   = r.get("Kritisch_Wichtig", "Nein").strip().lower()
+                ist_kritisch   = 1 if kritisch_raw == "ja" else 0
+                sb_a = r.get("Schutzbedarf_A") or None
+                sb_c = r.get("Schutzbedarf_C") or None
+                sb_i = r.get("Schutzbedarf_I") or None
+                sb_n = r.get("Schutzbedarf_N") or None
 
                 existing = db.execute(
-                    "SELECT id FROM geschaeftsprozesse WHERE extern_id=?",
-                    (extern_id,)
+                    "SELECT id FROM geschaeftsprozesse WHERE gp_nummer=?", (gp_nummer,)
                 ).fetchone()
 
                 if existing:
                     db.execute("""
                         UPDATE geschaeftsprozesse
                         SET bezeichnung=?,
-                            bereich=COALESCE(?,bereich),
-                            org_unit_id=COALESCE(?,org_unit_id),
+                            beschreibung=COALESCE(?,beschreibung),
                             ist_kritisch=?,
                             ist_wesentlich=?,
-                            schutzbedarf=COALESCE(?,schutzbedarf),
-                            anwendungen=COALESCE(?,anwendungen),
-                            master_id=COALESCE(?,master_id),
-                            extern_url=COALESCE(?,extern_url),
-                            verantwortung=COALESCE(?,verantwortung),
+                            schutzbedarf_a=COALESCE(?,schutzbedarf_a),
+                            schutzbedarf_c=COALESCE(?,schutzbedarf_c),
+                            schutzbedarf_i=COALESCE(?,schutzbedarf_i),
+                            schutzbedarf_n=COALESCE(?,schutzbedarf_n),
                             updated_at=?
-                        WHERE extern_id=?
-                    """, (bezeichnung, kategorie, org_unit_id,
+                        WHERE gp_nummer=?
+                    """, (bezeichnung, beschreibung,
                           ist_kritisch, ist_wesentlich,
-                          schutzbedarf, anwendungen, master_id, extern_url,
-                          verantwortung, now, extern_id))
+                          sb_a, sb_c, sb_i, sb_n,
+                          now, gp_nummer))
                     updated += 1
                 else:
                     db.execute("""
                         INSERT INTO geschaeftsprozesse
-                            (gp_nummer, bezeichnung, bereich, org_unit_id,
+                            (gp_nummer, bezeichnung, beschreibung,
                              ist_kritisch, ist_wesentlich,
-                             schutzbedarf, anwendungen, master_id,
-                             extern_id, extern_url, verantwortung,
+                             schutzbedarf_a, schutzbedarf_c, schutzbedarf_i, schutzbedarf_n,
                              created_at, updated_at)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    """, (extern_id, bezeichnung, kategorie, org_unit_id,
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    """, (gp_nummer, bezeichnung, beschreibung,
                           ist_kritisch, ist_wesentlich,
-                          schutzbedarf, anwendungen, master_id,
-                          extern_id, extern_url, verantwortung,
+                          sb_a, sb_c, sb_i, sb_n,
                           now, now))
                     created += 1
             except Exception:
