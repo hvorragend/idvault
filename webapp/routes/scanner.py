@@ -62,12 +62,24 @@ def _scan_run_label(row) -> str:
     return f"#{row['id']} · {datum} · {pfad}"
 
 
+_DIR_PATH_EXPR = """CASE WHEN f.file_name IS NOT NULL AND f.full_path IS NOT NULL
+                         AND LENGTH(f.full_path) > LENGTH(f.file_name)
+                    THEN SUBSTR(f.full_path, 1, LENGTH(f.full_path) - LENGTH(f.file_name) - 1)
+                    ELSE f.share_root END"""
+
+_DIR_PATH_EXPR_PLAIN = """CASE WHEN file_name IS NOT NULL AND full_path IS NOT NULL
+                               AND LENGTH(full_path) > LENGTH(file_name)
+                          THEN SUBSTR(full_path, 1, LENGTH(full_path) - LENGTH(file_name) - 1)
+                          ELSE share_root END"""
+
+
 @bp.route("/funde")
 @login_required
 def list_funde():
     db          = get_db()
     filt        = request.args.get("filter", "")
     share_root  = request.args.get("share_root", "").strip()
+    dir_path_filt = request.args.get("dir_path", "").strip()
     scan_run_id = request.args.get("scan_run", "").strip()
 
     # ---------- WHERE-Bedingungen ----------
@@ -121,6 +133,10 @@ def list_funde():
         where_parts.append("f.share_root = ?")
         params.append(share_root)
 
+    if dir_path_filt:
+        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
+        params.append(dir_path_filt)
+
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
     # Duplikate nach Hash sortieren, damit Jinja2-groupby funktioniert
     order_sql = (
@@ -131,6 +147,7 @@ def list_funde():
 
     dateien = db.execute(f"""
         SELECT f.*,
+               {_DIR_PATH_EXPR} AS dir_path,
                COALESCE(reg.idv_id,       lnk_reg.idv_id)      AS reg_idv_id,
                COALESCE(reg.bezeichnung,  lnk_reg.bezeichnung)  AS reg_bezeichnung,
                COALESCE(reg.id,           lnk_reg.id)           AS reg_db_id,
@@ -204,6 +221,15 @@ def list_funde():
             ORDER BY share_root
         """).fetchall()
     ]
+    dir_paths = [
+        r["dir_path"] for r in db.execute(f"""
+            SELECT DISTINCT {_DIR_PATH_EXPR_PLAIN} AS dir_path
+            FROM idv_files
+            WHERE full_path IS NOT NULL AND status = 'active'
+            ORDER BY 1
+        """).fetchall()
+        if r["dir_path"]
+    ]
     try:
         scan_runs = db.execute("""
             SELECT id, started_at, finished_at, scan_paths,
@@ -227,6 +253,8 @@ def list_funde():
         idv_typ_vorschlag=_idv_typ_vorschlag,
         share_roots=share_roots,
         share_root_filt=share_root,
+        dir_paths=dir_paths,
+        dir_path_filt=dir_path_filt,
         scan_runs=scan_runs,
         scan_run_id_filt=scan_run_id,
         letzter_scan=letzter_scan,
@@ -243,8 +271,8 @@ def list_funde():
 def eingang_funde():
     """Eingang: Neue, unbearbeitete Scanner-Funde als priorisierte Arbeitsliste."""
     db = get_db()
-    share_root = request.args.get("share_root", "").strip()
-    sort       = request.args.get("sort", "prioritaet")
+    dir_path_filt = request.args.get("dir_path", "").strip()
+    sort          = request.args.get("sort", "prioritaet")
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
@@ -263,9 +291,9 @@ def eingang_funde():
     )
     where_parts = ["f.status = 'active'", "f.bearbeitungsstatus = 'Neu'", _no_idv]
     params = []
-    if share_root:
-        where_parts.append("f.share_root = ?")
-        params.append(share_root)
+    if dir_path_filt:
+        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
+        params.append(dir_path_filt)
     where_sql = "WHERE " + " AND ".join(where_parts)
 
     sort_map = {
@@ -277,7 +305,8 @@ def eingang_funde():
     order_sql = "ORDER BY " + sort_map.get(sort, sort_map["prioritaet"])
 
     dateien = db.execute(
-        f"SELECT f.*, sr.id AS sr_id, sr.started_at AS sr_started_at "
+        f"SELECT f.*, {_DIR_PATH_EXPR} AS dir_path, "
+        f"sr.id AS sr_id, sr.started_at AS sr_started_at "
         f"FROM idv_files f LEFT JOIN scan_runs sr ON f.last_scan_run_id = sr.id "
         f"{where_sql} {order_sql} LIMIT ? OFFSET ?",
         params + [per_page, offset]
@@ -303,14 +332,14 @@ def eingang_funde():
     ).fetchone()[0]
 
     # Hotspot-Tabellen
-    nach_share = db.execute("""
-        SELECT share_root,
+    nach_share = db.execute(f"""
+        SELECT {_DIR_PATH_EXPR_PLAIN} AS dir_path,
                COUNT(*) AS anzahl,
                SUM(has_macros) AS mit_makros,
                SUM(CASE WHEN formula_count > 0 THEN 1 ELSE 0 END) AS mit_formeln
         FROM idv_files
         WHERE status='active' AND bearbeitungsstatus='Neu'
-        GROUP BY share_root
+        GROUP BY 1
         ORDER BY anzahl DESC
         LIMIT 10
     """).fetchall()
@@ -326,11 +355,15 @@ def eingang_funde():
         LIMIT 8
     """).fetchall()
 
-    share_roots = [r["share_root"] for r in db.execute(
-        "SELECT DISTINCT share_root FROM idv_files "
-        "WHERE share_root IS NOT NULL AND status='active' AND bearbeitungsstatus='Neu' "
-        "ORDER BY share_root"
-    ).fetchall()]
+    dir_paths = [
+        r["dir_path"] for r in db.execute(f"""
+            SELECT DISTINCT {_DIR_PATH_EXPR_PLAIN} AS dir_path
+            FROM idv_files
+            WHERE full_path IS NOT NULL AND status='active' AND bearbeitungsstatus='Neu'
+            ORDER BY 1
+        """).fetchall()
+        if r["dir_path"]
+    ]
 
     # Duplikate datenbankweit ermitteln (nicht nur auf der aktuellen Seite)
     duplicate_hashes = {
@@ -353,8 +386,8 @@ def eingang_funde():
         gesamt_aktiv=gesamt_aktiv,
         nach_share=nach_share,
         nach_typ=nach_typ,
-        share_roots=share_roots,
-        share_root_filt=share_root,
+        dir_paths=dir_paths,
+        dir_path_filt=dir_path_filt,
         sort=sort,
         duplicate_hashes=duplicate_hashes,
         idv_typ_vorschlag=_idv_typ_vorschlag,
@@ -558,7 +591,7 @@ def bulk_aktion():
         ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
         return redirect(url_for("scanner.zusammenfassen") + "?" + ids_qs)
 
-    if aktion not in ("ignorieren", "zur_registrierung"):
+    if aktion not in ("ignorieren", "zur_registrierung", "owner_aendern"):
         flash("Ungültige Aktion.", "error")
         return redirect(url_for("scanner.list_funde"))
 
@@ -622,10 +655,26 @@ def bulk_aktion():
         db.commit()
         flash(f"{len(file_ids)} Datei(en) zur Registrierung vorgemerkt.", "success")
 
+    elif aktion == "owner_aendern":
+        new_owner = request.form.get("new_owner", "").strip()
+        if not new_owner:
+            flash("Kein Dateieigentümer angegeben.", "warning")
+        else:
+            placeholders = ",".join("?" * len(file_ids))
+            db.execute(
+                f"UPDATE idv_files SET file_owner = ? WHERE id IN ({placeholders})",
+                [new_owner] + file_ids
+            )
+            db.commit()
+            flash(
+                f"{len(file_ids)} Datei(en): Dateieigentümer auf \"{new_owner}\" gesetzt.",
+                "success"
+            )
+
     return_to = request.form.get("return_to", "")
     if return_to == "eingang":
         return redirect(url_for("scanner.eingang_funde",
-            share_root=request.form.get("share_root_filt", ""),
+            dir_path=request.form.get("dir_path_filt", ""),
             page=request.form.get("page", 1),
             per_page=request.form.get("per_page", 100),
             sort=request.form.get("sort", "prioritaet")))

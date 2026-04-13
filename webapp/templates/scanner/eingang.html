@@ -86,13 +86,13 @@
     <div class="col-md-6">
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white py-2" style="font-size:.82rem;font-weight:600">
-          <i class="bi bi-folder me-1"></i>Top-Verzeichnisse (Eingang)
+          <i class="bi bi-folder2-open me-1"></i>Top-Speicherorte (Eingang)
         </div>
         <div class="table-responsive">
           <table class="table table-sm mb-0" style="font-size:.80rem">
             <thead class="table-light">
               <tr>
-                <th>Verzeichnis</th>
+                <th>Speicherort</th>
                 <th class="text-end">Neu</th>
                 <th class="text-end">Makros</th>
                 <th class="text-end">Formeln</th>
@@ -102,8 +102,8 @@
             <tbody>
               {% for row in nach_share %}
               <tr>
-                <td class="font-monospace text-truncate" style="max-width:200px" title="{{ row.share_root }}">
-                  {{ row.share_root or '–' }}
+                <td class="font-monospace text-truncate" style="max-width:200px" title="{{ row.dir_path }}">
+                  {{ row.dir_path or '–' }}
                 </td>
                 <td class="text-end fw-500">{{ row.anzahl }}</td>
                 <td class="text-end">
@@ -117,8 +117,8 @@
                   {% else %}<span class="text-muted">–</span>{% endif %}
                 </td>
                 <td>
-                  <a href="{{ url_for('scanner.eingang_funde', share_root=row.share_root, sort=sort, per_page=per_page) }}"
-                    class="btn btn-xs btn-outline-secondary" title="Nach diesem Verzeichnis filtern">
+                  <a href="{{ url_for('scanner.eingang_funde', dir_path=row.dir_path, sort=sort, per_page=per_page) }}"
+                    class="btn btn-xs btn-outline-secondary" title="Nach diesem Speicherort filtern">
                     <i class="bi bi-funnel"></i>
                   </a>
                 </td>
@@ -172,11 +172,11 @@
 <form method="get" class="card border-0 shadow-sm p-3 mb-3">
   <div class="row g-2 align-items-end">
     <div class="col-md-4">
-      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Verzeichnis</label>
-      <select name="share_root" class="form-select form-select-sm">
+      <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
+      <select name="dir_path" class="form-select form-select-sm">
         <option value="">– Alle Verzeichnisse –</option>
-        {% for sr in share_roots %}
-        <option value="{{ sr }}" {{ 'selected' if share_root_filt==sr }}>{{ sr }}</option>
+        {% for dp in dir_paths %}
+        <option value="{{ dp }}" {{ 'selected' if dir_path_filt==dp }}>{{ dp }}</option>
         {% endfor %}
       </select>
     </div>
@@ -207,10 +207,10 @@
       </a>
     </div>
   </div>
-  {% if share_root_filt %}
+  {% if dir_path_filt %}
   <div class="mt-2">
-    <span class="badge bg-primary">
-      <i class="bi bi-folder me-1"></i>{{ share_root_filt }}
+    <span class="badge bg-success">
+      <i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}
       <a href="{{ url_for('scanner.eingang_funde', sort=sort, per_page=per_page) }}"
         class="text-white text-decoration-none ms-1" title="Filter entfernen">×</a>
     </span>
@@ -218,10 +218,39 @@
   {% endif %}
 </form>
 
+<!-- ── Eigentümer-Modal ────────────────────────────────────────────── -->
+<div class="modal fade" id="ownerModal" tabindex="-1" aria-labelledby="ownerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="ownerModalLabel">
+          <i class="bi bi-person-gear me-1"></i>Dateieigentümer setzen
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="text-muted mb-2" style="font-size:.82rem">
+          Neuen Eigentümer für <strong id="owner-modal-count">0</strong> ausgewählte Datei(en) setzen.
+        </p>
+        <input type="text" id="owner-modal-input" class="form-control form-control-sm"
+               placeholder="Benutzername / UID" autocomplete="off">
+        <div class="form-text">Setzt den Dateieigentümer in der Datenbank (überschreibt bisherigen Wert).</div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="button" class="btn btn-sm btn-warning" id="owner-modal-confirm">
+          <i class="bi bi-check-lg me-1"></i>Setzen
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Massenaktions-Formular ──────────────────────────────────────── -->
 <form method="post" action="{{ url_for('scanner.bulk_aktion') }}" id="bulk-form">
   <input type="hidden" name="return_to" value="eingang">
-  <input type="hidden" name="share_root_filt" value="{{ share_root_filt }}">
+  <input type="hidden" name="dir_path_filt" value="{{ dir_path_filt }}">
+  <input type="hidden" name="new_owner" id="hidden-new-owner" value="">
   <input type="hidden" name="page" value="{{ page }}">
   <input type="hidden" name="per_page" value="{{ per_page }}">
   <input type="hidden" name="sort" value="{{ sort }}">
@@ -240,6 +269,11 @@
       <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
         <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
       </button>
+      <button type="button" class="btn btn-sm btn-outline-warning"
+              data-bs-toggle="modal" data-bs-target="#ownerModal"
+              title="Dateieigentümer für ausgewählte Dateien setzen">
+        <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
+      </button>
       <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
         Auswahl aufheben
       </button>
@@ -255,18 +289,18 @@
     <ul class="pagination pagination-sm mb-0">
       <li class="page-item {{ 'disabled' if page <= 1 }}">
         <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=page-1, per_page=per_page, sort=sort, share_root=share_root_filt) }}">&laquo;</a>
+          href="{{ url_for('scanner.eingang_funde', page=page-1, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">&laquo;</a>
       </li>
       {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
       <li class="page-item {{ 'active' if p == page }}">
         <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=p, per_page=per_page, sort=sort, share_root=share_root_filt) }}">{{
+          href="{{ url_for('scanner.eingang_funde', page=p, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">{{
           p }}</a>
       </li>
       {% endfor %}
       <li class="page-item {{ 'disabled' if page >= total_pages }}">
         <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=page+1, per_page=per_page, sort=sort, share_root=share_root_filt) }}">&raquo;</a>
+          href="{{ url_for('scanner.eingang_funde', page=page+1, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">&raquo;</a>
       </li>
     </ul>
   </nav>
@@ -296,9 +330,10 @@
             <th style="width:32px"></th>
             <th>Dateiname</th>
             <th>Typ</th>
-            <th>Verzeichnis / Pfad</th>
+            <th>Speicherort</th>
             <th class="text-nowrap">Erst gesehen</th>
             <th>Größe</th>
+            <th>Eigentümer</th>
             <th class="text-center">Makros</th>
             <th class="text-center">Formeln</th>
             <th class="text-center">Blattschutz</th>
@@ -345,19 +380,16 @@
               <span class="badge bg-light text-dark border">{{ typ }}</span>
             </td>
 
-            <!-- Verzeichnis / Pfad -->
+            <!-- Speicherort -->
             <td style="min-width:160px;max-width:260px">
-              {% if f.share_root %}
-              <a href="{{ url_for('scanner.eingang_funde', share_root=f.share_root, sort=sort, per_page=per_page) }}"
-                class="badge bg-primary text-decoration-none" title="Nach diesem Verzeichnis filtern"
-                style="font-size:.7rem;font-family:monospace">
-                <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
+              {% if f.dir_path %}
+              <a href="{{ url_for('scanner.eingang_funde', dir_path=f.dir_path, sort=sort, per_page=per_page) }}"
+                class="badge bg-success text-decoration-none"
+                title="Nach diesem Speicherort filtern: {{ f.dir_path }}"
+                style="font-size:.7rem;font-family:monospace;white-space:normal;word-break:break-all">
+                <i class="bi bi-folder2-open me-1"></i>{{ f.dir_path }}
               </a>
               {% endif %}
-              <div class="text-truncate text-muted mt-1" style="font-size:.74rem;max-width:240px;font-family:monospace"
-                title="{{ f.full_path }}">
-                {{ f.relative_path or f.full_path }}
-              </div>
             </td>
 
             <!-- Erst gesehen -->
@@ -367,6 +399,12 @@
 
             <!-- Größe -->
             <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes else '–' }}</td>
+
+            <!-- Eigentümer -->
+            <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
+              {{ f.file_owner or f.office_author or '–' }}
+            </td>
 
             <!-- Makros -->
             <td class="text-center">
@@ -416,7 +454,7 @@
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="10" class="text-center text-muted py-5">
+            <td colspan="11" class="text-center text-muted py-5">
               {% if share_root_filt %}
               <i class="bi bi-funnel fs-3 d-block mb-2"></i>
               Keine neuen Dateien in <strong>{{ share_root_filt }}</strong>.
@@ -443,18 +481,18 @@
     <ul class="pagination pagination-sm mb-0">
       <li class="page-item {{ 'disabled' if page <= 1 }}">
         <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=page-1, per_page=per_page, sort=sort, share_root=share_root_filt) }}">&laquo;</a>
+          href="{{ url_for('scanner.eingang_funde', page=page-1, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">&laquo;</a>
       </li>
       {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
       <li class="page-item {{ 'active' if p == page }}">
         <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=p, per_page=per_page, sort=sort, share_root=share_root_filt) }}">{{
+          href="{{ url_for('scanner.eingang_funde', page=p, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">{{
           p }}</a>
       </li>
       {% endfor %}
       <li class="page-item {{ 'disabled' if page >= total_pages }}">
         <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=page+1, per_page=per_page, sort=sort, share_root=share_root_filt) }}">&raquo;</a>
+          href="{{ url_for('scanner.eingang_funde', page=page+1, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">&raquo;</a>
       </li>
     </ul>
   </nav>
@@ -528,6 +566,35 @@
         document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
         if (selectAll) selectAll.checked = false;
         updateBar();
+      });
+    }
+
+    // Eigentümer-Modal
+    const ownerModal = document.getElementById('ownerModal');
+    if (ownerModal) {
+      ownerModal.addEventListener('show.bs.modal', function () {
+        const n = document.querySelectorAll('.row-check:checked').length;
+        const el = document.getElementById('owner-modal-count');
+        if (el) el.textContent = n;
+        const inp = document.getElementById('owner-modal-input');
+        if (inp) inp.value = '';
+        setTimeout(() => { if (inp) inp.focus(); }, 300);
+      });
+      document.getElementById('owner-modal-confirm').addEventListener('click', function () {
+        const val = document.getElementById('owner-modal-input').value.trim();
+        if (!val) {
+          document.getElementById('owner-modal-input').classList.add('is-invalid');
+          return;
+        }
+        document.getElementById('hidden-new-owner').value = val;
+        const btn = document.createElement('input');
+        btn.type = 'hidden'; btn.name = 'aktion'; btn.value = 'owner_aendern';
+        document.getElementById('bulk-form').appendChild(btn);
+        bootstrap.Modal.getInstance(ownerModal).hide();
+        document.getElementById('bulk-form').submit();
+      });
+      document.getElementById('owner-modal-input').addEventListener('input', function () {
+        this.classList.remove('is-invalid');
       });
     }
   })();
