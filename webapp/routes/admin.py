@@ -1169,7 +1169,12 @@ def update_restart():
     def _do_restart():
         import time
         time.sleep(1.5)
-        os.execv(sys.executable, sys.argv)
+        if getattr(sys, 'frozen', False):
+            # PyInstaller-EXE: sys.argv[0] ist bereits der EXE-Pfad
+            os.execv(sys.executable, sys.argv)
+        else:
+            # Dev-Modus: sys.argv = ['run.py'] — Interpreter muss als argv[0] vorangestellt werden
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
     threading.Thread(target=_do_restart, daemon=True).start()
     return render_template("admin/update_restarting.html")
