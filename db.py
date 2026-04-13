@@ -125,6 +125,18 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
         if not has_column("geschaeftsprozesse", col):
             conn.execute(f"ALTER TABLE geschaeftsprozesse ADD COLUMN {col} {typedef}")
 
+    # LDAP-Konfiguration (Singleton-Zeile sicherstellen)
+    def has_table(name: str) -> bool:
+        return conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone()[0] > 0
+
+    if has_table("ldap_config"):
+        if conn.execute("SELECT COUNT(*) FROM ldap_config").fetchone()[0] == 0:
+            conn.execute(
+                "INSERT OR IGNORE INTO ldap_config (id) VALUES (1)"
+            )
+
     conn.commit()
 
 

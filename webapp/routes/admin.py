@@ -1200,3 +1200,154 @@ def update_rollback():
     else:
         flash("Kein aktives Update vorhanden.", "info")
     return redirect(url_for("admin.update_index"))
+
+
+# ── LDAP-Konfiguration ─────────────────────────────────────────────────────
+
+from ..ldap_auth import (
+    encrypt_password, decrypt_password, ldap_test_connection, get_ldap_config
+)
+
+_ROLLEN = [
+    "IDV-Administrator",
+    "IDV-Koordinator",
+    "Fachverantwortlicher",
+    "Revision",
+    "IT-Sicherheit",
+]
+
+
+@bp.route("/ldap", methods=["GET", "POST"])
+@admin_required
+def ldap_config():
+    db  = get_db()
+    cfg = get_ldap_config(db)
+    secret_key = current_app.config.get("SECRET_KEY", "")
+
+    if request.method == "POST":
+        enabled    = 1 if request.form.get("enabled") else 0
+        server_url = request.form.get("server_url", "").strip()
+        port       = int(request.form.get("port", 636) or 636)
+        base_dn    = request.form.get("base_dn", "").strip()
+        bind_dn    = request.form.get("bind_dn", "").strip()
+        user_attr  = request.form.get("user_attr", "sAMAccountName").strip() or "sAMAccountName"
+        ssl_verify = 1 if request.form.get("ssl_verify") else 0
+
+        # Passwort: nur aktualisieren wenn neues eingegeben wurde
+        new_pw = request.form.get("bind_password", "").strip()
+        if new_pw:
+            encrypted_pw = encrypt_password(new_pw, secret_key)
+        elif cfg and cfg["bind_password"]:
+            encrypted_pw = cfg["bind_password"]
+        else:
+            encrypted_pw = ""
+
+        db.execute("""
+            INSERT INTO ldap_config
+                (id, enabled, server_url, port, base_dn, bind_dn,
+                 bind_password, user_attr, ssl_verify, updated_at)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','utc'))
+            ON CONFLICT(id) DO UPDATE SET
+                enabled=excluded.enabled, server_url=excluded.server_url,
+                port=excluded.port, base_dn=excluded.base_dn,
+                bind_dn=excluded.bind_dn, bind_password=excluded.bind_password,
+                user_attr=excluded.user_attr, ssl_verify=excluded.ssl_verify,
+                updated_at=excluded.updated_at
+        """, (enabled, server_url, port, base_dn, bind_dn,
+              encrypted_pw, user_attr, ssl_verify))
+        db.commit()
+        flash("LDAP-Konfiguration gespeichert.", "success")
+        return redirect(url_for("admin.ldap_config"))
+
+    return render_template("admin/ldap_config.html", cfg=cfg)
+
+
+@bp.route("/ldap/test", methods=["POST"])
+@admin_required
+def ldap_test():
+    db  = get_db()
+    cfg = get_ldap_config(db)
+    secret_key = current_app.config.get("SECRET_KEY", "")
+
+    if not cfg or not cfg["server_url"]:
+        return jsonify({"ok": False, "msg": "Keine LDAP-Konfiguration gespeichert."})
+
+    ok, msg = ldap_test_connection(dict(cfg), secret_key)
+    return jsonify({"ok": ok, "msg": msg})
+
+
+@bp.route("/ldap/gruppen")
+@admin_required
+def ldap_gruppen():
+    db       = get_db()
+    mappings = db.execute(
+        "SELECT * FROM ldap_group_role_mapping ORDER BY sort_order, id"
+    ).fetchall()
+    return render_template("admin/ldap_gruppen.html",
+                           mappings=mappings, rollen=_ROLLEN)
+
+
+@bp.route("/ldap/gruppen/neu", methods=["POST"])
+@admin_required
+def ldap_gruppe_neu():
+    db       = get_db()
+    group_dn = request.form.get("group_dn", "").strip()
+    rolle    = request.form.get("rolle", "").strip()
+    name     = request.form.get("group_name", "").strip()
+
+    if not group_dn or not rolle:
+        flash("Gruppen-DN und Rolle sind Pflichtfelder.", "error")
+        return redirect(url_for("admin.ldap_gruppen"))
+
+    if rolle not in _ROLLEN:
+        flash("Ungültige Rolle.", "error")
+        return redirect(url_for("admin.ldap_gruppen"))
+
+    max_order = db.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) FROM ldap_group_role_mapping"
+    ).fetchone()[0]
+
+    try:
+        db.execute("""
+            INSERT INTO ldap_group_role_mapping (group_dn, group_name, rolle, sort_order)
+            VALUES (?, ?, ?, ?)
+        """, (group_dn, name or None, rolle, max_order + 10))
+        db.commit()
+        flash("Gruppen-Mapping angelegt.", "success")
+    except Exception:
+        flash("Gruppen-DN existiert bereits.", "error")
+
+    return redirect(url_for("admin.ldap_gruppen"))
+
+
+@bp.route("/ldap/gruppen/<int:mid>/loeschen", methods=["POST"])
+@admin_required
+def ldap_gruppe_loeschen(mid):
+    db = get_db()
+    db.execute("DELETE FROM ldap_group_role_mapping WHERE id = ?", (mid,))
+    db.commit()
+    flash("Gruppen-Mapping gelöscht.", "success")
+    return redirect(url_for("admin.ldap_gruppen"))
+
+
+@bp.route("/ldap/gruppen/<int:mid>/bearbeiten", methods=["POST"])
+@admin_required
+def ldap_gruppe_bearbeiten(mid):
+    db       = get_db()
+    group_dn = request.form.get("group_dn", "").strip()
+    rolle    = request.form.get("rolle", "").strip()
+    name     = request.form.get("group_name", "").strip()
+    order    = int(request.form.get("sort_order", 99) or 99)
+
+    if not group_dn or rolle not in _ROLLEN:
+        flash("Ungültige Eingabe.", "error")
+        return redirect(url_for("admin.ldap_gruppen"))
+
+    db.execute("""
+        UPDATE ldap_group_role_mapping
+        SET group_dn=?, group_name=?, rolle=?, sort_order=?
+        WHERE id=?
+    """, (group_dn, name or None, rolle, order, mid))
+    db.commit()
+    flash("Gruppen-Mapping aktualisiert.", "success")
+    return redirect(url_for("admin.ldap_gruppen"))

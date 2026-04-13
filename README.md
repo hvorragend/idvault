@@ -78,6 +78,11 @@ und niemals im Klartext abgelegt.
 
 Passwörter werden über `Administration → Person bearbeiten` gesetzt.
 
+**LDAP / Active Directory:** Wenn LDAP aktiviert ist, erfolgt die Anmeldung
+mit dem Windows-Benutzernamen und -Passwort — kein separates idvault-Passwort
+nötig. Lokale Logins bleiben als Fallback erhalten (z.B. für den Notfall-Admin).
+→ Einrichtung: [LDAP / Active Directory](#ldap--active-directory)
+
 **Demo-Fallback** (für Erstinstallation / wenn keine Persons-Einträge mit
 Passwort vorhanden sind):
 
@@ -89,6 +94,135 @@ Passwort vorhanden sind):
 
 > Demo-Passwörter vor dem Produktiveinsatz deaktivieren: Personen mit User-ID
 > und Passwort anlegen, danach DEMO_USERS in `webapp/routes/auth.py` leeren.
+
+---
+
+## LDAP / Active Directory
+
+idvault kann Benutzer direkt gegen ein Active Directory authentifizieren — per
+**LDAPS (Port 636)**, ohne Browser-Redirect und ohne separates idvault-Passwort.
+Benutzer geben weiterhin Benutzername und Passwort in das gewohnte Login-Formular
+ein; idvault prüft die Credentials im Hintergrund per LDAP-Bind.
+
+### Voraussetzungen
+
+- Zugang zu einem LDAP-Server (Active Directory) mit LDAPS (Port 636)
+- Ein Service-Account (technischer Benutzer) mit Leserechten auf das Verzeichnis
+- AD-Gruppen, denen die Benutzer zugeordnet werden sollen (eine Gruppe je idvault-Rolle)
+
+### Einrichtung (Schritt für Schritt)
+
+**1. Abhängigkeiten installieren**
+
+```bash
+pip install -r requirements.txt
+```
+
+Die Pakete `ldap3` und `cryptography` werden automatisch mit installiert.
+
+**2. LDAP-Server konfigurieren**
+
+```
+Administration → LDAP / Active Directory → LDAP konfigurieren
+```
+
+| Feld | Beschreibung | Beispiel |
+|---|---|---|
+| LDAP aktivieren | Schaltet die LDAP-Authentifizierung ein/aus | ☑ |
+| Server-URL | Adresse des LDAP-Servers (mit Protokoll) | `ldaps://idfp.rz.bankenit.de` |
+| Port | LDAPS: 636 (Standard), LDAP: 389 | `636` |
+| Base-DN | Suchbasis für Benutzerkonten | `OU=4024,OU=Tenants,DC=idfp,DC=rz,DC=bankenit,DC=de` |
+| Technischer Benutzer (Bind-DN) | Service-Account für LDAP-Suche | `CN=svcidvault,OU=Users,OU=4024,...` |
+| Kennwort | Passwort des Service-Accounts (verschlüsselt gespeichert) | |
+| Benutzer-Attribut | Attribut für den Anmeldenamen | `sAMAccountName` (empfohlen) |
+| TLS-Zertifikat prüfen | Zertifikat des Servers verifizieren (empfohlen) | ☑ |
+
+Über den Button **„Verbindung testen"** kann die Konfiguration direkt geprüft
+werden, ohne LDAP aktivieren zu müssen.
+
+**3. Gruppen-Rollen-Mapping anlegen**
+
+```
+Administration → LDAP / Active Directory → Gruppen-Mapping
+```
+
+Jede idvault-Rolle wird einer AD-Gruppe zugeordnet. Benutzer erhalten automatisch
+die Rolle der ersten passenden Gruppe (Reihenfolge ist konfigurierbar).
+
+| idvault-Rolle | Beispiel-Gruppen-DN |
+|---|---|
+| IDV-Administrator | `CN=IDV-Administratoren,OU=Groups,OU=4024,...` |
+| IDV-Koordinator | `CN=IDV-Koordinatoren,OU=Groups,OU=4024,...` |
+| Fachverantwortlicher | `CN=IDV-Fachverantwortliche,OU=Groups,OU=4024,...` |
+| Revision | `CN=IDV-Revision,OU=Groups,OU=4024,...` |
+| IT-Sicherheit | `CN=IDV-IT-Sicherheit,OU=Groups,OU=4024,...` |
+
+> Den vollständigen DN einer Gruppe ermitteln Sie in PowerShell:
+> ```powershell
+> Get-ADGroup -Identity "IDV-Administratoren" | Select DistinguishedName
+> ```
+
+**4. LDAP aktivieren und speichern**
+
+Sobald mindestens ein Gruppen-Mapping vorhanden ist, kann LDAP aktiviert werden.
+Das Login-Formular zeigt dann den Hinweis „Active Directory aktiv".
+
+### Login-Ablauf
+
+```
+1. Benutzer gibt AD-Anmeldename + Windows-Passwort in idvault ein
+2. idvault verbindet per LDAPS mit dem konfigurierten Server
+3. Service-Account sucht den Benutzer per sAMAccountName
+4. LDAP-Bind mit dem gefundenen User-DN + eingegebenem Passwort
+   (prüft Credentials; das Passwort verlässt idvault nie im Klartext)
+5. Bei Erfolg: Gruppen-Mitgliedschaften auslesen (memberOf)
+6. Gruppen-DNs mit dem Mapping abgleichen → idvault-Rolle bestimmen
+7. Person in idvault automatisch anlegen oder aktualisieren (JIT)
+8. Session setzen, weiterleiten zum Dashboard
+```
+
+### Automatische Benutzeranlage (JIT Provisioning)
+
+Beim ersten erfolgreichen LDAP-Login wird die Person automatisch in der
+`persons`-Tabelle angelegt — kein manueller CSV-Import nötig. Folgende
+Felder werden aus dem AD-Konto übernommen:
+
+| AD-Attribut | idvault-Feld |
+|---|---|
+| `givenName` | Vorname |
+| `sn` (surname) | Nachname |
+| `mail` | E-Mail |
+| `telephoneNumber` | Telefon |
+| `sAMAccountName` | User-ID, AD-Name |
+
+Bei späteren Logins werden die Stammdaten (Name, E-Mail, Telefon) aktualisiert,
+falls sie sich im AD geändert haben. Die Rolle wird ebenfalls angepasst, wenn
+sich die Gruppen-Mitgliedschaft geändert hat.
+
+### Fallback und Notfall-Zugang
+
+- **Lokaler Login bleibt erhalten:** Benutzer mit hinterlegtem `password_hash`
+  können sich weiterhin lokal anmelden — unabhängig davon, ob LDAP aktiviert ist.
+- **Demo-Admin:** Der eingebaute `admin`-Fallback funktioniert immer (solange
+  keine lokale Person mit User-ID `admin` und Passwort-Hash existiert).
+- **LDAP deaktivierbar:** Unter `Administration → LDAP konfigurieren` kann
+  LDAP jederzeit wieder deaktiviert werden; bestehende Personenkonten bleiben
+  erhalten.
+
+### Sicherheitshinweise
+
+| Aspekt | Umsetzung |
+|---|---|
+| Transportverschlüsselung | LDAPS (TLS) auf Port 636 — Passwort wird niemals unverschlüsselt übertragen |
+| Service-Account-Passwort | Fernet/AES-128-verschlüsselt in der Datenbank, Schlüssel aus `SECRET_KEY` abgeleitet |
+| Benutzerkennwort | Wird nur für den LDAP-Bind verwendet und nicht gespeichert |
+| Deaktivierte AD-Konten | Werden erkannt (userAccountControl-Flag) und abgewiesen |
+| Kein passendes Gruppen-Mapping | Login schlägt mit Hinweismeldung fehl — kein stiller Zugriff |
+
+> **Wichtig:** Den `SECRET_KEY` der Anwendung sicher und dauerhaft hinterlegen
+> (Umgebungsvariable `SECRET_KEY`). Bei Änderung des Keys muss das
+> Service-Account-Passwort unter `Administration → LDAP konfigurieren` neu
+> eingegeben werden, da der gespeicherte verschlüsselte Wert nicht mehr lesbar ist.
 
 ---
 
@@ -165,7 +299,7 @@ Jede Person hat folgende Felder:
 | Nachname / Vorname | Klarer Name |
 | E-Mail (SMTP-Adresse) | Für E-Mail-Benachrichtigungen |
 | User-ID | Login-Name für idvault (z.B. `mmu`) |
-| AD-Name | Active-Directory-Kontoname (z.B. `DOMAIN\mmu`), für spätere AD-Integration |
+| AD-Name | AD-Anmeldename (z.B. `mmu`); wird bei LDAP-Login automatisch befüllt und als stabiler Schlüssel für die Kontenzuordnung genutzt |
 | Rolle | Eine der fünf Rollen (siehe Berechtigungskonzept) |
 | Org-Einheit | Zugeordnete Abteilung / Bereich |
 | Aktiv | Inaktive Personen können sich nicht einloggen |
@@ -361,9 +495,10 @@ Verwaltung der Stammdaten:
 - **Geschäftsprozesse** — Prozesskatalog (Basis für Kritikalitätsbewertung)
 - **Plattformen** — Technologie-Katalog (Excel, Python, Power BI …)
 - **E-Mail-Einstellungen** — SMTP-Konfiguration für automatische Benachrichtigungen
+- **LDAP / Active Directory** — LDAPS-Verbindung und Gruppen-Rollen-Mapping
 - **Software-Update** — Anwendungs-Updates einspielen ohne EXE-Austausch
 
-→ Detailbeschreibung: [Benutzer- und Berechtigungskonzept](#benutzer--und-berechtigungskonzept), [E-Mail-Benachrichtigungen](#e-mail-benachrichtigungen), [Administration](#administration-1), [Mitarbeiterdaten importieren](#mitarbeiterdaten-importieren-csv)
+→ Detailbeschreibung: [Benutzer- und Berechtigungskonzept](#benutzer--und-berechtigungskonzept), [LDAP / Active Directory](#ldap--active-directory), [E-Mail-Benachrichtigungen](#e-mail-benachrichtigungen), [Administration](#administration-1), [Mitarbeiterdaten importieren](#mitarbeiterdaten-importieren-csv)
 
 ---
 
@@ -535,6 +670,7 @@ Das Schema liegt in `schema.sql` und wird beim Start automatisch initialisiert (
 | **Stammdaten** | `org_units`, `persons`, `geschaeftsprozesse`, `plattformen`, `risikoklassen` |
 | **Kernregister** | `idv_register` — eine Zeile pro IDV, ~70 Attribute |
 | **Workflow & Audit** | `idv_history`, `pruefungen`, `massnahmen`, `genehmigungen` |
+| **Authentifizierung** | `ldap_config` (LDAP-Server), `ldap_group_role_mapping` (Gruppen → Rollen) |
 
 ### Schema-Überblick
 
