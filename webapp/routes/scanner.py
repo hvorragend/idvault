@@ -218,6 +218,7 @@ def list_funde():
         scan_run_label=_scan_run_label,
         duplicate_hashes=duplicate_hashes,
         is_admin=is_admin,
+        webapp_db_path=current_app.config['DATABASE'],
     )
 
 

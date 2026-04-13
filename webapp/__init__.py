@@ -18,20 +18,23 @@ def create_app(db_path: str = None) -> Flask:
     # Package-Verzeichnis mehr – deshalb template_folder explizit setzen.
     if getattr(sys, 'frozen', False):
         _tpl = str(Path(sys._MEIPASS) / 'webapp' / 'templates')
+        # Im Bundle zeigt app.instance_path auf den temporären _MEIPASS-Ordner.
+        # Stattdessen: instance/ dauerhaft neben der .exe ablegen.
+        _instance_default = os.path.join(os.path.dirname(sys.executable), 'instance')
     else:
         _tpl = 'templates'  # Flask-Default relativ zum Package
+        _instance_default = None  # wird unten von app.instance_path geholt
 
     app = Flask(__name__, instance_relative_config=True, template_folder=_tpl)
 
-    upload_folder = os.path.join(
-        os.environ.get("IDV_INSTANCE_PATH", app.instance_path),
-        "uploads", "freigaben"
-    )
+    _instance_path = os.environ.get("IDV_INSTANCE_PATH",
+                                    _instance_default or app.instance_path)
+    upload_folder = os.path.join(_instance_path, "uploads", "freigaben")
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-change-in-production-!"),
         DATABASE=db_path or os.environ.get(
             "IDV_DB_PATH",
-            os.path.join(app.instance_path, "idvault.db")
+            os.path.join(_instance_path, "idvault.db")
         ),
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
@@ -39,7 +42,7 @@ def create_app(db_path: str = None) -> Flask:
         APP_VERSION="0.1.0",
     )
 
-    os.makedirs(app.instance_path, exist_ok=True)
+    os.makedirs(_instance_path, exist_ok=True)
     os.makedirs(upload_folder, exist_ok=True)
 
     # Datenbank

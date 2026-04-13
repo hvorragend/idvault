@@ -38,10 +38,10 @@
   <i class="bi bi-exclamation-triangle-fill me-2"></i>
   <strong>Keine Scannerfunde in dieser Datenbank.</strong>
   Stelle sicher, dass der Scanner mit dem korrekten <code>db_path</code> konfiguriert ist
-  und auf dieselbe Datenbankdatei zeigt wie die Webapp (<code>instance/idvault.db</code>).
-  Passe dazu <code>scanner/config.json</code> an:
+  und auf dieselbe Datenbankdatei zeigt wie die Webapp.
+  Passe dazu unter <strong>Admin → Scanner-Einstellungen</strong> den Datenbankpfad an:
   <pre class="mt-2 mb-0 bg-light p-2 rounded" style="font-size:.82rem">{
-  "db_path": "../instance/idvault.db",
+  "db_path": "{{ webapp_db_path }}",
   ...
 }</pre>
 </div>
