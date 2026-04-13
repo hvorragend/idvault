@@ -8,9 +8,14 @@
   <span class="text-muted" style="font-size:.88rem">
     Zuordnung von Active-Directory-Gruppen zu idvault-Rollen
   </span>
-  <a href="{{ url_for('admin.ldap_config') }}" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-arrow-left me-1"></i>Zurück zur LDAP-Konfiguration
-  </a>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin.ldap_import') }}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-person-lines-fill me-1"></i>Mitarbeiter importieren
+    </a>
+    <a href="{{ url_for('admin.ldap_config') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>LDAP-Konfiguration
+    </a>
+  </div>
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}

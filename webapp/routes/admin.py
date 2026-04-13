@@ -189,7 +189,7 @@ def scanner_starten():
             script = _scanner_script_path()
             if not os.path.isfile(script):
                 return jsonify({"ok": False, "msg": f"Scanner-Skript nicht gefunden: {script}"})
-            cmd = ["python3", script, "--config", config]
+            cmd = [sys.executable, script, "--config", config]
 
         if resume:
             cmd.append("--resume")
@@ -1393,6 +1393,67 @@ def ldap_gruppe_loeschen(mid):
     db.commit()
     flash("Gruppen-Mapping gelöscht.", "success")
     return redirect(url_for("admin.ldap_gruppen"))
+
+
+@bp.route("/ldap-import", methods=["GET", "POST"])
+@admin_required
+def ldap_import():
+    from ..ldap_auth import get_ldap_config, ldap_list_users, ldap_sync_person
+    db = get_db()
+    cfg = get_ldap_config(db)
+    secret_key = current_app.config["SECRET_KEY"]
+
+    if request.method == "POST":
+        # Ausgewählte Benutzer importieren
+        selected_ids = request.form.getlist("user_ids")
+        if not selected_ids:
+            flash("Keine Benutzer ausgewählt.", "warning")
+            return redirect(url_for("admin.ldap_import"))
+
+        extra_filter = request.form.get("extra_filter", "").strip()
+        ok, msg, users = ldap_list_users(db, secret_key, extra_filter)
+        if not ok:
+            flash(f"LDAP-Fehler: {msg}", "danger")
+            return redirect(url_for("admin.ldap_import"))
+
+        selected_set = set(selected_ids)
+        neu = geaendert = 0
+        for u in users:
+            if u["user_id"] not in selected_set:
+                continue
+            existing = db.execute(
+                "SELECT id FROM persons WHERE ad_name=? OR user_id=?",
+                (u["user_id"], u["user_id"])
+            ).fetchone()
+            ldap_sync_person(db, u)
+            if existing:
+                geaendert += 1
+            else:
+                neu += 1
+
+        flash(f"Import abgeschlossen: {neu} neu angelegt, {geaendert} aktualisiert.", "success")
+        return redirect(url_for("admin.ldap_import"))
+
+    # GET: LDAP-Benutzer laden und Vorschau zeigen
+    extra_filter = request.args.get("extra_filter", "").strip()
+    if not cfg or not cfg["server_url"]:
+        users = []
+        ldap_msg = "LDAP nicht konfiguriert. Bitte zuerst die LDAP-Konfiguration einrichten."
+        ldap_ok  = False
+    else:
+        ldap_ok, ldap_msg, users = ldap_list_users(db, secret_key, extra_filter)
+
+    # Vorhandene user_ids für Markierung im UI
+    existing_ids = {
+        r["user_id"] for r in db.execute(
+            "SELECT user_id FROM persons WHERE user_id IS NOT NULL AND user_id != ''"
+        ).fetchall()
+    }
+
+    return render_template("admin/ldap_import.html",
+                           cfg=cfg, users=users, ldap_ok=ldap_ok, ldap_msg=ldap_msg,
+                           extra_filter=extra_filter, existing_ids=existing_ids,
+                           rollen=_LDAP_ROLLEN)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

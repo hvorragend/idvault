@@ -119,6 +119,9 @@ def create_app(db_path: str = None) -> Flask:
         try:
             if "T" in str(value):
                 dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                # UTC-Zeitstempel in lokale Systemzeit umwandeln
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone()
             else:
                 dt = datetime.strptime(str(value)[:10], "%Y-%m-%d")
             return dt.strftime(fmt)
