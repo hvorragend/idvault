@@ -1178,23 +1178,15 @@ def update_restart():
         import subprocess
         time.sleep(1.5)
         if getattr(sys, 'frozen', False):
-            # PyInstaller one-file EXE: subprocess.Popen erbt die PATH-Variable
-            # des Elternprozesses, die auf das temporäre _MEIPASS-Verzeichnis
-            # zeigt. Wenn der Elternprozess endet, löscht PyInstaller _MEIPASS —
-            # der Kindprozess kann dann C-Extensions (z.B. unicodedata.pyd) nicht
-            # mehr laden (ModuleNotFoundError).
-            # Lösung: Neustart über cmd.exe /c bat mit "start" (ShellExecuteEx)
-            # — startet die EXE komplett neu ohne ererbte _MEIPASS-Umgebung.
-            import tempfile
-            exe = sys.executable.replace('"', '\\"')
-            bat = '@echo off\r\nping -n 3 127.0.0.1 > nul\r\nstart "" "{}"\r\n'.format(exe)
-            bat_path = os.path.join(tempfile.gettempdir(), 'idvault_restart.bat')
-            with open(bat_path, 'w', encoding='ascii') as _f:
-                _f.write(bat)
+            # EXE direkt neu starten – wie ein Doppelklick.
+            # CREATE_NEW_CONSOLE gibt der neuen Instanz ein eigenes
+            # Konsolenfenster, unabhängig vom aktuellen Prozess.
+            # Kein Batch-Script nötig – das vermeidet AppLocker-Einschränkungen
+            # für Skriptdateien aus dem Temp-Verzeichnis.
             subprocess.Popen(
-                ['cmd.exe', '/c', bat_path],
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-                close_fds=True,
+                [sys.executable],
+                creationflags=subprocess.CREATE_NEW_CONSOLE
+                              | subprocess.CREATE_NEW_PROCESS_GROUP,
             )
         else:
             subprocess.Popen([sys.executable] + sys.argv)
