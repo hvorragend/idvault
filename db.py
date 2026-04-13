@@ -120,7 +120,7 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
         ("schutzbedarf_a", "TEXT"),         # Verfügbarkeit (Availability)
         ("schutzbedarf_c", "TEXT"),         # Vertraulichkeit (Confidentiality)
         ("schutzbedarf_i", "TEXT"),         # Integrität (Integrity)
-        ("schutzbedarf_n", "TEXT"),         # Verbindlichkeit (Non-repudiation)
+        ("schutzbedarf_n", "TEXT"),         # Authentizität (Authenticity)
     ]:
         if not has_column("geschaeftsprozesse", col):
             conn.execute(f"ALTER TABLE geschaeftsprozesse ADD COLUMN {col} {typedef}")

@@ -317,39 +317,28 @@
       </div>
     </div>
 
-    <!-- Risikobewertung -->
+    <!-- Schutzbedarf (aus Geschäftsprozess, lesend) -->
+    {% if idv.schutzbedarf_a or idv.schutzbedarf_c or idv.schutzbedarf_i or idv.schutzbedarf_n %}
     <div class="form-section">
-      <div class="form-section-title">Risikobewertung</div>
-      <div class="row g-3 align-items-center">
-        <div class="col-sm-4">
-          <div class="detail-label">Risikoklasse</div>
-          <div class="detail-value">{{ idv.risikoklasse or '–' }}</div>
-        </div>
-        <div class="col-12"><small class="text-muted">Schutzziele (ACIN)</small></div>
+      <div class="form-section-title" style="font-size:.88rem">
+        Schutzbedarf <small class="text-muted fw-normal">(aus Geschäftsprozess)</small>
+      </div>
+      <div class="d-flex flex-wrap gap-3" style="font-size:.82rem">
         {% for label, letter, val in [
-        ('Verfügbarkeit', 'A', idv.risiko_verfuegbarkeit),
-        ('Vertraulichkeit', 'C', idv.risiko_vertraulichkeit),
-        ('Integrität', 'I', idv.risiko_integritaet),
-        ('Authentizität', 'N', idv.risiko_nachvollziehbarkeit),
+        ('Verfügbarkeit', 'A', idv.schutzbedarf_a),
+        ('Vertraulichkeit', 'C', idv.schutzbedarf_c),
+        ('Integrität', 'I', idv.schutzbedarf_i),
+        ('Authentizität', 'N', idv.schutzbedarf_n),
         ] %}
-        <div class="col-sm-6">
-          <div class="detail-label">{{ label }} <span class="badge bg-secondary" style="font-size:.6rem">{{ letter
-              }}</span></div>
-          <div class="d-flex align-items-center gap-2">
-            {% if val %}
-            {% for i in range(1,5) %}
-            <span style="width:14px;height:14px;border-radius:3px;display:inline-block;
-                background:{{ '#dc3545' if i <= val else '#dee2e6' }}"></span>
-            {% endfor %}
-            <span class="text-muted ms-1" style="font-size:.8rem">{{ val }}/4</span>
-            {% else %}
-            <span class="text-muted">–</span>
-            {% endif %}
-          </div>
+        <div class="text-muted">
+          <span class="badge bg-secondary" style="font-size:.6rem">{{ letter }}</span>
+          {{ label }}:
+          <strong class="text-body">{{ val or '–' }}</strong>
         </div>
         {% endfor %}
       </div>
     </div>
+    {% endif %}
 
     <!-- Technische Angaben -->
     <div class="form-section">
@@ -396,6 +385,10 @@
     <div class="form-section">
       <div class="form-section-title">Weitere Angaben</div>
       <div class="row g-3">
+        <div class="col-sm-4">
+          <div class="detail-label">Risikoklasse</div>
+          <div class="detail-value">{{ idv.risikoklasse or '–' }}</div>
+        </div>
         <div class="col-sm-4">
           <div class="detail-label">GoBD-relevant</div>
           <div class="detail-value">{{ idv.gobd_relevant|yesno }}</div>
