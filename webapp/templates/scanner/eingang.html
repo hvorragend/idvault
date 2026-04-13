@@ -173,10 +173,11 @@
   <div class="row g-2 align-items-end">
     <div class="col-md-4">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      <select name="dir_path" class="form-select form-select-sm">
+      <select name="dir_path" class="form-select form-select-sm" title="{{ dir_path_filt }}">
         <option value="">– Alle Verzeichnisse –</option>
         {% for dp in dir_paths %}
-        <option value="{{ dp }}" {{ 'selected' if dir_path_filt==dp }}>{{ dp }}</option>
+        <option value="{{ dp }}" {{ 'selected' if dir_path_filt==dp }}
+                title="{{ dp }}">{{ ('…' + dp[-60:]) if dp|length > 63 else dp }}</option>
         {% endfor %}
       </select>
     </div>
@@ -381,13 +382,13 @@
             </td>
 
             <!-- Speicherort -->
-            <td style="min-width:160px;max-width:260px">
+            <td style="min-width:150px;max-width:260px">
               {% if f.dir_path %}
               <a href="{{ url_for('scanner.eingang_funde', dir_path=f.dir_path, sort=sort, per_page=per_page) }}"
-                class="badge bg-success text-decoration-none"
-                title="Nach diesem Speicherort filtern: {{ f.dir_path }}"
-                style="font-size:.7rem;font-family:monospace;white-space:normal;word-break:break-all">
-                <i class="bi bi-folder2-open me-1"></i>{{ f.dir_path }}
+                class="badge bg-success text-decoration-none d-block text-start"
+                title="{{ f.dir_path }}"
+                style="font-size:.7rem;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">
+                <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-45:]) if f.dir_path|length > 48 else f.dir_path }}
               </a>
               {% endif %}
             </td>

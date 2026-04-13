@@ -58,9 +58,9 @@
   <div>
     <strong>Letzter Scan-Lauf:</strong>
     #{{ letzter_scan.id }} &nbsp;·&nbsp;
-    {{ letzter_scan.started_at[:16]|replace('T',' ') if letzter_scan.started_at else '?' }}
+    {{ letzter_scan.started_at|datefmt('%d.%m.%Y %H:%M') }}
     {% if letzter_scan.finished_at %}
-      → {{ letzter_scan.finished_at[:16]|replace('T',' ') }}
+      → {{ letzter_scan.finished_at|datefmt('%H:%M') }}
     {% endif %}
     &nbsp;·&nbsp;
     {% set paths = letzter_scan.sr_scan_paths or letzter_scan.scan_paths %}
@@ -86,20 +86,22 @@
     <!-- Speicherort (dir_path) -->
     <div class="col-md-4">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      <select name="dir_path" class="form-select form-select-sm">
+      <select name="dir_path" class="form-select form-select-sm" title="{{ dir_path_filt }}">
         <option value="">– Alle Verzeichnisse –</option>
         {% for dp in dir_paths %}
-        <option value="{{ dp }}" {{ 'selected' if dir_path_filt == dp }}>{{ dp }}</option>
+        <option value="{{ dp }}" {{ 'selected' if dir_path_filt == dp }}
+                title="{{ dp }}">{{ ('…' + dp[-60:]) if dp|length > 63 else dp }}</option>
         {% endfor %}
       </select>
     </div>
     <!-- Scan-Pfad (share_root) -->
     <div class="col-md-3">
       <label class="form-label form-label-sm"><i class="bi bi-hdd-network me-1"></i>Scan-Pfad</label>
-      <select name="share_root" class="form-select form-select-sm">
+      <select name="share_root" class="form-select form-select-sm" title="{{ share_root_filt }}">
         <option value="">– Alle –</option>
         {% for sr in share_roots %}
-        <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}>{{ sr }}</option>
+        <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}
+                title="{{ sr }}">{{ ('…' + sr[-60:]) if sr|length > 63 else sr }}</option>
         {% endfor %}
       </select>
     </div>
@@ -459,16 +461,14 @@
             </td>
 
             <!-- Verzeichnis / Pfad -->
-            <td style="min-width:180px;max-width:280px">
+            <td style="min-width:150px;max-width:260px">
               {% if f.dir_path %}
-              <div>
-                <a href="{{ url_for('scanner.list_funde', dir_path=f.dir_path, filter=filt, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
-                   class="badge bg-success text-decoration-none"
-                   title="Nach diesem Speicherort filtern: {{ f.dir_path }}"
-                   style="font-size:.7rem;font-family:monospace;white-space:normal;word-break:break-all">
-                  <i class="bi bi-folder2-open me-1"></i>{{ f.dir_path }}
-                </a>
-              </div>
+              <a href="{{ url_for('scanner.list_funde', dir_path=f.dir_path, filter=filt, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+                 class="badge bg-success text-decoration-none d-block text-start"
+                 title="{{ f.dir_path }}"
+                 style="font-size:.7rem;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">
+                <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-45:]) if f.dir_path|length > 48 else f.dir_path }}
+              </a>
               {% endif %}
             </td>
 

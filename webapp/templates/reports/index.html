@@ -213,7 +213,7 @@
                 {{ r.letzter_fund[:10] if r.letzter_fund else '–' }}
               </td>
               <td class="text-muted" style="font-size:.78rem">
-                {{ r.letzter_scan[:16]|replace('T',' ') if r.letzter_scan else '–' }}
+                {{ r.letzter_scan|datefmt('%d.%m.%Y %H:%M') }}
               </td>
               <td class="text-nowrap">
                 <a href="{{ url_for('scanner.list_funde', share_root=r.share_root) }}"
@@ -269,7 +269,7 @@
             {% set paths = parse_paths(run.scan_paths) %}
             <tr>
               <td class="text-muted font-monospace">{{ run.id }}</td>
-              <td class="text-nowrap">{{ run.started_at[:16]|replace('T',' ') if run.started_at else '–' }}</td>
+              <td class="text-nowrap">{{ run.started_at|datefmt('%d.%m.%Y %H:%M') }}</td>
               <td style="max-width:300px">
                 {% for p in paths %}
                 <div class="font-monospace text-truncate" style="font-size:.76rem" title="{{ p }}">

@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}LDAP – Mitarbeiter importieren{% endblock %}
+{% block page_title %}<i class="bi bi-person-lines-fill me-2"></i>LDAP – Mitarbeiter importieren{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.88rem">
+    Benutzer aus Active Directory laden und als Personen importieren
+  </span>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin.ldap_gruppen') }}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-people me-1"></i>Gruppen-Mapping
+    </a>
+    <a href="{{ url_for('admin.ldap_config') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>LDAP-Konfiguration
+    </a>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ 'success' if cat == 'success' else ('warning' if cat == 'warning' else 'danger') }} alert-dismissible fade show">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+{% endwith %}
+
+{% if not cfg or not cfg.server_url %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle me-2"></i>
+  LDAP ist noch nicht konfiguriert.
+  <a href="{{ url_for('admin.ldap_config') }}" class="alert-link">Zur LDAP-Konfiguration</a>
+</div>
+{% else %}
+
+<!-- ── Filter ──────────────────────────────────────────────────────────── -->
+<form method="get" class="card border-0 shadow-sm p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-6">
+      <label class="form-label fw-600">LDAP-Filter (optional)</label>
+      <input type="text" name="extra_filter" class="form-control font-monospace form-control-sm"
+             value="{{ extra_filter }}"
+             placeholder="z. B. (department=Finanzen) oder (&amp;(l=Berlin)(department=IT))">
+      <div class="form-text">Beliebiger LDAP-Suchfilter; wird zum Standard-Filter für aktivierte Benutzerkonten hinzugefügt.</div>
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">
+        <i class="bi bi-search me-1"></i>Laden
+      </button>
+    </div>
+    {% if extra_filter %}
+    <div class="col-md-2">
+      <a href="{{ url_for('admin.ldap_import') }}" class="btn btn-sm btn-outline-secondary w-100">
+        <i class="bi bi-x me-1"></i>Filter löschen
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</form>
+
+<!-- ── Ergebnis-Status ─────────────────────────────────────────────────── -->
+{% if not ldap_ok %}
+<div class="alert alert-danger">
+  <i class="bi bi-x-circle me-2"></i>{{ ldap_msg }}
+</div>
+{% elif users %}
+
+<!-- ── Import-Formular ────────────────────────────────────────────────── -->
+<form method="post" action="{{ url_for('admin.ldap_import') }}">
+  {% if extra_filter %}
+  <input type="hidden" name="extra_filter" value="{{ extra_filter }}">
+  {% endif %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <span class="fw-600">
+        <i class="bi bi-people me-2"></i>{{ ldap_msg }}
+        <span class="badge bg-secondary ms-2">{{ users|selectattr('user_id', 'in', existing_ids)|list|length }} bereits vorhanden</span>
+      </span>
+      <div class="d-flex gap-2 align-items-center">
+        <label class="form-check-label small text-muted me-1">
+          <input type="checkbox" id="selectAll" class="form-check-input me-1">
+          Alle auswählen
+        </label>
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="bi bi-person-check me-1"></i>Ausgewählte importieren
+        </button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+        <thead class="table-light">
+          <tr>
+            <th style="width:2.5rem"></th>
+            <th>Name</th>
+            <th>Anmeldename</th>
+            <th>E-Mail</th>
+            <th>Abteilung</th>
+            <th>Ermittelte Rolle</th>
+            <th style="width:6rem"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          {% set already = u.user_id in existing_ids %}
+          <tr class="{{ 'table-success' if already else '' }}">
+            <td class="text-center">
+              <input type="checkbox" name="user_ids" value="{{ u.user_id }}"
+                     class="form-check-input user-cb"
+                     {{ 'checked' if not already }}>
+            </td>
+            <td>
+              <strong>{{ u.nachname }}</strong>{% if u.vorname %}, {{ u.vorname }}{% endif %}
+            </td>
+            <td class="font-monospace">{{ u.user_id }}</td>
+            <td class="text-muted">{{ u.email or '–' }}</td>
+            <td class="text-muted">{{ u.abteilung or '–' }}</td>
+            <td>
+              {% if u.rolle %}
+              <span class="badge
+                {% if u.rolle == 'IDV-Administrator' %}bg-danger
+                {% elif u.rolle == 'IDV-Koordinator' %}bg-primary
+                {% elif u.rolle == 'Fachverantwortlicher' %}bg-success
+                {% elif u.rolle == 'Revision' %}bg-secondary
+                {% else %}bg-info text-dark{% endif %}">
+                {{ u.rolle }}
+              </span>
+              {% else %}
+              <span class="text-muted" title="Kein Gruppen-Mapping gefunden">–</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if already %}
+              <span class="badge bg-light text-success border border-success" title="Bereits in idvault vorhanden">
+                <i class="bi bi-check-circle me-1"></i>vorhanden
+              </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white text-end">
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-person-check me-1"></i>Ausgewählte importieren
+      </button>
+    </div>
+  </div>
+</form>
+
+{% else %}
+<div class="alert alert-info">
+  <i class="bi bi-info-circle me-2"></i>{{ ldap_msg }}
+  Keine Benutzer gefunden.
+  {% if extra_filter %}Versuchen Sie es ohne Filter.{% endif %}
+</div>
+{% endif %}
+
+<!-- ── Hinweise ────────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm border-start border-4 border-info mt-3">
+  <div class="card-body" style="font-size:.85rem">
+    <strong><i class="bi bi-info-circle me-1"></i>Hinweise:</strong>
+    <ul class="mb-0 mt-2">
+      <li>Es werden nur <strong>aktivierte</strong> AD-Benutzerkonten angezeigt.</li>
+      <li>Bereits vorhandene Personen (grün markiert) werden beim Import <strong>aktualisiert</strong> (Name, E-Mail, Telefon, Rolle).</li>
+      <li>Die Rolle wird automatisch aus dem <a href="{{ url_for('admin.ldap_gruppen') }}">Gruppen-Rollen-Mapping</a> ermittelt. Ohne passende Gruppe bleibt das Feld leer.</li>
+      <li>Das Kürzel wird aus den Initialen generiert, wenn noch kein Eintrag vorhanden ist.</li>
+    </ul>
+  </div>
+</div>
+
+{% endif %}
+
+<script>
+document.getElementById('selectAll')?.addEventListener('change', function() {
+  document.querySelectorAll('.user-cb').forEach(cb => cb.checked = this.checked);
+});
+</script>
+
+<style>.fw-600 { font-weight: 600; }</style>
+{% endblock %}

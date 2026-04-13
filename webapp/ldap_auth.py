@@ -297,6 +297,109 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
 
 
 # ---------------------------------------------------------------------------
+# LDAP-Benutzer auflisten (für Admin-Import)
+# ---------------------------------------------------------------------------
+
+def ldap_list_users(db, secret_key: str, extra_filter: str = "") -> tuple[bool, str, list]:
+    """
+    Listet alle aktivierten AD-Benutzer auf.
+
+    Args:
+        db:           DB-Verbindung (für Konfiguration und Rollen-Mapping)
+        secret_key:   App-SECRET_KEY zum Entschlüsseln des Service-Account-Passworts
+        extra_filter: Optionaler LDAP-Suchfilter (z. B. "(department=IT)")
+
+    Returns:
+        (success: bool, message: str, users: list[dict])
+        Jedes user-dict enthält: vorname, nachname, email, telefon, user_id, ad_name, rolle
+    """
+    try:
+        from ldap3 import Server, Connection, Tls, ALL, SUBTREE
+    except ImportError:
+        return False, "ldap3-Paket nicht installiert (pip install ldap3)", []
+
+    cfg = get_ldap_config(db)
+    if not cfg or not cfg["server_url"]:
+        return False, "Keine LDAP-Konfiguration vorhanden.", []
+
+    try:
+        bind_pw = decrypt_password(cfg["bind_password"], secret_key)
+    except Exception:
+        return False, "Service-Account-Passwort konnte nicht entschlüsselt werden.", []
+
+    # Nur aktivierte Benutzerkonten (userAccountControl-Bit 0x2 = deaktiviert)
+    base_filter = "(&(objectClass=user)(!(objectClass=computer))(!(userAccountControl:1.2.840.113556.1.4.803:=2)))"
+    if extra_filter.strip():
+        search_filter = f"(&{base_filter}{extra_filter.strip()})"
+    else:
+        search_filter = base_filter
+
+    user_attr = cfg["user_attr"] or "sAMAccountName"
+    search_attrs = [
+        "distinguishedName", "givenName", "sn", "mail",
+        "telephoneNumber", "department", "memberOf",
+        "displayName", user_attr,
+    ]
+
+    try:
+        import ssl as _ssl
+        tls = Tls(validate=_ssl.CERT_NONE if not cfg.get("ssl_verify", 1) else _ssl.CERT_REQUIRED)
+        server = Server(
+            cfg["server_url"], port=cfg["port"],
+            use_ssl=True, tls=tls, get_info=ALL, connect_timeout=10,
+        )
+        with Connection(server, user=cfg["bind_dn"], password=bind_pw,
+                        auto_bind=True, receive_timeout=30) as conn:
+            conn.search(
+                search_base=cfg["base_dn"],
+                search_filter=search_filter,
+                search_scope=SUBTREE,
+                attributes=search_attrs,
+                paged_size=500,
+            )
+            entries = conn.entries
+
+    except Exception as e:
+        return False, f"LDAP-Verbindungsfehler: {e}", []
+
+    users = []
+    for entry in entries:
+        vorname  = _str(entry, "givenName")
+        nachname = _str(entry, "sn")
+        if not vorname and not nachname:
+            display = _str(entry, "displayName")
+            parts = display.split(" ", 1)
+            vorname  = parts[0] if parts else ""
+            nachname = parts[1] if len(parts) > 1 else ""
+
+        member_of = []
+        try:
+            member_of = [str(g) for g in entry.memberOf.values]
+        except Exception:
+            pass
+
+        uid = _str(entry, user_attr)
+        if not uid:
+            continue  # Benutzer ohne Anmeldename überspringen
+
+        rolle = _get_role_from_groups(db, member_of)
+        users.append({
+            "vorname":   vorname,
+            "nachname":  nachname,
+            "email":     _str(entry, "mail"),
+            "telefon":   _str(entry, "telephoneNumber"),
+            "abteilung": _str(entry, "department"),
+            "user_id":   uid,
+            "ad_name":   uid,
+            "rolle":     rolle or "",
+            "member_of": member_of,
+        })
+
+    users.sort(key=lambda u: (u["nachname"].lower(), u["vorname"].lower()))
+    return True, f"{len(users)} Benutzer gefunden.", users
+
+
+# ---------------------------------------------------------------------------
 # LDAP-Verbindungstest (für Admin-UI)
 # ---------------------------------------------------------------------------
 
