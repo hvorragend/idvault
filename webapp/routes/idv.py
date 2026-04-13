@@ -164,14 +164,16 @@ def quick_search():
                r.idv_typ, ou.kuerzel AS oe_kuerzel
         FROM idv_register r
         LEFT JOIN org_units ou ON r.org_unit_id = ou.id
+        LEFT JOIN geschaeftsprozesse gp ON r.gp_id = gp.id
         WHERE r.status NOT IN ('Archiviert')
           AND (r.idv_id        LIKE ?
             OR r.bezeichnung   LIKE ?
             OR r.kurzbeschreibung LIKE ?
-            OR r.geschaeftsprozess LIKE ?)
+            OR gp.bezeichnung  LIKE ?
+            OR r.gp_freitext   LIKE ?)
         ORDER BY r.idv_id
         LIMIT 12
-    """, (f"%{q}%",) * 4).fetchall()
+    """, (f"%{q}%",) * 5).fetchall()
     return jsonify([
         {
             "id":       row["id"],
