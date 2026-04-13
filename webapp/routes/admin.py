@@ -1249,6 +1249,19 @@ def import_geschaeftsprozesse():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Kompatibilitäts-Stubs für Routen, die in älteren EXE-Bundles referenziert
+# werden, aber in dieser Version nicht implementiert sind. Verhindert
+# BuildError in gebündelten Templates.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@bp.route("/ldap-config", methods=["GET", "POST"])
+@admin_required
+def ldap_config():
+    flash("LDAP-Konfiguration ist in dieser Version nicht verfügbar.", "info")
+    return redirect(url_for("admin.index"))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Software-Update (Sidecar-Mechanismus)
 # ══════════════════════════════════════════════════════════════════════════════
 
