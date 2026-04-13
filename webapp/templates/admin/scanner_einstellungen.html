@@ -95,6 +95,21 @@
             <div class="form-text">Nur Dateien verarbeiten, die ab diesem Datum geändert wurden.</div>
           </div>
 
+          <div class="col-md-3 d-flex flex-column justify-content-center">
+            <label class="form-label fw-600">Dateibesitzer auslesen</label>
+            <div class="form-check form-switch mt-1">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     name="read_file_owner" id="read_file_owner" value="1"
+                     {{ 'checked' if cfg.get('read_file_owner', True) }}>
+              <label class="form-check-label" for="read_file_owner">Aktiviert</label>
+            </div>
+            <div class="form-text">
+              Windows-API (<code>pywin32</code>) pro Datei aufrufen.
+              Bei Netzlaufwerken kann dies den Scan verlangsamen oder zum Absturz führen
+              → bei Problemen deaktivieren.
+            </div>
+          </div>
+
         </div><!-- /row -->
       </div>
       <div class="card-footer bg-white d-flex justify-content-end gap-2">
