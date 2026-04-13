@@ -1178,13 +1178,27 @@ def update_restart():
         import subprocess
         time.sleep(1.5)
         if getattr(sys, 'frozen', False):
-            # EXE direkt neu starten – wie ein Doppelklick.
-            # CREATE_NEW_CONSOLE gibt der neuen Instanz ein eigenes
-            # Konsolenfenster, unabhängig vom aktuellen Prozess.
-            # Kein Batch-Script nötig – das vermeidet AppLocker-Einschränkungen
-            # für Skriptdateien aus dem Temp-Verzeichnis.
+            # PyInstaller setzt _MEIPASS2 als Umgebungsvariable damit
+            # multiprocessing-Kindprozesse das gleiche Extraktionsverzeichnis
+            # wiederverwenden. Wenn wir eine *neue* EXE-Instanz starten,
+            # würde das Kind diesen Wert erben, die eigene Extraktion
+            # überspringen und das Verzeichnis des Elternprozesses nutzen.
+            # Sobald der Elternprozess endet und _MEIPASS löscht, findet das
+            # Kind keine DLLs mehr → sofortiger Absturz ohne Fehlermeldung.
+            # Lösung: _MEIPASS2 und den _MEIPASS-Pfad aus PATH entfernen,
+            # damit der Kindprozess unabhängig bootet.
+            env = os.environ.copy()
+            env.pop('_MEIPASS2', None)
+            if hasattr(sys, '_MEIPASS'):
+                sep = os.pathsep
+                meipass = os.path.normcase(sys._MEIPASS)
+                env['PATH'] = sep.join(
+                    p for p in env.get('PATH', '').split(sep)
+                    if os.path.normcase(p) != meipass
+                )
             subprocess.Popen(
                 [sys.executable],
+                env=env,
                 creationflags=subprocess.CREATE_NEW_CONSOLE
                               | subprocess.CREATE_NEW_PROCESS_GROUP,
             )
