@@ -152,6 +152,9 @@ def scanner_starten():
         if not os.path.isfile(config):
             return jsonify({"ok": False, "msg": f"Konfiguration nicht gefunden: {config}"})
 
+        scanner_dir = _scanner_dir()
+        os.makedirs(scanner_dir, exist_ok=True)  # Ordner anlegen falls noch nicht vorhanden
+
         if getattr(sys, 'frozen', False):
             # Im PyInstaller-Bundle: gleichen Executable mit --scan Flag aufrufen
             cmd = [sys.executable, "--scan", "--config", config]
@@ -161,18 +164,21 @@ def scanner_starten():
                 return jsonify({"ok": False, "msg": f"Scanner-Skript nicht gefunden: {script}"})
             cmd = ["python3", script, "--config", config]
 
+        output_log = os.path.join(scanner_dir, "scanner_output.log")
         try:
+            log_fh = open(output_log, "w", encoding="utf-8")
             proc = subprocess.Popen(
                 cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                cwd=_scanner_dir(),
+                stdout=log_fh,
+                stderr=log_fh,
+                cwd=scanner_dir,
             )
             _scan_state["pid"]     = proc.pid
             _scan_state["started"] = datetime.now(timezone.utc).isoformat()
 
             def _watch():
                 proc.wait()
+                log_fh.close()
                 with _scan_lock:
                     if _scan_state.get("pid") == proc.pid:
                         _scan_state["pid"]     = None
