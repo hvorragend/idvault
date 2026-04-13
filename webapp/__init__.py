@@ -49,7 +49,8 @@ def create_app(db_path: str = None) -> Flask:
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
         APP_NAME="idvault",
-        APP_VERSION=os.environ.get('IDV_ACTIVE_VERSION') or os.environ.get('APP_VERSION', '0.1.0'),
+        BUNDLED_VERSION=os.environ.get('BUNDLED_VERSION', '0.1.0'),
+        APP_VERSION=os.environ.get('IDV_ACTIVE_VERSION') or os.environ.get('BUNDLED_VERSION', '0.1.0'),
     )
 
     os.makedirs(_instance_path, exist_ok=True)

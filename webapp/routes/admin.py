@@ -1044,7 +1044,7 @@ def update_index():
         except Exception:
             pass
 
-    bundled_version = current_app.config.get('APP_VERSION', '0.1.0')
+    bundled_version = current_app.config.get('BUNDLED_VERSION', '0.1.0')
     active_version = (version_info or {}).get('version', bundled_version)
     update_active = os.path.isdir(upd_dir)
 
