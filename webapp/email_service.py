@@ -249,6 +249,83 @@ def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
     return send_mail(db, recipient_emails, subject, html, text)
 
 
+def notify_file_bewertung(db, file_row, recipient_email: str) -> bool:
+    """Sendet eine Bewertungsanforderung an den Datei-Ersteller/-Eigentümer."""
+    fname = file_row["file_name"] if hasattr(file_row, "__getitem__") else str(file_row)
+    fpath = file_row["full_path"] if hasattr(file_row, "__getitem__") else ""
+    formula_count = file_row["formula_count"] if hasattr(file_row, "__getitem__") else 0
+    has_macros = file_row["has_macros"] if hasattr(file_row, "__getitem__") else 0
+    ersteller = (file_row.get("file_owner") or file_row.get("office_author") or "–") if hasattr(file_row, "__getitem__") else "–"
+
+    # Template aus Einstellungen laden
+    try:
+        tpl_subject = db.execute(
+            "SELECT value FROM app_settings WHERE key='email_tpl_bewertung_subject'"
+        ).fetchone()
+        tpl_body = db.execute(
+            "SELECT value FROM app_settings WHERE key='email_tpl_bewertung_body'"
+        ).fetchone()
+    except Exception:
+        tpl_subject = None
+        tpl_body = None
+
+    placeholders = {
+        "dateiname": fname,
+        "pfad": fpath,
+        "ersteller": ersteller,
+        "formelanzahl": str(formula_count or 0),
+        "makros": "Ja" if has_macros else "Nein",
+    }
+
+    if tpl_subject and tpl_subject["value"]:
+        subject = tpl_subject["value"]
+    else:
+        subject = "[idvault] Bitte um Bewertung: {dateiname}"
+
+    if tpl_body and tpl_body["value"]:
+        html = tpl_body["value"]
+    else:
+        html = _default_bewertung_html()
+
+    # Platzhalter ersetzen
+    for key, val in placeholders.items():
+        subject = subject.replace("{" + key + "}", val)
+        html = html.replace("{" + key + "}", val)
+
+    text = (
+        f"idvault – Bewertung angefordert\n\n"
+        f"Datei: {fname}\nPfad: {fpath}\n"
+        f"Formeln: {formula_count or 0}\nMakros: {'Ja' if has_macros else 'Nein'}\n\n"
+        f"Bitte melden Sie sich in idvault an und nehmen Sie die Bewertung vor."
+    )
+    return send_mail(db, recipient_email, subject, html, text)
+
+
+def _default_bewertung_html() -> str:
+    return """<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+    <h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2>
+    <p>Sehr geehrte/r {ersteller},</p>
+    <p>die folgende Datei wurde vom idvault-Scanner erkannt und ist Ihnen als
+       Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Datei als
+       <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2
+       einzustufen ist.</p>
+    <table style="border-collapse:collapse;width:100%">
+      <tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td>
+          <td style="padding:6px;">{dateiname}</td></tr>
+      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pfad</td>
+          <td style="padding:6px;font-family:monospace;font-size:12px;">{pfad}</td></tr>
+      <tr><td style="padding:6px;font-weight:bold;">Formeln</td>
+          <td style="padding:6px;">{formelanzahl}</td></tr>
+      <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Makros</td>
+          <td style="padding:6px;">{makros}</td></tr>
+    </table>
+    <p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen
+       Sie die Bewertung vor.</p>
+    <p style="color:#6c757d;font-size:12px;margin-top:30px;">
+      Diese Nachricht wurde automatisch von idvault gesendet.</p>
+    </body></html>"""
+
+
 def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:
     """Eskalation für überfällige Maßnahme."""
     titel  = massnahme_row["titel"] if hasattr(massnahme_row, "__getitem__") else str(massnahme_row)

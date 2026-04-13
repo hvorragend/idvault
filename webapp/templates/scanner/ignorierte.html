@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Ignorierte Dateien{% endblock %}
+{% block page_title %}<i class="bi bi-eye-slash me-2"></i>Ignorierte Dateien{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-end align-items-center mb-3">
+  {% include 'scanner/_scan_button.html' %}
+</div>
+
+<p class="text-muted mb-4" style="font-size:.87rem">
+  Als <strong>Ignoriert</strong> markierte Scanner-Funde. Diese Dateien enthalten keine relevanten
+  Formeln oder wurden bewusst von der Registrierungspflicht ausgenommen.
+  Sie erscheinen nicht mehr in der regulären Scanner-Funde-Ansicht.
+</p>
+
+<!-- ── Kennzahl ──────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-3">
+    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+      <div class="stat-val text-secondary">{{ ignoriert_count }}</div>
+      <div class="stat-lbl">Ignorierte Dateien</div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-600">
+      <i class="bi bi-eye-slash me-2 text-secondary"></i>
+      Ignorierte Eigenentwicklungen
+      <span class="badge bg-secondary ms-1">{{ ignorierte|length }}</span>
+    </span>
+    <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
+       class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-box-arrow-up-right me-1"></i>In Scanner-Funde öffnen
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+      <thead>
+        <tr>
+          <th>Dateiname</th>
+          <th>Typ</th>
+          <th>Eigentümer</th>
+          <th>Verzeichnis</th>
+          <th>Scan-Datum</th>
+          <th class="text-center">Makros</th>
+          <th class="text-center">Formeln</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in ignorierte %}
+        <tr>
+          <td>
+            <span class="fw-500">{{ f.file_name }}</span>
+          </td>
+          <td>
+            {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+            <span class="badge bg-light text-dark border">{{ typ }}</span>
+          </td>
+          <td style="font-size:.80rem">
+            {{ f.file_owner or f.office_author or '–' }}
+          </td>
+          <td style="font-size:.74rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ f.full_path }}">
+            {% if f.full_path and f.file_name and f.full_path|length > f.file_name|length %}
+              {% set dir_path = f.full_path[:(f.full_path|length - f.file_name|length - 1)] %}
+            {% elif f.share_root %}
+              {% set dir_path = f.share_root %}
+            {% else %}
+              {% set dir_path = '' %}
+            {% endif %}
+            {% if dir_path %}
+            <span class="badge bg-success" style="font-size:.68rem;font-family:monospace"
+                  title="{{ dir_path }}">
+              <i class="bi bi-folder2-open me-1"></i>{{ dir_path }}
+            </span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap" style="font-size:.76rem">
+            {% if f.sr_id %}
+            <a href="{{ url_for('scanner.list_funde', scan_run=f.sr_id) }}"
+               class="text-decoration-none text-muted"
+               title="#{{ f.sr_id }}">
+              {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
+            </a>
+            {% else %}–{% endif %}
+          </td>
+          <td class="text-center">
+            {% if f.has_macros %}
+              <span class="badge bg-danger">VBA</span>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if f.formula_count %}
+              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              </span>
+            {% else %}
+              <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
+               class="btn btn-xs btn-outline-secondary" title="In Scanner-Funde anzeigen">
+              <i class="bi bi-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">
+            <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
+            Keine ignorierten Dateien vorhanden.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.btn-xs { padding: .15rem .45rem; font-size: .75rem; }
+.fw-600 { font-weight: 600; }
+.fw-500 { font-weight: 500; }
+</style>
+{% endblock %}

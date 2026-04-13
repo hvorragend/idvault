@@ -1075,6 +1075,30 @@ def run_scan(config: dict, logger: logging.Logger,
         deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, scan_paths)
         conn.commit()
 
+        # ── Auto-Ignorieren: Dateien ohne Formeln ────────────────────────
+        auto_ignored = 0
+        try:
+            setting = conn.execute(
+                "SELECT value FROM app_settings WHERE key='auto_ignore_no_formula'"
+            ).fetchone()
+            if setting and setting["value"] == "1":
+                cur_ai = conn.execute("""
+                    UPDATE idv_files
+                    SET bearbeitungsstatus = 'Ignoriert'
+                    WHERE status = 'active'
+                      AND bearbeitungsstatus = 'Neu'
+                      AND (formula_count IS NULL OR formula_count = 0)
+                      AND (has_macros IS NULL OR has_macros = 0)
+                      AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)
+                      AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)
+                """)
+                auto_ignored = cur_ai.rowcount
+                conn.commit()
+                if auto_ignored:
+                    logger.info(f"  Auto-Ignoriert  : {auto_ignored} Dateien (ohne Formeln/Makros)")
+        except Exception as e:
+            logger.warning(f"Auto-Ignorieren fehlgeschlagen: {e}")
+
         finished = datetime.now(timezone.utc).isoformat()
         conn.execute("""
             UPDATE scan_runs SET

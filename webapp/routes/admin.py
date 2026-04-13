@@ -1025,7 +1025,9 @@ def delete_plattform(plid):
 def save_settings():
     db = get_db()
     keys = ["smtp_host", "smtp_port", "smtp_user", "smtp_password",
-            "smtp_from", "smtp_tls", "notify_new_file", "local_login_enabled"]
+            "smtp_from", "smtp_tls", "notify_new_file", "local_login_enabled",
+            "auto_ignore_no_formula",
+            "email_tpl_bewertung_subject", "email_tpl_bewertung_body"]
     for k in keys:
         val = request.form.get(k, "")
         db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", (k, val))

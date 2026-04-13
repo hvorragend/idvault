@@ -162,7 +162,10 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('smtp_password', ''),
     ('smtp_from',     ''),
     ('smtp_tls',      '1'),
-    ('notify_new_file', '1');
+    ('notify_new_file', '1'),
+    ('auto_ignore_no_formula', '0'),
+    ('email_tpl_bewertung_subject', '[idvault] Bitte um Bewertung: {dateiname}'),
+    ('email_tpl_bewertung_body', '<html><body style="font-family:Arial,sans-serif;font-size:14px;"><h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2><p>Sehr geehrte/r {ersteller},</p><p>die folgende Datei wurde vom idvault-Scanner erkannt und ist Ihnen als Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Datei als <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2 einzustufen ist.</p><table style="border-collapse:collapse;width:100%"><tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td><td style="padding:6px;">{dateiname}</td></tr><tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pfad</td><td style="padding:6px;font-family:monospace;font-size:12px;">{pfad}</td></tr><tr><td style="padding:6px;font-weight:bold;">Formeln</td><td style="padding:6px;">{formelanzahl}</td></tr><tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Makros</td><td style="padding:6px;">{makros}</td></tr></table><p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen Sie die Bewertung vor.</p><p style="color:#6c757d;font-size:12px;margin-top:30px;">Diese Nachricht wurde automatisch von idvault gesendet.</p></body></html>');
 
 -- Konfigurierbare Klassifizierungskriterien
 CREATE TABLE IF NOT EXISTS klassifizierungen (

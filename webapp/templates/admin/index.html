@@ -363,7 +363,7 @@
             <input type="email" name="smtp_from" class="form-control form-control-sm"
                    value="{{ settings.get('smtp_from','') }}" placeholder="idvault@bank.de">
           </div>
-          <div class="col-md-4 d-flex align-items-end gap-3">
+          <div class="col-md-8 d-flex align-items-end gap-3 flex-wrap">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="smtp_tls" value="1" id="smtp_tls"
                      {{ 'checked' if settings.get('smtp_tls','1')=='1' else '' }}>
@@ -374,11 +374,37 @@
                      {{ 'checked' if settings.get('notify_new_file','1')=='1' else '' }}>
               <label class="form-check-label" for="notify_nf">Neue Dateien benachrichtigen</label>
             </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="auto_ignore_no_formula" value="1" id="auto_ign"
+                     {{ 'checked' if settings.get('auto_ignore_no_formula','0')=='1' else '' }}>
+              <label class="form-check-label" for="auto_ign">
+                Dateien ohne Formeln automatisch ignorieren
+              </label>
+            </div>
           </div>
           <div class="col-md-4 d-flex align-items-end">
             <button type="submit" class="btn btn-sm btn-primary">
               <i class="bi bi-floppy me-1"></i>Einstellungen speichern
             </button>
+          </div>
+          <!-- ── E-Mail-Template: Bewertungsanforderung ─── -->
+          <div class="col-12 mt-3">
+            <hr class="my-2">
+            <h6 class="fw-600 mb-2"><i class="bi bi-envelope-paper me-1"></i>E-Mail-Vorlage: Bewertungsanforderung</h6>
+            <p class="text-muted mb-2" style="font-size:.82rem">
+              Platzhalter: <code>{dateiname}</code>, <code>{pfad}</code>, <code>{ersteller}</code>,
+              <code>{formelanzahl}</code>, <code>{makros}</code>
+            </p>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm fw-600">Betreff</label>
+            <input type="text" name="email_tpl_bewertung_subject" class="form-control form-control-sm"
+                   value="{{ settings.get('email_tpl_bewertung_subject', '[idvault] Bitte um Bewertung: {dateiname}') }}">
+          </div>
+          <div class="col-md-12">
+            <label class="form-label form-label-sm fw-600">HTML-Inhalt</label>
+            <textarea name="email_tpl_bewertung_body" class="form-control form-control-sm" rows="6"
+                      style="font-family:monospace;font-size:.78rem">{{ settings.get('email_tpl_bewertung_body', '') }}</textarea>
           </div>
           <div class="col-12">
             <div class="alert alert-info py-2 mb-0" style="font-size:.83rem">
