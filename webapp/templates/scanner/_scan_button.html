@@ -1,0 +1,65 @@
+{#
+  Wiederverwendbare Scan-Schaltfläche.
+  Erwartet Template-Variablen:
+    can_write      – bool, ob Benutzer scannen darf
+    scan_running   – bool, ob gerade ein Scan läuft
+    has_scan_paths – bool, ob Scan-Pfade konfiguriert sind
+#}
+{% if can_write %}
+<button id="btn-scan-start" type="button" class="btn btn-sm btn-success"
+        {{ 'disabled' if scan_running or not has_scan_paths }}
+        title="{{ 'Scan-Pfade zuerst unter Scanner-Einstellungen konfigurieren' if not has_scan_paths }}">
+  {% if scan_running %}
+    <span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft …
+  {% else %}
+    <i class="bi bi-play-fill me-1"></i>Scan starten
+  {% endif %}
+</button>
+<span id="scan-inline-msg" class="small ms-2" style="display:none"></span>
+<script>
+(function () {
+  const btn = document.getElementById("btn-scan-start");
+  if (!btn) return;
+  const msg = document.getElementById("scan-inline-msg");
+
+  function setRunning(v) {
+    btn.disabled = v;
+    btn.innerHTML = v
+      ? '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft \u2026'
+      : '<i class="bi bi-play-fill me-1"></i>Scan starten';
+  }
+  function showMsg(text, ok) {
+    msg.textContent  = text;
+    msg.className    = "small ms-2 " + (ok ? "text-success" : "text-danger");
+    msg.style.display = "";
+  }
+
+  {% if scan_running %}setRunning(true); pollStatus();{% endif %}
+
+  btn.addEventListener("click", function () {
+    btn.disabled = true;
+    fetch("{{ url_for('admin.scanner_starten') }}", {
+      method: "POST", headers: { "X-CSRFToken": "" }
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) { showMsg(d.msg, true);  setRunning(true); pollStatus(); }
+      else      { showMsg(d.msg, false); btn.disabled = false; }
+    })
+    .catch(e => { showMsg("Netzwerkfehler: " + e, false); btn.disabled = false; });
+  });
+
+  function pollStatus() {
+    setTimeout(function check() {
+      fetch("{{ url_for('admin.scanner_status') }}")
+      .then(r => r.json())
+      .then(d => {
+        if (d.running) { setTimeout(check, 3000); }
+        else { setRunning(false); showMsg("Scan abgeschlossen.", true); }
+      })
+      .catch(() => setTimeout(check, 5000));
+    }, 3000);
+  }
+})();
+</script>
+{% endif %}

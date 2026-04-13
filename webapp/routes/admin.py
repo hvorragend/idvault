@@ -9,7 +9,7 @@ import hashlib
 import subprocess
 import threading
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app
-from . import login_required, admin_required, get_db
+from . import login_required, admin_required, write_access_required, get_db
 from datetime import datetime, timezone, timedelta
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -65,6 +65,7 @@ def _default_scanner_cfg() -> dict:
         "max_workers": 4,
         "move_detection": "name_and_hash",
         "scan_since": None,
+        "read_file_owner": True,
     }
 
 
@@ -117,17 +118,19 @@ def scanner_einstellungen():
         except ValueError:
             max_workers = 4
 
-        move_det    = request.form.get("move_detection", "name_and_hash")
-        scan_since  = request.form.get("scan_since", "").strip() or None
+        move_det         = request.form.get("move_detection", "name_and_hash")
+        scan_since       = request.form.get("scan_since", "").strip() or None
+        read_file_owner  = request.form.get("read_file_owner") == "1"
 
         cfg.update({
-            "scan_paths":         scan_paths,
-            "extensions":         extensions,
-            "exclude_paths":      exclude_paths,
+            "scan_paths":        scan_paths,
+            "extensions":        extensions,
+            "exclude_paths":     exclude_paths,
             "hash_size_limit_mb": hash_limit,
-            "max_workers":        max_workers,
-            "move_detection":     move_det,
-            "scan_since":         scan_since,
+            "max_workers":       max_workers,
+            "move_detection":    move_det,
+            "scan_since":        scan_since,
+            "read_file_owner":   read_file_owner,
         })
         try:
             _save_scanner_config(cfg)
@@ -141,7 +144,7 @@ def scanner_einstellungen():
 
 
 @bp.route("/scanner/starten", methods=["POST"])
-@admin_required
+@write_access_required
 def scanner_starten():
     with _scan_lock:
         if _scan_is_running():

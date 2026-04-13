@@ -61,6 +61,10 @@ DEFAULT_CONFIG = {
     "log_path": "idv_scanner.log",
     "hash_size_limit_mb": 500,   # Dateien > X MB werden nicht gehasht (Performance)
     "max_workers": 4,
+    # Dateibesitzer via Windows-API lesen (pywin32 erforderlich).
+    # Auf Netzlaufwerken kann dies den Scan stark verlangsamen oder
+    # mit einem KeyboardInterrupt abstürzen → bei Problemen auf false setzen.
+    "read_file_owner": True,
     # Move-Detection-Modus:
     #   "name_and_hash" (Standard) – gleicher Hash UND gleicher Dateiname
     #   "hash_only"                – gleicher Hash, Dateiname darf sich geändert haben;
@@ -198,8 +202,10 @@ def sha256_file(path: str, chunk_size: int = 65536) -> Optional[str]:
 # Betriebssystem-Metadaten
 # ---------------------------------------------------------------------------
 
-def get_fs_metadata(path: str) -> dict:
+def get_fs_metadata(path: str, config: dict = None) -> dict:
     """Dateisystem-Metadaten einer Datei."""
+    if config is None:
+        config = {}
     result = {
         "size_bytes": None,
         "created_at": None,
@@ -214,7 +220,7 @@ def get_fs_metadata(path: str) -> dict:
     except OSError:
         pass
 
-    if HAS_WIN32:
+    if HAS_WIN32 and config.get("read_file_owner", True):
         try:
             sd = win32security.GetFileSecurity(
                 path, win32security.OWNER_SECURITY_INFORMATION
@@ -222,7 +228,10 @@ def get_fs_metadata(path: str) -> dict:
             owner_sid = sd.GetSecurityDescriptorOwner()
             name, domain, _ = win32security.LookupAccountSid(None, owner_sid)
             result["file_owner"] = f"{domain}\\{name}"
-        except Exception:
+        except BaseException:
+            # GetFileSecurity blockiert auf Netzwerkpfaden und kann von Windows
+            # mit einem Control-Signal abgebrochen werden, das Python als
+            # KeyboardInterrupt darstellt. Besitzer dann einfach leer lassen.
             pass
 
     return result
@@ -381,7 +390,7 @@ def get_share_root(path: str, scan_paths: list) -> tuple:
 def scan_file(path: str, config: dict, scan_paths: list) -> Optional[dict]:
     """Analysiert eine einzelne Datei und gibt ein Metadaten-Dict zurück."""
     ext = Path(path).suffix.lower()
-    fs  = get_fs_metadata(path)
+    fs  = get_fs_metadata(path, config)
 
     # Hash nur bei vertretbarer Dateigröße
     size_limit = config.get("hash_size_limit_mb", 500) * 1024 * 1024
