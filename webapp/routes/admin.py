@@ -35,34 +35,41 @@ def _scanner_script_path():
     return os.path.join(_scanner_dir(), "idv_scanner.py")
 
 
-_DEFAULT_SCANNER_CFG = {
-    "scan_paths": [],
-    "extensions": [
-        ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
-        ".accdb", ".mdb", ".accde", ".accdr",
-        ".ida", ".idv",
-        ".bas", ".cls", ".frm",
-        ".pbix", ".pbit",
-        ".dotm", ".pptm",
-        ".py", ".r", ".rmd", ".sql",
-    ],
-    "exclude_paths": [
-        "~$", ".tmp",
-        "$RECYCLE.BIN",
-        "System Volume Information",
-        "AppData",
-    ],
-    "db_path": "../instance/idvault.db",
-    "log_path": "idv_scanner.log",
-    "hash_size_limit_mb": 500,
-    "max_workers": 4,
-    "move_detection": "name_and_hash",
-    "scan_since": None,
-}
+_DEFAULT_SCANNER_EXTENSIONS = [
+    ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
+    ".accdb", ".mdb", ".accde", ".accdr",
+    ".ida", ".idv",
+    ".bas", ".cls", ".frm",
+    ".pbix", ".pbit",
+    ".dotm", ".pptm",
+    ".py", ".r", ".rmd", ".sql",
+]
+_DEFAULT_SCANNER_EXCLUDE = [
+    "~$", ".tmp",
+    "$RECYCLE.BIN",
+    "System Volume Information",
+    "AppData",
+]
+
+
+def _default_scanner_cfg() -> dict:
+    """Erstellt die Standardkonfiguration mit dem tatsächlichen DB-Pfad der Webapp."""
+    from flask import current_app
+    return {
+        "scan_paths": [],
+        "extensions": _DEFAULT_SCANNER_EXTENSIONS,
+        "exclude_paths": _DEFAULT_SCANNER_EXCLUDE,
+        "db_path": current_app.config['DATABASE'],
+        "log_path": "idv_scanner.log",
+        "hash_size_limit_mb": 500,
+        "max_workers": 4,
+        "move_detection": "name_and_hash",
+        "scan_since": None,
+    }
 
 
 def _load_scanner_config() -> dict:
-    cfg = dict(_DEFAULT_SCANNER_CFG)
+    cfg = _default_scanner_cfg()
     try:
         with open(_scanner_config_path(), encoding="utf-8") as f:
             cfg.update(json.load(f))
