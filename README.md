@@ -430,7 +430,7 @@ Compliance-Profil (DORA-kritisch, steuerungsrelevant, unvollständig).
 (siehe Scanner-Funde). Das Formular führt durch fünf Abschnitte:
 
 1. **Stammdaten** — Bezeichnung, Typ, Version, Kurzbeschreibung
-2. **Klassifizierung** — GDA-Wert (1–4), Steuerungsrelevanz, RL-Relevanz, DORA
+2. **Wesentlichkeitsbeurteilung** — Steuerungsrelevant, Rechnungslegungsrelevant, DORA-kritisch/wichtig (mit Grad der Abhängigkeit)
 3. **Risikobewertung** — Risikoklasse, Verfügbarkeit, Integrität, Vertraulichkeit
 4. **Technik & Betrieb** — Plattform, Nutzungsfrequenz, Zugriffsschutz, Makros
 5. **Verantwortliche** — Org-Einheit, Fachverantwortlicher, Entwickler, Koordinator
@@ -534,6 +534,7 @@ sehen die Schaltfläche nicht.
 - Noch nicht registriert (kein IDV-Eintrag verknüpft)
 - Mit Makros (VBA)
 - Bereits registriert
+- Zur Registrierung vorgemerkt
 - **Archiv** — Dateien, die beim letzten Scan nicht mehr gefunden wurden
   (verschoben, umbenannt oder gelöscht). Die Verknüpfung zum IDV-Register
   bleibt erhalten. Taucht eine Datei wieder auf, wird sie automatisch reaktiviert.
@@ -545,6 +546,36 @@ Dazu in `scanner/config.json` setzen:
 ```
 
 → Weitere Details: [`scanner/README.md`](scanner/README.md)
+
+### Scanner-Eingang und Vormerkung
+
+Der **Eingang** (*Scanner → Eingang*) zeigt ausschließlich unbearbeitete
+Dateien (`bearbeitungsstatus = 'Neu'`). Von hier aus werden Dateien triagiert:
+
+| Aktion | Wirkung |
+|---|---|
+| **Zur Registrierung vormerken** | Setzt `bearbeitungsstatus` auf `Zur Registrierung`. Die Datei verschwindet aus dem Eingang und erscheint im separaten Zähler „Zur Registrierung". |
+| **Ignorieren** | Setzt `bearbeitungsstatus` auf `Ignoriert`. Die Datei wird bei künftigen Scans nicht erneut als „Neu" angezeigt. |
+| **Direkt registrieren** | Öffnet das IDV-Formular; nach dem Speichern wird `bearbeitungsstatus` automatisch auf `Registriert` gesetzt. |
+
+**Bearbeitungsstatus einer Datei (Lebenszyklus):**
+
+```
+Neu → Zur Registrierung → Registriert
+ │                              ↑
+ ├── direkt registrieren ───────┘
+ └── Ignoriert
+```
+
+- **Neu** — Vom Scanner entdeckt, noch nicht gesichtet.
+- **Zur Registrierung** — Vorgemerkt: Die Datei soll als IDV erfasst werden,
+  die eigentliche Registrierung steht noch aus. Dient als Arbeitsliste.
+- **Registriert** — Einem IDV-Register-Eintrag zugeordnet.
+- **Ignoriert** — Bewusst ausgeschlossen (z. B. keine IDV-relevante Datei).
+
+Die Vormerkung ist eine reine Organisationshilfe (Triage). Es werden dabei
+keine fachlichen Daten erzeugt — lediglich der Bearbeitungsstatus wechselt.
+Die Bulk-Aktion erlaubt es, mehrere Dateien gleichzeitig vorzumerken.
 
 ---
 
@@ -698,25 +729,212 @@ Ist kein Override aktiv, stimmen beide Werte überein.
 
 ---
 
-## Typischer Workflow
+## Workflow und Statusfelder
+
+idvault verwendet zwei parallele Statusfelder auf dem IDV-Register sowie
+separate Status für Scanner-Dateien, Prüfungen und Maßnahmen. Die folgende
+Dokumentation beschreibt den Gesamtablauf und was bei jedem Statuswechsel passiert.
+
+### Gesamtablauf (Übersicht)
 
 ```
 1. Scanner läuft (wöchentlich per Scheduled Task)
         ↓
-2. Scanner-Funde → „Als IDV registrieren"
+2. Eingang sichten → „Zur Registrierung vormerken" oder ignorieren
         ↓
-3. IDV-Formular ausfüllen (GDA, Klassifizierung, Verantwortliche)
+3. Vorgemerkte Dateien → „Als IDV registrieren"
         ↓
-4. Status: Entwurf → In Prüfung → Genehmigt
+4. IDV-Formular ausfüllen (Wesentlichkeit, Klassifizierung, Verantwortliche)
         ↓
-5. Regelprüfung fällig (nach pruefintervall_monate)
+5. Status: Entwurf → In Prüfung → Genehmigt
         ↓
-6. Prüfung dokumentieren → Ergebnis + nächstes Prüfdatum
+6. Bei wesentlicher IDV: Test- und Freigabeverfahren (4 Schritte)
         ↓
-7. Bei Befund: Maßnahme anlegen → verfolgen bis Erledigt
+7. Regelprüfung fällig (nach pruefintervall_monate)
         ↓
-8. Dashboard zeigt Gesamtstatus jederzeit aktuell
+8. Prüfung dokumentieren → Ergebnis + nächstes Prüfdatum
+        ↓
+9. Bei Befund: Maßnahme anlegen → verfolgen bis Erledigt
+        ↓
+10. Dashboard zeigt Gesamtstatus jederzeit aktuell
 ```
+
+### Statusfeld 1: Scanner-Bearbeitungsstatus (`idv_files.bearbeitungsstatus`)
+
+Betrifft vom Scanner gefundene **Dateien**, nicht IDV-Register-Einträge.
+
+```
+Neu → Zur Registrierung → Registriert
+ │                              ↑
+ ├── direkt registrieren ───────┘
+ └── Ignoriert
+```
+
+| Status | Bedeutung | Auslöser |
+|---|---|---|
+| **Neu** | Vom Scanner entdeckt, noch nicht gesichtet | Automatisch beim Scan |
+| **Zur Registrierung** | Vorgemerkt für spätere IDV-Erfassung | Manuell: Button „Zur Registrierung vormerken" |
+| **Registriert** | Einem IDV-Register-Eintrag zugeordnet | Automatisch beim Anlegen/Verknüpfen einer IDV |
+| **Ignoriert** | Bewusst ausgeschlossen (keine IDV) | Manuell: Button „Ignorieren" |
+
+Wird eine Dateiverknüpfung von einer IDV entfernt, wechselt der Status
+automatisch zurück auf `Neu`.
+
+### Statusfeld 2: IDV-Workflow-Status (`idv_register.status`)
+
+Zentrales Genehmigungsfeld. Bestimmt, ob eine IDV produktiv zugelassen ist.
+
+```
+Entwurf → In Prüfung → Genehmigt
+               │              ↓
+               ▼          Abgekündigt → Archiviert
+           Abgelehnt
+
+Genehmigt mit Auflagen → Genehmigt
+```
+
+| Status | Bedeutung | Was passiert beim Wechsel |
+|---|---|---|
+| **Entwurf** | Ersterfassung, noch nicht zur Prüfung eingereicht | Standardstatus bei Neuanlage. Keine Benachrichtigung. |
+| **In Prüfung** | Liegt beim IDV-Koordinator zur Bewertung | History-Eintrag wird geschrieben. |
+| **Genehmigt** | Freigegeben für den produktiven Einsatz | History-Eintrag. Bei Datei-Verknüpfung wird der Datei-Hash protokolliert. |
+| **Genehmigt mit Auflagen** | Bedingt freigegeben; Auflagen müssen erfüllt werden | History-Eintrag wie „Genehmigt". |
+| **Abgelehnt** | Nicht als IDV eingestuft oder nicht genehmigungsfähig | History-Eintrag. |
+| **Abgekündigt** | IDV wird abgelöst oder abgeschaltet | History-Eintrag. IDV wird aus Prüfstatus-Berechnung ausgeschlossen. |
+| **Archiviert** | Historisch, nicht mehr aktiv | History-Eintrag. IDV wird aus allen aktiven Listen und Statistiken ausgeblendet. |
+
+Der Statuswechsel kann einzeln oder per Bulk-Aktion (mehrere IDVs gleichzeitig)
+erfolgen. Jeder Wechsel erzeugt einen Eintrag in `idv_history`.
+
+### Statusfeld 3: Teststatus (`idv_register.teststatus`)
+
+Bildet den Fortschritt im Test- und Freigabeverfahren ab. Wird automatisch
+vom Freigabeverfahren gesteuert und kann auch manuell gesetzt werden.
+
+```
+Wertung ausstehend → In Bearbeitung → Freigabe ausstehend → Freigegeben
+                           ↑                    │
+                           └── bei Ablehnung ────┘
+                           └── bei Abbruch ──────┘
+```
+
+| Status | Bedeutung | Auslöser |
+|---|---|---|
+| **Wertung ausstehend** | Neu angelegt, noch keine inhaltliche Bearbeitung | Standardwert bei Neuanlage und bei neuer Version |
+| **In Bearbeitung** | Wird aktiv bearbeitet / nachgebessert | Manuell oder automatisch nach Ablehnung/Abbruch im Freigabeverfahren |
+| **Freigabe ausstehend** | Test-/Freigabeverfahren läuft | Automatisch beim Start von Phase 1 des Freigabeverfahrens |
+| **Freigegeben** | Alle 4 Freigabe-Schritte bestanden | Automatisch nach Abschluss von Phase 2. Setzt gleichzeitig `dokumentation_vorhanden = 1`. |
+
+Jeder Wechsel erzeugt einen History-Eintrag.
+
+### Test- und Freigabeverfahren (`idv_freigaben`)
+
+Nur für **wesentliche IDVs mit wesentlicher Änderung**. Vier Schritte in zwei
+Phasen, die jeweils parallel ablaufen:
+
+```
+Phase 1 (parallel):          Phase 2 (parallel):
+┌─────────────────┐          ┌──────────────────┐
+│ Fachlicher Test │          │ Fachliche Abnahme│
+└────────┬────────┘          └────────┬─────────┘
+         │  beide bestanden?          │  beide bestanden?
+┌────────┴────────┐    →     ┌────────┴─────────┐    →  IDV freigegeben
+│Technischer Test │          │Techn. Abnahme    │
+└─────────────────┘          └──────────────────┘
+```
+
+**Phase 2 kann erst gestartet werden, wenn beide Phase-1-Schritte bestanden sind.**
+
+| Schritt-Status | Bedeutung |
+|---|---|
+| **Ausstehend** | Schritt angelegt, wartet auf Durchführung |
+| **Bestanden** | Erfolgreich abgeschlossen |
+| **Nicht bestanden** | Abgelehnt mit Befunden → Teststatus wechselt zurück auf `In Bearbeitung` |
+| **Abgebrochen** | Durch Administrator abgebrochen → Teststatus wechselt zurück auf `In Bearbeitung` |
+
+**Funktionstrennung:** Der als Entwickler eingetragene Mitarbeiter darf keine
+Freigabe-Schritte abschließen oder ablehnen (Ausnahme: Administratoren).
+
+**Seiteneffekte:**
+- Start Phase 1 → Teststatus wechselt auf `Freigabe ausstehend`, E-Mail an zugewiesene Prüfer und Koordinatoren
+- Start Phase 2 → E-Mail an zugewiesene Prüfer und Koordinatoren
+- Alle 4 Schritte bestanden → Teststatus `Freigegeben`, `dokumentation_vorhanden` wird gesetzt, E-Mail an Koordinatoren/Admins/Entwickler
+- Schritt nicht bestanden → Teststatus zurück auf `In Bearbeitung`
+- Abbruch durch Admin → alle offenen Schritte auf `Abgebrochen`, Teststatus zurück auf `In Bearbeitung`
+
+### Genehmigungen (`genehmigungen`)
+
+Separater 4-Augen-Workflow (unabhängig vom Test-/Freigabeverfahren):
+
+| Feld | Werte |
+|---|---|
+| **Genehmigungsart** | Erstfreigabe, Wiederfreigabe, Wesentliche Änderung, Ablösung |
+| **Stufe 1** (IDV-Koordinator) | Ausstehend → Genehmigt / Abgelehnt |
+| **Stufe 2** (IT-Sicherheit/Revision) | Ausstehend → Genehmigt / Abgelehnt / Nicht erforderlich |
+
+Stufe 2 ist nur erforderlich bei GDA = 4 oder DORA-kritisch/wichtig.
+
+### Prüfungen (`pruefungen`)
+
+Regelmäßige Überprüfungen gemäß MaRisk AT 7.2.
+
+| Feld | Werte |
+|---|---|
+| **Prüfungsart** | Erstprüfung, Regelprüfung, Anlassprüfung, Revisionsprüfung |
+| **Ergebnis** | Ohne Befund, Mit Befund, Kritischer Befund, Nicht bestanden |
+
+**Berechneter Prüfstatus** (in der View `v_idv_uebersicht`, kein eigenes Feld):
+
+| Prüfstatus | Bedingung |
+|---|---|
+| **ÜBERFÄLLIG** | `naechste_pruefung` liegt in der Vergangenheit |
+| **BALD FÄLLIG** | `naechste_pruefung` liegt innerhalb der nächsten 30 Tage |
+| **OK** | `naechste_pruefung` liegt mehr als 30 Tage in der Zukunft |
+
+Nach dem Speichern einer Prüfung wird `naechste_pruefung` im IDV-Register
+aktualisiert. Bei überfälligen Prüfungen wird eine E-Mail an den
+Fachverantwortlichen gesendet.
+
+### Maßnahmen (`massnahmen`)
+
+Entstehen aus Prüfungsbefunden oder proaktiver Risikobewertung.
+
+```
+Offen → In Bearbeitung → Erledigt
+  │
+  └── Zurückgestellt
+```
+
+| Status | Bedeutung |
+|---|---|
+| **Offen** | Maßnahme angelegt, noch nicht begonnen |
+| **In Bearbeitung** | Wird aktiv umgesetzt |
+| **Erledigt** | Abgeschlossen mit Erledigungsdatum |
+| **Zurückgestellt** | Bewusst pausiert |
+
+Bei überfälligen Maßnahmen (Fälligkeitsdatum überschritten, Status nicht
+`Erledigt`) wird eine E-Mail an den Verantwortlichen gesendet.
+
+### E-Mail-Benachrichtigungen im Workflow
+
+| Ereignis | Empfänger |
+|---|---|
+| Neue Datei im Scanner erkannt | Koordinatoren und Administratoren |
+| Prüfung überfällig | Fachverantwortlicher der IDV |
+| Maßnahme überfällig | Verantwortlicher der Maßnahme |
+| Freigabeverfahren gestartet (Phase 1/2) | Zugewiesene Prüfer + Koordinatoren |
+| Freigabeverfahren vollständig bestanden | Koordinatoren, Administratoren, Entwickler |
+| Datei-Bewertung | Verantwortlicher |
+
+### Versionierung
+
+Über *„Neue Version erstellen"* auf der IDV-Detailseite wird eine Kopie
+der IDV mit neuer Versionsnummer angelegt. Dabei:
+
+- `teststatus` wird auf `Wertung ausstehend` zurückgesetzt
+- `letzte_aenderungsart` wird auf `wesentlich` oder `unwesentlich` gesetzt
+- Die alte IDV wird als `vorgaenger_idv_id` verknüpft
+- Bei `letzte_aenderungsart = 'unwesentlich'` entfällt das Freigabeverfahren
 
 ---
 
@@ -761,24 +979,6 @@ Abgeleitet aus der BAIT-Orientierungshilfe zur IDV-Risikoklassifizierung:
 | 4 | Vollständig abhängig | Prozess kann ohne diese IDV nicht ausgeführt werden |
 
 GDA = 4 löst die zweite Genehmigungsstufe und eine verpflichtende DORA-Bewertung aus.
-
-### Workflow-Status
-
-```
-Entwurf
-  │
-  ▼
-In Prüfung ──► Abgelehnt
-  │
-  ▼
-Genehmigt ◄── Genehmigt mit Auflagen
-  │
-  ▼
-Abgekündigt
-  │
-  ▼
-Archiviert
-```
 
 ### Designentscheidungen
 

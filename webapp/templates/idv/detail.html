@@ -46,20 +46,19 @@
   </div>
 </div>
 
-<!-- ── Bearbeitungs- und Dokumentationsstatus ─────────────────────── -->
+<!-- ── Teststatus (Freigabeverfahren) ──────────────────────────────── -->
 <div class="d-flex gap-3 align-items-center mb-4 flex-wrap p-3 bg-light rounded border">
-  <!-- Bearbeitungsstatus -->
   <div class="d-flex align-items-center gap-2">
-    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Bearbeitungsstatus:</span>
-    {% set bs = idv.bearbeitungsstatus or 'Wertung ausstehend' %}
-    {% if bs == 'Freigegeben' %}
-    <span class="badge bg-success">{{ bs }}</span>
-    {% elif bs == 'Freigabe ausstehend' %}
-    <span class="badge bg-warning text-dark">{{ bs }}</span>
-    {% elif bs == 'In Bearbeitung' %}
-    <span class="badge bg-info text-dark">{{ bs }}</span>
+    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Teststatus:</span>
+    {% set ts = idv.teststatus or 'Wertung ausstehend' %}
+    {% if ts == 'Freigegeben' %}
+    <span class="badge bg-success">{{ ts }}</span>
+    {% elif ts == 'Freigabe ausstehend' %}
+    <span class="badge bg-warning text-dark">{{ ts }}</span>
+    {% elif ts == 'In Bearbeitung' %}
+    <span class="badge bg-info text-dark">{{ ts }}</span>
     {% else %}
-    <span class="badge bg-light text-dark border">{{ bs }}</span>
+    <span class="badge bg-light text-dark border">{{ ts }}</span>
     {% endif %}
     {% if can_create %}
     <div class="dropdown">
@@ -67,45 +66,11 @@
         <i class="bi bi-pencil-fill"></i>
       </button>
       <ul class="dropdown-menu">
-        {% for s in bearbeitungsstatus_werte %}
-        {% if s != bs %}
+        {% for s in teststatus_werte %}
+        {% if s != ts %}
         <li>
-          <form method="post" action="{{ url_for('idv.change_bearbeitungsstatus', idv_db_id=idv.id) }}">
-            <input type="hidden" name="bearbeitungsstatus" value="{{ s }}">
-            <button class="dropdown-item">→ {{ s }}</button>
-          </form>
-        </li>
-        {% endif %}
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-  </div>
-
-  <span class="text-muted">|</span>
-
-  <!-- Dokumentationsstatus -->
-  <div class="d-flex align-items-center gap-2">
-    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Dokumentation:</span>
-    {% set ds = idv.dokumentationsstatus or 'Nicht dokumentiert' %}
-    {% if ds == 'Dokumentiert' %}
-    <span class="badge bg-success"><i class="bi bi-file-check me-1"></i>{{ ds }}</span>
-    {% elif ds == 'In Dokumentation' %}
-    <span class="badge bg-warning text-dark"><i class="bi bi-file-earmark-pen me-1"></i>{{ ds }}</span>
-    {% else %}
-    <span class="badge bg-light text-dark border"><i class="bi bi-file-x me-1"></i>{{ ds }}</span>
-    {% endif %}
-    {% if can_create %}
-    <div class="dropdown">
-      <button class="btn btn-xs btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-        <i class="bi bi-pencil-fill"></i>
-      </button>
-      <ul class="dropdown-menu">
-        {% for s in dokumentationsstatus_werte %}
-        {% if s != ds %}
-        <li>
-          <form method="post" action="{{ url_for('idv.change_dokumentationsstatus', idv_db_id=idv.id) }}">
-            <input type="hidden" name="dokumentationsstatus" value="{{ s }}">
+          <form method="post" action="{{ url_for('idv.change_teststatus', idv_db_id=idv.id) }}">
+            <input type="hidden" name="teststatus" value="{{ s }}">
             <button class="dropdown-item">→ {{ s }}</button>
           </form>
         </li>
@@ -217,44 +182,19 @@
           <hr class="my-1">
         </div>
 
-        <!-- GDA -->
-        <div class="col-sm-3">
-          <div class="detail-label">GDA-Wert</div>
-          <div class="detail-value"><span class="badge badge-gda-{{ idv.gda_wert }} fs-6">{{ idv.gda_wert }}/4</span>
-          </div>
-        </div>
-        <div class="col-sm-9">
-          <div class="detail-label">GDA-Begründung</div>
-          <div>{{ idv.gda_begruendung or '–' }}</div>
-        </div>
-
-        <!-- Standard-Kriterien -->
-        <div class="col-12">
-          <hr class="my-1"><small class="text-muted">Standard-Wesentlichkeitskriterien</small>
-        </div>
-
-        <!-- 1. Steuerungsrelevanz -->
+        <!-- 1. Steuerungsrelevant -->
         <div class="col-sm-4">
           <div class="detail-label">
             <span class="badge bg-secondary me-1" style="font-size:.6rem">1</span>Steuerungsrelevant
           </div>
           <div class="detail-value">{{ idv.steuerungsrelevant|yesno }}</div>
-          {% if idv.steuerungsrelevant %}
-          <div style="font-size:.78rem;color:#6c757d">
-            {% if idv.relevant_guv %}<span class="badge bg-light text-dark border me-1">GuV</span>{% endif %}
-            {% if idv.relevant_meldewesen %}<span class="badge bg-light text-dark border me-1">Meldewesen</span>{% endif
-            %}
-            {% if idv.relevant_risikomanagement %}<span class="badge bg-light text-dark border me-1">Risiko</span>{%
-            endif %}
-          </div>
-          {% endif %}
         </div>
         <div class="col-sm-8">
           <div class="detail-label">Begründung</div>
           <div>{{ idv.steuerungsrelevanz_begr or '–' }}</div>
         </div>
 
-        <!-- 2. RL-Relevanz -->
+        <!-- 2. Rechnungslegungsrelevant -->
         <div class="col-sm-4">
           <div class="detail-label">
             <span class="badge bg-secondary me-1" style="font-size:.6rem">2</span>Rechnungslegungsrelevant
@@ -266,7 +206,7 @@
           <div>{{ idv.rechnungslegungsrelevanz_begr or '–' }}</div>
         </div>
 
-        <!-- 3. DORA (abgeleitet) -->
+        <!-- 3. DORA-kritisch/wichtig (abgeleitet) mit GDA -->
         <div class="col-sm-4">
           <div class="detail-label">
             <span class="badge bg-secondary me-1" style="font-size:.6rem">3</span>DORA-kritisch/wichtig
@@ -275,12 +215,12 @@
           <div class="detail-value">
             {% if idv.dora_kritisch_wichtig %}
             <span class="badge bg-danger">Ja</span>
-            <div style="font-size:.75rem;color:#6c757d" class="mt-1">
-              Krit. GP + GDA 4 → DORA Art. 28 Abs. 2
-            </div>
             {% else %}
             <span class="text-muted">Nein</span>
             {% endif %}
+          </div>
+          <div class="mt-1" style="font-size:.78rem;color:#6c757d">
+            Grad der Abhängigkeit: <span class="badge badge-gda-{{ idv.gda_wert }}">{{ idv.gda_wert }}/4</span>
           </div>
         </div>
         <div class="col-sm-8">

@@ -160,7 +160,7 @@ def starten(idv_db_id):
         """, (idv_db_id, schritt, person_id, now, zugewiesen))
 
     db.execute(
-        "UPDATE idv_register SET bearbeitungsstatus='Freigabe ausstehend', aktualisiert_am=? WHERE id=?",
+        "UPDATE idv_register SET teststatus='Freigabe ausstehend', aktualisiert_am=? WHERE id=?",
         (now, idv_db_id)
     )
     db.execute(
@@ -286,7 +286,7 @@ def abschliessen(freigabe_id):
     if schritt in _PHASE_2 and _phase2_komplett_bestanden(db, idv_db_id):
         db.execute("""
             UPDATE idv_register
-            SET bearbeitungsstatus='Freigegeben', dokumentationsstatus='Dokumentiert',
+            SET teststatus='Freigegeben', dokumentation_vorhanden=1,
                 aktualisiert_am=?
             WHERE id=?
         """, (now, idv_db_id))
@@ -356,7 +356,7 @@ def ablehnen(freigabe_id):
 
     # Bearbeitungsstatus zurücksetzen
     db.execute(
-        "UPDATE idv_register SET bearbeitungsstatus='In Bearbeitung', aktualisiert_am=? WHERE id=?",
+        "UPDATE idv_register SET teststatus='In Bearbeitung', aktualisiert_am=? WHERE id=?",
         (now, idv_db_id)
     )
     db.execute(
@@ -401,7 +401,7 @@ def abbrechen(idv_db_id):
         """, (person_id, now, kommentar, row["id"]))
 
     db.execute(
-        "UPDATE idv_register SET bearbeitungsstatus='In Bearbeitung', aktualisiert_am=? WHERE id=?",
+        "UPDATE idv_register SET teststatus='In Bearbeitung', aktualisiert_am=? WHERE id=?",
         (now, idv_db_id)
     )
     db.execute(
