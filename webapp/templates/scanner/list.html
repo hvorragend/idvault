@@ -83,18 +83,28 @@
 <form method="get" class="card border-0 shadow-sm p-3 mb-3">
   <input type="hidden" name="filter" value="{{ filt }}">
   <div class="row g-2 align-items-end">
-    <!-- Verzeichnis (share_root) -->
-    <div class="col-md-5">
-      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis (Teilscan)</label>
-      <select name="share_root" class="form-select form-select-sm">
+    <!-- Speicherort (dir_path) -->
+    <div class="col-md-4">
+      <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
+      <select name="dir_path" class="form-select form-select-sm">
         <option value="">– Alle Verzeichnisse –</option>
+        {% for dp in dir_paths %}
+        <option value="{{ dp }}" {{ 'selected' if dir_path_filt == dp }}>{{ dp }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Scan-Pfad (share_root) -->
+    <div class="col-md-3">
+      <label class="form-label form-label-sm"><i class="bi bi-hdd-network me-1"></i>Scan-Pfad</label>
+      <select name="share_root" class="form-select form-select-sm">
+        <option value="">– Alle –</option>
         {% for sr in share_roots %}
         <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}>{{ sr }}</option>
         {% endfor %}
       </select>
     </div>
     <!-- Scan-Lauf -->
-    <div class="col-md-5">
+    <div class="col-md-3">
       <label class="form-label form-label-sm"><i class="bi bi-clock-history me-1"></i>Scan-Lauf</label>
       <select name="scan_run" class="form-select form-select-sm">
         <option value="">– Alle Läufe –</option>
@@ -110,10 +120,13 @@
       <a href="{{ url_for('scanner.list_funde', filter=filt) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
   </div>
-  {% if share_root_filt or scan_run_id_filt %}
+  {% if dir_path_filt or share_root_filt or scan_run_id_filt %}
   <div class="mt-2 d-flex gap-2 flex-wrap">
+    {% if dir_path_filt %}
+    <span class="badge bg-success"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
+    {% endif %}
     {% if share_root_filt %}
-    <span class="badge bg-primary"><i class="bi bi-folder-fill me-1"></i>{{ share_root_filt }}</span>
+    <span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt }}</span>
     {% endif %}
     {% if scan_run_id_filt %}
     <span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{ scan_run_id_filt }}</span>
@@ -172,9 +185,38 @@
 </div>
 {% endif %}
 
+<!-- ── Eigentümer-Modal ────────────────────────────────────────────── -->
+<div class="modal fade" id="ownerModal" tabindex="-1" aria-labelledby="ownerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="ownerModalLabel">
+          <i class="bi bi-person-gear me-1"></i>Dateieigentümer setzen
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="text-muted mb-2" style="font-size:.82rem">
+          Neuen Eigentümer für <strong id="owner-modal-count">0</strong> ausgewählte Datei(en) setzen.
+        </p>
+        <input type="text" id="owner-modal-input" class="form-control form-control-sm"
+               placeholder="Benutzername / UID" autocomplete="off">
+        <div class="form-text">Setzt den Dateieigentümer in der Datenbank (überschreibt bisherigen Wert).</div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="button" class="btn btn-sm btn-warning" id="owner-modal-confirm">
+          <i class="bi bi-check-lg me-1"></i>Setzen
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Massenaktions-Formular + Tabelle ───────────────────────────── -->
 <form method="post" action="{{ url_for('scanner.bulk_aktion') }}" id="bulk-form">
   <input type="hidden" name="filt" value="{{ filt }}">
+  <input type="hidden" name="new_owner" id="hidden-new-owner" value="">
 
   <!-- Aktionsleiste (erscheint sobald etwas ausgewählt ist) -->
   <div id="bulk-bar" class="card border-primary shadow-sm mb-3 p-2 d-none">
@@ -197,6 +239,11 @@
               class="btn btn-sm btn-outline-primary"
               title="Ausgewählte Dateien als IDV-Projekt zusammenfassen oder mit bestehendem IDV verknüpfen">
         <i class="bi bi-diagram-3 me-1"></i>Zu IDV-Projekt zusammenfassen
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-warning"
+              data-bs-toggle="modal" data-bs-target="#ownerModal"
+              title="Dateieigentümer für ausgewählte Dateien setzen">
+        <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
       </button>
       <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
         Auswahl aufheben
@@ -223,7 +270,7 @@
             <th>Scan-Lauf</th>
             <th>Größe</th>
             <th>{{ 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert' }}</th>
-            <th>Autor</th>
+            <th>Eigentümer</th>
             <th class="text-center">Makros</th>
             <th class="text-center">Formeln</th>
             <th class="text-center">Schutz</th>
@@ -291,23 +338,20 @@
                 </td>
 
                 <td style="min-width:180px;max-width:280px">
-                  {% if f.share_root %}
-                  <span class="badge bg-primary" style="font-size:.7rem;font-family:monospace">
-                    <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
+                  {% if f.dir_path %}
+                  <span class="badge bg-success" style="font-size:.7rem;font-family:monospace"
+                        title="{{ f.dir_path }}">
+                    <i class="bi bi-folder2-open me-1"></i>{{ f.dir_path }}
                   </span>
                   {% endif %}
-                  <div class="text-truncate text-muted hash-mono mt-1"
-                       style="font-size:.74rem;max-width:260px" title="{{ f.full_path }}">
-                    {{ f.relative_path or f.full_path }}
-                  </div>
                 </td>
 
                 <td class="text-nowrap" style="font-size:.76rem">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
                 <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
                 <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
                 <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                    title="{{ f.office_author or f.file_owner or '' }}">
-                  {{ f.office_author or f.file_owner or '–' }}
+                    title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} (Office-Autor: {{ f.office_author }}){% endif %}">
+                  {{ f.file_owner or f.office_author or '–' }}
                 </td>
                 <td class="text-center">
                   {% if f.has_macros %}<span class="badge bg-danger">VBA</span>
@@ -416,21 +460,16 @@
 
             <!-- Verzeichnis / Pfad -->
             <td style="min-width:180px;max-width:280px">
-              {% if f.share_root %}
-              <div class="d-flex align-items-start gap-1 flex-wrap">
-                <a href="{{ url_for('scanner.list_funde', share_root=f.share_root, filter=filt) }}"
-                   class="badge bg-primary text-decoration-none flex-shrink-0"
-                   title="Nach diesem Verzeichnis filtern"
-                   style="font-size:.7rem;font-family:monospace">
-                  <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
+              {% if f.dir_path %}
+              <div>
+                <a href="{{ url_for('scanner.list_funde', dir_path=f.dir_path, filter=filt, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+                   class="badge bg-success text-decoration-none"
+                   title="Nach diesem Speicherort filtern: {{ f.dir_path }}"
+                   style="font-size:.7rem;font-family:monospace;white-space:normal;word-break:break-all">
+                  <i class="bi bi-folder2-open me-1"></i>{{ f.dir_path }}
                 </a>
               </div>
               {% endif %}
-              <div class="text-truncate text-muted hash-mono mt-1"
-                   style="font-size:.74rem;max-width:260px"
-                   title="{{ f.full_path }}">
-                {{ f.relative_path or f.full_path }}
-              </div>
             </td>
 
             <!-- Scan-Lauf -->
@@ -451,8 +490,8 @@
               {{ f.last_seen_at|datefmt if (filt == 'archiv' and f.last_seen_at) else (f.modified_at|datefmt if f.modified_at else '–') }}
             </td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                title="{{ f.office_author or f.file_owner or '' }}">
-              {{ f.office_author or f.file_owner or '–' }}
+                title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
+              {{ f.file_owner or f.office_author or '–' }}
             </td>
 
             <!-- Makros -->
@@ -660,6 +699,36 @@ function deleteScannerfund(btn) {
       document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
       if (selectAll) selectAll.checked = false;
       updateBar();
+    });
+  }
+
+  // Eigentümer-Modal: Zähler aktualisieren wenn Modal geöffnet wird
+  const ownerModal = document.getElementById('ownerModal');
+  if (ownerModal) {
+    ownerModal.addEventListener('show.bs.modal', function () {
+      const n = document.querySelectorAll('.row-check:checked').length;
+      const el = document.getElementById('owner-modal-count');
+      if (el) el.textContent = n;
+      const inp = document.getElementById('owner-modal-input');
+      if (inp) inp.value = '';
+      setTimeout(() => { if (inp) inp.focus(); }, 300);
+    });
+    document.getElementById('owner-modal-confirm').addEventListener('click', function () {
+      const val = document.getElementById('owner-modal-input').value.trim();
+      if (!val) {
+        document.getElementById('owner-modal-input').classList.add('is-invalid');
+        return;
+      }
+      document.getElementById('hidden-new-owner').value = val;
+      // Hidden submit button mit aktion=owner_aendern
+      const btn = document.createElement('input');
+      btn.type = 'hidden'; btn.name = 'aktion'; btn.value = 'owner_aendern';
+      document.getElementById('bulk-form').appendChild(btn);
+      bootstrap.Modal.getInstance(ownerModal).hide();
+      document.getElementById('bulk-form').submit();
+    });
+    document.getElementById('owner-modal-input').addEventListener('input', function () {
+      this.classList.remove('is-invalid');
     });
   }
 })();

@@ -61,8 +61,18 @@
           </td>
           <td style="font-size:.74rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ r.full_path }}">
-            {% if r.share_root %}
-            <span class="badge bg-primary" style="font-size:.68rem;font-family:monospace">{{ r.share_root }}</span>
+            {% if r.full_path and r.file_name and r.full_path|length > r.file_name|length %}
+              {% set dir_path = r.full_path[:(r.full_path|length - r.file_name|length - 1)] %}
+            {% elif r.share_root %}
+              {% set dir_path = r.share_root %}
+            {% else %}
+              {% set dir_path = '' %}
+            {% endif %}
+            {% if dir_path %}
+            <span class="badge bg-success" style="font-size:.68rem;font-family:monospace"
+                  title="{{ dir_path }}">
+              <i class="bi bi-folder2-open me-1"></i>{{ dir_path }}
+            </span>
             {% endif %}
           </td>
           <td>
@@ -130,10 +140,19 @@
           </td>
           <td style="font-size:.74rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.full_path }}">
-            {% if f.share_root %}
-            <span class="badge bg-primary" style="font-size:.68rem;font-family:monospace">{{ f.share_root }}</span>
+            {% if f.full_path and f.file_name and f.full_path|length > f.file_name|length %}
+              {% set dir_path = f.full_path[:(f.full_path|length - f.file_name|length - 1)] %}
+            {% elif f.share_root %}
+              {% set dir_path = f.share_root %}
+            {% else %}
+              {% set dir_path = '' %}
             {% endif %}
-            <div class="text-muted mt-1">{{ f.relative_path or f.full_path }}</div>
+            {% if dir_path %}
+            <span class="badge bg-success" style="font-size:.68rem;font-family:monospace"
+                  title="{{ dir_path }}">
+              <i class="bi bi-folder2-open me-1"></i>{{ dir_path }}
+            </span>
+            {% endif %}
           </td>
           <td class="text-nowrap" style="font-size:.76rem">
             {% if f.sr_id %}
