@@ -23,7 +23,6 @@
     <i class="bi bi-pause-fill me-1"></i>Pause
   </button>
   <button id="btn-scan-abbrechen" type="button" class="btn btn-sm btn-danger"
-          onclick="if(!confirm('Scan wirklich abbrechen? Der Fortschritt wird als Checkpoint gespeichert.'))return;"
           title="Scan abbrechen (Checkpoint wird gespeichert)">
     <i class="bi bi-stop-fill me-1"></i>Abbrechen
   </button>
@@ -37,7 +36,6 @@
     <i class="bi bi-play-fill me-1"></i>Fortsetzen
   </button>
   <button id="btn-scan-abbrechen" type="button" class="btn btn-sm btn-danger"
-          onclick="if(!confirm('Scan wirklich abbrechen? Der Fortschritt wird als Checkpoint gespeichert.'))return;"
           title="Scan abbrechen (Checkpoint wird gespeichert)">
     <i class="bi bi-stop-fill me-1"></i>Abbrechen
   </button>
@@ -136,59 +134,58 @@
   }
 
   function bindButtons() {
-    var b;
-    b = document.getElementById("btn-scan-start");
-    if (b) b.addEventListener("click", function() {
-      b.disabled = true;
+    var btnStart = document.getElementById("btn-scan-start");
+    if (btnStart) btnStart.addEventListener("click", function() {
+      btnStart.disabled = true;
       post("{{ url_for('admin.scanner_starten') }}")
         .then(function(r){ return r.json(); })
         .then(function(d){
           showMsg(d.msg, d.ok);
           if (d.ok) startPoll();
-          else b.disabled = false;
+          else btnStart.disabled = false;
         })
-        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); btnStart.disabled = false; });
     });
 
-    b = document.getElementById("btn-scan-resume");
-    if (b) b.addEventListener("click", function() {
-      b.disabled = true;
+    var btnResume = document.getElementById("btn-scan-resume");
+    if (btnResume) btnResume.addEventListener("click", function() {
+      btnResume.disabled = true;
       post("{{ url_for('admin.scanner_starten') }}", { resume: "1" })
         .then(function(r){ return r.json(); })
         .then(function(d){
           showMsg(d.msg, d.ok);
           if (d.ok) startPoll();
-          else b.disabled = false;
+          else btnResume.disabled = false;
         })
-        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); btnResume.disabled = false; });
     });
 
-    b = document.getElementById("btn-scan-pause");
-    if (b) b.addEventListener("click", function() {
-      b.disabled = true;
+    var btnPause = document.getElementById("btn-scan-pause");
+    if (btnPause) btnPause.addEventListener("click", function() {
+      btnPause.disabled = true;
       post("{{ url_for('admin.scanner_pause') }}")
         .then(function(r){ return r.json(); })
         .then(function(d){ showMsg(d.msg, d.ok); startPoll(); })
-        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); btnPause.disabled = false; });
     });
 
-    b = document.getElementById("btn-scan-fortsetzen");
-    if (b) b.addEventListener("click", function() {
-      b.disabled = true;
+    var btnFortsetzen = document.getElementById("btn-scan-fortsetzen");
+    if (btnFortsetzen) btnFortsetzen.addEventListener("click", function() {
+      btnFortsetzen.disabled = true;
       post("{{ url_for('admin.scanner_fortsetzen') }}")
         .then(function(r){ return r.json(); })
         .then(function(d){ showMsg(d.msg, d.ok); startPoll(); })
-        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); btnFortsetzen.disabled = false; });
     });
 
-    b = document.getElementById("btn-scan-abbrechen");
-    if (b) b.addEventListener("click", function() {
+    var btnAbbrechen = document.getElementById("btn-scan-abbrechen");
+    if (btnAbbrechen) btnAbbrechen.addEventListener("click", function() {
       if (!confirm("Scan wirklich abbrechen?\nDer Fortschritt wird als Checkpoint gespeichert.")) return;
-      b.disabled = true;
+      btnAbbrechen.disabled = true;
       post("{{ url_for('admin.scanner_abbrechen') }}")
         .then(function(r){ return r.json(); })
         .then(function(d){ showMsg(d.msg, d.ok); startPoll(); })
-        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); b.disabled = false; });
+        .catch(function(e){ showMsg("Netzwerkfehler: " + e, false); btnAbbrechen.disabled = false; });
     });
   }
 

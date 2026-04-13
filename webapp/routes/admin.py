@@ -183,6 +183,14 @@ def scanner_starten():
 
         resume = request.form.get("resume") == "1" and _has_checkpoint()
 
+        # Verwaiste Signal-Dateien aus einem vorherigen Crash bereinigen
+        for sig_name in ("scanner_pause.signal", "scanner_cancel.signal"):
+            sig_path = os.path.join(scanner_dir, sig_name)
+            try:
+                os.remove(sig_path)
+            except FileNotFoundError:
+                pass
+
         if getattr(sys, 'frozen', False):
             cmd = [sys.executable, "--scan", "--config", config]
         else:
