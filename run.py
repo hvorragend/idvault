@@ -85,6 +85,11 @@ if _upd:
     if _sidecar_vi.get('version'):
         os.environ['IDV_ACTIVE_VERSION'] = _sidecar_vi['version']
     print(f"  [update] Override aktiv: {_upd}")
+
+# IDV_INSTANCE_PATH vor create_app() setzen — damit der korrekte Pfad verwendet
+# wird, auch wenn webapp/__init__.py aus dem Sidecar stammt und Flask einen
+# falschen root_path ableitet.
+os.environ.setdefault('IDV_INSTANCE_PATH', os.path.join(_PROJECT_ROOT, 'instance'))
 # ─────────────────────────────────────────────────────────────────────────────
 
 # --scan Modus: Die exe startet als Scanner-Subprocess (PyInstaller-Kompatibilität).
@@ -104,6 +109,27 @@ if '--scan' in sys.argv:
 
 from webapp import create_app
 
+app = create_app()
+
+# ── Template-Loader in run.py verankern ──────────────────────────────────────
+# run.py ist die einzige Datei die nicht durch den Sidecar überschrieben wird.
+# Der Jinja2-Loader wird hier nach create_app() final gesetzt — korrekt
+# unabhängig davon, von wo oder in welcher Version webapp/__init__.py geladen
+# wurde (z.B. ältere Version aus updates/ ohne IDV_PROJECT_ROOT-Unterstützung).
+from jinja2 import ChoiceLoader, FileSystemLoader as _FSL
+
+if getattr(sys, 'frozen', False):
+    _real_tpl = os.path.join(sys._MEIPASS, 'webapp', 'templates')
+else:
+    _real_tpl = os.path.join(_PROJECT_ROOT, 'webapp', 'templates')
+_ovr_tpl = os.path.join(_PROJECT_ROOT, 'updates', 'templates')
+
+if _upd and os.path.isdir(_ovr_tpl):
+    app.jinja_loader = ChoiceLoader([_FSL(_ovr_tpl), _FSL(_real_tpl)])
+else:
+    app.jinja_loader = _FSL(_real_tpl)
+# ─────────────────────────────────────────────────────────────────────────────
+
 # Optional: Demo-Daten beim ersten Start laden
 def _seed_if_empty(app):
     with app.app_context():
@@ -115,8 +141,6 @@ def _seed_if_empty(app):
             print("  → Keine IDVs gefunden – Demo-Daten werden eingefügt.")
             insert_demo_data(db)
 
-
-app = create_app()
 
 if __name__ == "__main__":
     port  = int(os.environ.get("PORT", 5000))
