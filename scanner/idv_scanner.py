@@ -691,11 +691,13 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                    stats: dict, signal_dir: Optional[str],
                    auto_ignore: bool = False,
                    discard_no_formula: bool = False) -> None:
-    """Verarbeitet alle Dateien eines Generators, prüft alle 50 Dateien die Signale.
+    """Verarbeitet alle Dateien eines Generators, prüft alle 10 Dateien die Signale.
 
     auto_ignore:       Neue Excel-Dateien ohne Formeln/Makros sofort als 'Ignoriert' markieren.
     discard_no_formula: Neue Excel-Dateien ohne Formeln/Makros komplett überspringen (nicht in DB).
     """
+    # Signal-Check zu Beginn jedes Chunks (wichtig bei Verzeichnissen mit < 10 Dateien)
+    _check_and_handle_signals(signal_dir, logger)
     file_counter = 0
     for data in chunk_gen:
         current_path = data.get("full_path", "?")
@@ -731,7 +733,7 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                     (data["full_path"],)
                 )
 
-            if file_counter % 50 == 0:
+            if file_counter % 10 == 0:
                 _check_and_handle_signals(signal_dir, logger)
                 _flush_log(logger)
 
@@ -1100,6 +1102,7 @@ def run_scan(config: dict, logger: logging.Logger,
             # Dateien direkt im Wurzelverzeichnis (kein Subdir-Abstieg)
             root_chunk = f"__ROOT__{scan_path}"
             if root_chunk not in completed_dirs:
+                _check_and_handle_signals(signal_dir, logger)
                 _process_chunk(
                     walk_root_files(scan_path, config, scan_paths, logger, scan_since_ts),
                     conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
@@ -1118,6 +1121,7 @@ def run_scan(config: dict, logger: logging.Logger,
                     logger.info(f"  Überspringe (bereits abgeschlossen): {subdir}")
                     continue
 
+                _check_and_handle_signals(signal_dir, logger)
                 logger.info(f"  Unterverzeichnis: {subdir}")
                 _process_chunk(
                     walk_and_scan(subdir, config, scan_paths, logger, scan_since_ts),
