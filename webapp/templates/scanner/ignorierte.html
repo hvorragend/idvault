@@ -108,7 +108,7 @@
             <a href="{{ url_for('scanner.list_funde', scan_run=f.sr_id) }}"
                class="text-decoration-none text-muted"
                title="#{{ f.sr_id }}">
-              {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
+              {{ f.sr_started_at|datefmt if f.sr_started_at else '–' }}
             </a>
             {% else %}–{% endif %}
           </td>

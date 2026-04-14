@@ -56,7 +56,7 @@ def list_idv():
     db      = get_db()
     q       = request.args.get("q", "")
     status  = request.args.get("status", "")
-    filt    = request.args.get("filter", "")
+    filt    = request.args.get("filter", "wesentlich")
     oe_id   = _int_or_none(request.args.get("oe_id"))
     fv_id   = _int_or_none(request.args.get("fv_id"))
     share_root = request.args.get("share_root", "").strip()
