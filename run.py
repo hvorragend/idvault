@@ -32,7 +32,13 @@ os.environ.setdefault('IDV_PROJECT_ROOT', _PROJECT_ROOT)
 # RotatingFileHandler in webapp/__init__.py die idvault.log ohne Windows-
 # Dateisperren rotieren kann).
 # Einfaches Logrotate: Datei > 2 MB wird vor dem Öffnen zu .1 umbenannt.
-if getattr(sys, 'frozen', False):
+#
+# WICHTIG: Im Scanner-Subprocess (--scan) NICHT umleiten. Der Parent setzt via
+# subprocess.Popen(stdout/stderr=…) bereits scanner_output.log; ein dup2 hier
+# würde das überschreiben und Scanner-Logs (StreamHandler → sys.stderr) landen
+# fälschlich in idvault_crash.log. Der Scanner hat zudem sein eigenes
+# Crash-Log (scanner_crash.log, siehe unten).
+if getattr(sys, 'frozen', False) and '--scan' not in sys.argv:
     _log_dir = os.path.join(_PROJECT_ROOT, 'instance')
     os.makedirs(_log_dir, exist_ok=True)
     try:

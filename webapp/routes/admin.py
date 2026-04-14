@@ -216,11 +216,26 @@ def scanner_starten():
         output_log = os.path.join(scanner_dir, "scanner_output.log")
         try:
             log_fh = open(output_log, "w", encoding="utf-8")
+            # Subprocess von der Konsole des Parents isolieren: sonst werden
+            # Windows-Konsolen-Control-Events (z.B. CTRL_C_EVENT, die bei
+            # Netzlaufwerk-Störungen ausgelöst werden) an alle an dieselbe
+            # Konsole gekoppelten Prozesse zugestellt. Der Scanner fängt
+            # KeyboardInterrupt ab und läuft weiter – der Flask-Prozess
+            # (Werkzeug-Dev-Server) bekommt das gleiche Signal und beendet
+            # sich still, wie bei Ctrl+C. Siehe claude/debug-network-scan.
+            # Abbrechen erfolgt via Signal-Dateien, nicht via CTRL_C.
+            _creationflags = 0
+            if os.name == 'nt':
+                _creationflags = (
+                    subprocess.CREATE_NEW_PROCESS_GROUP  # eigene Signalgruppe
+                    | subprocess.CREATE_NO_WINDOW         # keine geteilte Konsole
+                )
             proc = subprocess.Popen(
                 cmd,
                 stdout=log_fh,
                 stderr=log_fh,
                 cwd=scanner_dir,
+                creationflags=_creationflags,
             )
             _scan_state["pid"]     = proc.pid
             _scan_state["started"] = datetime.now(timezone.utc).isoformat()
@@ -653,11 +668,21 @@ def teams_scan_starten():
 
         try:
             log_fh = open(output_log, "w", encoding="utf-8")
+            # Subprocess von der Konsole des Parents isolieren – siehe
+            # scanner_starten() oben. Verhindert, dass Windows-Konsolen-Events
+            # vom Subprocess den Flask-Dev-Server beenden.
+            _creationflags = 0
+            if os.name == 'nt':
+                _creationflags = (
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                    | subprocess.CREATE_NO_WINDOW
+                )
             proc   = subprocess.Popen(
                 cmd,
                 stdout=log_fh,
                 stderr=log_fh,
                 cwd=scanner_dir,
+                creationflags=_creationflags,
             )
             _teams_scan_state["pid"]     = proc.pid
             _teams_scan_state["started"] = datetime.now(timezone.utc).isoformat()
