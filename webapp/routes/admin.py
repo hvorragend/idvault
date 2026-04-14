@@ -1071,7 +1071,8 @@ def delete_plattform(plid):
 def save_settings():
     db = get_db()
     keys = ["smtp_host", "smtp_port", "smtp_user", "smtp_password",
-            "smtp_from", "smtp_tls", "notify_new_file", "local_login_enabled"]
+            "smtp_from", "smtp_tls", "notify_new_file", "local_login_enabled",
+            "app_base_url"]
     # Dynamisch alle E-Mail-Template-Keys aufnehmen
     from ..email_service import EMAIL_TEMPLATES
     for tpl_key in EMAIL_TEMPLATES:
