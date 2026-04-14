@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}{% if testfall %}Testfall TF-{{ "%02d"|format(testfall.testfall_nr) }} bearbeiten{% else %}Fachlichen Testfall anlegen{% endif %}{% endblock %}
+{% block page_title %}
+<i class="bi bi-clipboard2-check me-2"></i>
+{% if testfall %}Testfall TF-{{ "%02d"|format(testfall.testfall_nr) }} bearbeiten{% else %}Fachlichen Testfall anlegen{% endif %}
+– {{ idv.bezeichnung }}
+{% endblock %}
+
+{% block content %}
+<form method="post">
+  <div class="row g-4">
+    <div class="col-lg-8">
+
+      <!-- Testfall-Beschreibung & Parametrisierung -->
+      <div class="form-section">
+        <div class="form-section-title">
+          <i class="bi bi-card-text me-1"></i>Testfallbeschreibung
+        </div>
+        <div class="row g-3">
+
+          <div class="col-12">
+            <label class="form-label fw-500">Testfallbeschreibung <span class="required-star">*</span></label>
+            <textarea name="beschreibung" class="form-control" rows="3" required
+              placeholder="Was wird in diesem Testfall geprüft? (z. B. Korrektheit der Summenformel in Spalte G …)"
+              >{{ testfall.beschreibung if testfall else '' }}</textarea>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-500">Parametrisierung</label>
+            <textarea name="parametrisierung" class="form-control" rows="2"
+              placeholder="Einstellungen / Konfigurationen, die für diesen Testfall gelten (z. B. Berichtsmonat = Januar 2025, Filialnummer = 42 …)"
+              >{{ testfall.parametrisierung or '' if testfall else '' }}</textarea>
+            <div class="form-text">Welche Einstellungen oder Konfigurationen gelten für diesen Test?</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-500">Testdaten</label>
+            <textarea name="testdaten" class="form-control" rows="2"
+              placeholder="Eingabedaten / Dateiversion / Datenbankstand, der für den Test verwendet wurde …"
+              >{{ testfall.testdaten or '' if testfall else '' }}</textarea>
+            <div class="form-text">Welche Eingabedaten wurden verwendet?</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Ergebnisse -->
+      <div class="form-section">
+        <div class="form-section-title">
+          <i class="bi bi-check2-square me-1"></i>Testergebnisse
+        </div>
+        <div class="row g-3">
+
+          <div class="col-12">
+            <label class="form-label fw-500">Erwartetes Ergebnis</label>
+            <textarea name="erwartetes_ergebnis" class="form-control" rows="2"
+              placeholder="Was sollte das Ergebnis des Tests sein?"
+              >{{ testfall.erwartetes_ergebnis or '' if testfall else '' }}</textarea>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-500">Erzieltes Ergebnis</label>
+            <textarea name="erzieltes_ergebnis" class="form-control" rows="2"
+              placeholder="Was war das tatsächliche Ergebnis des Tests?"
+              >{{ testfall.erzieltes_ergebnis or '' if testfall else '' }}</textarea>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-500">Bewertung <span class="required-star">*</span></label>
+            <select name="bewertung" class="form-select" id="bewertung-select" required>
+              {% for b in bewertungen %}
+              <option value="{{ b }}"
+                {% if testfall and testfall.bewertung == b %}selected
+                {% elif not testfall and b == 'Offen' %}selected{% endif %}>{{ b }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12" id="massnahmen-row"
+            {% if testfall and testfall.bewertung == 'Bestanden' %}style="display:none"{% endif %}>
+            <label class="form-label fw-500">Abgeleitete Maßnahmen</label>
+            <textarea name="massnahmen" class="form-control" rows="2"
+              placeholder="Welche Maßnahmen werden aus diesem Testfall abgeleitet? (leer lassen, wenn bestanden)"
+              >{{ testfall.massnahmen or '' if testfall else '' }}</textarea>
+            <div class="form-text">Nur auszufüllen, wenn der Testfall nicht bestanden wurde oder noch offen ist.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Durchführung -->
+      <div class="form-section">
+        <div class="form-section-title">
+          <i class="bi bi-person-check me-1"></i>Durchführung
+        </div>
+        <div class="row g-3">
+
+          <div class="col-md-6">
+            <label class="form-label fw-500">Tester</label>
+            <input type="text" name="tester" class="form-control"
+              placeholder="Name des Testers"
+              value="{{ testfall.tester or '' if testfall else '' }}">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-500">Testdatum</label>
+            <input type="date" name="testdatum" class="form-control"
+              value="{{ testfall.testdatum or today if testfall else today }}">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Aktionsleiste -->
+      <div class="d-flex justify-content-between align-items-center">
+        <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#testdokumentation"
+           class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Abbrechen
+        </a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-floppy me-1"></i>
+          {% if testfall %}Änderungen speichern{% else %}Testfall speichern{% endif %}
+        </button>
+      </div>
+
+    </div><!-- /col-lg-8 -->
+
+    <!-- Kontext-Sidebar -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-600">
+          <i class="bi bi-info-circle me-2"></i>IDV-Kontext
+        </div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">IDV-ID</div>
+            <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
+          </li>
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">Bezeichnung</div>
+            <div class="fw-500">{{ idv.bezeichnung }}</div>
+          </li>
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">Status</div>
+            <span class="badge status-{{ idv.status|replace(' ', '-') }}">{{ idv.status }}</span>
+          </li>
+          {% if testfall %}
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">Testfall-Nr.</div>
+            <div class="fw-500 font-monospace">TF-{{ "%02d"|format(testfall.testfall_nr) }}</div>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
+
+      <div class="card border-0 shadow-sm mt-3">
+        <div class="card-header bg-white fw-600">
+          <i class="bi bi-lightbulb me-2"></i>Hinweise
+        </div>
+        <div class="card-body py-2" style="font-size:.82rem;color:#555">
+          <p class="mb-2">
+            <strong>Bewertung „Bestanden":</strong> Erzieltes Ergebnis entspricht dem
+            Erwarteten. Keine Maßnahmen erforderlich.
+          </p>
+          <p class="mb-2">
+            <strong>Bewertung „Nicht bestanden":</strong> Bitte abgeleitete Maßnahmen
+            dokumentieren.
+          </p>
+          <p class="mb-0">
+            <strong>Bewertung „Offen":</strong> Test noch nicht abgeschlossen oder
+            Ergebnis noch nicht bewertet.
+          </p>
+        </div>
+      </div>
+    </div><!-- /col-lg-4 -->
+
+  </div><!-- /row -->
+</form>
+
+<script>
+(function () {
+  var sel  = document.getElementById('bewertung-select');
+  var row  = document.getElementById('massnahmen-row');
+  if (!sel || !row) return;
+  sel.addEventListener('change', function () {
+    row.style.display = (this.value === 'Bestanden') ? 'none' : '';
+  });
+})();
+</script>
+{% endblock %}

@@ -480,6 +480,171 @@
     </div>
     {% endif %}
 
+    <!-- ── Testdokumentation ──────────────────────────────────────── -->
+    <div class="form-section" id="testdokumentation">
+      <div class="form-section-title d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clipboard2-check me-1"></i>Testdokumentation</span>
+        {% if can_create %}
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}"
+             class="btn btn-xs btn-outline-primary">
+            <i class="bi bi-plus me-1"></i>Fachlicher Testfall
+          </a>
+          <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}"
+             class="btn btn-xs btn-outline-secondary">
+            <i class="bi bi-cpu me-1"></i>Technischer Test
+          </a>
+        </div>
+        {% endif %}
+      </div>
+
+      {# ── Fachliche Testfälle ── #}
+      <div class="mb-3">
+        <div class="fw-600 mb-2" style="font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;color:#6c757d">
+          <i class="bi bi-list-check me-1"></i>Fachliche Testfälle
+        </div>
+        {% if fachliche_testfaelle %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0" style="font-size:.83rem">
+            <thead class="table-light">
+              <tr>
+                <th style="width:60px">TF-Nr.</th>
+                <th>Beschreibung</th>
+                <th style="width:90px">Bewertung</th>
+                <th style="width:100px">Tester</th>
+                <th style="width:90px">Datum</th>
+                {% if can_create %}<th style="width:70px"></th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for tf in fachliche_testfaelle %}
+              <tr>
+                <td class="font-monospace">TF-{{ "%02d"|format(tf.testfall_nr) }}</td>
+                <td>
+                  <div>{{ tf.beschreibung|truncate(80) }}</div>
+                  {% if tf.erzieltes_ergebnis %}
+                  <div class="text-muted" style="font-size:.77rem">
+                    <i class="bi bi-arrow-return-right me-1"></i>{{ tf.erzieltes_ergebnis|truncate(60) }}
+                  </div>
+                  {% endif %}
+                  {% if tf.massnahmen and tf.bewertung != 'Bestanden' %}
+                  <div class="text-warning" style="font-size:.77rem">
+                    <i class="bi bi-exclamation-triangle me-1"></i>{{ tf.massnahmen|truncate(60) }}
+                  </div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if tf.bewertung == 'Bestanden' %}
+                  <span class="badge bg-success">Bestanden</span>
+                  {% elif tf.bewertung == 'Nicht bestanden' %}
+                  <span class="badge bg-danger">Nicht bestanden</span>
+                  {% else %}
+                  <span class="badge bg-light text-dark border">Offen</span>
+                  {% endif %}
+                </td>
+                <td class="text-muted">{{ tf.tester or '–' }}</td>
+                <td class="text-muted">{{ tf.testdatum|datefmt }}</td>
+                {% if can_create %}
+                <td>
+                  <div class="d-flex gap-1">
+                    <a href="{{ url_for('tests.edit_fachlicher_testfall', testfall_id=tf.id) }}"
+                       class="btn btn-xs btn-outline-secondary" title="Bearbeiten">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post"
+                      action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=tf.id) }}"
+                      onsubmit="return confirm('Testfall TF-{{ '%02d'|format(tf.testfall_nr) }} wirklich löschen?')">
+                      <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-muted text-center py-3 border rounded bg-light" style="font-size:.83rem">
+          <i class="bi bi-clipboard2 me-1"></i>Noch keine fachlichen Testfälle erfasst.
+          {% if can_create %}
+          <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}"
+             class="ms-1">Jetzt anlegen</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {# ── Technischer Test ── #}
+      <div>
+        <div class="fw-600 mb-2" style="font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;color:#6c757d">
+          <i class="bi bi-cpu me-1"></i>Technischer Test
+        </div>
+        {% if technischer_test %}
+        <div class="border rounded p-3 d-flex gap-3 align-items-start
+          {% if technischer_test.ergebnis == 'Bestanden' %}border-success bg-success bg-opacity-10
+          {% elif technischer_test.ergebnis == 'Nicht bestanden' %}border-danger bg-danger bg-opacity-10
+          {% elif technischer_test.ergebnis == 'Entfällt' %}border-secondary bg-light
+          {% else %}border-secondary bg-light{% endif %}">
+          <div class="flex-shrink-0 mt-1">
+            {% if technischer_test.ergebnis == 'Bestanden' %}
+            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+            {% elif technischer_test.ergebnis == 'Nicht bestanden' %}
+            <i class="bi bi-x-circle-fill text-danger fs-5"></i>
+            {% elif technischer_test.ergebnis == 'Entfällt' %}
+            <i class="bi bi-dash-circle text-secondary fs-5"></i>
+            {% else %}
+            <i class="bi bi-hourglass text-secondary fs-5"></i>
+            {% endif %}
+          </div>
+          <div class="flex-grow-1">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              {% if technischer_test.ergebnis == 'Bestanden' %}
+              <span class="badge bg-success">Bestanden</span>
+              {% elif technischer_test.ergebnis == 'Nicht bestanden' %}
+              <span class="badge bg-danger">Nicht bestanden</span>
+              {% elif technischer_test.ergebnis == 'Entfällt' %}
+              <span class="badge bg-secondary">Entfällt</span>
+              {% else %}
+              <span class="badge bg-light text-dark border">Offen</span>
+              {% endif %}
+              {% if technischer_test.pruefer %}
+              <span class="text-muted" style="font-size:.78rem">
+                <i class="bi bi-person me-1"></i>{{ technischer_test.pruefer }}
+              </span>
+              {% endif %}
+              {% if technischer_test.pruefungsdatum %}
+              <span class="text-muted ms-auto" style="font-size:.78rem">
+                {{ technischer_test.pruefungsdatum|datefmt }}
+              </span>
+              {% endif %}
+            </div>
+            {% if technischer_test.kurzbeschreibung %}
+            <div style="font-size:.82rem">{{ technischer_test.kurzbeschreibung }}</div>
+            {% endif %}
+          </div>
+          {% if can_create %}
+          <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}"
+             class="btn btn-xs btn-outline-secondary flex-shrink-0" title="Bearbeiten">
+            <i class="bi bi-pencil"></i>
+          </a>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="text-muted text-center py-3 border rounded bg-light" style="font-size:.83rem">
+          <i class="bi bi-cpu me-1"></i>Noch kein technischer Test erfasst.
+          {% if can_create %}
+          <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}"
+             class="ms-1">Jetzt erfassen</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+    </div><!-- /testdokumentation -->
+
   </div><!-- /col-lg-8 -->
 
   <!-- ── Rechte Spalte: Meta / History ────────────────────────── -->

@@ -90,6 +90,7 @@ def create_app(db_path: str = None) -> Flask:
     from .routes.scanner    import bp as scanner_bp
     from .routes.reports    import bp as reports_bp
     from .routes.freigaben  import bp as freigaben_bp
+    from .routes.tests      import bp as tests_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
@@ -100,6 +101,7 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(scanner_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(freigaben_bp)
+    app.register_blueprint(tests_bp)
 
     # Context Processor: Scanner-Eingang Badge-Count für alle Templates
     @app.context_processor

@@ -638,6 +638,155 @@ def insert_demo_data(conn: sqlite3.Connection):
 
 
 # ---------------------------------------------------------------------------
+# Testdokumentation – Fachliche Testfälle
+# ---------------------------------------------------------------------------
+
+def get_fachliche_testfaelle(conn: sqlite3.Connection, idv_db_id: int):
+    """Gibt alle fachlichen Testfälle einer IDV zurück, sortiert nach Testfall-Nr."""
+    return conn.execute(
+        "SELECT * FROM fachliche_testfaelle WHERE idv_id = ? ORDER BY testfall_nr",
+        (idv_db_id,),
+    ).fetchall()
+
+
+def get_fachlicher_testfall(conn: sqlite3.Connection, testfall_id: int):
+    """Gibt einen einzelnen fachlichen Testfall zurück oder None."""
+    return conn.execute(
+        "SELECT * FROM fachliche_testfaelle WHERE id = ?", (testfall_id,)
+    ).fetchone()
+
+
+def create_fachlicher_testfall(conn: sqlite3.Connection, idv_db_id: int, data: dict) -> int:
+    """Legt einen neuen fachlichen Testfall an. Gibt die neue DB-ID zurück."""
+    now = datetime.now(timezone.utc).isoformat()
+    row = conn.execute(
+        "SELECT COALESCE(MAX(testfall_nr), 0) FROM fachliche_testfaelle WHERE idv_id = ?",
+        (idv_db_id,),
+    ).fetchone()
+    next_nr = (row[0] or 0) + 1
+    cur = conn.execute(
+        """
+        INSERT INTO fachliche_testfaelle
+          (idv_id, testfall_nr, beschreibung, parametrisierung, testdaten,
+           erwartetes_ergebnis, erzieltes_ergebnis, bewertung,
+           massnahmen, tester, testdatum, erstellt_am, aktualisiert_am)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            idv_db_id, next_nr,
+            data.get("beschreibung", ""),
+            data.get("parametrisierung") or None,
+            data.get("testdaten") or None,
+            data.get("erwartetes_ergebnis") or None,
+            data.get("erzieltes_ergebnis") or None,
+            data.get("bewertung", "Offen"),
+            data.get("massnahmen") or None,
+            data.get("tester") or None,
+            data.get("testdatum") or None,
+            now, now,
+        ),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def update_fachlicher_testfall(conn: sqlite3.Connection, testfall_id: int, data: dict) -> None:
+    """Aktualisiert einen vorhandenen fachlichen Testfall."""
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        UPDATE fachliche_testfaelle SET
+            beschreibung        = ?,
+            parametrisierung    = ?,
+            testdaten           = ?,
+            erwartetes_ergebnis = ?,
+            erzieltes_ergebnis  = ?,
+            bewertung           = ?,
+            massnahmen          = ?,
+            tester              = ?,
+            testdatum           = ?,
+            aktualisiert_am     = ?
+        WHERE id = ?
+        """,
+        (
+            data.get("beschreibung", ""),
+            data.get("parametrisierung") or None,
+            data.get("testdaten") or None,
+            data.get("erwartetes_ergebnis") or None,
+            data.get("erzieltes_ergebnis") or None,
+            data.get("bewertung", "Offen"),
+            data.get("massnahmen") or None,
+            data.get("tester") or None,
+            data.get("testdatum") or None,
+            now,
+            testfall_id,
+        ),
+    )
+    conn.commit()
+
+
+def delete_fachlicher_testfall(conn: sqlite3.Connection, testfall_id: int) -> None:
+    """Löscht einen fachlichen Testfall."""
+    conn.execute("DELETE FROM fachliche_testfaelle WHERE id = ?", (testfall_id,))
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Testdokumentation – Technischer Test
+# ---------------------------------------------------------------------------
+
+def get_technischer_test(conn: sqlite3.Connection, idv_db_id: int):
+    """Gibt den technischen Test einer IDV zurück oder None."""
+    return conn.execute(
+        "SELECT * FROM technischer_test WHERE idv_id = ?", (idv_db_id,)
+    ).fetchone()
+
+
+def save_technischer_test(conn: sqlite3.Connection, idv_db_id: int, data: dict) -> None:
+    """Legt den technischen Test an oder aktualisiert ihn (UPSERT)."""
+    now = datetime.now(timezone.utc).isoformat()
+    existing = get_technischer_test(conn, idv_db_id)
+    if existing:
+        conn.execute(
+            """
+            UPDATE technischer_test SET
+                ergebnis         = ?,
+                kurzbeschreibung = ?,
+                pruefer          = ?,
+                pruefungsdatum   = ?,
+                aktualisiert_am  = ?
+            WHERE idv_id = ?
+            """,
+            (
+                data.get("ergebnis", "Offen"),
+                data.get("kurzbeschreibung") or None,
+                data.get("pruefer") or None,
+                data.get("pruefungsdatum") or None,
+                now,
+                idv_db_id,
+            ),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO technischer_test
+              (idv_id, ergebnis, kurzbeschreibung, pruefer, pruefungsdatum,
+               erstellt_am, aktualisiert_am)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                idv_db_id,
+                data.get("ergebnis", "Offen"),
+                data.get("kurzbeschreibung") or None,
+                data.get("pruefer") or None,
+                data.get("pruefungsdatum") or None,
+                now, now,
+            ),
+        )
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
