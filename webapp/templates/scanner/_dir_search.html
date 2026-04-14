@@ -2,26 +2,30 @@
   Durchsuchbares Verzeichnis-Eingabefeld (ersetzt das <select> für Speicherort-Filter).
   Vollständige Seitenbreite, Live-Suche via Datalist.
 
-  Erwartet:
-    dir_paths     – Liste aller Verzeichnispfade (aus dem Route-Kontext)
-    dir_path_filt – Aktuell gewählter Pfad (str)
-    input_id      – Eindeutige ID für dieses Feld (Standard: "dir-search")
+  Optionale Variablen (überschreiben die Standardwerte):
+    field_name    – name-Attribut des Inputs       (Standard: "dir_path")
+    field_options – Liste der Optionswerte          (Standard: dir_paths)
+    field_value   – Aktuell gesetzter Wert          (Standard: dir_path_filt)
+    input_id      – Eindeutige ID für das Feld      (Standard: "dir-search")
 #}
-{% set _id = input_id if input_id is defined else "dir-search" %}
+{% set _id   = input_id    if input_id    is defined else "dir-search" %}
+{% set _name = field_name  if field_name  is defined else "dir_path" %}
+{% set _opts = field_options if field_options is defined else dir_paths %}
+{% set _val  = field_value if field_value is defined else dir_path_filt %}
 <div class="position-relative w-100">
   <input type="text"
          id="{{ _id }}-input"
-         name="dir_path"
+         name="{{ _name }}"
          class="form-control form-control-sm font-monospace"
          placeholder="Verzeichnis suchen oder eingeben …"
-         value="{{ dir_path_filt }}"
+         value="{{ _val }}"
          autocomplete="off"
          list="{{ _id }}-datalist"
          style="min-width:0;width:100%">
   <datalist id="{{ _id }}-datalist">
     <option value=""></option>
-    {% for dp in dir_paths %}
-    <option value="{{ dp }}">{{ dp }}</option>
+    {% for opt in _opts %}
+    <option value="{{ opt }}">{{ opt }}</option>
     {% endfor %}
   </datalist>
 </div>
