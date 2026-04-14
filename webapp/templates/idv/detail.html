@@ -47,9 +47,13 @@
 </div>
 
 <!-- ── Teststatus (Freigabeverfahren) ──────────────────────────────── -->
+{% set testverfahren_noetig = ist_wesentlich and idv.letzte_aenderungsart != 'unwesentlich' %}
 <div class="d-flex gap-3 align-items-center mb-4 flex-wrap p-3 bg-light rounded border">
   <div class="d-flex align-items-center gap-2">
     <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Teststatus:</span>
+    {% if not testverfahren_noetig %}
+    <span class="badge bg-secondary">Nicht erforderlich</span>
+    {% else %}
     {% set ts = idv.teststatus or 'Wertung ausstehend' %}
     {% if ts == 'Freigegeben' %}
     <span class="badge bg-success">{{ ts }}</span>
@@ -78,6 +82,7 @@
         {% endfor %}
       </ul>
     </div>
+    {% endif %}
     {% endif %}
   </div>
 </div>
