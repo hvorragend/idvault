@@ -140,6 +140,29 @@ def create_app(db_path: str = None) -> Flask:
         except Exception:
             return str(value)
 
+    @app.template_filter("datetimefmt")
+    def datetimefmt(value, fmt="%d.%m.%Y %H:%M"):
+        if not value:
+            return "–"
+        try:
+            s = str(value)
+            if "T" in s:
+                dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone()
+            else:
+                for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                    try:
+                        dt = datetime.strptime(s[:len(pattern)], pattern)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    return s
+            return dt.strftime(fmt)
+        except Exception:
+            return str(value)
+
     @app.template_filter("mb")
     def to_mb(value):
         if value is None:

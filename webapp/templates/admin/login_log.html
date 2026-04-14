@@ -3,6 +3,7 @@
 {% block page_title %}<i class="bi bi-journal-text me-2"></i>Login-Log{% endblock %}
 
 {% block content %}
+{% include 'admin/_subnav.html' %}
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for cat, msg in messages %}

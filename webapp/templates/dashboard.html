@@ -58,18 +58,52 @@
     </div>
   </div>
   {% endif %}
-  {% if stats.unvollstaendig > 0 %}
-  <div class="col-md-4">
-    <div class="alert alert-info d-flex align-items-center gap-2 mb-0">
-      <i class="bi bi-info-circle-fill fs-5"></i>
-      <div>
-        <strong>{{ stats.unvollstaendig }} IDV(s) unvollständig</strong>
-        <div style="font-size:.8rem"><a href="{{ url_for('idv.list_idv') }}?filter=unvollstaendig">Jetzt anzeigen →</a>
+</div>
+
+<!-- ── Scanner-Status ──────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-search text-primary fs-5"></i>
+        <span class="fw-600" style="font-size:.88rem">Letzter Scan</span>
+      </div>
+
+      {% if letzter_scan %}
+        <span class="text-muted" style="font-size:.85rem">
+          {{ (letzter_scan.finished_at or letzter_scan.started_at)|datetimefmt }}
+        </span>
+        <span class="badge
+          {%- if letzter_scan.scan_status == 'completed' %} bg-success
+          {%- elif letzter_scan.scan_status == 'running' %} bg-primary
+          {%- elif letzter_scan.scan_status == 'cancelled' %} bg-secondary
+          {%- else %} bg-warning text-dark{%- endif %}">
+          {{ letzter_scan.scan_status|capitalize }}
+        </span>
+        <div class="d-flex gap-3 ms-2" style="font-size:.82rem;color:#555">
+          <span><i class="bi bi-files me-1 text-muted"></i>{{ letzter_scan.total_files or 0 }} Dateien</span>
+          <span><i class="bi bi-plus-circle me-1 text-success"></i>{{ letzter_scan.new_files or 0 }} Neu</span>
+          <span><i class="bi bi-arrow-repeat me-1 text-warning"></i>{{ letzter_scan.changed_files or 0 }} Geändert</span>
+          {% if unverknuepfte_funde > 0 %}
+          <a href="{{ url_for('funde.list_funde') }}" class="text-decoration-none"
+             title="Scanner-Funde ohne IDV-Zuordnung">
+            <i class="bi bi-exclamation-circle me-1 text-danger"></i>{{ unverknuepfte_funde }} zu prüfen
+          </a>
+          {% else %}
+          <span class="text-success"><i class="bi bi-check-circle me-1"></i>Alle zugeordnet</span>
+          {% endif %}
         </div>
+      {% else %}
+        <span class="text-muted" style="font-size:.85rem">Noch kein Scan durchgeführt.</span>
+      {% endif %}
+
+      <div class="ms-auto">
+        <a href="{{ url_for('admin.scanner_einstellungen') }}" class="btn btn-xs btn-outline-secondary">
+          <i class="bi bi-gear-wide-connected me-1"></i>Scanner
+        </a>
       </div>
     </div>
   </div>
-  {% endif %}
 </div>
 
 <!-- ── Zwei-Spalten-Layout ─────────────────────────────────────────── -->
