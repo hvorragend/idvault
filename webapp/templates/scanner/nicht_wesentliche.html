@@ -24,8 +24,27 @@
   </div>
 </div>
 
+<!-- ── Filter-Leiste ─────────────────────────────────────────────── -->
+<form method="get" class="card border-0 shadow-sm p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12">
+      <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
+      {% include 'scanner/_dir_search.html' %}
+    </div>
+    <div class="col-auto d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel me-1"></i>Filtern</button>
+      <a href="{{ url_for('scanner.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+    </div>
+  </div>
+  {% if dir_path_filt %}
+  <div class="mt-2">
+    <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
+  </div>
+  {% endif %}
+</form>
+
 <!-- ── Pagination oben ────────────────────────────────────────────── -->
-{% set url_extra = {} %}
+{% set url_extra = {'dir_path': dir_path_filt} %}
 {% set endpoint = 'scanner.nicht_wesentliche_idvs' %}
 {% include 'scanner/_pagination.html' %}
 
@@ -78,17 +97,11 @@
           </td>
           <td style="font-size:.74rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ r.full_path }}">
-            {% if r.full_path and r.file_name and r.full_path|length > r.file_name|length %}
-              {% set dir_path = r.full_path[:(r.full_path|length - r.file_name|length - 1)] %}
-            {% elif r.share_root %}
-              {% set dir_path = r.share_root %}
-            {% else %}
-              {% set dir_path = '' %}
-            {% endif %}
-            {% if dir_path %}
-            <span class="badge bg-success font-monospace" style="font-size:.68rem"
-                  title="{{ dir_path }}">
-              <i class="bi bi-folder2-open me-1"></i>{{ dir_path }}
+            {% if r.dir_path %}
+            <span class="badge bg-success font-monospace"
+                  style="font-size:.68rem"
+                  title="{{ r.dir_path }}">
+              <i class="bi bi-folder2-open me-1"></i>{{ ('…' + r.dir_path[-55:]) if r.dir_path|length > 58 else r.dir_path }}
             </span>
             {% endif %}
           </td>
