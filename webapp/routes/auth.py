@@ -48,14 +48,8 @@ def _check_person_login(db, username: str, password: str):
 
 
 def _local_login_enabled(db) -> bool:
-    """Gibt True zurück wenn der lokale Notfall-Login im Admin aktiviert wurde."""
-    try:
-        row = db.execute(
-            "SELECT value FROM app_settings WHERE key = 'local_login_enabled'"
-        ).fetchone()
-        return row is not None and row["value"] == "1"
-    except Exception:
-        return False
+    """Lokaler Login ist immer verfügbar (Einstellung wird nicht mehr ausgewertet)."""
+    return True
 
 
 def _do_local_login(db, username: str, password: str):
@@ -86,30 +80,14 @@ def _do_local_login(db, username: str, password: str):
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username   = request.form.get("username", "").strip()
-        password   = request.form.get("password", "")
-        login_mode = request.form.get("login_mode", "")  # "local" = Notfall-Zugang
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
 
         db = None
         try:
             db = get_db()
         except Exception:
             pass
-
-        # ── Lokaler Notfall-Zugang (LDAP wird übersprungen) ──────────────────
-        if login_mode == "local" and (db is None or _local_login_enabled(db)):
-            result = _do_local_login(db, username, password)
-            if result:
-                session.clear()
-                session.update(result)
-                return redirect(url_for("dashboard.index"))
-            flash("Benutzername oder Passwort falsch.", "error")
-            ldap_active = db is not None and ldap_is_enabled(db)
-            local_enabled = db is not None and _local_login_enabled(db)
-            return render_template("auth/login.html",
-                                   ldap_active=ldap_active,
-                                   local_login_enabled=local_enabled,
-                                   show_local=True)
 
         # ── 1. LDAP-Login (wenn aktiviert) ───────────────────────────────────
         if db is not None:
@@ -120,32 +98,30 @@ def login():
                     if person_data is not None:
                         if person_data.get("rolle") is None:
                             flash(
-                                "Anmeldung erfolgreich, aber Ihr AD-Konto ist keiner "
-                                "idvault-Gruppe zugeordnet. Bitte wenden Sie sich an den Administrator.",
+                                "Anmeldung erfolgreich, aber Ihr AD-Konto hat noch keine "
+                                "idvault-Berechtigung. Bitte wenden Sie sich an den Administrator.",
                                 "error",
                             )
-                            return render_template("auth/login.html",
-                                                   ldap_active=True,
-                                                   local_login_enabled=_local_login_enabled(db))
+                            return render_template("auth/login.html", ldap_active=True)
                         person_id = ldap_sync_person(db, person_data)
+                        # User-ID aus DB verwenden (= Kürzel für neu importierte Personen)
+                        db_person = db.execute(
+                            "SELECT user_id FROM persons WHERE id = ?", (person_id,)
+                        ).fetchone()
                         session.clear()
-                        session["user_id"]   = username
+                        session["user_id"]   = (db_person["user_id"] if db_person and db_person["user_id"] else username)
                         session["user_name"] = f"{person_data['vorname']} {person_data['nachname']}".strip() or username
                         session["user_role"] = person_data["rolle"]
                         session["person_id"] = person_id
                         session["ldap_auth"] = True
                         return redirect(url_for("dashboard.index"))
-                    # LDAP aktiv und Server erreichbar, aber Credentials falsch
-                    flash("Benutzername oder Passwort falsch.", "error")
-                    return render_template("auth/login.html",
-                                           ldap_active=True,
-                                           local_login_enabled=_local_login_enabled(db))
+                    # LDAP aktiv, aber Credentials passen nicht → lokalen Login versuchen
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error("LDAP-Login-Fehler: %s", e)
                 # Bei LDAP-Fehler (Server nicht erreichbar): weiter mit lokalem Login
 
-        # ── 2. Lokaler Login (kein LDAP oder LDAP-Server nicht erreichbar) ───
+        # ── 2. Lokaler Login (immer als Fallback verfügbar) ──────────────────
         result = _do_local_login(db, username, password)
         if result:
             session.clear()
@@ -155,18 +131,14 @@ def login():
         flash("Benutzername oder Passwort falsch.", "error")
 
     # GET
-    ldap_active   = False
-    local_enabled = False
+    ldap_active = False
     try:
         db = get_db()
-        ldap_active   = ldap_is_enabled(db)
-        local_enabled = _local_login_enabled(db)
+        ldap_active = ldap_is_enabled(db)
     except Exception:
         pass
 
-    return render_template("auth/login.html",
-                           ldap_active=ldap_active,
-                           local_login_enabled=local_enabled)
+    return render_template("auth/login.html", ldap_active=ldap_active)
 
 
 @bp.route("/logout")

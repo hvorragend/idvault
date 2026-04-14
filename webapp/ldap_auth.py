@@ -120,7 +120,7 @@ def ldap_sync_person(db, person_data: dict) -> Optional[int]:
 
     # Neue Person anlegen
     kuerzel = _generate_kuerzel(db, person_data)
-    rolle = person_data.get("rolle") or "Fachverantwortlicher"
+    rolle = person_data.get("rolle") or None  # kein Default – Admin vergibt Rolle manuell
     db.execute(
         """INSERT INTO persons
                (kuerzel, nachname, vorname, email, telefon, rolle, ad_name, user_id, aktiv)
@@ -133,7 +133,7 @@ def ldap_sync_person(db, person_data: dict) -> Optional[int]:
             person_data.get("telefon", ""),
             rolle,
             ad_name,
-            user_id,
+            kuerzel,   # Kürzel als User-ID (ad_name bleibt für LDAP-Matching erhalten)
         ),
     )
     db.commit()
@@ -280,6 +280,22 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
 
         # 3. Rolle aus Gruppen ermitteln
         rolle = _get_role_from_groups(db, member_of)
+
+        # Fallback: Wenn keine LDAP-Gruppe gemappt ist, gespeicherte Rolle aus DB nutzen
+        if rolle is None:
+            try:
+                existing = db.execute(
+                    "SELECT rolle FROM persons WHERE ad_name = ? AND aktiv = 1",
+                    (username,)
+                ).fetchone()
+                if existing and existing["rolle"]:
+                    rolle = existing["rolle"]
+                    logger.info(
+                        "LDAP: Keine Gruppen-Rollenzuordnung für '%s' – verwende gespeicherte Rolle '%s'",
+                        username, rolle,
+                    )
+            except Exception:
+                pass
 
         return {
             "vorname":  vorname,
