@@ -752,15 +752,9 @@ _KLASSIFIZIERUNGS_BEREICHE = [
 @login_required
 def index():
     db = get_db()
-    org_units        = db.execute("SELECT * FROM org_units ORDER BY bezeichnung").fetchall()
-    persons          = db.execute("""
-        SELECT p.*, o.bezeichnung AS org
-        FROM persons p LEFT JOIN org_units o ON p.org_unit_id=o.id
-        ORDER BY p.nachname
-    """).fetchall()
+    org_units          = db.execute("SELECT * FROM org_units ORDER BY bezeichnung").fetchall()
     geschaeftsprozesse = db.execute("SELECT * FROM geschaeftsprozesse ORDER BY gp_nummer").fetchall()
-    plattformen      = db.execute("SELECT * FROM plattformen ORDER BY bezeichnung").fetchall()
-    settings         = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM app_settings").fetchall()}
+    plattformen        = db.execute("SELECT * FROM plattformen ORDER BY bezeichnung").fetchall()
 
     # Klassifizierungen gruppiert nach Bereich
     klassifizierungen = {}
@@ -774,14 +768,52 @@ def index():
         SELECT * FROM wesentlichkeitskriterien ORDER BY sort_order, id
     """).fetchall()
 
-    from ..email_service import EMAIL_TEMPLATES as _email_tpls, _DEFAULTS as _email_defaults
     return render_template("admin/index.html",
-        org_units=org_units, persons=persons,
+        org_units=org_units,
         geschaeftsprozesse=geschaeftsprozesse, plattformen=plattformen,
-        settings=settings,
         klassifizierungen=klassifizierungen,
         klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE,
-        wesentlichkeitskriterien=wesentlichkeitskriterien,
+        wesentlichkeitskriterien=wesentlichkeitskriterien)
+
+
+@bp.route("/mitarbeiter")
+@login_required
+def mitarbeiter():
+    db = get_db()
+    org_units = db.execute("SELECT * FROM org_units ORDER BY bezeichnung").fetchall()
+    persons   = db.execute("""
+        SELECT p.*, o.bezeichnung AS org
+        FROM persons p LEFT JOIN org_units o ON p.org_unit_id=o.id
+        ORDER BY p.nachname
+    """).fetchall()
+    return render_template("admin/mitarbeiter.html",
+        org_units=org_units,
+        persons=persons)
+
+
+@bp.route("/mail", methods=["GET", "POST"])
+@admin_required
+def mail():
+    db = get_db()
+    if request.method == "POST":
+        keys = ["smtp_host", "smtp_port", "smtp_user", "smtp_password",
+                "smtp_from", "smtp_tls", "app_base_url"]
+        from ..email_service import EMAIL_TEMPLATES
+        for tpl_key in EMAIL_TEMPLATES:
+            keys.append(f"notify_enabled_{tpl_key}")
+            keys.append(f"email_tpl_{tpl_key}_subject")
+            keys.append(f"email_tpl_{tpl_key}_body")
+        for k in keys:
+            val = request.form.get(k, "")
+            db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", (k, val))
+        db.commit()
+        flash("Einstellungen gespeichert.", "success")
+        return redirect(url_for("admin.mail") + "#email-vorlagen")
+
+    settings = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM app_settings").fetchall()}
+    from ..email_service import EMAIL_TEMPLATES as _email_tpls, _DEFAULTS as _email_defaults
+    return render_template("admin/mail.html",
+        settings=settings,
         email_templates=_email_tpls,
         email_defaults=_email_defaults)
 
@@ -1179,7 +1211,7 @@ def save_settings():
         db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", (k, val))
     db.commit()
     flash("Einstellungen gespeichert.", "success")
-    return redirect(url_for("admin.index") + "#email-vorlagen")
+    return redirect(url_for("admin.mail") + "#email-vorlagen")
 
 
 # ── Login-Log ─────────────────────────────────────────────────────────────

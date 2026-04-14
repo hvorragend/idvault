@@ -57,9 +57,24 @@ def index():
         LIMIT 5
     """).fetchall()
 
+    letzter_scan = db.execute("""
+        SELECT id, started_at, finished_at, total_files, new_files, changed_files, scan_status
+        FROM scan_runs
+        ORDER BY started_at DESC LIMIT 1
+    """).fetchone()
+
+    unverknuepfte_funde = db.execute("""
+        SELECT COUNT(*) FROM idv_files
+        WHERE status = 'active'
+          AND id NOT IN (SELECT file_id FROM idv_file_links)
+          AND id NOT IN (SELECT COALESCE(file_id, -1) FROM idv_register WHERE file_id IS NOT NULL)
+    """).fetchone()[0]
+
     return render_template("dashboard.html",
         stats=stats,
         kritische_idvs=kritische_idvs,
         prueffaelligkeiten=prueffaelligkeiten,
         offene_massnahmen=offene_massnahmen,
+        letzter_scan=letzter_scan,
+        unverknuepfte_funde=unverknuepfte_funde,
     )

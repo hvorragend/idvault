@@ -1,0 +1,346 @@
+{% extends "base.html" %}
+{% block title %}Administration – Mitarbeiter & LDAP{% endblock %}
+{% block page_title %}<i class="bi bi-gear me-2"></i>Administration{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+<div class="row g-4">
+
+  <!-- ── Personen / Mitarbeiterverwaltung ──────────────────────── -->
+
+  {# Bulk-Formular: außerhalb der Karte, Checkboxes verweisen via form="personBulkForm" #}
+  <form id="personBulkForm" method="post" action="{{ url_for('admin.bulk_persons') }}"></form>
+
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-600"><i class="bi bi-people me-2"></i>Personen / Mitarbeiterverwaltung (<span id="personCount">{{ persons|length }}</span>)</span>
+        <a href="{{ url_for('admin.import_template') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-download me-1"></i>CSV-Vorlage
+        </a>
+      </div>
+
+      <!-- Suche & Filter -->
+      <div class="px-3 py-2 border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <input type="text" id="personSearch" class="form-control form-control-sm"
+               placeholder="Suche nach Name, Kürzel, User-ID, E-Mail …" style="max-width:280px">
+        <select id="personRolleFilter" class="form-select form-select-sm" style="max-width:200px">
+          <option value="">– alle Rollen –</option>
+          {% for r in ['IDV-Administrator','IDV-Koordinator','Fachverantwortlicher','IT-Sicherheit','Revision'] %}
+          <option>{{ r }}</option>{% endfor %}
+          <option value="__keine__">– keine –</option>
+        </select>
+        <select id="personAktivFilter" class="form-select form-select-sm" style="max-width:120px">
+          <option value="">alle</option>
+          <option value="1" selected>aktiv</option>
+          <option value="0">inaktiv</option>
+        </select>
+      </div>
+
+      <!-- Bulk-Aktionsleiste (erscheint bei Auswahl) -->
+      <div id="personBulkBar" class="d-none px-3 py-2 border-bottom bg-warning bg-opacity-10 d-flex align-items-center gap-2 flex-wrap">
+        <span class="text-muted small"><span id="personSelCount">0</span> ausgewählt</span>
+        <button form="personBulkForm" type="submit" name="action" value="deactivate"
+                class="btn btn-sm btn-warning"
+                onclick="return confirm('Ausgewählte Personen deaktivieren?')">
+          <i class="bi bi-person-dash me-1"></i>Deaktivieren
+        </button>
+        <button form="personBulkForm" type="submit" name="action" value="delete"
+                class="btn btn-sm btn-danger"
+                onclick="return confirm('Ausgewählte Personen endgültig löschen?\n\nAchtung: Personen, die noch IDVs zugeordnet haben, können nicht gelöscht werden.')">
+          <i class="bi bi-trash me-1"></i>Löschen
+        </button>
+        <button type="button" id="personDeselectAll" class="btn btn-sm btn-outline-secondary ms-auto">
+          <i class="bi bi-x me-1"></i>Auswahl aufheben
+        </button>
+      </div>
+
+      <div style="max-height:420px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0" id="personTable">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th style="width:2rem">
+                <input type="checkbox" id="personSelectAll" class="form-check-input"
+                       title="Alle sichtbaren auswählen">
+              </th>
+              <th class="sort-col" data-col="1" style="cursor:pointer;user-select:none">Kürzel <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th class="sort-col" data-col="2" style="cursor:pointer;user-select:none">Name <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th class="sort-col" data-col="3" style="cursor:pointer;user-select:none">User-ID <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th>E-Mail</th><th>AD-Name</th>
+              <th class="sort-col" data-col="6" style="cursor:pointer;user-select:none">Rolle <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th class="sort-col" data-col="7" style="cursor:pointer;user-select:none">OE <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th>Aktiv</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in persons %}
+            <tr class="{{ '' if p.aktiv else 'text-muted' }}"
+                data-rolle="{{ p.rolle or '' }}"
+                data-aktiv="{{ '1' if p.aktiv else '0' }}">
+              <td>
+                <input type="checkbox" name="person_ids" value="{{ p.id }}"
+                       form="personBulkForm" class="form-check-input person-cb">
+              </td>
+              <td><code>{{ p.kuerzel }}</code></td>
+              <td>{{ p.nachname }}, {{ p.vorname }}</td>
+              <td style="font-size:.78rem">{{ p.user_id or '–' }}</td>
+              <td style="font-size:.78rem">
+                {% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% else %}–{% endif %}
+              </td>
+              <td style="font-size:.78rem;font-family:monospace">{{ p.ad_name or '–' }}</td>
+              <td style="font-size:.78rem">{{ p.rolle or '–' }}</td>
+              <td style="font-size:.78rem">{{ p.org or '–' }}</td>
+              <td class="text-center">
+                {% if p.aktiv %}<span class="badge bg-success">Ja</span>
+                {% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('admin.edit_person', pid=p.id) }}"
+                   class="btn btn-xs btn-outline-primary py-0 px-1" title="Bearbeiten">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{{ url_for('admin.delete_person', pid=p.id) }}"
+                      class="d-inline" onsubmit="return confirm('Person deaktivieren?')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Deaktivieren">
+                    <i class="bi bi-person-dash"></i>
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('admin.delete_person_hard', pid=p.id) }}"
+                      class="d-inline" onsubmit="return confirm('Person endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Endgültig löschen">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card-footer bg-white">
+        <!-- Neue Person -->
+        <details>
+          <summary class="text-primary" style="cursor:pointer;font-size:.88rem">
+            <i class="bi bi-plus-circle me-1"></i>Neue Person anlegen
+          </summary>
+          <form method="post" action="{{ url_for('admin.new_person') }}" class="row g-2 mt-2">
+            <div class="col-md-1"><input type="text" name="kuerzel" class="form-control form-control-sm" placeholder="Kürzel" required></div>
+            <div class="col-md-2"><input type="text" name="nachname" class="form-control form-control-sm" placeholder="Nachname" required></div>
+            <div class="col-md-2"><input type="text" name="vorname" class="form-control form-control-sm" placeholder="Vorname" required></div>
+            <div class="col-md-2"><input type="email" name="email" class="form-control form-control-sm" placeholder="E-Mail (SMTP)"></div>
+            <div class="col-md-2"><input type="text" name="user_id" class="form-control form-control-sm" placeholder="User-ID (Login)"></div>
+            <div class="col-md-2"><input type="text" name="ad_name" class="form-control form-control-sm" placeholder="AD-Name (DOMAIN\\user)"></div>
+            <div class="col-md-2">
+              <select name="rolle" class="form-select form-select-sm">
+                <option value="">– keine –</option>
+                {% for r in ['IDV-Koordinator','Fachverantwortlicher','IT-Sicherheit','Revision','IDV-Administrator'] %}
+                <option>{{ r }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <select name="org_unit_id" class="form-select form-select-sm">
+                <option value="">– OE –</option>
+                {% for ou in org_units %}<option value="{{ ou.id }}">{{ ou.kuerzel }} – {{ ou.bezeichnung }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus me-1"></i>Hinzufügen</button>
+            </div>
+          </form>
+        </details>
+        <!-- CSV-Import -->
+        <details class="mt-2">
+          <summary class="text-success" style="cursor:pointer;font-size:.88rem">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Mitarbeiter aus CSV importieren
+          </summary>
+          <form method="post" action="{{ url_for('admin.import_persons') }}" enctype="multipart/form-data" class="row g-2 mt-2">
+            <div class="col-md-8">
+              <input type="file" name="csv_file" accept=".csv,.txt" class="form-control form-control-sm" required>
+              <div class="form-text">Trennzeichen: Semikolon oder Komma. Spalten: user_id; email; ad_name; oe_kuerzel; nachname; vorname; kuerzel; rolle</div>
+            </div>
+            <div class="col-md-4">
+              <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-upload me-1"></i>Importieren</button>
+            </div>
+          </form>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LDAP / Active Directory ──────────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-diagram-3 me-2"></i>LDAP / Active Directory
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.88rem">
+          LDAPS-Verbindung konfigurieren, AD-Gruppen den idvault-Rollen zuordnen und
+          Benutzer aus dem Verzeichnis importieren.
+        </p>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="card border h-100">
+              <div class="card-body">
+                <h6 class="fw-600 mb-1"><i class="bi bi-server me-2 text-primary"></i>LDAP-Verbindung</h6>
+                <p class="text-muted mb-3" style="font-size:.82rem">
+                  Server-URL, Port, Bind-DN, Passwort und Zertifikat konfigurieren.
+                  Verbindung testen.
+                </p>
+                <a href="{{ url_for('admin.ldap_config') }}" class="btn btn-primary btn-sm">
+                  <i class="bi bi-gear me-1"></i>LDAP konfigurieren
+                </a>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border h-100">
+              <div class="card-body">
+                <h6 class="fw-600 mb-1"><i class="bi bi-people me-2 text-primary"></i>Gruppen-Mapping</h6>
+                <p class="text-muted mb-3" style="font-size:.82rem">
+                  AD-Gruppen den idvault-Rollen zuordnen (z.&nbsp;B. Koordinatoren,
+                  Administratoren).
+                </p>
+                <a href="{{ url_for('admin.ldap_gruppen') }}" class="btn btn-outline-primary btn-sm">
+                  <i class="bi bi-people me-1"></i>Gruppen-Mapping
+                </a>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border h-100">
+              <div class="card-body">
+                <h6 class="fw-600 mb-1"><i class="bi bi-person-lines-fill me-2 text-primary"></i>LDAP-Import</h6>
+                <p class="text-muted mb-3" style="font-size:.82rem">
+                  Benutzer aus dem LDAP-Verzeichnis suchen und in idvault importieren.
+                </p>
+                <a href="{{ url_for('admin.ldap_import') }}" class="btn btn-outline-secondary btn-sm">
+                  <i class="bi bi-person-lines-fill me-1"></i>Importieren
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+  .fw-600 { font-weight: 600; }
+  .btn-xs { font-size: .75rem; line-height: 1.4; }
+  .sort-col:hover { background: #f0f4f8; }
+  .sort-col.asc i, .sort-col.desc i { color: #0d6efd !important; }
+</style>
+<script>
+(function () {
+  const table      = document.getElementById('personTable');
+  const tbody      = table.querySelector('tbody');
+  const allRows    = Array.from(tbody.querySelectorAll('tr'));
+  const countEl    = document.getElementById('personCount');
+  const search     = document.getElementById('personSearch');
+  const rolleF     = document.getElementById('personRolleFilter');
+  const aktivF     = document.getElementById('personAktivFilter');
+  const selectAll  = document.getElementById('personSelectAll');
+  const bulkBar    = document.getElementById('personBulkBar');
+  const selCountEl = document.getElementById('personSelCount');
+  const deselectBtn = document.getElementById('personDeselectAll');
+  let sortCol = -1, sortDir = 1;
+
+  function applyFilter() {
+    const q     = search.value.toLowerCase();
+    const rolle = rolleF.value;
+    const aktiv = aktivF.value;
+    let vis = 0;
+    allRows.forEach(row => {
+      const text     = row.textContent.toLowerCase();
+      const rowRolle = row.dataset.rolle;
+      const rowAktiv = row.dataset.aktiv;
+      const okQ      = !q     || text.includes(q);
+      const okRolle  = !rolle || (rolle === '__keine__' ? !rowRolle : rowRolle === rolle);
+      const okAktiv  = !aktiv || rowAktiv === aktiv;
+      const show     = okQ && okRolle && okAktiv;
+      row.style.display = show ? '' : 'none';
+      if (show) vis++;
+    });
+    countEl.textContent = vis;
+    updateBulkBar();
+  }
+
+  function applySort(col) {
+    if (sortCol === col) { sortDir = -sortDir; }
+    else { sortCol = col; sortDir = 1; }
+
+    const visible = allRows.filter(r => r.style.display !== 'none');
+    const hidden  = allRows.filter(r => r.style.display === 'none');
+
+    visible.sort((a, b) => {
+      const ta = (a.cells[col]?.textContent || '').trim().toLowerCase();
+      const tb = (b.cells[col]?.textContent || '').trim().toLowerCase();
+      return ta < tb ? -sortDir : ta > tb ? sortDir : 0;
+    });
+    [...visible, ...hidden].forEach(r => tbody.appendChild(r));
+
+    table.querySelectorAll('.sort-col').forEach(th => {
+      th.classList.remove('asc', 'desc');
+      const ic = th.querySelector('i');
+      ic.className = 'bi bi-arrow-down-up text-muted';
+      ic.style.fontSize = '.65rem';
+      if (parseInt(th.dataset.col) === col) {
+        th.classList.add(sortDir === 1 ? 'asc' : 'desc');
+        ic.className = sortDir === 1 ? 'bi bi-arrow-up' : 'bi bi-arrow-down';
+      }
+    });
+  }
+
+  function updateBulkBar() {
+    const checked = document.querySelectorAll('.person-cb:checked').length;
+    selCountEl.textContent = checked;
+    if (checked > 0) {
+      bulkBar.classList.remove('d-none');
+      bulkBar.classList.add('d-flex');
+    } else {
+      bulkBar.classList.add('d-none');
+      bulkBar.classList.remove('d-flex');
+    }
+    const visible    = allRows.filter(r => r.style.display !== 'none');
+    const visChecked = visible.filter(r => r.querySelector('.person-cb')?.checked).length;
+    selectAll.indeterminate = visChecked > 0 && visChecked < visible.length;
+    selectAll.checked = visible.length > 0 && visChecked === visible.length;
+  }
+
+  selectAll.addEventListener('change', function () {
+    allRows.forEach(row => {
+      if (row.style.display !== 'none') {
+        const cb = row.querySelector('.person-cb');
+        if (cb) cb.checked = this.checked;
+      }
+    });
+    updateBulkBar();
+  });
+
+  deselectBtn.addEventListener('click', function () {
+    document.querySelectorAll('.person-cb').forEach(cb => cb.checked = false);
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    updateBulkBar();
+  });
+
+  tbody.addEventListener('change', function (e) {
+    if (e.target.classList.contains('person-cb')) updateBulkBar();
+  });
+
+  search.addEventListener('input',  applyFilter);
+  rolleF.addEventListener('change', applyFilter);
+  aktivF.addEventListener('change', applyFilter);
+  table.querySelectorAll('.sort-col').forEach(th =>
+    th.addEventListener('click', () => applySort(parseInt(th.dataset.col)))
+  );
+
+  applyFilter();
+})();
+</script>
+{% endblock %}

@@ -632,6 +632,67 @@ def unlink_file(idv_db_id, link_id):
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 
+@bp.route("/<int:idv_db_id>/dateien-verknuepfen", methods=["GET", "POST"])
+@own_write_required
+def link_files(idv_db_id):
+    """Direkte Datei-Verknüpfung: zeigt freie Scanner-Funde und verknüpft ausgewählte mit dem IDV."""
+    db = get_db()
+    idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
+    if not idv:
+        flash("IDV nicht gefunden.", "error")
+        return redirect(url_for("idv.list_idv"))
+
+    if request.method == "POST":
+        raw_ids = request.form.getlist("file_ids")
+        try:
+            file_ids = [int(i) for i in raw_ids if i]
+        except ValueError:
+            flash("Ungültige Datei-IDs.", "error")
+            return redirect(url_for("idv.link_files", idv_db_id=idv_db_id))
+
+        if not file_ids:
+            flash("Keine Dateien ausgewählt.", "warning")
+            return redirect(url_for("idv.link_files", idv_db_id=idv_db_id))
+
+        linked = 0
+        for fid in file_ids:
+            try:
+                db.execute(
+                    "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                    (idv_db_id, fid)
+                )
+                db.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
+                    (fid,)
+                )
+                linked += 1
+            except Exception:
+                pass
+        db.commit()
+        flash(f"{linked} Datei(en) mit IDV {idv['idv_id']} verknüpft.", "success")
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+    # GET – freie Scanner-Funde laden (nicht mit irgendeinem IDV verknüpft)
+    verfuegbare_dateien = db.execute("""
+        SELECT f.*
+        FROM idv_files f
+        WHERE f.status = 'active'
+          AND f.id NOT IN (
+              SELECT file_id FROM idv_file_links
+          )
+          AND (
+              f.id != COALESCE((SELECT file_id FROM idv_register WHERE id = ?), -1)
+          )
+        ORDER BY f.last_seen_at DESC
+    """, (idv_db_id,)).fetchall()
+
+    return render_template(
+        "idv/datei_verknuepfen.html",
+        idv=idv,
+        verfuegbare_dateien=verfuegbare_dateien,
+    )
+
+
 # ── Neue Version ───────────────────────────────────────────────────────────
 
 @bp.route("/<int:idv_db_id>/neue-version", methods=["POST"])
