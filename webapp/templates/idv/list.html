@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}IDV-Grundgesamtheit{% endblock %}
-{% block page_title %}<i class="bi bi-table me-2"></i>IDV-Grundgesamtheit{% endblock %}
+{% block title %}Wesentliche IDV{% endblock %}
+{% block page_title %}<i class="bi bi-table me-2"></i>Wesentliche IDV{% endblock %}
 
 {% block content %}
 
@@ -8,7 +8,7 @@
 <form method="get" class="card border-0 shadow-sm p-3 mb-4">
   <div class="row g-2 align-items-end">
 
-    <!-- Zeile 1: Suche + Status + Filter -->
+    <!-- Zeile 1: Suche + Status + Filter + Buttons -->
     <div class="col-md-4">
       <label class="form-label form-label-sm">Suche</label>
       <input type="text" name="q" value="{{ request.args.get('q','') }}"
@@ -40,8 +40,18 @@
       <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
 
-    <!-- Zeile 2: OE + Fachverantwortlicher + Scan-Verzeichnis -->
-    <div class="col-md-4">
+    <!-- Zeile 2: Scan-Verzeichnis – volle Breite, Live-Suche -->
+    <div class="col-12">
+      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
+      {% set field_name    = "share_root" %}
+      {% set field_options = share_roots %}
+      {% set field_value   = share_root %}
+      {% set input_id      = "share-root-search" %}
+      {% include 'scanner/_dir_search.html' %}
+    </div>
+
+    <!-- Zeile 3: OE + Fachverantwortlicher -->
+    <div class="col-md-6">
       <label class="form-label form-label-sm"><i class="bi bi-diagram-3 me-1"></i>Organisationseinheit</label>
       <select name="oe_id" class="form-select form-select-sm">
         <option value="">– Alle OEs –</option>
@@ -52,7 +62,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-6">
       <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Fachverantwortlicher</label>
       <select name="fv_id" class="form-select form-select-sm">
         <option value="">– Alle –</option>
@@ -63,26 +73,36 @@
         {% endfor %}
       </select>
     </div>
-    {% if share_roots %}
-    <div class="col-md-4">
-      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
-      <select name="share_root" class="form-select form-select-sm">
-        <option value="">– Alle Verzeichnisse –</option>
-        {% for sr in share_roots %}
-        <option value="{{ sr }}" {{ 'selected' if request.args.get('share_root','') == sr }}>{{ sr }}</option>
-        {% endfor %}
-      </select>
+
+    <!-- Aktive Filter anzeigen -->
+    {% if share_root or request.args.get('oe_id') or request.args.get('fv_id') %}
+    <div class="col-12 d-flex gap-2 flex-wrap mt-1">
+      {% if share_root %}
+      <span class="badge bg-success font-monospace"><i class="bi bi-folder me-1"></i>{{ share_root }}</span>
+      {% endif %}
     </div>
     {% endif %}
 
   </div>
 </form>
 
+<!-- ── Pagination ─────────────────────────────────────────────────── -->
+{% set url_extra = {'q': q, 'status': status, 'filter': filt, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root} %}
+{% set endpoint = 'idv.list_idv' %}
+{% include 'scanner/_pagination.html' %}
+
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
 <form id="bulk-form" method="post" action="{{ url_for('idv.list_idv') }}">
-<div class="card border-0 shadow-sm">
+<div class="card border-0 shadow-sm mt-2">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
-    <span class="fw-600"><i class="bi bi-list-ul me-2"></i>{{ idvs|length }} Einträge</span>
+    <span class="fw-600">
+      <i class="bi bi-list-ul me-2"></i>
+      {% if total > per_page %}
+      {{ idvs|length }} von {{ total }} Einträgen (Seite {{ page }})
+      {% else %}
+      {{ total }} Einträge
+      {% endif %}
+    </span>
     <div class="d-flex gap-2 align-items-center flex-wrap">
       {% if can_write %}
       <span id="bulk-info" class="text-muted me-1" style="font-size:.82rem;display:none">
@@ -133,6 +153,7 @@
           <th class="sortable">Wesentlichkeit</th>
           <th class="sortable">Status</th>
           <th class="sortable">Fachverantwortlicher</th>
+          <th>Geändert</th>
           <th class="sortable">Nächste Prüfung</th>
           <th></th>
         </tr>
@@ -186,6 +207,7 @@
             <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
           </td>
           <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+          <td class="text-nowrap" style="font-size:.76rem">{{ r.updated_at|datefmt if r.updated_at else '–' }}</td>
           <td style="font-size:.82rem">
             {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
               <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
@@ -212,7 +234,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="{{ 11 if can_write else 10 }}" class="text-center text-muted py-5">
+          <td colspan="{{ 12 if can_write else 11 }}" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine IDVs gefunden.
             {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}
@@ -224,6 +246,9 @@
   </div>
 </div>
 </form>
+
+<!-- ── Pagination unten ───────────────────────────────────────────── -->
+{% include 'scanner/_pagination.html' %}
 
 <style>
 .btn-xs { padding: .15rem .4rem; font-size: .75rem; }

@@ -157,11 +157,14 @@ def scanner_einstellungen():
         })
         try:
             _save_scanner_config(cfg)
-            # App-Setting für Auto-Ignorieren speichern
+            # App-Settings für Auto-Ignorieren und Verwerfen speichern
             db = get_db()
-            val = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
+            val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
+            val_dc = "1" if request.form.get("discard_no_formula") == "1" else "0"
             db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
-                       ("auto_ignore_no_formula", val))
+                       ("auto_ignore_no_formula", val_ai))
+            db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
+                       ("discard_no_formula", val_dc))
             db.commit()
             flash("Scanner-Konfiguration gespeichert.", "success")
         except Exception as exc:
@@ -172,9 +175,13 @@ def scanner_einstellungen():
     auto_ignore = db.execute(
         "SELECT value FROM app_settings WHERE key='auto_ignore_no_formula'"
     ).fetchone()
+    discard_nf = db.execute(
+        "SELECT value FROM app_settings WHERE key='discard_no_formula'"
+    ).fetchone()
     return render_template("admin/scanner_einstellungen.html",
                            cfg=cfg, scan_running=_scan_is_running(),
-                           auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"))
+                           auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"),
+                           discard_no_formula=(discard_nf["value"] if discard_nf else "0"))
 
 
 @bp.route("/scanner/starten", methods=["POST"])

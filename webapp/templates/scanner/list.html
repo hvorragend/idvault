@@ -13,7 +13,11 @@
   <div class="col-sm-3">
     <div class="card border-0 shadow-sm stat-card p-3 text-center">
       <div class="stat-val text-primary">{{ gesamt }}</div>
-      <div class="stat-lbl">Aktive Dateien</div>
+      <div class="stat-lbl">Aktive Dateien
+        {% if ignoriert %}
+        <span class="d-block text-muted" style="font-size:.72rem">{{ ignoriert }} ignoriert</span>
+        {% endif %}
+      </div>
     </div>
   </div>
   <div class="col-sm-3">
@@ -83,19 +87,13 @@
 <form method="get" class="card border-0 shadow-sm p-3 mb-3">
   <input type="hidden" name="filter" value="{{ filt }}">
   <div class="row g-2 align-items-end">
-    <!-- Speicherort (dir_path) -->
-    <div class="col-md-4">
+    <!-- Speicherort (dir_path) – durchsuchbares Eingabefeld, volle Breite -->
+    <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      <select name="dir_path" class="form-select form-select-sm" title="{{ dir_path_filt }}">
-        <option value="">– Alle Verzeichnisse –</option>
-        {% for dp in dir_paths %}
-        <option value="{{ dp }}" {{ 'selected' if dir_path_filt == dp }}
-                title="{{ dp }}">{{ ('…' + dp[-60:]) if dp|length > 63 else dp }}</option>
-        {% endfor %}
-      </select>
+      {% include 'scanner/_dir_search.html' %}
     </div>
     <!-- Scan-Pfad (share_root) -->
-    <div class="col-md-3">
+    <div class="col-md-4">
       <label class="form-label form-label-sm"><i class="bi bi-hdd-network me-1"></i>Scan-Pfad</label>
       <select name="share_root" class="form-select form-select-sm" title="{{ share_root_filt }}">
         <option value="">– Alle –</option>
@@ -106,7 +104,7 @@
       </select>
     </div>
     <!-- Scan-Lauf -->
-    <div class="col-md-3">
+    <div class="col-md-5">
       <label class="form-label form-label-sm"><i class="bi bi-clock-history me-1"></i>Scan-Lauf</label>
       <select name="scan_run" class="form-select form-select-sm">
         <option value="">– Alle Läufe –</option>
@@ -117,7 +115,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2 d-flex gap-1">
+    <div class="col-md-3 d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
       <a href="{{ url_for('scanner.list_funde', filter=filt) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
@@ -125,7 +123,7 @@
   {% if dir_path_filt or share_root_filt or scan_run_id_filt %}
   <div class="mt-2 d-flex gap-2 flex-wrap">
     {% if dir_path_filt %}
-    <span class="badge bg-success"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
+    <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
     {% endif %}
     {% if share_root_filt %}
     <span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt }}</span>
@@ -142,6 +140,10 @@
   <a href="{{ url_for('scanner.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
     Alle ({{ gesamt }})
+  </a>
+  <a href="{{ url_for('scanner.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+     class="btn btn-sm {{ 'btn-secondary' if filt == 'ignoriert' else 'btn-outline-secondary' }}">
+    <i class="bi bi-eye-slash me-1"></i>Ignoriert ({{ ignoriert }})
   </a>
   <a href="{{ url_for('scanner.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
@@ -163,10 +165,6 @@
      class="btn btn-sm {{ 'btn-info' if filt == 'zur_registrierung' else 'btn-outline-info' }}">
     <i class="bi bi-pencil-square me-1"></i>Zur Registrierung ({{ zur_registrierung }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
-     class="btn btn-sm {{ 'btn-secondary' if filt == 'ignoriert' else 'btn-outline-secondary' }}">
-    <i class="bi bi-eye-slash me-1"></i>Ignoriert ({{ ignoriert }})
-  </a>
   <a href="{{ url_for('scanner.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
     <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
@@ -186,6 +184,11 @@
   Die Verknüpfung zum IDV-Register bleibt erhalten.
 </div>
 {% endif %}
+
+<!-- ── Pagination + Variablen (vor dem Bulk-Formular setzen) ──────── -->
+{% set url_extra = {'filter': filt, 'share_root': share_root_filt, 'dir_path': dir_path_filt, 'scan_run': scan_run_id_filt} %}
+{% set endpoint = 'scanner.list_funde' %}
+{% include 'scanner/_pagination.html' %}
 
 <!-- ── Eigentümer-Modal ────────────────────────────────────────────── -->
 <div class="modal fade" id="ownerModal" tabindex="-1" aria-labelledby="ownerModalLabel" aria-hidden="true">
@@ -258,13 +261,18 @@
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm">
+  <div class="card border-0 shadow-sm mt-2">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
       <span class="fw-600">
         <input type="checkbox" id="select-all" class="form-check-input me-2" title="Alle auswählen">
-        <i class="bi bi-files me-1"></i>{{ dateien|length }} Dateien
+        <i class="bi bi-files me-1"></i>
+        {% if total > per_page %}
+        {{ dateien|length }} von {{ total }} Dateien (Seite {{ page }})
+        {% else %}
+        {{ dateien|length }} Datei{{ 'en' if dateien|length != 1 }}
+        {% endif %}
       </span>
-      <span class="text-muted" style="font-size:.78rem">Max. 500 Einträge · sortiert nach letztem Scan</span>
+      <span class="text-muted" style="font-size:.78rem">sortiert nach letztem Scan</span>
     </div>
     <div class="table-responsive">
       <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
@@ -610,7 +618,11 @@
       </table>
     </div>
   </div>
+
 </form>
+
+{# ── Pagination unten ── #}
+{% include 'scanner/_pagination.html' %}
 
 {% endif %}
 

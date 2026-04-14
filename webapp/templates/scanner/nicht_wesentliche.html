@@ -18,18 +18,25 @@
 <div class="row g-3 mb-4">
   <div class="col-sm-3">
     <div class="card border-0 shadow-sm stat-card p-3 text-center">
-      <div class="stat-val text-secondary">{{ nicht_wesentliche|length }}</div>
+      <div class="stat-val text-secondary">{{ total }}</div>
       <div class="stat-lbl">Nicht wesentliche IDVs</div>
     </div>
   </div>
 </div>
 
-<div class="card border-0 shadow-sm">
+<!-- ── Pagination oben ────────────────────────────────────────────── -->
+{% set url_extra = {} %}
+{% set endpoint = 'scanner.nicht_wesentliche_idvs' %}
+{% include 'scanner/_pagination.html' %}
+
+<div class="card border-0 shadow-sm mt-2">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-600">
       <i class="bi bi-dash-circle me-2 text-secondary"></i>
       Nicht wesentliche Eigenentwicklungen
-      <span class="badge bg-secondary ms-1">{{ nicht_wesentliche|length }}</span>
+      <span class="badge bg-secondary ms-1">
+        {% if total > per_page %}{{ nicht_wesentliche|length }} von {{ total }}{% else %}{{ total }}{% endif %}
+      </span>
     </span>
     <a href="{{ url_for('idv.list_idv', filter='nicht_wesentlich') }}"
        class="btn btn-sm btn-outline-secondary">
@@ -45,6 +52,7 @@
           <th>OE</th>
           <th>Fachverantwortlicher</th>
           <th>Status</th>
+          <th>Geändert</th>
           <th>Dateiname</th>
           <th>Verzeichnis</th>
           <th></th>
@@ -62,6 +70,9 @@
           <td>
             <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
           </td>
+          <td class="text-nowrap" style="font-size:.76rem">
+            {{ r.file_modified_at|datefmt if r.file_modified_at else '–' }}
+          </td>
           <td class="text-truncate" style="max-width:180px" title="{{ r.file_name }}">
             {{ r.file_name or '–' }}
           </td>
@@ -75,7 +86,7 @@
               {% set dir_path = '' %}
             {% endif %}
             {% if dir_path %}
-            <span class="badge bg-success" style="font-size:.68rem;font-family:monospace"
+            <span class="badge bg-success font-monospace" style="font-size:.68rem"
                   title="{{ dir_path }}">
               <i class="bi bi-folder2-open me-1"></i>{{ dir_path }}
             </span>
@@ -90,7 +101,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="8" class="text-center text-muted py-4">
+          <td colspan="9" class="text-center text-muted py-4">
             <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
             Keine nicht wesentlichen Scanner-IDVs vorhanden.
           </td>
@@ -100,6 +111,9 @@
     </table>
   </div>
 </div>
+
+<!-- ── Pagination unten ───────────────────────────────────────────── -->
+{% include 'scanner/_pagination.html' %}
 
 <style>
 .btn-xs { padding: .15rem .45rem; font-size: .75rem; }

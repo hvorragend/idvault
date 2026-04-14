@@ -77,8 +77,8 @@
             <label class="form-label fw-600">Move-Detection</label>
             <select name="move_detection" class="form-select">
               {% for val, label in [
-                ('name_and_hash', 'Name + Hash (Standard)'),
-                ('hash_only',     'Nur Hash'),
+                ('hash_only',     'Nur Hash (Standard)'),
+                ('name_and_hash', 'Name + Hash'),
                 ('disabled',      'Deaktiviert'),
               ] %}
               <option value="{{ val }}" {{ 'selected' if cfg.move_detection == val }}>{{ label }}</option>
@@ -119,8 +119,23 @@
               <label class="form-check-label" for="auto_ignore_no_formula">Aktiviert</label>
             </div>
             <div class="form-text">
-              Excel-Dateien ohne Formeln und ohne Makros werden nach dem Scan
-              automatisch auf <em>Ignoriert</em> gesetzt.
+              Excel-Dateien ohne Formeln und ohne Makros werden während des Scans
+              sofort auf <em>Ignoriert</em> gesetzt (auch für bereits vorhandene Einträge).
+            </div>
+          </div>
+
+          <div class="col-md-3 d-flex flex-column justify-content-center">
+            <label class="form-label fw-600">Excel ohne Formeln verwerfen</label>
+            <div class="form-check form-switch mt-1">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     name="discard_no_formula" id="discard_no_formula" value="1"
+                     {{ 'checked' if discard_no_formula == '1' }}>
+              <label class="form-check-label" for="discard_no_formula">Aktiviert</label>
+            </div>
+            <div class="form-text">
+              Neue Excel-Dateien ohne Formeln und ohne Makros werden gar nicht erst
+              in die Datenbank aufgenommen. Stärker als <em>Ignorieren</em> –
+              bestehende Einträge bleiben erhalten.
             </div>
           </div>
 

@@ -330,8 +330,18 @@
 
     <div class="nav-label">Register</div>
     <a href="{{ url_for('idv.list_idv') }}" class="nav-link {% if request.blueprint == 'idv' %}active{% endif %}">
-      <i class="bi bi-table"></i> IDV-Grundgesamtheit
+      <i class="bi bi-table"></i> Wesentliche IDV
     </a>
+    {% if _is_admin or _is_koord %}
+    <a href="{{ url_for('scanner.ignorierte_dateien') }}"
+      class="nav-link {% if request.endpoint == 'scanner.ignorierte_dateien' %}active{% endif %}">
+      <i class="bi bi-eye-slash"></i> Ignorierte Dateien
+    </a>
+    <a href="{{ url_for('scanner.nicht_wesentliche_idvs') }}"
+      class="nav-link {% if request.endpoint == 'scanner.nicht_wesentliche_idvs' %}active{% endif %}">
+      <i class="bi bi-dash-circle"></i> Nicht wesentliche
+    </a>
+    {% endif %}
     {% if _can_create %}
     <a href="{{ url_for('idv.new_idv') }}" class="nav-link">
       <i class="bi bi-plus-circle"></i> Neue IDV erfassen
@@ -353,14 +363,6 @@
     <a href="{{ url_for('scanner.list_funde') }}"
       class="nav-link {% if request.endpoint == 'scanner.list_funde' %}active{% endif %}">
       <i class="bi bi-radar"></i> Alle Funde
-    </a>
-    <a href="{{ url_for('scanner.ignorierte_dateien') }}"
-      class="nav-link {% if request.endpoint == 'scanner.ignorierte_dateien' %}active{% endif %}">
-      <i class="bi bi-eye-slash"></i> Ignorierte Dateien
-    </a>
-    <a href="{{ url_for('scanner.nicht_wesentliche_idvs') }}"
-      class="nav-link {% if request.endpoint == 'scanner.nicht_wesentliche_idvs' %}active{% endif %}">
-      <i class="bi bi-dash-circle"></i> Nicht wesentliche
     </a>
     <a href="{{ url_for('scanner.scan_laeufe') }}"
       class="nav-link {% if request.endpoint == 'scanner.scan_laeufe' %}active{% endif %}">
