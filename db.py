@@ -142,6 +142,22 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
             "ALTER TABLE scan_runs ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'completed'"
         )
 
+    # fachliche_testfaelle: Nachweis-Felder (Datei-Upload)
+    for col, typedef in [
+        ("nachweis_datei_pfad", "TEXT"),
+        ("nachweis_datei_name", "TEXT"),
+    ]:
+        if not has_column("fachliche_testfaelle", col):
+            conn.execute(f"ALTER TABLE fachliche_testfaelle ADD COLUMN {col} {typedef}")
+
+    # technischer_test: Nachweis-Felder (Datei-Upload)
+    for col, typedef in [
+        ("nachweis_datei_pfad", "TEXT"),
+        ("nachweis_datei_name", "TEXT"),
+    ]:
+        if not has_column("technischer_test", col):
+            conn.execute(f"ALTER TABLE technischer_test ADD COLUMN {col} {typedef}")
+
     conn.commit()
 
 
@@ -669,8 +685,10 @@ def create_fachlicher_testfall(conn: sqlite3.Connection, idv_db_id: int, data: d
         INSERT INTO fachliche_testfaelle
           (idv_id, testfall_nr, beschreibung, parametrisierung, testdaten,
            erwartetes_ergebnis, erzieltes_ergebnis, bewertung,
-           massnahmen, tester, testdatum, erstellt_am, aktualisiert_am)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           massnahmen, tester, testdatum,
+           nachweis_datei_pfad, nachweis_datei_name,
+           erstellt_am, aktualisiert_am)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             idv_db_id, next_nr,
@@ -683,6 +701,8 @@ def create_fachlicher_testfall(conn: sqlite3.Connection, idv_db_id: int, data: d
             data.get("massnahmen") or None,
             data.get("tester") or None,
             data.get("testdatum") or None,
+            data.get("nachweis_datei_pfad") or None,
+            data.get("nachweis_datei_name") or None,
             now, now,
         ),
     )
@@ -705,6 +725,8 @@ def update_fachlicher_testfall(conn: sqlite3.Connection, testfall_id: int, data:
             massnahmen          = ?,
             tester              = ?,
             testdatum           = ?,
+            nachweis_datei_pfad = ?,
+            nachweis_datei_name = ?,
             aktualisiert_am     = ?
         WHERE id = ?
         """,
@@ -718,6 +740,8 @@ def update_fachlicher_testfall(conn: sqlite3.Connection, testfall_id: int, data:
             data.get("massnahmen") or None,
             data.get("tester") or None,
             data.get("testdatum") or None,
+            data.get("nachweis_datei_pfad") or None,
+            data.get("nachweis_datei_name") or None,
             now,
             testfall_id,
         ),
@@ -750,11 +774,13 @@ def save_technischer_test(conn: sqlite3.Connection, idv_db_id: int, data: dict) 
         conn.execute(
             """
             UPDATE technischer_test SET
-                ergebnis         = ?,
-                kurzbeschreibung = ?,
-                pruefer          = ?,
-                pruefungsdatum   = ?,
-                aktualisiert_am  = ?
+                ergebnis            = ?,
+                kurzbeschreibung    = ?,
+                pruefer             = ?,
+                pruefungsdatum      = ?,
+                nachweis_datei_pfad = ?,
+                nachweis_datei_name = ?,
+                aktualisiert_am     = ?
             WHERE idv_id = ?
             """,
             (
@@ -762,6 +788,8 @@ def save_technischer_test(conn: sqlite3.Connection, idv_db_id: int, data: dict) 
                 data.get("kurzbeschreibung") or None,
                 data.get("pruefer") or None,
                 data.get("pruefungsdatum") or None,
+                data.get("nachweis_datei_pfad") or None,
+                data.get("nachweis_datei_name") or None,
                 now,
                 idv_db_id,
             ),
@@ -771,8 +799,9 @@ def save_technischer_test(conn: sqlite3.Connection, idv_db_id: int, data: dict) 
             """
             INSERT INTO technischer_test
               (idv_id, ergebnis, kurzbeschreibung, pruefer, pruefungsdatum,
+               nachweis_datei_pfad, nachweis_datei_name,
                erstellt_am, aktualisiert_am)
-            VALUES (?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?)
             """,
             (
                 idv_db_id,
@@ -780,9 +809,17 @@ def save_technischer_test(conn: sqlite3.Connection, idv_db_id: int, data: dict) 
                 data.get("kurzbeschreibung") or None,
                 data.get("pruefer") or None,
                 data.get("pruefungsdatum") or None,
+                data.get("nachweis_datei_pfad") or None,
+                data.get("nachweis_datei_name") or None,
                 now, now,
             ),
         )
+    conn.commit()
+
+
+def delete_technischer_test(conn: sqlite3.Connection, idv_db_id: int) -> None:
+    """Löscht den technischen Test einer IDV."""
+    conn.execute("DELETE FROM technischer_test WHERE idv_id = ?", (idv_db_id,))
     conn.commit()
 
 

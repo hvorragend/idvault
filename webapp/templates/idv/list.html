@@ -47,7 +47,7 @@
       {% set field_options = share_roots %}
       {% set field_value   = share_root %}
       {% set input_id      = "share-root-search" %}
-      {% include 'scanner/_dir_search.html' %}
+      {% include 'funde/_dir_search.html' %}
     </div>
 
     <!-- Zeile 3: OE + Fachverantwortlicher -->
@@ -89,7 +89,7 @@
 <!-- ── Pagination ─────────────────────────────────────────────────── -->
 {% set url_extra = {'q': q, 'status': status, 'filter': filt, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root} %}
 {% set endpoint = 'idv.list_idv' %}
-{% include 'scanner/_pagination.html' %}
+{% include 'funde/_pagination.html' %}
 
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
 <form id="bulk-form" method="post" action="{{ url_for('idv.list_idv') }}">
@@ -248,7 +248,7 @@
 </form>
 
 <!-- ── Pagination unten ───────────────────────────────────────────── -->
-{% include 'scanner/_pagination.html' %}
+{% include 'funde/_pagination.html' %}
 
 <style>
 .btn-xs { padding: .15rem .4rem; font-size: .75rem; }

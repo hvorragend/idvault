@@ -1,9 +1,9 @@
-"""Scanner-Funde Blueprint"""
+"""Funde-Blueprint (Scanner-Ergebnisse)"""
 import json
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
 
-bp = Blueprint("scanner", __name__, url_prefix="/scanner")
+bp = Blueprint("funde", __name__, url_prefix="/funde")
 
 
 def _scan_btn_ctx() -> dict:
@@ -76,7 +76,7 @@ _DIR_PATH_EXPR_PLAIN = """CASE WHEN file_name IS NOT NULL AND full_path IS NOT N
 _VALID_PER_PAGE = (25, 50, 100, 200, 500)
 
 
-@bp.route("/funde")
+@bp.route("/")
 @login_required
 def list_funde():
     db          = get_db()
@@ -247,6 +247,7 @@ def list_funde():
             ORDER BY share_root
         """).fetchall()
     ]
+
     dir_paths = [
         r["dir_path"] for r in db.execute(f"""
             SELECT DISTINCT {_DIR_PATH_EXPR_PLAIN} AS dir_path
@@ -270,8 +271,12 @@ def list_funde():
     letzter_scan = scan_runs[0] if scan_runs else None
     is_admin = current_user_role() == ROLE_ADMIN
 
+    persons = db.execute(
+        "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+    ).fetchall()
+
     gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
-    return render_template("scanner/list.html",
+    return render_template("funde/list.html",
         dateien=dateien, filt=filt,
         total=total, total_pages=total_pages, page=page, per_page=per_page,
         gesamt=gesamt, gesamt_inkl_ignoriert=gesamt_inkl_ignoriert,
@@ -290,6 +295,7 @@ def list_funde():
         scan_run_label=_scan_run_label,
         duplicate_hashes=duplicate_hashes,
         is_admin=is_admin,
+        persons=persons,
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
@@ -439,7 +445,11 @@ def eingang_funde():
     }
     is_admin = current_user_role() == ROLE_ADMIN
 
-    return render_template("scanner/eingang.html",
+    persons = db.execute(
+        "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+    ).fetchall()
+
+    return render_template("funde/eingang.html",
         dateien=dateien,
         total=total, total_pages=total_pages,
         page=page, per_page=per_page,
@@ -462,6 +472,7 @@ def eingang_funde():
         duplicate_hashes=duplicate_hashes,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         is_admin=is_admin,
+        persons=persons,
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )
@@ -471,10 +482,10 @@ def eingang_funde():
 @login_required
 def bewertet():
     """Redirect zur Ignoriert-Seite (Abwärtskompatibilität)."""
-    return redirect(url_for("scanner.ignorierte_dateien"))
+    return redirect(url_for("funde.ignorierte_dateien"))
 
 
-@bp.route("/ignorierte")
+@bp.route("/ignoriert")
 @login_required
 def ignorierte_dateien():
     """Eigene Seite: Ignorierte Scanner-Funde."""
@@ -534,85 +545,9 @@ def ignorierte_dateien():
         if r["dir_path"]
     ]
 
-    return render_template("scanner/ignorierte.html",
+    return render_template("funde/ignoriert.html",
         ignorierte=ignorierte,
         ignoriert_count=ignoriert_count,
-        total=total, total_pages=total_pages, page=page, per_page=per_page,
-        dir_paths=dir_paths, dir_path_filt=dir_path_filt,
-        idv_typ_vorschlag=_idv_typ_vorschlag,
-        valid_per_page=_VALID_PER_PAGE,
-        **_scan_btn_ctx(),
-    )
-
-
-@bp.route("/nicht-wesentliche")
-@login_required
-def nicht_wesentliche_idvs():
-    """Eigene Seite: Nicht wesentliche IDVs aus dem Scanner."""
-    db = get_db()
-    dir_path_filt = request.args.get("dir_path", "").strip()
-    try:
-        page = max(1, int(request.args.get("page", 1) or 1))
-    except (ValueError, TypeError):
-        page = 1
-    try:
-        per_page = int(request.args.get("per_page", 100))
-    except (ValueError, TypeError):
-        per_page = 100
-    if per_page not in _VALID_PER_PAGE:
-        per_page = 100
-
-    _WESENTLICH_SQL = """(
-        r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
-        OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
-    )"""
-
-    where_parts = ["f.status = 'active'", f"NOT {_WESENTLICH_SQL}"]
-    params: list = []
-    if dir_path_filt:
-        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
-        params.append(dir_path_filt)
-    where_sql = "WHERE " + " AND ".join(where_parts)
-
-    total = db.execute(
-        f"SELECT COUNT(*) FROM idv_register r JOIN idv_files f ON r.file_id = f.id {where_sql}",
-        params,
-    ).fetchone()[0]
-    total_pages = max(1, (total + per_page - 1) // per_page)
-    page = min(page, total_pages)
-
-    nicht_wesentliche = db.execute(f"""
-        SELECT r.id AS idv_db_id, r.idv_id, r.bezeichnung, r.status,
-               r.teststatus AS idv_teststatus,
-               f.file_name, f.full_path, f.share_root,
-               f.id AS file_id,
-               f.modified_at AS file_modified_at,
-               p.nachname || ', ' || p.vorname AS fachverantwortlicher,
-               ou.kuerzel AS org_einheit,
-               {_DIR_PATH_EXPR} AS dir_path
-        FROM idv_register r
-        JOIN idv_files f ON r.file_id = f.id
-        LEFT JOIN persons   p  ON r.fachverantwortlicher_id = p.id
-        LEFT JOIN org_units ou ON r.org_unit_id = ou.id
-        {where_sql}
-        ORDER BY r.bezeichnung
-        LIMIT ? OFFSET ?
-    """, params + [per_page, (page - 1) * per_page]).fetchall()
-
-    dir_paths = [
-        r["dir_path"] for r in db.execute(f"""
-            SELECT DISTINCT {_DIR_PATH_EXPR_PLAIN} AS dir_path
-            FROM idv_register r
-            JOIN idv_files f ON r.file_id = f.id
-            WHERE f.full_path IS NOT NULL AND f.status = 'active'
-              AND NOT {_WESENTLICH_SQL}
-            ORDER BY 1
-        """).fetchall()
-        if r["dir_path"]
-    ]
-
-    return render_template("scanner/nicht_wesentliche.html",
-        nicht_wesentliche=nicht_wesentliche,
         total=total, total_pages=total_pages, page=page, per_page=per_page,
         dir_paths=dir_paths, dir_path_filt=dir_path_filt,
         idv_typ_vorschlag=_idv_typ_vorschlag,
@@ -637,12 +572,12 @@ def scan_laeufe():
         """).fetchall()
     except Exception:
         laeufe = []
-    return render_template("scanner/laeufe.html", laeufe=laeufe,
+    return render_template("funde/laeufe.html", laeufe=laeufe,
                            scan_run_label=_scan_run_label,
                            **_scan_btn_ctx())
 
 
-@bp.route("/funde/zusammenfassen", methods=["GET", "POST"])
+@bp.route("/zusammenfassen", methods=["GET", "POST"])
 @own_write_required
 def zusammenfassen():
     """Mehrere Scanner-Funde zu einem IDV-Projekt zusammenfassen.
@@ -660,11 +595,11 @@ def zusammenfassen():
             file_ids = [int(i) for i in raw_ids if i]
         except ValueError:
             flash("Ungültige Datei-IDs.", "error")
-            return redirect(url_for("scanner.list_funde"))
+            return redirect(url_for("funde.list_funde"))
 
         if not file_ids:
             flash("Keine Dateien ausgewählt.", "warning")
-            return redirect(url_for("scanner.list_funde"))
+            return redirect(url_for("funde.list_funde"))
 
         if aktion == "neues_idv":
             # Primärdatei + zusätzliche IDs an IDV-Neuanlage übergeben
@@ -681,14 +616,14 @@ def zusammenfassen():
                 idv_db_id = int(idv_db_id)
             except (ValueError, TypeError):
                 flash("Ungültige IDV-Auswahl.", "error")
-                return redirect(url_for("scanner.list_funde"))
+                return redirect(url_for("funde.list_funde"))
 
             idv_row = db.execute(
                 "SELECT id, idv_id FROM idv_register WHERE id=?", (idv_db_id,)
             ).fetchone()
             if not idv_row:
                 flash("IDV nicht gefunden.", "error")
-                return redirect(url_for("scanner.list_funde"))
+                return redirect(url_for("funde.list_funde"))
 
             linked = 0
             for fid in file_ids:
@@ -712,7 +647,7 @@ def zusammenfassen():
             return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
         flash("Unbekannte Aktion.", "error")
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     # ---------- GET ----------
     raw_ids = request.args.getlist("file_ids")
@@ -723,7 +658,7 @@ def zusammenfassen():
 
     if not file_ids:
         flash("Keine Dateien ausgewählt.", "warning")
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     ph = ",".join("?" * len(file_ids))
     dateien = db.execute(
@@ -738,7 +673,7 @@ def zusammenfassen():
         ORDER BY idv_id
     """).fetchall()
 
-    return render_template("scanner/zusammenfassen.html",
+    return render_template("funde/zusammenfassen.html",
         dateien=dateien,
         idvs=idvs,
         idv_typ_vorschlag=_idv_typ_vorschlag,
@@ -746,7 +681,7 @@ def zusammenfassen():
     )
 
 
-@bp.route("/funde/bulk-aktion", methods=["POST"])
+@bp.route("/bulk-aktion", methods=["POST"])
 @own_write_required
 def bulk_aktion():
     """Massenmarkierung von Scanner-Funden (ignorieren / zur Registrierung)."""
@@ -758,21 +693,21 @@ def bulk_aktion():
         # Weiterleitung zur Zusammenfassen-Seite (GET)
         from flask import url_for as _uf
         ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
-        return redirect(url_for("scanner.zusammenfassen") + "?" + ids_qs)
+        return redirect(url_for("funde.zusammenfassen") + "?" + ids_qs)
 
-    if aktion not in ("ignorieren", "zur_registrierung", "owner_aendern", "bewertung_anfordern"):
+    if aktion not in ("ignorieren", "zur_registrierung", "nicht_wesentlich", "owner_aendern", "bewertung_anfordern"):
         flash("Ungültige Aktion.", "error")
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     try:
         file_ids = [int(i) for i in raw_ids if i]
     except ValueError:
         flash("Ungültige Datei-IDs.", "error")
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     if not file_ids:
         flash("Keine Dateien ausgewählt.", "warning")
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     if aktion == "ignorieren":
         from flask import session as _session
@@ -823,6 +758,15 @@ def bulk_aktion():
         )
         db.commit()
         flash(f"{len(file_ids)} Datei(en) zur Registrierung vorgemerkt.", "success")
+
+    elif aktion == "nicht_wesentlich":
+        placeholders = ",".join("?" * len(file_ids))
+        db.execute(
+            f"UPDATE idv_files SET bearbeitungsstatus = 'Nicht wesentlich' WHERE id IN ({placeholders})",
+            file_ids
+        )
+        db.commit()
+        flash(f"{len(file_ids)} Datei(en) als 'Nicht wesentlich' eingestuft.", "success")
 
     elif aktion == "owner_aendern":
         new_owner = request.form.get("new_owner", "").strip()
@@ -891,15 +835,15 @@ def bulk_aktion():
 
     return_to = request.form.get("return_to", "")
     if return_to == "eingang":
-        return redirect(url_for("scanner.eingang_funde",
+        return redirect(url_for("funde.eingang_funde",
             dir_path=request.form.get("dir_path_filt", ""),
             page=request.form.get("page", 1),
             per_page=request.form.get("per_page", 100),
             sort=request.form.get("sort", "prioritaet")))
-    return redirect(url_for("scanner.list_funde", filter=request.form.get("filt", "")))
+    return redirect(url_for("funde.list_funde", filter=request.form.get("filt", "")))
 
 
-@bp.route("/funde/<int:file_id>/loeschen", methods=["POST"])
+@bp.route("/<int:file_id>/loeschen", methods=["POST"])
 @admin_required
 def loeschen(file_id):
     """Löscht einen Scannerfund-Eintrag dauerhaft (nur für Administratoren)."""
@@ -907,7 +851,7 @@ def loeschen(file_id):
     datei = db.execute("SELECT * FROM idv_files WHERE id=?", (file_id,)).fetchone()
     if not datei:
         flash("Datei nicht gefunden.", "error")
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     idv_link = db.execute(
         "SELECT id, idv_id FROM idv_register WHERE file_id=?", (file_id,)
@@ -918,7 +862,7 @@ def loeschen(file_id):
             "Bitte zuerst die IDV-Verknüpfung aufheben.",
             "error"
         )
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     datei_name = datei["file_name"]
     # Abhängige Einträge vor dem Hauptlöschen entfernen (FK-Constraints)
@@ -927,10 +871,10 @@ def loeschen(file_id):
     db.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
     db.commit()
     flash(f"Scannerfund \"{datei_name}\" wurde gelöscht.", "success")
-    return redirect(url_for("scanner.list_funde"))
+    return redirect(url_for("funde.list_funde"))
 
 
-@bp.route("/funde/<int:file_id>/benachrichtigen", methods=["POST"])
+@bp.route("/<int:file_id>/benachrichtigen", methods=["POST"])
 @write_access_required
 def notify_file(file_id):
     """Sendet manuell eine E-Mail-Benachrichtigung für einen Scannerfund."""
@@ -938,7 +882,7 @@ def notify_file(file_id):
     file = db.execute("SELECT * FROM idv_files WHERE id=?", (file_id,)).fetchone()
     if not file:
         flash("Datei nicht gefunden.", "error")
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     recipients = [
         r["email"] for r in db.execute("""
@@ -951,7 +895,7 @@ def notify_file(file_id):
 
     if not recipients:
         flash("Keine E-Mail-Empfänger konfiguriert.", "warning")
-        return redirect(url_for("scanner.list_funde"))
+        return redirect(url_for("funde.list_funde"))
 
     try:
         from ..email_service import notify_new_scanner_file
@@ -963,4 +907,4 @@ def notify_file(file_id):
     except Exception as exc:
         flash(f"Fehler beim E-Mail-Versand: {exc}", "error")
 
-    return redirect(url_for("scanner.list_funde"))
+    return redirect(url_for("funde.list_funde"))

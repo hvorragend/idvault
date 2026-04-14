@@ -809,10 +809,12 @@ CREATE TABLE IF NOT EXISTS fachliche_testfaelle (
     testdaten           TEXT,                       -- Eingabedaten
     erwartetes_ergebnis TEXT,
     erzieltes_ergebnis  TEXT,
-    bewertung           TEXT NOT NULL DEFAULT 'Offen',  -- 'Bestanden' | 'Nicht bestanden' | 'Offen'
+    bewertung           TEXT NOT NULL DEFAULT 'Offen',  -- 'Bestanden' | 'Offen'
     massnahmen          TEXT,                       -- Abgeleitete Maßnahmen (leer wenn bestanden)
     tester              TEXT,                       -- Name des Testers (Freitext)
     testdatum           TEXT,                       -- ISO 8601 Datum
+    nachweis_datei_pfad TEXT,                       -- Relativer Pfad zur Nachweis-Datei
+    nachweis_datei_name TEXT,                       -- Originaldateiname
     erstellt_am         TEXT NOT NULL DEFAULT (datetime('now','utc')),
     aktualisiert_am     TEXT NOT NULL DEFAULT (datetime('now','utc')),
     UNIQUE (idv_id, testfall_nr)
@@ -824,10 +826,12 @@ CREATE INDEX IF NOT EXISTS idx_fachtestf_idv ON fachliche_testfaelle(idv_id);
 CREATE TABLE IF NOT EXISTS technischer_test (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     idv_id              INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
-    ergebnis            TEXT NOT NULL DEFAULT 'Offen',  -- 'Bestanden' | 'Nicht bestanden' | 'Entfällt'
+    ergebnis            TEXT NOT NULL DEFAULT 'Offen',  -- 'Bestanden' | 'Entfällt' | 'Offen'
     kurzbeschreibung    TEXT,                       -- 1–2 Sätze, was technisch geprüft wurde
     pruefer             TEXT,                       -- Name des Prüfers (Freitext)
     pruefungsdatum      TEXT,                       -- ISO 8601 Datum
+    nachweis_datei_pfad TEXT,                       -- Relativer Pfad zur Nachweis-Datei
+    nachweis_datei_name TEXT,                       -- Originaldateiname
     erstellt_am         TEXT NOT NULL DEFAULT (datetime('now','utc')),
     aktualisiert_am     TEXT NOT NULL DEFAULT (datetime('now','utc')),
     UNIQUE (idv_id)

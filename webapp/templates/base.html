@@ -329,16 +329,12 @@
     </a>
 
     <div class="nav-label">Register</div>
-    <a href="{{ url_for('idv.list_idv') }}" class="nav-link {% if request.blueprint == 'idv' %}active{% endif %}">
+    <a href="{{ url_for('idv.list_idv') }}" class="nav-link {% if request.blueprint == 'idv' and request.endpoint != 'idv.nicht_wesentliche_idvs' %}active{% endif %}">
       <i class="bi bi-table"></i> Wesentliche IDV
     </a>
     {% if _is_admin or _is_koord %}
-    <a href="{{ url_for('scanner.ignorierte_dateien') }}"
-      class="nav-link {% if request.endpoint == 'scanner.ignorierte_dateien' %}active{% endif %}">
-      <i class="bi bi-eye-slash"></i> Ignorierte Dateien
-    </a>
-    <a href="{{ url_for('scanner.nicht_wesentliche_idvs') }}"
-      class="nav-link {% if request.endpoint == 'scanner.nicht_wesentliche_idvs' %}active{% endif %}">
+    <a href="{{ url_for('idv.nicht_wesentliche_idvs') }}"
+      class="nav-link {% if request.endpoint == 'idv.nicht_wesentliche_idvs' %}active{% endif %}">
       <i class="bi bi-dash-circle"></i> Nicht wesentliche
     </a>
     {% endif %}
@@ -350,9 +346,9 @@
 
 
     {% if _is_admin or _is_koord %}
-    <div class="nav-label">Scanner</div>
-    <a href="{{ url_for('scanner.eingang_funde') }}"
-      class="nav-link {% if request.endpoint == 'scanner.eingang_funde' %}active{% endif %}">
+    <div class="nav-label">Funde</div>
+    <a href="{{ url_for('funde.eingang_funde') }}"
+      class="nav-link {% if request.endpoint == 'funde.eingang_funde' %}active{% endif %}">
       <i class="bi bi-arrow-down-circle"></i> Eingang
       {% if scanner_eingang_count > 0 %}
       <span class="badge bg-danger ms-auto" style="font-size:.65rem">
@@ -360,12 +356,16 @@
           </span>
           {% endif %}
     </a>
-    <a href="{{ url_for('scanner.list_funde') }}"
-      class="nav-link {% if request.endpoint == 'scanner.list_funde' %}active{% endif %}">
+    <a href="{{ url_for('funde.list_funde') }}"
+      class="nav-link {% if request.endpoint == 'funde.list_funde' %}active{% endif %}">
       <i class="bi bi-radar"></i> Alle Funde
     </a>
-    <a href="{{ url_for('scanner.scan_laeufe') }}"
-      class="nav-link {% if request.endpoint == 'scanner.scan_laeufe' %}active{% endif %}">
+    <a href="{{ url_for('funde.ignorierte_dateien') }}"
+      class="nav-link {% if request.endpoint == 'funde.ignorierte_dateien' %}active{% endif %}">
+      <i class="bi bi-eye-slash"></i> Ignorierte Dateien
+    </a>
+    <a href="{{ url_for('funde.scan_laeufe') }}"
+      class="nav-link {% if request.endpoint == 'funde.scan_laeufe' %}active{% endif %}">
       <i class="bi bi-clock-history"></i> Scan-Läufe
     </a>
     {% endif %}

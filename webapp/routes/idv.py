@@ -801,3 +801,84 @@ def _save_wesentlichkeit_from_form(db, idv_db_id: int, form) -> None:
         })
     if antworten:
         save_idv_wesentlichkeit(db, idv_db_id, antworten)
+
+
+# ── Nicht-wesentliche IDVs ─────────────────────────────────────────────────
+
+@bp.route("/nicht-wesentlich")
+@login_required
+def nicht_wesentliche_idvs():
+    """Eigene Seite: Nicht-wesentliche IDVs aus dem Register."""
+    from .funde import (
+        _DIR_PATH_EXPR, _DIR_PATH_EXPR_PLAIN, _VALID_PER_PAGE, _idv_typ_vorschlag, _scan_btn_ctx
+    )
+    db = get_db()
+    dir_path_filt = request.args.get("dir_path", "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", 100))
+    except (ValueError, TypeError):
+        per_page = 100
+    if per_page not in _VALID_PER_PAGE:
+        per_page = 100
+
+    _WESENTLICH_SQL = """(
+        r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
+        OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
+    )"""
+
+    where_parts = ["f.status = 'active'", f"NOT {_WESENTLICH_SQL}"]
+    params: list = []
+    if dir_path_filt:
+        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
+        params.append(dir_path_filt)
+    where_sql = "WHERE " + " AND ".join(where_parts)
+
+    total = db.execute(
+        f"SELECT COUNT(*) FROM idv_register r JOIN idv_files f ON r.file_id = f.id {where_sql}",
+        params,
+    ).fetchone()[0]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+
+    nicht_wesentliche = db.execute(f"""
+        SELECT r.id AS idv_db_id, r.idv_id, r.bezeichnung, r.status,
+               r.teststatus AS idv_teststatus,
+               f.file_name, f.full_path, f.share_root,
+               f.id AS file_id,
+               f.modified_at AS file_modified_at,
+               p.nachname || ', ' || p.vorname AS fachverantwortlicher,
+               ou.kuerzel AS org_einheit,
+               {_DIR_PATH_EXPR} AS dir_path
+        FROM idv_register r
+        JOIN idv_files f ON r.file_id = f.id
+        LEFT JOIN persons   p  ON r.fachverantwortlicher_id = p.id
+        LEFT JOIN org_units ou ON r.org_unit_id = ou.id
+        {where_sql}
+        ORDER BY r.bezeichnung
+        LIMIT ? OFFSET ?
+    """, params + [per_page, (page - 1) * per_page]).fetchall()
+
+    dir_paths = [
+        r["dir_path"] for r in db.execute(f"""
+            SELECT DISTINCT {_DIR_PATH_EXPR_PLAIN} AS dir_path
+            FROM idv_register r
+            JOIN idv_files f ON r.file_id = f.id
+            WHERE f.full_path IS NOT NULL AND f.status = 'active'
+              AND NOT {_WESENTLICH_SQL}
+            ORDER BY 1
+        """).fetchall()
+        if r["dir_path"]
+    ]
+
+    return render_template("idv/nicht_wesentlich.html",
+        nicht_wesentliche=nicht_wesentliche,
+        total=total, total_pages=total_pages, page=page, per_page=per_page,
+        dir_paths=dir_paths, dir_path_filt=dir_path_filt,
+        idv_typ_vorschlag=_idv_typ_vorschlag,
+        valid_per_page=_VALID_PER_PAGE,
+        **_scan_btn_ctx(),
+    )

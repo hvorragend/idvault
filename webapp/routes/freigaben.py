@@ -10,7 +10,7 @@ Nur wesentliche IDVs mit wesentlicher Änderung durchlaufen dieses Verfahren.
 """
 import os
 from flask import (Blueprint, request, flash, redirect, url_for,
-                   session, current_app, send_from_directory)
+                   session, current_app, send_from_directory, render_template)
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 from . import login_required, own_write_required, admin_required, get_db, current_person_id
@@ -226,6 +226,26 @@ def abnahme_starten(idv_db_id):
 
     flash("Phase 2 gestartet: Fachliche Abnahme und Technische Abnahme laufen parallel.", "success")
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+
+# ---------------------------------------------------------------------------
+# Vollseiten-Formular: Schritt als Bestanden markieren (GET)
+# ---------------------------------------------------------------------------
+
+@bp.route("/<int:freigabe_id>/bestanden", methods=["GET"])
+@own_write_required
+def bestanden_seite(freigabe_id):
+    """Zeigt das vollseitige Formular zum Abschließen eines Freigabe-Schritts."""
+    db = get_db()
+    freigabe = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
+    if not freigabe or freigabe["status"] != "Ausstehend":
+        flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
+        return redirect(url_for("idv.list_idv"))
+    idv = db.execute("SELECT * FROM idv_register WHERE id=?", (freigabe["idv_id"],)).fetchone()
+    if not idv:
+        flash("IDV nicht gefunden.", "error")
+        return redirect(url_for("idv.list_idv"))
+    return render_template("freigaben/bestanden_form.html", freigabe=freigabe, idv=idv)
 
 
 # ---------------------------------------------------------------------------

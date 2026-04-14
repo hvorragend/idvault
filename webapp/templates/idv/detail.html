@@ -450,7 +450,7 @@
 
       {% if can_create %}
       <div class="mt-2">
-        <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-xs btn-outline-secondary">
+        <a href="{{ url_for('funde.list_funde') }}" class="btn btn-xs btn-outline-secondary">
           <i class="bi bi-plus-lg me-1"></i>Weitere Dateien verknüpfen
         </a>
       </div>
@@ -471,7 +471,7 @@
           (MaRisk AT&nbsp;7.2&nbsp;/&nbsp;DORA) sollte jede Version mit der zugehörigen
           Datei verknüpft sein.
           <div class="mt-2">
-            <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-sm btn-warning">
+            <a href="{{ url_for('funde.list_funde') }}" class="btn btn-sm btn-warning">
               <i class="bi bi-folder2-open me-1"></i>Zum Scanner → Datei verknüpfen
             </a>
           </div>
@@ -725,102 +725,11 @@
                 </div>
                 {% endif %}
                 {% if f and f.status == 'Ausstehend' and can_create %}
-                <div class="mt-2 d-flex gap-1">
-                  <button type="button" class="btn btn-xs btn-success flex-fill" data-bs-toggle="modal"
-                    data-bs-target="#modal-bestanden-{{ f.id }}">
+                <div class="mt-2">
+                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
+                     class="btn btn-xs btn-success w-100">
                     <i class="bi bi-check2 me-1"></i>Bestanden
-                  </button>
-                  <button type="button" class="btn btn-xs btn-outline-danger flex-fill" data-bs-toggle="modal"
-                    data-bs-target="#modal-ablehnen-{{ f.id }}">
-                    <i class="bi bi-x me-1"></i>Nicht bestanden
-                  </button>
-                </div>
-
-                <!-- Modal: Bestanden -->
-                <div class="modal fade" id="modal-bestanden-{{ f.id }}" tabindex="-1">
-                  <div class="modal-dialog">
-                    <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=f.id) }}"
-                      enctype="multipart/form-data">
-                      <div class="modal-content">
-                        <div class="modal-header">
-                          <h5 class="modal-title"><i class="bi bi-check-circle-fill text-success me-2"></i>{{
-                            schritt_name }} – Bestanden</h5>
-                          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                          <div class="mb-3">
-                            <label class="form-label">Kommentar (optional)</label>
-                            <textarea name="kommentar" class="form-control form-control-sm" rows="2"></textarea>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label">Nachweise / Testprotokoll <small
-                                class="text-muted">(Text)</small></label>
-                            <textarea name="nachweise_text" class="form-control form-control-sm" rows="3"
-                              placeholder="Beschreibung der durchgeführten Tests, Testergebnisse …"></textarea>
-                          </div>
-                          <div class="mb-2">
-                            <label class="form-label">Screenshot / Dokument hochladen <small
-                                class="text-muted">(optional)</small></label>
-                            <input type="file" name="nachweis_datei" class="form-control form-control-sm"
-                              accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
-                            <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
-                          </div>
-                        </div>
-                        <div class="modal-footer">
-                          <button type="button" class="btn btn-sm btn-secondary"
-                            data-bs-dismiss="modal">Abbrechen</button>
-                          <button type="submit" class="btn btn-sm btn-success">
-                            <i class="bi bi-check2 me-1"></i>Als Bestanden markieren
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-
-                <!-- Modal: Nicht bestanden -->
-                <div class="modal fade" id="modal-ablehnen-{{ f.id }}" tabindex="-1">
-                  <div class="modal-dialog">
-                    <form method="post" action="{{ url_for('freigaben.ablehnen', freigabe_id=f.id) }}"
-                      enctype="multipart/form-data">
-                      <div class="modal-content">
-                        <div class="modal-header">
-                          <h5 class="modal-title"><i class="bi bi-x-circle-fill text-danger me-2"></i>{{ schritt_name }}
-                            – Nicht bestanden</h5>
-                          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                          <div class="mb-3">
-                            <label class="form-label">Befunde <span class="text-danger">*</span></label>
-                            <textarea name="befunde" class="form-control form-control-sm" rows="3" required
-                              placeholder="Beschreiben Sie die festgestellten Mängel …"></textarea>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label">Kommentar (optional)</label>
-                            <textarea name="kommentar" class="form-control form-control-sm" rows="2"></textarea>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label">Nachweise <small class="text-muted">(Text)</small></label>
-                            <textarea name="nachweise_text" class="form-control form-control-sm" rows="2"
-                              placeholder="Ergänzende Hinweise zu den Befunden …"></textarea>
-                          </div>
-                          <div class="mb-2">
-                            <label class="form-label">Screenshot / Dokument hochladen <small
-                                class="text-muted">(optional)</small></label>
-                            <input type="file" name="nachweis_datei" class="form-control form-control-sm"
-                              accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
-                          </div>
-                        </div>
-                        <div class="modal-footer">
-                          <button type="button" class="btn btn-sm btn-secondary"
-                            data-bs-dismiss="modal">Abbrechen</button>
-                          <button type="submit" class="btn btn-sm btn-danger">
-                            <i class="bi bi-x me-1"></i>Als nicht bestanden markieren
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  </div>
+                  </a>
                 </div>
                 {% endif %}
               </div>
@@ -907,102 +816,11 @@
                 </div>
                 {% endif %}
                 {% if f and f.status == 'Ausstehend' and can_create %}
-                <div class="mt-2 d-flex gap-1">
-                  <button type="button" class="btn btn-xs btn-success flex-fill" data-bs-toggle="modal"
-                    data-bs-target="#modal-bestanden-{{ f.id }}">
+                <div class="mt-2">
+                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
+                     class="btn btn-xs btn-success w-100">
                     <i class="bi bi-check2 me-1"></i>Bestanden
-                  </button>
-                  <button type="button" class="btn btn-xs btn-outline-danger flex-fill" data-bs-toggle="modal"
-                    data-bs-target="#modal-ablehnen-{{ f.id }}">
-                    <i class="bi bi-x me-1"></i>Nicht bestanden
-                  </button>
-                </div>
-
-                <!-- Modal: Bestanden -->
-                <div class="modal fade" id="modal-bestanden-{{ f.id }}" tabindex="-1">
-                  <div class="modal-dialog">
-                    <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=f.id) }}"
-                      enctype="multipart/form-data">
-                      <div class="modal-content">
-                        <div class="modal-header">
-                          <h5 class="modal-title"><i class="bi bi-check-circle-fill text-success me-2"></i>{{
-                            schritt_name }} – Bestanden</h5>
-                          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                          <div class="mb-3">
-                            <label class="form-label">Kommentar (optional)</label>
-                            <textarea name="kommentar" class="form-control form-control-sm" rows="2"></textarea>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label">Nachweise / Abnahmeprotokoll <small
-                                class="text-muted">(Text)</small></label>
-                            <textarea name="nachweise_text" class="form-control form-control-sm" rows="3"
-                              placeholder="Beschreibung der Abnahme, Ergebnis …"></textarea>
-                          </div>
-                          <div class="mb-2">
-                            <label class="form-label">Screenshot / Dokument hochladen <small
-                                class="text-muted">(optional)</small></label>
-                            <input type="file" name="nachweis_datei" class="form-control form-control-sm"
-                              accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
-                            <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
-                          </div>
-                        </div>
-                        <div class="modal-footer">
-                          <button type="button" class="btn btn-sm btn-secondary"
-                            data-bs-dismiss="modal">Abbrechen</button>
-                          <button type="submit" class="btn btn-sm btn-success">
-                            <i class="bi bi-check2 me-1"></i>Als Bestanden markieren
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-
-                <!-- Modal: Nicht bestanden -->
-                <div class="modal fade" id="modal-ablehnen-{{ f.id }}" tabindex="-1">
-                  <div class="modal-dialog">
-                    <form method="post" action="{{ url_for('freigaben.ablehnen', freigabe_id=f.id) }}"
-                      enctype="multipart/form-data">
-                      <div class="modal-content">
-                        <div class="modal-header">
-                          <h5 class="modal-title"><i class="bi bi-x-circle-fill text-danger me-2"></i>{{ schritt_name }}
-                            – Nicht bestanden</h5>
-                          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                          <div class="mb-3">
-                            <label class="form-label">Befunde <span class="text-danger">*</span></label>
-                            <textarea name="befunde" class="form-control form-control-sm" rows="3" required
-                              placeholder="Beschreiben Sie die festgestellten Mängel …"></textarea>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label">Kommentar (optional)</label>
-                            <textarea name="kommentar" class="form-control form-control-sm" rows="2"></textarea>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label">Nachweise <small class="text-muted">(Text)</small></label>
-                            <textarea name="nachweise_text" class="form-control form-control-sm" rows="2"
-                              placeholder="Ergänzende Hinweise zu den Befunden …"></textarea>
-                          </div>
-                          <div class="mb-2">
-                            <label class="form-label">Screenshot / Dokument hochladen <small
-                                class="text-muted">(optional)</small></label>
-                            <input type="file" name="nachweis_datei" class="form-control form-control-sm"
-                              accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
-                          </div>
-                        </div>
-                        <div class="modal-footer">
-                          <button type="button" class="btn btn-sm btn-secondary"
-                            data-bs-dismiss="modal">Abbrechen</button>
-                          <button type="submit" class="btn btn-sm btn-danger">
-                            <i class="bi bi-x me-1"></i>Als nicht bestanden markieren
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  </div>
+                  </a>
                 </div>
                 {% endif %}
               </div>
@@ -1023,10 +841,10 @@
         {# ── Testdokumentation ── #}
         <div class="border-top mt-3 pt-3" id="testdokumentation">
 
-          {# Fachliche Testfälle #}
+          {# Fachlicher Test #}
           <div class="d-flex align-items-center justify-content-between mb-1">
             <span class="fw-600" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d">
-              <i class="bi bi-list-check me-1"></i>Fachliche Testfälle
+              <i class="bi bi-clipboard2-check me-1"></i>Fachlicher Test
             </span>
             {% if can_create %}
             <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}"
@@ -1045,8 +863,6 @@
               <span class="flex-shrink-0">
                 {% if tf.bewertung == 'Bestanden' %}
                 <i class="bi bi-check-circle-fill text-success"></i>
-                {% elif tf.bewertung == 'Nicht bestanden' %}
-                <i class="bi bi-x-circle-fill text-danger"></i>
                 {% else %}
                 <i class="bi bi-circle text-secondary"></i>
                 {% endif %}
@@ -1069,7 +885,7 @@
           </ul>
           {% else %}
           <div class="text-muted" style="font-size:.78rem">
-            Noch keine Testfälle.
+            Noch kein Testfall.
             {% if can_create %}
             <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}">Anlegen</a>
             {% endif %}
@@ -1082,22 +898,31 @@
               <i class="bi bi-cpu me-1"></i>Technischer Test
             </span>
             {% if can_create %}
-            <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}"
-               class="btn btn-xs btn-outline-secondary">
-              <i class="bi bi-pencil me-1"></i>{{ 'Bearbeiten' if technischer_test else 'Erfassen' }}
-            </a>
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}"
+                 class="btn btn-xs btn-outline-secondary">
+                <i class="bi bi-pencil me-1"></i>{{ 'Bearbeiten' if technischer_test else 'Erfassen' }}
+              </a>
+              {% if technischer_test %}
+              <form method="post"
+                    action="{{ url_for('tests.delete_technischer_test_route', idv_db_id=idv.id) }}"
+                    onsubmit="return confirm('Technischen Test löschen?')"
+                    class="d-inline">
+                <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
             {% endif %}
           </div>
           {% if technischer_test %}
           <div class="d-flex align-items-start gap-2 rounded p-2
             {% if technischer_test.ergebnis == 'Bestanden' %}bg-success bg-opacity-10
-            {% elif technischer_test.ergebnis == 'Nicht bestanden' %}bg-danger bg-opacity-10
             {% else %}bg-light{% endif %}" style="font-size:.78rem">
             <span class="flex-shrink-0 mt-1">
               {% if technischer_test.ergebnis == 'Bestanden' %}
               <i class="bi bi-check-circle-fill text-success"></i>
-              {% elif technischer_test.ergebnis == 'Nicht bestanden' %}
-              <i class="bi bi-x-circle-fill text-danger"></i>
               {% elif technischer_test.ergebnis == 'Entfällt' %}
               <i class="bi bi-dash-circle text-secondary"></i>
               {% else %}
