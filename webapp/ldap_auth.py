@@ -126,22 +126,21 @@ def ldap_sync_person(db, person_data: dict) -> Optional[int]:
         db.commit()
         return existing["id"]
 
-    # Neue Person anlegen
-    kuerzel = _generate_kuerzel(db, person_data)
+    # Neue Person anlegen – AD-Name direkt als Kürzel und User-ID übernehmen
     rolle = person_data.get("rolle") or None  # kein Default – Admin vergibt Rolle manuell
     db.execute(
         """INSERT INTO persons
                (kuerzel, nachname, vorname, email, telefon, rolle, ad_name, user_id, aktiv)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)""",
         (
-            kuerzel,
+            ad_name,   # AD-Name als Kürzel
             person_data.get("nachname", ""),
             person_data.get("vorname", ""),
             person_data.get("email", ""),
             person_data.get("telefon", ""),
             rolle,
             ad_name,
-            kuerzel,   # Kürzel als User-ID (ad_name bleibt für LDAP-Matching erhalten)
+            ad_name,   # AD-Name auch als User-ID
         ),
     )
     db.commit()

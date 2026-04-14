@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (
     get_fachliche_testfaelle, get_fachlicher_testfall,
     create_fachlicher_testfall, update_fachlicher_testfall, delete_fachlicher_testfall,
-    get_technischer_test, save_technischer_test,
+    get_technischer_test, save_technischer_test, delete_technischer_test,
 )
 from datetime import date as _date
 
@@ -126,6 +126,21 @@ def edit_technischer_test(idv_db_id):
                            idv=idv, tech_test=tech_test,
                            ergebnisse=_TECH_ERGEBNISSE,
                            today=_date.today().isoformat())
+
+
+# ── Technischer Test: Löschen ─────────────────────────────────────────────
+
+@bp.route("/idv/<int:idv_db_id>/technisch/loeschen", methods=["POST"])
+@own_write_required
+def delete_technischer_test_route(idv_db_id):
+    db  = get_db()
+    idv = _get_idv_or_404(db, idv_db_id)
+    if not idv:
+        return redirect(url_for("idv.list_idv"))
+    delete_technischer_test(db, idv_db_id)
+    flash("Technischer Test gelöscht.", "success")
+    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
+                            _anchor="testdokumentation"))
 
 
 # ── Hilfsfunktion ─────────────────────────────────────────────────────────

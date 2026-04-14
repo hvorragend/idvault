@@ -862,6 +862,20 @@ def delete_person(pid):
     return redirect(url_for("admin.index"))
 
 
+@bp.route("/person/<int:pid>/endgueltig-loeschen", methods=["POST"])
+@admin_required
+def delete_person_hard(pid):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM persons WHERE id=?", (pid,))
+        db.commit()
+        flash("Person gelöscht.", "success")
+    except Exception:
+        db.rollback()
+        flash("Person konnte nicht gelöscht werden (noch IDVs zugeordnet) – bitte zuerst deaktivieren.", "warning")
+    return redirect(url_for("admin.index"))
+
+
 @bp.route("/personen/bulk", methods=["POST"])
 @admin_required
 def bulk_persons():
@@ -1045,6 +1059,47 @@ def delete_all_gp():
     db.execute("DELETE FROM geschaeftsprozesse")
     db.commit()
     flash("Alle Geschäftsprozesse wurden gelöscht.", "success")
+    return redirect(url_for("admin.index") + "#geschaeftsprozesse")
+
+
+@bp.route("/gps/bulk", methods=["POST"])
+@admin_required
+def bulk_gps():
+    """Bulk-Aktion auf mehrere Geschäftsprozesse: deactivate oder delete."""
+    db     = get_db()
+    action = request.form.get("action", "")
+    raw    = request.form.getlist("gp_ids")
+    ids    = [int(i) for i in raw if i.isdigit()]
+
+    if not ids:
+        flash("Keine Geschäftsprozesse ausgewählt.", "warning")
+        return redirect(url_for("admin.index") + "#geschaeftsprozesse")
+
+    if action == "deactivate":
+        ph = ",".join("?" * len(ids))
+        db.execute(f"UPDATE geschaeftsprozesse SET aktiv=0 WHERE id IN ({ph})", ids)
+        db.commit()
+        flash(f"{len(ids)} Geschäftsprozess(e) deaktiviert.", "success")
+
+    elif action == "delete":
+        deleted = skipped = 0
+        for gid in ids:
+            try:
+                db.execute("UPDATE idv_register SET gp_id=NULL WHERE gp_id=?", (gid,))
+                db.execute("DELETE FROM geschaeftsprozesse WHERE id=?", (gid,))
+                db.commit()
+                deleted += 1
+            except Exception:
+                db.rollback()
+                skipped += 1
+        msg = f"{deleted} Geschäftsprozess(e) gelöscht."
+        if skipped:
+            msg += f" {skipped} konnte(n) nicht gelöscht werden."
+        flash(msg, "success" if not skipped else "warning")
+
+    else:
+        flash("Unbekannte Aktion.", "error")
+
     return redirect(url_for("admin.index") + "#geschaeftsprozesse")
 
 

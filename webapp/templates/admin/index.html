@@ -104,6 +104,12 @@
                     <i class="bi bi-person-dash"></i>
                   </button>
                 </form>
+                <form method="post" action="{{ url_for('admin.delete_person_hard', pid=p.id) }}"
+                      class="d-inline" onsubmit="return confirm('Person endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Endgültig löschen">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
               </td>
             </tr>
             {% endfor %}
@@ -266,12 +272,36 @@
           <i class="bi bi-download me-1"></i>CSV-Vorlage
         </a>
       </div>
+
+      <!-- GP Bulk-Aktionsleiste -->
+      <div id="gpBulkBar" class="border-bottom px-3 py-2 d-none bg-light">
+        <form method="post" action="{{ url_for('admin.bulk_gps') }}" id="gpBulkForm"
+              onsubmit="return this.querySelector('[name=action]').value !== 'delete' || confirm('Ausgewählte Geschäftsprozesse endgültig löschen?')">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="fw-600 text-primary" style="font-size:.88rem">
+              <i class="bi bi-check2-square me-1"></i><span id="gpBulkCount">0</span> ausgewählt
+            </span>
+            <button type="submit" name="action" value="deactivate" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-dash-circle me-1"></i>Deaktivieren
+            </button>
+            <button type="submit" name="action" value="delete" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-trash me-1"></i>Löschen
+            </button>
+            <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="gpDeselectAll">Auswahl aufheben</button>
+          </div>
+        </form>
+      </div>
+
       <div style="max-height:280px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0">
-          <thead class="table-light"><tr><th>GP-Nr.</th><th>Bezeichnung</th><th>DORA</th><th>MaRisk</th><th>Aktiv</th><th></th></tr></thead>
+          <thead class="table-light"><tr>
+            <th style="width:1.5rem"><input type="checkbox" id="gpSelectAll" class="form-check-input" title="Alle auswählen"></th>
+            <th>GP-Nr.</th><th>Bezeichnung</th><th>DORA</th><th>MaRisk</th><th>Aktiv</th><th></th>
+          </tr></thead>
           <tbody>
             {% for gp in geschaeftsprozesse %}
             <tr class="{{ '' if gp.aktiv else 'text-muted' }}">
+              <td><input type="checkbox" name="gp_ids" value="{{ gp.id }}" form="gpBulkForm" class="form-check-input gp-cb"></td>
               <td><code>{{ gp.gp_nummer }}</code></td>
               <td>{{ gp.bezeichnung }}</td>
               <td class="text-center">{{ '✓' if gp.ist_kritisch else '–' }}</td>
@@ -280,7 +310,12 @@
               <td>
                 <a href="{{ url_for('admin.edit_gp', gid=gp.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
                 <form method="post" action="{{ url_for('admin.delete_gp', gid=gp.id) }}" class="d-inline" onsubmit="return confirm('GP deaktivieren?')">
-                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-dash-circle"></i></button>
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Deaktivieren"><i class="bi bi-dash-circle"></i></button>
+                </form>
+                <form method="post" action="{{ url_for('admin.bulk_gps') }}" class="d-inline"
+                      onsubmit="return confirm('Geschäftsprozess endgültig löschen?')">
+                  <input type="hidden" name="gp_ids" value="{{ gp.id }}">
+                  <button type="submit" name="action" value="delete" class="btn btn-xs btn-outline-danger py-0 px-1" title="Endgültig löschen"><i class="bi bi-trash"></i></button>
                 </form>
               </td>
             </tr>
@@ -879,6 +914,41 @@
 
   // Standardfilter anwenden (aktiv = "1")
   applyFilter();
+})();
+
+// ── GP Bulk-Auswahl ────────────────────────────────────────────────────────
+(function () {
+  const gpSelectAll  = document.getElementById('gpSelectAll');
+  const gpBulkBar    = document.getElementById('gpBulkBar');
+  const gpBulkCount  = document.getElementById('gpBulkCount');
+  const gpDeselectAll = document.getElementById('gpDeselectAll');
+  if (!gpSelectAll) return;
+
+  function updateGpBulkBar() {
+    const checked = document.querySelectorAll('.gp-cb:checked').length;
+    gpBulkCount.textContent = checked;
+    if (checked > 0) { gpBulkBar.classList.remove('d-none'); }
+    else             { gpBulkBar.classList.add('d-none'); }
+    const all = document.querySelectorAll('.gp-cb');
+    gpSelectAll.indeterminate = checked > 0 && checked < all.length;
+    gpSelectAll.checked = all.length > 0 && checked === all.length;
+  }
+
+  gpSelectAll.addEventListener('change', function () {
+    document.querySelectorAll('.gp-cb').forEach(cb => cb.checked = this.checked);
+    updateGpBulkBar();
+  });
+
+  gpDeselectAll.addEventListener('click', function () {
+    document.querySelectorAll('.gp-cb').forEach(cb => cb.checked = false);
+    gpSelectAll.checked = false;
+    gpSelectAll.indeterminate = false;
+    updateGpBulkBar();
+  });
+
+  document.querySelectorAll('.gp-cb').forEach(cb =>
+    cb.addEventListener('change', updateGpBulkBar)
+  );
 })();
 </script>
 {% endblock %}

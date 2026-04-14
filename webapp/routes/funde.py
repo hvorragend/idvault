@@ -271,6 +271,10 @@ def list_funde():
     letzter_scan = scan_runs[0] if scan_runs else None
     is_admin = current_user_role() == ROLE_ADMIN
 
+    persons = db.execute(
+        "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+    ).fetchall()
+
     gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
     return render_template("funde/list.html",
         dateien=dateien, filt=filt,
@@ -291,6 +295,7 @@ def list_funde():
         scan_run_label=_scan_run_label,
         duplicate_hashes=duplicate_hashes,
         is_admin=is_admin,
+        persons=persons,
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
@@ -440,6 +445,10 @@ def eingang_funde():
     }
     is_admin = current_user_role() == ROLE_ADMIN
 
+    persons = db.execute(
+        "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+    ).fetchall()
+
     return render_template("funde/eingang.html",
         dateien=dateien,
         total=total, total_pages=total_pages,
@@ -463,6 +472,7 @@ def eingang_funde():
         duplicate_hashes=duplicate_hashes,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         is_admin=is_admin,
+        persons=persons,
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )
@@ -685,7 +695,7 @@ def bulk_aktion():
         ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
         return redirect(url_for("funde.zusammenfassen") + "?" + ids_qs)
 
-    if aktion not in ("ignorieren", "zur_registrierung", "owner_aendern", "bewertung_anfordern"):
+    if aktion not in ("ignorieren", "zur_registrierung", "nicht_wesentlich", "owner_aendern", "bewertung_anfordern"):
         flash("Ungültige Aktion.", "error")
         return redirect(url_for("funde.list_funde"))
 
@@ -748,6 +758,15 @@ def bulk_aktion():
         )
         db.commit()
         flash(f"{len(file_ids)} Datei(en) zur Registrierung vorgemerkt.", "success")
+
+    elif aktion == "nicht_wesentlich":
+        placeholders = ",".join("?" * len(file_ids))
+        db.execute(
+            f"UPDATE idv_files SET bearbeitungsstatus = 'Nicht wesentlich' WHERE id IN ({placeholders})",
+            file_ids
+        )
+        db.commit()
+        flash(f"{len(file_ids)} Datei(en) als 'Nicht wesentlich' eingestuft.", "success")
 
     elif aktion == "owner_aendern":
         new_owner = request.form.get("new_owner", "").strip()

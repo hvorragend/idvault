@@ -204,8 +204,12 @@
         <p class="text-muted mb-2" style="font-size:.82rem">
           Neuen Eigentümer für <strong id="owner-modal-count">0</strong> ausgewählte Datei(en) setzen.
         </p>
-        <input type="text" id="owner-modal-input" class="form-control form-control-sm"
-               placeholder="Benutzername / UID" autocomplete="off">
+        <select id="owner-modal-input" class="form-select form-select-sm">
+          <option value="">– Person auswählen –</option>
+          {% for p in persons %}
+          <option value="{{ p.kuerzel }}">{{ p.nachname }}, {{ p.vorname }} ({{ p.kuerzel }})</option>
+          {% endfor %}
+        </select>
         <div class="form-text">Setzt den Dateieigentümer in der Datenbank (überschreibt bisherigen Wert).</div>
       </div>
       <div class="modal-footer py-2">
@@ -239,6 +243,11 @@
       <button type="submit" name="aktion" value="zur_registrierung"
               class="btn btn-sm btn-outline-info">
         <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
+      </button>
+      <button type="submit" name="aktion" value="nicht_wesentlich"
+              class="btn btn-sm btn-outline-secondary"
+              title="Als nicht wesentliche IDV einstufen (kein weiterer Handlungsbedarf)">
+        <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
       </button>
       <button type="submit" name="aktion" value="zusammenfassen"
               class="btn btn-sm btn-outline-primary"
@@ -728,7 +737,6 @@ function deleteScannerfund(btn) {
       if (el) el.textContent = n;
       const inp = document.getElementById('owner-modal-input');
       if (inp) inp.value = '';
-      setTimeout(() => { if (inp) inp.focus(); }, 300);
     });
     document.getElementById('owner-modal-confirm').addEventListener('click', function () {
       const val = document.getElementById('owner-modal-input').value.trim();

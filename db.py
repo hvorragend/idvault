@@ -786,6 +786,12 @@ def save_technischer_test(conn: sqlite3.Connection, idv_db_id: int, data: dict) 
     conn.commit()
 
 
+def delete_technischer_test(conn: sqlite3.Connection, idv_db_id: int) -> None:
+    """Löscht den technischen Test einer IDV."""
+    conn.execute("DELETE FROM technischer_test WHERE idv_id = ?", (idv_db_id,))
+    conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
