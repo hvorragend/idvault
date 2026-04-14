@@ -19,6 +19,7 @@ import logging
 import argparse
 import json
 import traceback
+import ctypes
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,25 @@ try:
     HAS_WIN32 = True
 except ImportError:
     HAS_WIN32 = False
+
+
+def _set_keep_awake(active: bool) -> None:
+    """Verhindert Bildschirmschoner und Systemschlaf während des Scans (nur Windows).
+
+    Ruft SetThreadExecutionState aus kernel32.dll auf:
+    - active=True:  ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED
+    - active=False: ES_CONTINUOUS  (Reset auf normales Verhalten)
+    """
+    if os.name != 'nt':
+        return
+    try:
+        ES_CONTINUOUS       = 0x80000000
+        ES_SYSTEM_REQUIRED  = 0x00000001
+        ES_DISPLAY_REQUIRED = 0x00000002
+        state = (ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED) if active else ES_CONTINUOUS
+        ctypes.windll.kernel32.SetThreadExecutionState(state)
+    except Exception:
+        pass  # Nicht-kritisch; Scan läuft weiter
 
 # ---------------------------------------------------------------------------
 # Konfiguration
@@ -1294,6 +1314,7 @@ def main():
     signal_dir = os.path.dirname(os.path.abspath(args.config))
     logger = setup_logging(config["log_path"])
 
+    _set_keep_awake(True)
     try:
         run_scan(config, logger, signal_dir=signal_dir, resume=args.resume)
     except BaseException as e:
@@ -1308,6 +1329,8 @@ def main():
         # Auch in stderr schreiben (wird von der Webapp nach scanner_output.log umgeleitet)
         print(f"FATAL: {type(e).__name__}: {e}\n{tb}", file=sys.stderr)
         sys.exit(2)
+    finally:
+        _set_keep_awake(False)
 
 
 if __name__ == "__main__":
