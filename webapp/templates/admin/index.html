@@ -374,13 +374,6 @@
                      {{ 'checked' if settings.get('notify_new_file','1')=='1' else '' }}>
               <label class="form-check-label" for="notify_nf">Neue Dateien benachrichtigen</label>
             </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="auto_ignore_no_formula" value="1" id="auto_ign"
-                     {{ 'checked' if settings.get('auto_ignore_no_formula','0')=='1' else '' }}>
-              <label class="form-check-label" for="auto_ign">
-                Dateien ohne Formeln automatisch ignorieren
-              </label>
-            </div>
           </div>
           <div class="col-md-4 d-flex align-items-end">
             <button type="submit" class="btn btn-sm btn-primary">
