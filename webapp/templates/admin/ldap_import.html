@@ -68,47 +68,73 @@
 {% elif users %}
 
 <!-- ── Import-Formular ────────────────────────────────────────────────── -->
-<form method="post" action="{{ url_for('admin.ldap_import') }}">
+<form method="post" action="{{ url_for('admin.ldap_import') }}" id="ldapImportForm">
   {% if extra_filter %}
   <input type="hidden" name="extra_filter" value="{{ extra_filter }}">
   {% endif %}
+  <input type="hidden" name="action" id="ldapAction" value="import">
 
   <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-      <span class="fw-600">
-        <i class="bi bi-people me-2"></i>{{ ldap_msg }}
-        <span class="badge bg-secondary ms-2">{{ users|selectattr('user_id', 'in', existing_ids)|list|length }} bereits vorhanden</span>
-      </span>
-      <div class="d-flex gap-2 align-items-center">
-        <label class="form-check-label small text-muted me-1">
-          <input type="checkbox" id="selectAll" class="form-check-input me-1">
-          Alle auswählen
-        </label>
-        <button type="submit" class="btn btn-sm btn-primary">
+    <div class="card-header bg-white">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-600">
+          <i class="bi bi-people me-2"></i>{{ ldap_msg }}
+          <span class="badge bg-secondary ms-1">{{ users|selectattr('user_id', 'in', existing_ids)|list|length }} vorhanden</span>
+          <span class="badge bg-primary ms-1">{{ users|rejectattr('user_id', 'in', existing_ids)|list|length }} neu</span>
+        </span>
+        <!-- Auswahl-Steuerung -->
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <div class="btn-group btn-group-sm">
+            <button type="button" id="selectAllBtn" class="btn btn-outline-secondary">
+              <i class="bi bi-check-all me-1"></i>Alle
+            </button>
+            <button type="button" id="selectNoneBtn" class="btn btn-outline-secondary">
+              <i class="bi bi-x me-1"></i>Keine
+            </button>
+          </div>
+          <button type="button" id="onlyNewBtn" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-stars me-1"></i>Nur neue auswählen
+          </button>
+        </div>
+      </div>
+
+      <!-- Bulk-Aktionsleiste -->
+      <div id="ldapBulkBar" class="mt-2 d-flex align-items-center gap-2 flex-wrap d-none">
+        <span class="text-muted small"><span id="ldapSelCount">0</span> ausgewählt</span>
+        <button type="submit" class="btn btn-sm btn-primary"
+                onclick="setAction('import')">
           <i class="bi bi-person-check me-1"></i>Ausgewählte importieren
+        </button>
+        <button type="button" class="btn btn-sm btn-warning"
+                onclick="if(confirm('Ausgewählte Personen in idvault deaktivieren?')){setAction('delete');document.getElementById('ldapImportForm').submit();}">
+          <i class="bi bi-person-dash me-1"></i>Ausgewählte deaktivieren
         </button>
       </div>
     </div>
+
     <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+      <table class="table table-sm table-hover mb-0" id="ldapTable" style="font-size:.82rem">
         <thead class="table-light">
           <tr>
-            <th style="width:2.5rem"></th>
+            <th style="width:2.5rem">
+              <input type="checkbox" id="ldapSelectAll" class="form-check-input">
+            </th>
             <th>Name</th>
             <th>Anmeldename</th>
             <th>E-Mail</th>
             <th>Abteilung</th>
             <th>Ermittelte Rolle</th>
-            <th style="width:6rem"></th>
+            <th style="width:7rem"></th>
           </tr>
         </thead>
         <tbody>
           {% for u in users %}
           {% set already = u.user_id in existing_ids %}
-          <tr class="{{ 'table-success' if already else '' }}">
+          <tr class="{{ 'table-success' if already else '' }}"
+              data-existing="{{ '1' if already else '0' }}">
             <td class="text-center">
               <input type="checkbox" name="user_ids" value="{{ u.user_id }}"
-                     class="form-check-input user-cb"
+                     class="form-check-input ldap-cb"
                      {{ 'checked' if not already }}>
             </td>
             <td>
@@ -128,13 +154,17 @@
                 {{ u.rolle }}
               </span>
               {% else %}
-              <span class="text-muted" title="Kein Gruppen-Mapping gefunden">–</span>
+              <span class="text-muted">–</span>
               {% endif %}
             </td>
             <td>
               {% if already %}
-              <span class="badge bg-light text-success border border-success" title="Bereits in idvault vorhanden">
+              <span class="badge bg-light text-success border border-success">
                 <i class="bi bi-check-circle me-1"></i>vorhanden
+              </span>
+              {% else %}
+              <span class="badge bg-light text-primary border border-primary">
+                <i class="bi bi-plus me-1"></i>neu
               </span>
               {% endif %}
             </td>
@@ -143,8 +173,12 @@
         </tbody>
       </table>
     </div>
-    <div class="card-footer bg-white text-end">
-      <button type="submit" class="btn btn-primary">
+
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <button type="button" id="onlyNewImportBtn" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-stars me-1"></i>Nur neue importieren
+      </button>
+      <button type="submit" class="btn btn-primary btn-sm" onclick="setAction('import')">
         <i class="bi bi-person-check me-1"></i>Ausgewählte importieren
       </button>
     </div>
@@ -165,20 +199,86 @@
     <strong><i class="bi bi-info-circle me-1"></i>Hinweise:</strong>
     <ul class="mb-0 mt-2">
       <li>Es werden nur <strong>aktivierte</strong> AD-Benutzerkonten angezeigt.</li>
-      <li>Bereits vorhandene Personen (grün markiert) werden beim Import <strong>aktualisiert</strong> (Name, E-Mail, Telefon, Rolle).</li>
-      <li>Die Rolle wird automatisch aus dem <a href="{{ url_for('admin.ldap_gruppen') }}">Gruppen-Rollen-Mapping</a> ermittelt. Ohne passende Gruppe bleibt das Feld leer.</li>
-      <li>Das Kürzel wird aus den Initialen generiert, wenn noch kein Eintrag vorhanden ist.</li>
+      <li>Bereits vorhandene Personen (grün / „vorhanden") werden beim Import <strong>aktualisiert</strong> (Name, E-Mail, Telefon, Rolle).</li>
+      <li>Neue Personen erhalten <strong>keine Berechtigung</strong> – die Rolle muss der Admin danach in der Mitarbeiterverwaltung vergeben.</li>
+      <li>Die Rolle wird automatisch aus dem <a href="{{ url_for('admin.ldap_gruppen') }}">Gruppen-Rollen-Mapping</a> ermittelt, wenn ein Mapping vorhanden ist.</li>
+      <li><strong>Deaktivieren</strong> setzt den Datensatz in idvault auf inaktiv – der AD-Account bleibt unberührt.</li>
     </ul>
   </div>
 </div>
 
 {% endif %}
 
-<script>
-document.getElementById('selectAll')?.addEventListener('change', function() {
-  document.querySelectorAll('.user-cb').forEach(cb => cb.checked = this.checked);
-});
-</script>
-
 <style>.fw-600 { font-weight: 600; }</style>
+<script>
+function setAction(val) {
+  document.getElementById('ldapAction').value = val;
+}
+
+(function () {
+  const form       = document.getElementById('ldapImportForm');
+  if (!form) return;
+
+  const allCbs     = () => document.querySelectorAll('.ldap-cb');
+  const selCountEl = document.getElementById('ldapSelCount');
+  const bulkBar    = document.getElementById('ldapBulkBar');
+  const ldapSelAll = document.getElementById('ldapSelectAll');
+
+  function updateBulkBar() {
+    const checked = [...allCbs()].filter(cb => cb.checked).length;
+    if (selCountEl) selCountEl.textContent = checked;
+    if (bulkBar) {
+      bulkBar.classList.toggle('d-none',  checked === 0);
+      bulkBar.classList.toggle('d-flex',  checked > 0);
+    }
+    if (ldapSelAll) {
+      const total = allCbs().length;
+      ldapSelAll.indeterminate = checked > 0 && checked < total;
+      ldapSelAll.checked = total > 0 && checked === total;
+    }
+  }
+
+  // Alle / Keine
+  document.getElementById('selectAllBtn')?.addEventListener('click', () => {
+    allCbs().forEach(cb => cb.checked = true);
+    updateBulkBar();
+  });
+  document.getElementById('selectNoneBtn')?.addEventListener('click', () => {
+    allCbs().forEach(cb => cb.checked = false);
+    updateBulkBar();
+  });
+
+  // Nur neue auswählen (Header-Button)
+  document.getElementById('onlyNewBtn')?.addEventListener('click', () => {
+    document.querySelectorAll('#ldapTable tbody tr').forEach(row => {
+      const cb = row.querySelector('.ldap-cb');
+      if (cb) cb.checked = row.dataset.existing !== '1';
+    });
+    updateBulkBar();
+  });
+
+  // Nur neue importieren (Footer-Button)
+  document.getElementById('onlyNewImportBtn')?.addEventListener('click', () => {
+    document.querySelectorAll('#ldapTable tbody tr').forEach(row => {
+      const cb = row.querySelector('.ldap-cb');
+      if (cb) cb.checked = row.dataset.existing !== '1';
+    });
+    setAction('import');
+    form.submit();
+  });
+
+  // Alle-Checkbox im Header
+  ldapSelAll?.addEventListener('change', function () {
+    allCbs().forEach(cb => cb.checked = this.checked);
+    updateBulkBar();
+  });
+
+  // Änderungen an einzelnen Checkboxen
+  document.getElementById('ldapTable')?.addEventListener('change', e => {
+    if (e.target.classList.contains('ldap-cb')) updateBulkBar();
+  });
+
+  updateBulkBar();
+})();
+</script>
 {% endblock %}

@@ -6,6 +6,10 @@
 <div class="row g-4">
 
   <!-- ── Personen ──────────────────────────────────────────────── -->
+
+  {# Bulk-Formular: außerhalb der Karte, Checkboxes verweisen via form="personBulkForm" #}
+  <form id="personBulkForm" method="post" action="{{ url_for('admin.bulk_persons') }}"></form>
+
   <div class="col-12">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -14,6 +18,7 @@
           <i class="bi bi-download me-1"></i>CSV-Vorlage
         </a>
       </div>
+
       <!-- Suche & Filter -->
       <div class="px-3 py-2 border-bottom d-flex flex-wrap gap-2 align-items-center">
         <input type="text" id="personSearch" class="form-control form-control-sm"
@@ -30,16 +35,39 @@
           <option value="0">inaktiv</option>
         </select>
       </div>
+
+      <!-- Bulk-Aktionsleiste (erscheint bei Auswahl) -->
+      <div id="personBulkBar" class="d-none px-3 py-2 border-bottom bg-warning bg-opacity-10 d-flex align-items-center gap-2 flex-wrap">
+        <span class="text-muted small"><span id="personSelCount">0</span> ausgewählt</span>
+        <button form="personBulkForm" type="submit" name="action" value="deactivate"
+                class="btn btn-sm btn-warning"
+                onclick="return confirm('Ausgewählte Personen deaktivieren?')">
+          <i class="bi bi-person-dash me-1"></i>Deaktivieren
+        </button>
+        <button form="personBulkForm" type="submit" name="action" value="delete"
+                class="btn btn-sm btn-danger"
+                onclick="return confirm('Ausgewählte Personen endgültig löschen?\n\nAchtung: Personen, die noch IDVs zugeordnet haben, können nicht gelöscht werden.')">
+          <i class="bi bi-trash me-1"></i>Löschen
+        </button>
+        <button type="button" id="personDeselectAll" class="btn btn-sm btn-outline-secondary ms-auto">
+          <i class="bi bi-x me-1"></i>Auswahl aufheben
+        </button>
+      </div>
+
       <div style="max-height:420px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0" id="personTable">
           <thead class="table-light sticky-top">
             <tr>
-              <th class="sort-col" data-col="0" style="cursor:pointer;user-select:none">Kürzel <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
-              <th class="sort-col" data-col="1" style="cursor:pointer;user-select:none">Name <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
-              <th class="sort-col" data-col="2" style="cursor:pointer;user-select:none">User-ID <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th style="width:2rem">
+                <input type="checkbox" id="personSelectAll" class="form-check-input"
+                       title="Alle sichtbaren auswählen">
+              </th>
+              <th class="sort-col" data-col="1" style="cursor:pointer;user-select:none">Kürzel <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th class="sort-col" data-col="2" style="cursor:pointer;user-select:none">Name <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th class="sort-col" data-col="3" style="cursor:pointer;user-select:none">User-ID <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
               <th>E-Mail</th><th>AD-Name</th>
-              <th class="sort-col" data-col="5" style="cursor:pointer;user-select:none">Rolle <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
-              <th class="sort-col" data-col="6" style="cursor:pointer;user-select:none">OE <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th class="sort-col" data-col="6" style="cursor:pointer;user-select:none">Rolle <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
+              <th class="sort-col" data-col="7" style="cursor:pointer;user-select:none">OE <i class="bi bi-arrow-down-up text-muted" style="font-size:.65rem"></i></th>
               <th>Aktiv</th><th></th>
             </tr>
           </thead>
@@ -48,6 +76,10 @@
             <tr class="{{ '' if p.aktiv else 'text-muted' }}"
                 data-rolle="{{ p.rolle or '' }}"
                 data-aktiv="{{ '1' if p.aktiv else '0' }}">
+              <td>
+                <input type="checkbox" name="person_ids" value="{{ p.id }}"
+                       form="personBulkForm" class="form-check-input person-cb">
+              </td>
               <td><code>{{ p.kuerzel }}</code></td>
               <td>{{ p.nachname }}, {{ p.vorname }}</td>
               <td style="font-size:.78rem">{{ p.user_id or '–' }}</td>
@@ -78,6 +110,7 @@
           </tbody>
         </table>
       </div>
+
       <div class="card-footer bg-white">
         <!-- Neue Person -->
         <details>
@@ -723,18 +756,25 @@
   .btn-xs { font-size: .75rem; line-height: 1.4; }
   .sort-col:hover { background: #f0f4f8; }
   .sort-col.asc i, .sort-col.desc i { color: #0d6efd !important; }
+  .person-cb:checked ~ * { background: rgba(13,110,253,.06); }
+  tr:has(.person-cb:checked) { background: rgba(13,110,253,.05) !important; }
 </style>
 <script>
 (function () {
-  const table   = document.getElementById('personTable');
-  const tbody   = table.querySelector('tbody');
-  const allRows = Array.from(tbody.querySelectorAll('tr'));
-  const countEl = document.getElementById('personCount');
-  const search  = document.getElementById('personSearch');
-  const rolleF  = document.getElementById('personRolleFilter');
-  const aktivF  = document.getElementById('personAktivFilter');
+  const table      = document.getElementById('personTable');
+  const tbody      = table.querySelector('tbody');
+  const allRows    = Array.from(tbody.querySelectorAll('tr'));
+  const countEl    = document.getElementById('personCount');
+  const search     = document.getElementById('personSearch');
+  const rolleF     = document.getElementById('personRolleFilter');
+  const aktivF     = document.getElementById('personAktivFilter');
+  const selectAll  = document.getElementById('personSelectAll');
+  const bulkBar    = document.getElementById('personBulkBar');
+  const selCountEl = document.getElementById('personSelCount');
+  const deselectBtn = document.getElementById('personDeselectAll');
   let sortCol = -1, sortDir = 1;
 
+  // ── Filter ────────────────────────────────────────────────────────────────
   function applyFilter() {
     const q     = search.value.toLowerCase();
     const rolle = rolleF.value;
@@ -752,8 +792,10 @@
       if (show) vis++;
     });
     countEl.textContent = vis;
+    updateBulkBar();
   }
 
+  // ── Sortierung ────────────────────────────────────────────────────────────
   function applySort(col) {
     if (sortCol === col) { sortDir = -sortDir; }
     else { sortCol = col; sortDir = 1; }
@@ -779,6 +821,45 @@
       }
     });
   }
+
+  // ── Bulk-Auswahl ──────────────────────────────────────────────────────────
+  function updateBulkBar() {
+    const checked = document.querySelectorAll('.person-cb:checked').length;
+    selCountEl.textContent = checked;
+    if (checked > 0) {
+      bulkBar.classList.remove('d-none');
+      bulkBar.classList.add('d-flex');
+    } else {
+      bulkBar.classList.add('d-none');
+      bulkBar.classList.remove('d-flex');
+    }
+    // "Alle auswählen"-Checkbox: indeterminate wenn Teils
+    const visible   = allRows.filter(r => r.style.display !== 'none');
+    const visChecked = visible.filter(r => r.querySelector('.person-cb')?.checked).length;
+    selectAll.indeterminate = visChecked > 0 && visChecked < visible.length;
+    selectAll.checked = visible.length > 0 && visChecked === visible.length;
+  }
+
+  selectAll.addEventListener('change', function () {
+    allRows.forEach(row => {
+      if (row.style.display !== 'none') {
+        const cb = row.querySelector('.person-cb');
+        if (cb) cb.checked = this.checked;
+      }
+    });
+    updateBulkBar();
+  });
+
+  deselectBtn.addEventListener('click', function () {
+    document.querySelectorAll('.person-cb').forEach(cb => cb.checked = false);
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    updateBulkBar();
+  });
+
+  tbody.addEventListener('change', function (e) {
+    if (e.target.classList.contains('person-cb')) updateBulkBar();
+  });
 
   search.addEventListener('input',  applyFilter);
   rolleF.addEventListener('change', applyFilter);
