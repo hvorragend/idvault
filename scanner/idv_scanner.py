@@ -73,7 +73,7 @@ DEFAULT_CONFIG = {
     #                                nur wenn genau ein aktiver Treffer (Eindeutigkeit)
     #   "disabled"                 – keine Move-Detection; verschobene Dateien werden
     #                                archiviert und als neue Datei neu angelegt
-    "move_detection": "name_and_hash",
+    "move_detection": "hash_only",
     # Startdatum für den Scan (ISO-Format: "YYYY-MM-DD" oder null für alle Dateien).
     # Nur Dateien, deren Dateisystem-Änderungsdatum >= scan_since liegt, werden
     # verarbeitet. Ältere Dateien werden übersprungen und NICHT archiviert.
@@ -683,19 +683,53 @@ def _get_toplevel_dirs(scan_path: str, excludes: list) -> list:
         return []
 
 
+_EXCEL_EXTENSIONS = {".xlsx", ".xlsm", ".xlsb", ".xls", ".xltm", ".xltx"}
+
+
 def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                    now: str, logger: logging.Logger, move_mode: str,
-                   stats: dict, signal_dir: Optional[str]) -> None:
-    """Verarbeitet alle Dateien eines Generators, prüft alle 50 Dateien die Signale."""
+                   stats: dict, signal_dir: Optional[str],
+                   auto_ignore: bool = False,
+                   discard_no_formula: bool = False) -> None:
+    """Verarbeitet alle Dateien eines Generators, prüft alle 50 Dateien die Signale.
+
+    auto_ignore:       Neue Excel-Dateien ohne Formeln/Makros sofort als 'Ignoriert' markieren.
+    discard_no_formula: Neue Excel-Dateien ohne Formeln/Makros komplett überspringen (nicht in DB).
+    """
     file_counter = 0
     for data in chunk_gen:
         current_path = data.get("full_path", "?")
         try:
             logger.debug(f"Verarbeite: {current_path}")
+
+            is_excel = data.get("extension", "").lower() in _EXCEL_EXTENSIONS
+            no_formula = not data.get("formula_count") and not data.get("has_macros")
+
+            # ── Discard: neue Excel-Dateien ohne Formeln komplett überspringen ──
+            if discard_no_formula and is_excel and no_formula:
+                exists = conn.execute(
+                    "SELECT 1 FROM idv_files WHERE full_path = ?", (data["full_path"],)
+                ).fetchone()
+                if not exists:
+                    stats["discarded"] = stats.get("discarded", 0) + 1
+                    logger.debug(f"Verworfen (kein Formel): {current_path}")
+                    continue
+
             change = upsert_file(conn, data, scan_run_id, now, logger, move_mode)
             stats["total"]  += 1
             stats[change]   += 1
             file_counter    += 1
+
+            # ── Auto-Ignore: neue Excel-Dateien ohne Formeln sofort ignorieren ──
+            if auto_ignore and change in ("new", "restored") and is_excel and no_formula:
+                conn.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus = 'Ignoriert' "
+                    "WHERE full_path = ? AND status = 'active' "
+                    "  AND bearbeitungsstatus = 'Neu' "
+                    "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
+                    "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
+                    (data["full_path"],)
+                )
 
             if file_counter % 50 == 0:
                 _check_and_handle_signals(signal_dir, logger)
@@ -964,8 +998,30 @@ def run_scan(config: dict, logger: logging.Logger,
     conn = init_db(config["db_path"])
     now  = datetime.now(timezone.utc).isoformat()
 
-    move_mode = config.get("move_detection", "name_and_hash")
+    move_mode = config.get("move_detection", "hash_only")
     logger.info(f"Move-Detection-Modus: {move_mode}")
+
+    # ── Laufzeit-Einstellungen aus DB laden ───────────────────────────────────
+    try:
+        _ai_row = conn.execute(
+            "SELECT value FROM app_settings WHERE key='auto_ignore_no_formula'"
+        ).fetchone()
+        runtime_auto_ignore = (_ai_row and _ai_row["value"] == "1")
+    except Exception:
+        runtime_auto_ignore = False
+
+    try:
+        _dc_row = conn.execute(
+            "SELECT value FROM app_settings WHERE key='discard_no_formula'"
+        ).fetchone()
+        runtime_discard = (_dc_row and _dc_row["value"] == "1")
+    except Exception:
+        runtime_discard = False
+
+    if runtime_auto_ignore:
+        logger.info("Laufzeit-Auto-Ignore aktiv: neue Excel-Dateien ohne Formeln werden sofort ignoriert")
+    if runtime_discard:
+        logger.info("Verwerfen aktiv: neue Excel-Dateien ohne Formeln werden nicht in die DB aufgenommen")
 
     # Startdatum-Filter auswerten
     scan_since    = config.get("scan_since") or None
@@ -1046,7 +1102,9 @@ def run_scan(config: dict, logger: logging.Logger,
             if root_chunk not in completed_dirs:
                 _process_chunk(
                     walk_root_files(scan_path, config, scan_paths, logger, scan_since_ts),
-                    conn, scan_run_id, now, logger, move_mode, stats, signal_dir
+                    conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
+                    auto_ignore=runtime_auto_ignore,
+                    discard_no_formula=runtime_discard,
                 )
                 conn.commit()
                 completed_dirs.append(root_chunk)
@@ -1063,7 +1121,9 @@ def run_scan(config: dict, logger: logging.Logger,
                 logger.info(f"  Unterverzeichnis: {subdir}")
                 _process_chunk(
                     walk_and_scan(subdir, config, scan_paths, logger, scan_since_ts),
-                    conn, scan_run_id, now, logger, move_mode, stats, signal_dir
+                    conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
+                    auto_ignore=runtime_auto_ignore,
+                    discard_no_formula=runtime_discard,
                 )
                 conn.commit()
                 completed_dirs.append(subdir)
@@ -1075,13 +1135,11 @@ def run_scan(config: dict, logger: logging.Logger,
         deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, scan_paths)
         conn.commit()
 
-        # ── Auto-Ignorieren: Dateien ohne Formeln ────────────────────────
+        # ── Auto-Ignorieren am Scan-Ende: verbleibende Dateien ohne Formeln ─
+        # (deckt Dateien ab, die bereits vor diesem Scan existierten und noch 'Neu' sind)
         auto_ignored = 0
         try:
-            setting = conn.execute(
-                "SELECT value FROM app_settings WHERE key='auto_ignore_no_formula'"
-            ).fetchone()
-            if setting and setting["value"] == "1":
+            if runtime_auto_ignore:
                 cur_ai = conn.execute("""
                     UPDATE idv_files
                     SET bearbeitungsstatus = 'Ignoriert'
@@ -1098,6 +1156,9 @@ def run_scan(config: dict, logger: logging.Logger,
                     logger.info(f"  Auto-Ignoriert  : {auto_ignored} Dateien (ohne Formeln/Makros)")
         except Exception as e:
             logger.warning(f"Auto-Ignorieren fehlgeschlagen: {e}")
+
+        if stats.get("discarded"):
+            logger.info(f"  Verworfen       : {stats['discarded']} Dateien (kein Formel/Makro)")
 
         finished = datetime.now(timezone.utc).isoformat()
         conn.execute("""

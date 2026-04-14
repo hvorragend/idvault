@@ -30,12 +30,16 @@
   </div>
   <div class="col-sm-3">
     <div class="card border-0 shadow-sm stat-card p-3 text-center">
-      {% if gesamt_aktiv > 0 %}
-      <div class="stat-val text-success">{{ ((gesamt_aktiv - neu_gesamt) / gesamt_aktiv * 100)|int }}%</div>
+      {% if gesamt_zu_bearbeiten > 0 %}
+      <div class="stat-val text-success">{{ ((gesamt_zu_bearbeiten - neu_gesamt) / gesamt_zu_bearbeiten * 100)|int }}%</div>
       {% else %}
       <div class="stat-val text-success">–</div>
       {% endif %}
-      <div class="stat-lbl">Fortschritt</div>
+      <div class="stat-lbl">Fortschritt
+        {% if ignoriert_eingang %}
+        <span class="d-block text-muted" style="font-size:.72rem">{{ ignoriert_eingang }} ignoriert</span>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
@@ -56,13 +60,16 @@
 {% else %}
 
 <!-- ── Fortschrittsbalken ──────────────────────────────────────────── -->
-{% if gesamt_aktiv > 0 %}
+{% if gesamt_zu_bearbeiten > 0 %}
 <div class="card border-0 shadow-sm p-3 mb-3">
-  {% set processed = gesamt_aktiv - neu_gesamt %}
-  {% set pct = ((processed / gesamt_aktiv) * 100)|int %}
+  {% set processed = gesamt_zu_bearbeiten - neu_gesamt %}
+  {% set pct = ((processed / gesamt_zu_bearbeiten) * 100)|int %}
   <div class="d-flex justify-content-between align-items-center mb-1" style="font-size:.82rem">
     <span class="text-muted">Bearbeitungsfortschritt</span>
-    <span class="text-muted">{{ processed }} von {{ gesamt_aktiv }} aktiven Dateien verarbeitet</span>
+    <span class="text-muted">
+      {{ processed }} von {{ gesamt_zu_bearbeiten }} zu bearbeitenden Dateien
+      {% if ignoriert_eingang %}<span class="text-secondary ms-2">({{ ignoriert_eingang }} ignoriert)</span>{% endif %}
+    </span>
   </div>
   <div class="progress" style="height:8px">
     <div class="progress-bar bg-success" role="progressbar" style="width:{{ pct }}%" aria-valuenow="{{ pct }}"
@@ -171,17 +178,12 @@
 <!-- ── Filter-Leiste ───────────────────────────────────────────────── -->
 <form method="get" class="card border-0 shadow-sm p-3 mb-3">
   <div class="row g-2 align-items-end">
-    <div class="col-md-4">
+    <!-- Speicherort – durchsuchbares Eingabefeld, volle Breite -->
+    <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      <select name="dir_path" class="form-select form-select-sm" title="{{ dir_path_filt }}">
-        <option value="">– Alle Verzeichnisse –</option>
-        {% for dp in dir_paths %}
-        <option value="{{ dp }}" {{ 'selected' if dir_path_filt==dp }}
-                title="{{ dp }}">{{ ('…' + dp[-60:]) if dp|length > 63 else dp }}</option>
-        {% endfor %}
-      </select>
+      {% include 'scanner/_dir_search.html' %}
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
       <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
       <select name="sort" class="form-select form-select-sm">
         <option value="prioritaet" {{ 'selected' if sort=='prioritaet' }}>Priorität (Makros zuerst)</option>
@@ -193,9 +195,9 @@
     <div class="col-md-2">
       <label class="form-label form-label-sm"><i class="bi bi-list-ol me-1"></i>Pro Seite</label>
       <select name="per_page" class="form-select form-select-sm">
-        <option value="50" {{ 'selected' if per_page==50 }}>50</option>
-        <option value="100" {{ 'selected' if per_page==100 }}>100</option>
-        <option value="200" {{ 'selected' if per_page==200 }}>200</option>
+        {% for n in (valid_per_page or (25, 50, 100, 200, 500)) %}
+        <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
+        {% endfor %}
       </select>
     </div>
     <div class="col-md-3 d-flex gap-1">
@@ -247,6 +249,11 @@
   </div>
 </div>
 
+<!-- ── Pagination-Variablen (vor dem Formular) ─────────────────────── -->
+{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt} %}
+{% set endpoint = 'scanner.eingang_funde' %}
+{% include 'scanner/_pagination.html' %}
+
 <!-- ── Massenaktions-Formular ──────────────────────────────────────── -->
 <form method="post" action="{{ url_for('scanner.bulk_aktion') }}" id="bulk-form">
   <input type="hidden" name="return_to" value="eingang">
@@ -284,32 +291,6 @@
       </button>
     </div>
   </div>
-
-  <!-- ── Pagination oben ──────────────────────────────────────────── -->
-  {% if total_pages > 1 %}
-  <nav class="d-flex align-items-center justify-content-between mb-2">
-    <span class="text-muted" style="font-size:.82rem">
-      Seite {{ page }} von {{ total_pages }} &nbsp;·&nbsp; {{ total }} Dateien im Eingang
-    </span>
-    <ul class="pagination pagination-sm mb-0">
-      <li class="page-item {{ 'disabled' if page <= 1 }}">
-        <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=page-1, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">&laquo;</a>
-      </li>
-      {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
-      <li class="page-item {{ 'active' if p == page }}">
-        <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=p, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">{{
-          p }}</a>
-      </li>
-      {% endfor %}
-      <li class="page-item {{ 'disabled' if page >= total_pages }}">
-        <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=page+1, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">&raquo;</a>
-      </li>
-    </ul>
-  </nav>
-  {% endif %}
 
   <!-- ── Tabelle ──────────────────────────────────────────────────── -->
   <div class="card border-0 shadow-sm">
@@ -477,33 +458,11 @@
     </div>
   </div>
 
-  <!-- ── Pagination unten ─────────────────────────────────────────── -->
-  {% if total_pages > 1 %}
-  <nav class="d-flex align-items-center justify-content-between mt-3">
-    <span class="text-muted" style="font-size:.82rem">
-      Seite {{ page }} von {{ total_pages }} &nbsp;·&nbsp; {{ total }} Dateien
-    </span>
-    <ul class="pagination pagination-sm mb-0">
-      <li class="page-item {{ 'disabled' if page <= 1 }}">
-        <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=page-1, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">&laquo;</a>
-      </li>
-      {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
-      <li class="page-item {{ 'active' if p == page }}">
-        <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=p, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">{{
-          p }}</a>
-      </li>
-      {% endfor %}
-      <li class="page-item {{ 'disabled' if page >= total_pages }}">
-        <a class="page-link"
-          href="{{ url_for('scanner.eingang_funde', page=page+1, per_page=per_page, sort=sort, dir_path=dir_path_filt) }}">&raquo;</a>
-      </li>
-    </ul>
-  </nav>
-  {% endif %}
-
 </form>
+
+<!-- ── Pagination unten ─────────────────────────────────────────── -->
+{% include 'scanner/_pagination.html' %}
+
 {% endif %}
 
 <style>

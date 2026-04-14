@@ -24,12 +24,38 @@
   </div>
 </div>
 
-<div class="card border-0 shadow-sm">
+<!-- ── Filter-Leiste ─────────────────────────────────────────────── -->
+<form method="get" class="card border-0 shadow-sm p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12">
+      <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
+      {% include 'scanner/_dir_search.html' %}
+    </div>
+    <div class="col-auto d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel me-1"></i>Filtern</button>
+      <a href="{{ url_for('scanner.ignorierte_dateien') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+    </div>
+  </div>
+  {% if dir_path_filt %}
+  <div class="mt-2">
+    <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
+  </div>
+  {% endif %}
+</form>
+
+<!-- ── Pagination oben ────────────────────────────────────────────── -->
+{% set url_extra = {'dir_path': dir_path_filt} %}
+{% set endpoint = 'scanner.ignorierte_dateien' %}
+{% include 'scanner/_pagination.html' %}
+
+<div class="card border-0 shadow-sm mt-2">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-600">
       <i class="bi bi-eye-slash me-2 text-secondary"></i>
       Ignorierte Eigenentwicklungen
-      <span class="badge bg-secondary ms-1">{{ ignorierte|length }}</span>
+      <span class="badge bg-secondary ms-1">
+        {% if total > per_page %}{{ dateien|length }} von {{ total }}{% else %}{{ total }}{% endif %}
+      </span>
     </span>
     <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
        class="btn btn-sm btn-outline-secondary">
@@ -63,19 +89,13 @@
           <td style="font-size:.80rem">
             {{ f.file_owner or f.office_author or '–' }}
           </td>
-          <td style="font-size:.74rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          <td style="font-size:.74rem;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.full_path }}">
-            {% if f.full_path and f.file_name and f.full_path|length > f.file_name|length %}
-              {% set dir_path = f.full_path[:(f.full_path|length - f.file_name|length - 1)] %}
-            {% elif f.share_root %}
-              {% set dir_path = f.share_root %}
-            {% else %}
-              {% set dir_path = '' %}
-            {% endif %}
-            {% if dir_path %}
-            <span class="badge bg-success" style="font-size:.68rem;font-family:monospace"
-                  title="{{ dir_path }}">
-              <i class="bi bi-folder2-open me-1"></i>{{ dir_path }}
+            {% if f.dir_path %}
+            <span class="badge bg-success font-monospace"
+                  style="font-size:.68rem"
+                  title="{{ f.dir_path }}">
+              <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-55:]) if f.dir_path|length > 58 else f.dir_path }}
             </span>
             {% endif %}
           </td>
@@ -123,6 +143,9 @@
     </table>
   </div>
 </div>
+
+<!-- ── Pagination unten ───────────────────────────────────────────── -->
+{% include 'scanner/_pagination.html' %}
 
 <style>
 .btn-xs { padding: .15rem .45rem; font-size: .75rem; }

@@ -1,0 +1,27 @@
+{#
+  Durchsuchbares Verzeichnis-Eingabefeld (ersetzt das <select> für Speicherort-Filter).
+  Vollständige Seitenbreite, Live-Suche via Datalist.
+
+  Erwartet:
+    dir_paths     – Liste aller Verzeichnispfade (aus dem Route-Kontext)
+    dir_path_filt – Aktuell gewählter Pfad (str)
+    input_id      – Eindeutige ID für dieses Feld (Standard: "dir-search")
+#}
+{% set _id = input_id if input_id is defined else "dir-search" %}
+<div class="position-relative w-100">
+  <input type="text"
+         id="{{ _id }}-input"
+         name="dir_path"
+         class="form-control form-control-sm font-monospace"
+         placeholder="Verzeichnis suchen oder eingeben …"
+         value="{{ dir_path_filt }}"
+         autocomplete="off"
+         list="{{ _id }}-datalist"
+         style="min-width:0;width:100%">
+  <datalist id="{{ _id }}-datalist">
+    <option value=""></option>
+    {% for dp in dir_paths %}
+    <option value="{{ dp }}">{{ dp }}</option>
+    {% endfor %}
+  </datalist>
+</div>

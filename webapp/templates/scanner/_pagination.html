@@ -1,0 +1,103 @@
+{#
+  Wiederverwendbares Pagination-Widget für Scanner-Ansichten.
+
+  Erwartet folgende Variablen (aus dem Kontext oder Aufruf):
+    page          – aktuelle Seite (int)
+    total_pages   – Gesamtanzahl Seiten (int)
+    total         – Gesamtanzahl Einträge (int)
+    per_page      – Einträge pro Seite (int)
+    valid_per_page – Tuple erlaubter Werte, z.B. (25, 50, 100, 200, 500)
+    endpoint      – Flask-Endpunkt (str), z.B. 'scanner.list_funde'
+    url_extra     – dict mit zusätzlichen URL-Parametern (optional)
+
+  Verwendung:
+    {% set url_extra = {'filter': filt, 'share_root': share_root_filt} %}
+    {% include 'scanner/_pagination.html' %}
+#}
+{% if total_pages > 1 or true %}
+<nav class="d-flex align-items-center justify-content-between gap-2 flex-wrap py-1"
+     aria-label="Seitennavigation">
+
+  {# ── Seiteninformation ── #}
+  <span class="text-muted" style="font-size:.82rem;white-space:nowrap">
+    {% if total_pages > 1 %}
+    Seite {{ page }} von {{ total_pages }}&nbsp;·&nbsp;
+    {% endif %}
+    {{ total }} Einträge
+  </span>
+
+  {# ── Paginierungs-Buttons ── #}
+  {% if total_pages > 1 %}
+  <ul class="pagination pagination-sm mb-0 flex-wrap">
+
+    {# Erste Seite #}
+    <li class="page-item {{ 'disabled' if page <= 1 }}">
+      <a class="page-link" title="Erste Seite"
+         href="{{ url_for(endpoint, page=1, per_page=per_page, **url_extra) }}">
+        <i class="bi bi-skip-backward-fill"></i>
+      </a>
+    </li>
+
+    {# Vorherige Seite #}
+    <li class="page-item {{ 'disabled' if page <= 1 }}">
+      <a class="page-link" title="Vorherige Seite"
+         href="{{ url_for(endpoint, page=page-1, per_page=per_page, **url_extra) }}">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+    </li>
+
+    {# Seitenzahlen: max. 7 sichtbar, zentriert um aktuelle Seite #}
+    {% set win_start = [1, page - 3]|max %}
+    {% set win_end   = [total_pages + 1, page + 4]|min %}
+    {% if win_start > 1 %}
+    <li class="page-item disabled"><span class="page-link px-1">…</span></li>
+    {% endif %}
+    {% for p in range(win_start, win_end) %}
+    <li class="page-item {{ 'active' if p == page }}">
+      <a class="page-link"
+         href="{{ url_for(endpoint, page=p, per_page=per_page, **url_extra) }}">{{ p }}</a>
+    </li>
+    {% endfor %}
+    {% if win_end <= total_pages %}
+    <li class="page-item disabled"><span class="page-link px-1">…</span></li>
+    {% endif %}
+
+    {# Nächste Seite #}
+    <li class="page-item {{ 'disabled' if page >= total_pages }}">
+      <a class="page-link" title="Nächste Seite"
+         href="{{ url_for(endpoint, page=page+1, per_page=per_page, **url_extra) }}">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+    </li>
+
+    {# Letzte Seite #}
+    <li class="page-item {{ 'disabled' if page >= total_pages }}">
+      <a class="page-link" title="Letzte Seite"
+         href="{{ url_for(endpoint, page=total_pages, per_page=per_page, **url_extra) }}">
+        <i class="bi bi-skip-forward-fill"></i>
+      </a>
+    </li>
+
+  </ul>
+  {% endif %}
+
+  {# ── Einträge pro Seite (direkt im Pager) ── #}
+  <form method="get" class="d-flex align-items-center gap-1" style="font-size:.82rem">
+    {# Alle aktuellen Filter als Hidden-Felder übergeben #}
+    {% for k, v in url_extra.items() %}
+    {% if v %}
+    <input type="hidden" name="{{ k }}" value="{{ v }}">
+    {% endif %}
+    {% endfor %}
+    <input type="hidden" name="page" value="1">
+    <label class="text-muted mb-0" style="white-space:nowrap">Pro Seite:</label>
+    <select name="per_page" class="form-select form-select-sm" style="width:auto"
+            onchange="this.form.submit()">
+      {% for n in (valid_per_page or (25, 50, 100, 200, 500)) %}
+      <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+</nav>
+{% endif %}

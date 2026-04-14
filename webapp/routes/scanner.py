@@ -73,6 +73,9 @@ _DIR_PATH_EXPR_PLAIN = """CASE WHEN file_name IS NOT NULL AND full_path IS NOT N
                           ELSE share_root END"""
 
 
+_VALID_PER_PAGE = (25, 50, 100, 200, 500)
+
+
 @bp.route("/funde")
 @login_required
 def list_funde():
@@ -81,6 +84,17 @@ def list_funde():
     share_root  = request.args.get("share_root", "").strip()
     dir_path_filt = request.args.get("dir_path", "").strip()
     scan_run_id = request.args.get("scan_run", "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", 100))
+    except (ValueError, TypeError):
+        per_page = 100
+    if per_page not in _VALID_PER_PAGE:
+        per_page = 100
+    offset = (page - 1) * per_page
 
     # ---------- WHERE-Bedingungen ----------
     where_parts = []
@@ -145,6 +159,18 @@ def list_funde():
         else "ORDER BY f.last_seen_at DESC, f.modified_at DESC"
     )
 
+    # Gesamtzahl für Pagination (Duplikate: Anzahl der eindeutigen Hashes)
+    if filt == "duplikate":
+        total = db.execute(f"""
+            SELECT COUNT(DISTINCT f.file_hash) FROM idv_files f {where_sql}
+        """, params).fetchone()[0]
+    else:
+        total = db.execute(
+            f"SELECT COUNT(*) FROM idv_files f {where_sql}", params
+        ).fetchone()[0]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+
     dateien = db.execute(f"""
         SELECT f.*,
                {_DIR_PATH_EXPR} AS dir_path,
@@ -161,8 +187,8 @@ def list_funde():
         LEFT JOIN scan_runs     sr      ON f.last_scan_run_id = sr.id
         {where_sql}
         {order_sql}
-        LIMIT 500
-    """, params).fetchall()
+        LIMIT ? OFFSET ?
+    """, params + [per_page, (page - 1) * per_page]).fetchall()
 
     # ---------- Duplikat-Erkennung (datenbankweit, nicht nur in der aktuellen Seite) ----------
     duplicate_hashes = {
@@ -175,7 +201,7 @@ def list_funde():
     }
 
     # ---------- Zählkarten ----------
-    gesamt     = db.execute("SELECT COUNT(*) FROM idv_files WHERE status='active'").fetchone()[0]
+    gesamt_inkl_ignoriert = db.execute("SELECT COUNT(*) FROM idv_files WHERE status='active'").fetchone()[0]
     ohne_idv   = db.execute("""
         SELECT COUNT(*) FROM idv_files f WHERE f.status='active'
         AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
@@ -244,9 +270,12 @@ def list_funde():
     letzter_scan = scan_runs[0] if scan_runs else None
     is_admin = current_user_role() == ROLE_ADMIN
 
+    gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
     return render_template("scanner/list.html",
         dateien=dateien, filt=filt,
-        gesamt=gesamt, ohne_idv=ohne_idv, mit_makro=mit_makro,
+        total=total, total_pages=total_pages, page=page, per_page=per_page,
+        gesamt=gesamt, gesamt_inkl_ignoriert=gesamt_inkl_ignoriert,
+        ohne_idv=ohne_idv, mit_makro=mit_makro,
         mit_schutz=mit_schutz, archiviert=archiviert,
         ignoriert=ignoriert, zur_registrierung=zur_registrierung,
         duplikate_anzahl=duplikate_anzahl,
@@ -262,6 +291,7 @@ def list_funde():
         duplicate_hashes=duplicate_hashes,
         is_admin=is_admin,
         webapp_db_path=current_app.config['DATABASE'],
+        valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )
 
@@ -281,7 +311,7 @@ def eingang_funde():
         per_page = int(request.args.get("per_page", 100))
     except (ValueError, TypeError):
         per_page = 100
-    if per_page not in (50, 100, 200):
+    if per_page not in _VALID_PER_PAGE:
         per_page = 100
     offset = (page - 1) * per_page
 
@@ -327,9 +357,14 @@ def eingang_funde():
     zur_registrierung_count = db.execute(
         "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Zur Registrierung'"
     ).fetchone()[0]
+    ignoriert_eingang = db.execute(
+        "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Ignoriert'"
+    ).fetchone()[0]
     gesamt_aktiv = db.execute(
         "SELECT COUNT(*) FROM idv_files WHERE status='active'"
     ).fetchone()[0]
+    # Fortschritt: nur nicht-ignorierte Dateien zählen
+    gesamt_zu_bearbeiten = gesamt_aktiv - ignoriert_eingang
 
     # Hotspot-Tabellen
     nach_share = db.execute(f"""
@@ -383,7 +418,9 @@ def eingang_funde():
         neu_gesamt=neu_gesamt,
         neu_mit_makros=neu_mit_makros,
         zur_registrierung_count=zur_registrierung_count,
+        ignoriert_eingang=ignoriert_eingang,
         gesamt_aktiv=gesamt_aktiv,
+        gesamt_zu_bearbeiten=gesamt_zu_bearbeiten,
         nach_share=nach_share,
         nach_typ=nach_typ,
         dir_paths=dir_paths,
@@ -392,6 +429,7 @@ def eingang_funde():
         duplicate_hashes=duplicate_hashes,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         is_admin=is_admin,
+        valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )
 
@@ -408,8 +446,38 @@ def bewertet():
 def ignorierte_dateien():
     """Eigene Seite: Ignorierte Scanner-Funde."""
     db = get_db()
-    ignorierte = db.execute("""
+    dir_path_filt = request.args.get("dir_path", "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", 100))
+    except (ValueError, TypeError):
+        per_page = 100
+    if per_page not in _VALID_PER_PAGE:
+        per_page = 100
+
+    where_parts = ["f.status = 'active'", "f.bearbeitungsstatus = 'Ignoriert'"]
+    params: list = []
+    if dir_path_filt:
+        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
+        params.append(dir_path_filt)
+    where_sql = "WHERE " + " AND ".join(where_parts)
+
+    ignoriert_count = db.execute(
+        "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Ignoriert'"
+    ).fetchone()[0]
+
+    total = db.execute(
+        f"SELECT COUNT(*) FROM idv_files f {where_sql}", params
+    ).fetchone()[0]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+
+    ignorierte = db.execute(f"""
         SELECT f.*,
+               {_DIR_PATH_EXPR} AS dir_path,
                reg.idv_id      AS reg_idv_id,
                reg.bezeichnung AS reg_bezeichnung,
                reg.id          AS reg_db_id,
@@ -418,19 +486,28 @@ def ignorierte_dateien():
         FROM idv_files f
         LEFT JOIN idv_register reg ON reg.file_id = f.id
         LEFT JOIN scan_runs    sr  ON f.last_scan_run_id = sr.id
-        WHERE f.status = 'active' AND f.bearbeitungsstatus = 'Ignoriert'
+        {where_sql}
         ORDER BY f.last_seen_at DESC, f.modified_at DESC
-        LIMIT 500
-    """).fetchall()
+        LIMIT ? OFFSET ?
+    """, params + [per_page, (page - 1) * per_page]).fetchall()
 
-    ignoriert_count = db.execute(
-        "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Ignoriert'"
-    ).fetchone()[0]
+    dir_paths = [
+        r["dir_path"] for r in db.execute(f"""
+            SELECT DISTINCT {_DIR_PATH_EXPR_PLAIN} AS dir_path
+            FROM idv_files
+            WHERE full_path IS NOT NULL AND status = 'active' AND bearbeitungsstatus = 'Ignoriert'
+            ORDER BY 1
+        """).fetchall()
+        if r["dir_path"]
+    ]
 
     return render_template("scanner/ignorierte.html",
         ignorierte=ignorierte,
         ignoriert_count=ignoriert_count,
+        total=total, total_pages=total_pages, page=page, per_page=per_page,
+        dir_paths=dir_paths, dir_path_filt=dir_path_filt,
         idv_typ_vorschlag=_idv_typ_vorschlag,
+        valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )
 
@@ -440,11 +517,29 @@ def ignorierte_dateien():
 def nicht_wesentliche_idvs():
     """Eigene Seite: Nicht wesentliche IDVs aus dem Scanner."""
     db = get_db()
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", 100))
+    except (ValueError, TypeError):
+        per_page = 100
+    if per_page not in _VALID_PER_PAGE:
+        per_page = 100
 
     _WESENTLICH_SQL = """(
         r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
         OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
     )"""
+
+    total = db.execute(f"""
+        SELECT COUNT(*) FROM idv_register r
+        JOIN idv_files f ON r.file_id = f.id
+        WHERE f.status = 'active' AND NOT {_WESENTLICH_SQL}
+    """).fetchone()[0]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
 
     nicht_wesentliche = db.execute(f"""
         SELECT r.id AS idv_db_id, r.idv_id, r.bezeichnung, r.status,
@@ -460,12 +555,14 @@ def nicht_wesentliche_idvs():
         WHERE f.status = 'active'
           AND NOT {_WESENTLICH_SQL}
         ORDER BY r.bezeichnung
-        LIMIT 500
-    """).fetchall()
+        LIMIT ? OFFSET ?
+    """, [per_page, (page - 1) * per_page]).fetchall()
 
     return render_template("scanner/nicht_wesentliche.html",
         nicht_wesentliche=nicht_wesentliche,
+        total=total, total_pages=total_pages, page=page, per_page=per_page,
         idv_typ_vorschlag=_idv_typ_vorschlag,
+        valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )
 
