@@ -56,6 +56,10 @@ def create_app(db_path: str = None) -> Flask:
     os.makedirs(_instance_path, exist_ok=True)
     os.makedirs(upload_folder, exist_ok=True)
 
+    # Login-Logger einrichten (instance/login.log)
+    from .login_logger import setup_login_logger
+    setup_login_logger(_instance_path)
+
     # Datei-Logging: WARNING+ → instance/idvault.log
     # RotatingFileHandler: 1 MB pro Datei, 7 Backups (idvault.log … idvault.log.7)
     # Die Crash-/stderr-Umleitung in run.py schreibt in idvault_crash.log

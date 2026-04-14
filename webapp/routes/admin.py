@@ -862,6 +862,46 @@ def delete_person(pid):
     return redirect(url_for("admin.index"))
 
 
+@bp.route("/personen/bulk", methods=["POST"])
+@admin_required
+def bulk_persons():
+    """Bulk-Aktion auf mehrere Personen: deactivate oder delete."""
+    db     = get_db()
+    action = request.form.get("action", "")
+    raw    = request.form.getlist("person_ids")
+    ids    = [int(i) for i in raw if i.isdigit()]
+
+    if not ids:
+        flash("Keine Personen ausgewählt.", "warning")
+        return redirect(url_for("admin.index"))
+
+    if action == "deactivate":
+        ph = ",".join("?" * len(ids))
+        db.execute(f"UPDATE persons SET aktiv=0 WHERE id IN ({ph})", ids)
+        db.commit()
+        flash(f"{len(ids)} Person(en) deaktiviert.", "success")
+
+    elif action == "delete":
+        deleted = skipped = 0
+        for pid in ids:
+            try:
+                db.execute("DELETE FROM persons WHERE id=?", (pid,))
+                db.commit()
+                deleted += 1
+            except Exception:
+                db.rollback()
+                skipped += 1
+        msg = f"{deleted} Person(en) gelöscht."
+        if skipped:
+            msg += f" {skipped} konnte(n) nicht gelöscht werden (noch IDVs zugeordnet) → bitte zuerst deaktivieren."
+        flash(msg, "success" if not skipped else "warning")
+
+    else:
+        flash("Unbekannte Aktion.", "error")
+
+    return redirect(url_for("admin.index"))
+
+
 # ── Organisationseinheiten ─────────────────────────────────────────────────
 
 @bp.route("/oe/neu", methods=["POST"])
@@ -1084,6 +1124,53 @@ def save_settings():
     db.commit()
     flash("Einstellungen gespeichert.", "success")
     return redirect(url_for("admin.index") + "#email-vorlagen")
+
+
+# ── Login-Log ─────────────────────────────────────────────────────────────
+
+@bp.route("/login-log")
+@admin_required
+def login_log():
+    """Zeigt die letzten Login-Versuche aus instance/login.log."""
+    import os
+    from ..login_logger import get_log_path
+    log_path = get_log_path()
+    lines = []
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            lines = f.readlines()
+        lines = lines[-1000:]
+        lines.reverse()
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        flash(f"Log konnte nicht gelesen werden: {e}", "error")
+
+    # Logrotate-Konfiguration mit realem Pfad generieren
+    logrotate_conf = f"""{log_path} {{
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}}
+
+{os.path.join(os.path.dirname(log_path), 'idvault.log')} {{
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}}"""
+
+    return render_template("admin/login_log.html",
+                           lines=lines,
+                           log_path=log_path,
+                           logrotate_conf=logrotate_conf)
 
 
 # ── Mitarbeiter-Import ─────────────────────────────────────────────────────
@@ -1645,12 +1732,33 @@ def ldap_import():
     secret_key = current_app.config["SECRET_KEY"]
 
     if request.method == "POST":
-        # Ausgewählte Benutzer importieren
+        action       = request.form.get("action", "import")
         selected_ids = request.form.getlist("user_ids")
+
         if not selected_ids:
             flash("Keine Benutzer ausgewählt.", "warning")
             return redirect(url_for("admin.ldap_import"))
 
+        # ── Aktion: Löschen (Deaktivieren) ───────────────────────────────────
+        if action == "delete":
+            deactivated = skipped = 0
+            for uid in selected_ids:
+                row = db.execute(
+                    "SELECT id FROM persons WHERE ad_name=? OR user_id=?", (uid, uid)
+                ).fetchone()
+                if row:
+                    db.execute("UPDATE persons SET aktiv=0 WHERE id=?", (row["id"],))
+                    deactivated += 1
+                else:
+                    skipped += 1
+            db.commit()
+            msg = f"{deactivated} Person(en) deaktiviert."
+            if skipped:
+                msg += f" {skipped} nicht gefunden (noch nicht importiert)."
+            flash(msg, "success" if deactivated else "warning")
+            return redirect(url_for("admin.ldap_import"))
+
+        # ── Aktion: Importieren ───────────────────────────────────────────────
         extra_filter = request.form.get("extra_filter", "").strip()
         ok, msg, users = ldap_list_users(db, secret_key, extra_filter)
         if not ok:

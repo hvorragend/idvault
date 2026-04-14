@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Login-Log{% endblock %}
+{% block page_title %}<i class="bi bi-journal-text me-2"></i>Login-Log{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ 'success' if cat=='success' else 'danger' }} alert-dismissible fade show">
+    {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<div class="row g-4">
+
+  <!-- ── Log-Einträge ──────────────────────────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-600">
+          <i class="bi bi-list-ul me-2"></i>
+          Letzte Login-Versuche
+          <span class="badge bg-secondary ms-2">{{ lines|length }}</span>
+        </span>
+        <div class="d-flex gap-2 align-items-center">
+          <input type="text" id="logSearch" class="form-control form-control-sm"
+                 placeholder="Suche …" style="max-width:200px">
+          <select id="logFilter" class="form-select form-select-sm" style="max-width:140px">
+            <option value="">alle</option>
+            <option value="OK">nur OK</option>
+            <option value="FEHLER">nur Fehler</option>
+            <option value="LDAP">nur LDAP-Schritte</option>
+          </select>
+          <a href="{{ request.url }}" class="btn btn-sm btn-outline-secondary" title="Neu laden">
+            <i class="bi bi-arrow-clockwise"></i>
+          </a>
+        </div>
+      </div>
+
+      {% if not lines %}
+      <div class="card-body text-muted">
+        Noch keine Einträge in <code>{{ log_path }}</code> –
+        die Datei wird beim ersten Login-Versuch angelegt.
+      </div>
+      {% else %}
+      <div style="max-height:600px;overflow-y:auto;font-family:monospace;font-size:.78rem">
+        <table class="table table-sm table-hover mb-0" id="logTable">
+          <tbody>
+            {% for line in lines %}
+            {% set stripped = line.strip() %}
+            {% if stripped %}
+            <tr class="log-row
+              {%- if '[OK     ]' in stripped %} table-success
+              {%- elif '[FEHLER ]' in stripped %} table-danger
+              {%- elif 'ERROR' in stripped or 'error' in stripped %} table-warning
+              {%- endif %}">
+              <td style="white-space:pre-wrap;word-break:break-all">{{ stripped }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <div class="card-footer bg-white text-muted" style="font-size:.78rem">
+        Datei: <code>{{ log_path }}</code> &nbsp;·&nbsp;
+        Rotation: 2 MB / Datei, 10 Backups &nbsp;·&nbsp;
+        Neueste Einträge zuerst (max. 1 000 Zeilen)
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Logrotate-Konfiguration ───────────────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-gear me-2"></i>Logrotate-Konfiguration (systemseitig)
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-2" style="font-size:.88rem">
+          idvault rotiert Login- und App-Log bereits intern (Python <code>RotatingFileHandler</code>).
+          Für zusätzliche <strong>Zeit-basierte Rotation und gzip-Komprimierung</strong>
+          kann die folgende Konfiguration unter
+          <code>/etc/logrotate.d/idvault</code> gespeichert werden.
+          Der <code>copytruncate</code>-Parameter stellt sicher, dass kein Neustart
+          der Anwendung erforderlich ist.
+        </p>
+        <pre class="border rounded p-3 mb-2" style="background:#f8f9fa;font-size:.78rem;user-select:all">{{ logrotate_conf }}</pre>
+        <div class="text-muted" style="font-size:.78rem">
+          <i class="bi bi-info-circle me-1"></i>
+          Installation: <code>sudo cp &lt;datei&gt; /etc/logrotate.d/idvault</code>
+          &nbsp;·&nbsp; Test: <code>sudo logrotate -d /etc/logrotate.d/idvault</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary mt-3">
+  <i class="bi bi-arrow-left me-1"></i>Zurück zur Administration
+</a>
+
+<style>.fw-600 { font-weight: 600; }</style>
+<script>
+(function () {
+  const search   = document.getElementById('logSearch');
+  const filter   = document.getElementById('logFilter');
+  const rows     = document.querySelectorAll('#logTable .log-row');
+
+  function apply() {
+    const q = search.value.toLowerCase();
+    const f = filter.value;
+    rows.forEach(row => {
+      const txt  = row.textContent.toLowerCase();
+      const okQ  = !q || txt.includes(q);
+      const okF  = !f
+        || (f === 'OK'    && txt.includes('[ok'))
+        || (f === 'FEHLER' && txt.includes('[fehler'))
+        || (f === 'LDAP'  && txt.includes('[ldap'));
+      row.style.display = (okQ && okF) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input',  apply);
+  filter.addEventListener('change', apply);
+})();
+</script>
+{% endblock %}
