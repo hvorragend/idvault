@@ -787,3 +787,42 @@ CREATE TABLE IF NOT EXISTS ldap_group_role_mapping (
     rolle       TEXT NOT NULL,          -- IDV-Administrator | IDV-Koordinator | ...
     sort_order  INTEGER NOT NULL DEFAULT 99
 );
+
+-- -----------------------------------------------------------------------------
+-- 13. TESTDOKUMENTATION (MaRisk AT 7.2 / BAIT)
+-- Fachliche Testfälle (mehrere je IDV) und Technischer Test (einer je IDV)
+-- -----------------------------------------------------------------------------
+
+-- Fachliche Testfälle: mehrere je IDV, mit fortlaufender Testfall-Nummer
+CREATE TABLE IF NOT EXISTS fachliche_testfaelle (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    idv_id              INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+    testfall_nr         INTEGER NOT NULL,           -- fortlaufend je IDV (1, 2, 3 …)
+    beschreibung        TEXT NOT NULL,              -- Was wird getestet?
+    parametrisierung    TEXT,                       -- Einstellungen / Konfigurationen
+    testdaten           TEXT,                       -- Eingabedaten
+    erwartetes_ergebnis TEXT,
+    erzieltes_ergebnis  TEXT,
+    bewertung           TEXT NOT NULL DEFAULT 'Offen',  -- 'Bestanden' | 'Nicht bestanden' | 'Offen'
+    massnahmen          TEXT,                       -- Abgeleitete Maßnahmen (leer wenn bestanden)
+    tester              TEXT,                       -- Name des Testers (Freitext)
+    testdatum           TEXT,                       -- ISO 8601 Datum
+    erstellt_am         TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    aktualisiert_am     TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    UNIQUE (idv_id, testfall_nr)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fachtestf_idv ON fachliche_testfaelle(idv_id);
+
+-- Technischer Test: genau ein Eintrag je IDV (UNIQUE auf idv_id)
+CREATE TABLE IF NOT EXISTS technischer_test (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    idv_id              INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+    ergebnis            TEXT NOT NULL DEFAULT 'Offen',  -- 'Bestanden' | 'Nicht bestanden' | 'Entfällt'
+    kurzbeschreibung    TEXT,                       -- 1–2 Sätze, was technisch geprüft wurde
+    pruefer             TEXT,                       -- Name des Prüfers (Freitext)
+    pruefungsdatum      TEXT,                       -- ISO 8601 Datum
+    erstellt_am         TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    aktualisiert_am     TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    UNIQUE (idv_id)
+);

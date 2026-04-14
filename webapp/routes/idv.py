@@ -5,7 +5,8 @@ import sys, os, io
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (create_idv, update_idv, change_status, search_idv,
                 get_klassifizierungen, get_wesentlichkeitskriterien,
-                get_idv_wesentlichkeit, save_idv_wesentlichkeit)
+                get_idv_wesentlichkeit, save_idv_wesentlichkeit,
+                get_fachliche_testfaelle, get_technischer_test)
 
 # Dateierweiterung → IDV-Typ-Vorschlag (gespiegelt aus scanner.py)
 _EXT_TO_TYP = {
@@ -424,6 +425,9 @@ def detail_idv(idv_db_id):
     )
     hat_offenen_schritt = any(f["status"] == "Ausstehend" for f in freigaben)
 
+    fachliche_testfaelle = get_fachliche_testfaelle(db, idv_db_id)
+    technischer_test     = get_technischer_test(db, idv_db_id)
+
     return render_template("idv/detail.html",
         idv=idv, file=file, extra_files=extra_files, history=history, massnahmen=massnahmen,
         wesentlichkeit=wesentlichkeit,
@@ -434,6 +438,8 @@ def detail_idv(idv_db_id):
         phase2_gestartet=phase2_gestartet, phase2_bestanden=phase2_bestanden,
         hat_offenen_schritt=hat_offenen_schritt,
         teststatus_werte=_TESTSTATUS_WERTE,
+        fachliche_testfaelle=fachliche_testfaelle,
+        technischer_test=technischer_test,
         can_create=can_create())
 
 

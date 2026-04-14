@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Technischer Test{% endblock %}
+{% block page_title %}
+<i class="bi bi-cpu me-2"></i>Technischer Test – {{ idv.bezeichnung }}
+{% endblock %}
+
+{% block content %}
+<form method="post">
+  <div class="row g-4">
+    <div class="col-lg-8">
+
+      <div class="form-section">
+        <div class="form-section-title">
+          <i class="bi bi-cpu me-1"></i>Technischer Test
+        </div>
+
+        <div class="row g-3">
+
+          <div class="col-md-4">
+            <label class="form-label fw-500">Ergebnis <span class="required-star">*</span></label>
+            <select name="ergebnis" class="form-select" required>
+              {% for e in ergebnisse %}
+              <option value="{{ e }}"
+                {% if tech_test and tech_test.ergebnis == e %}selected
+                {% elif not tech_test and e == 'Offen' %}selected{% endif %}>{{ e }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-500">Kurzbeschreibung</label>
+            <textarea name="kurzbeschreibung" class="form-control" rows="3"
+              placeholder="1–2 Sätze: Was wurde technisch geprüft? (z. B. Makro-Ausführung, Zugriffsschutz, externe Datenbankanbindung …)"
+              >{{ tech_test.kurzbeschreibung or '' if tech_test else '' }}</textarea>
+            <div class="form-text">
+              Kurze Beschreibung der technischen Prüfung (z.&nbsp;B. Makro-Sicherheit,
+              Datenbankanbindung, Zugriffsschutz, Versionierung).
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-500">Prüfer</label>
+            <input type="text" name="pruefer" class="form-control"
+              placeholder="Name des Prüfers"
+              value="{{ tech_test.pruefer or '' if tech_test else '' }}">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-500">Datum</label>
+            <input type="date" name="pruefungsdatum" class="form-control"
+              value="{{ tech_test.pruefungsdatum or today if tech_test else today }}">
+          </div>
+
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center">
+        <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#testdokumentation"
+           class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Abbrechen
+        </a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-floppy me-1"></i>Speichern
+        </button>
+      </div>
+
+    </div><!-- /col-lg-8 -->
+
+    <!-- Kontext-Sidebar -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-600">
+          <i class="bi bi-info-circle me-2"></i>IDV-Kontext
+        </div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">IDV-ID</div>
+            <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
+          </li>
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">Bezeichnung</div>
+            <div class="fw-500">{{ idv.bezeichnung }}</div>
+          </li>
+          <li class="list-group-item px-3 py-2">
+            <div class="detail-label">Status</div>
+            <span class="badge status-{{ idv.status|replace(' ', '-') }}">{{ idv.status }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card border-0 shadow-sm mt-3">
+        <div class="card-header bg-white fw-600">
+          <i class="bi bi-lightbulb me-2"></i>Hinweise
+        </div>
+        <div class="card-body py-2" style="font-size:.82rem;color:#555">
+          <p class="mb-2">
+            <strong>Bestanden:</strong> Technische Prüfung abgeschlossen, keine
+            Beanstandungen.
+          </p>
+          <p class="mb-2">
+            <strong>Nicht bestanden:</strong> Technische Mängel wurden festgestellt.
+            Bitte Kurzbeschreibung ausfüllen.
+          </p>
+          <p class="mb-0">
+            <strong>Entfällt:</strong> Technische Prüfung ist für diese IDV nicht
+            relevant oder nicht anwendbar.
+          </p>
+        </div>
+      </div>
+    </div><!-- /col-lg-4 -->
+
+  </div><!-- /row -->
+</form>
+{% endblock %}
