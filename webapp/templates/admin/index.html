@@ -363,6 +363,12 @@
             <input type="email" name="smtp_from" class="form-control form-control-sm"
                    value="{{ settings.get('smtp_from','') }}" placeholder="idvault@bank.de">
           </div>
+          <div class="col-md-8">
+            <label class="form-label form-label-sm fw-600">Server-URL (für Links in E-Mails)</label>
+            <input type="url" name="app_base_url" class="form-control form-control-sm"
+                   value="{{ settings.get('app_base_url','') }}" placeholder="https://idvault.bank.de">
+            <div class="form-text">Wird für Direktlinks in Bewertungsanforderungs-E-Mails verwendet. Auch per Umgebungsvariable <code>IDV_APP_BASE_URL</code> setzbar.</div>
+          </div>
           <div class="col-md-8 d-flex align-items-end gap-3 flex-wrap">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="smtp_tls" value="1" id="smtp_tls"

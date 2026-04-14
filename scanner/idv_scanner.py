@@ -19,6 +19,7 @@ import logging
 import argparse
 import json
 import traceback
+import ctypes
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,25 @@ try:
     HAS_WIN32 = True
 except ImportError:
     HAS_WIN32 = False
+
+
+def _set_keep_awake(active: bool) -> None:
+    """Verhindert Bildschirmschoner und Systemschlaf während des Scans (nur Windows).
+
+    Ruft SetThreadExecutionState aus kernel32.dll auf:
+    - active=True:  ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED
+    - active=False: ES_CONTINUOUS  (Reset auf normales Verhalten)
+    """
+    if os.name != 'nt':
+        return
+    try:
+        ES_CONTINUOUS       = 0x80000000
+        ES_SYSTEM_REQUIRED  = 0x00000001
+        ES_DISPLAY_REQUIRED = 0x00000002
+        state = (ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED) if active else ES_CONTINUOUS
+        ctypes.windll.kernel32.SetThreadExecutionState(state)
+    except Exception:
+        pass  # Nicht-kritisch; Scan läuft weiter
 
 # ---------------------------------------------------------------------------
 # Konfiguration
@@ -633,7 +653,7 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                 data = scan_file(full_path, config, all_scan_paths, logger=logger)
                 if data:
                     yield data
-            except BaseException as e:
+            except Exception as e:
                 logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
@@ -666,7 +686,7 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
             data = scan_file(full_path, config, all_scan_paths, logger=logger)
             if data:
                 yield data
-        except BaseException as e:
+        except Exception as e:
             logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
@@ -691,11 +711,13 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                    stats: dict, signal_dir: Optional[str],
                    auto_ignore: bool = False,
                    discard_no_formula: bool = False) -> None:
-    """Verarbeitet alle Dateien eines Generators, prüft alle 50 Dateien die Signale.
+    """Verarbeitet alle Dateien eines Generators, prüft alle 10 Dateien die Signale.
 
     auto_ignore:       Neue Excel-Dateien ohne Formeln/Makros sofort als 'Ignoriert' markieren.
     discard_no_formula: Neue Excel-Dateien ohne Formeln/Makros komplett überspringen (nicht in DB).
     """
+    # Signal-Check zu Beginn jedes Chunks (wichtig bei Verzeichnissen mit < 10 Dateien)
+    _check_and_handle_signals(signal_dir, logger)
     file_counter = 0
     for data in chunk_gen:
         current_path = data.get("full_path", "?")
@@ -731,7 +753,7 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                     (data["full_path"],)
                 )
 
-            if file_counter % 50 == 0:
+            if file_counter % 10 == 0:
                 _check_and_handle_signals(signal_dir, logger)
                 _flush_log(logger)
 
@@ -1100,6 +1122,7 @@ def run_scan(config: dict, logger: logging.Logger,
             # Dateien direkt im Wurzelverzeichnis (kein Subdir-Abstieg)
             root_chunk = f"__ROOT__{scan_path}"
             if root_chunk not in completed_dirs:
+                _check_and_handle_signals(signal_dir, logger)
                 _process_chunk(
                     walk_root_files(scan_path, config, scan_paths, logger, scan_since_ts),
                     conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
@@ -1118,6 +1141,7 @@ def run_scan(config: dict, logger: logging.Logger,
                     logger.info(f"  Überspringe (bereits abgeschlossen): {subdir}")
                     continue
 
+                _check_and_handle_signals(signal_dir, logger)
                 logger.info(f"  Unterverzeichnis: {subdir}")
                 _process_chunk(
                     walk_and_scan(subdir, config, scan_paths, logger, scan_since_ts),
@@ -1290,6 +1314,7 @@ def main():
     signal_dir = os.path.dirname(os.path.abspath(args.config))
     logger = setup_logging(config["log_path"])
 
+    _set_keep_awake(True)
     try:
         run_scan(config, logger, signal_dir=signal_dir, resume=args.resume)
     except BaseException as e:
@@ -1304,6 +1329,8 @@ def main():
         # Auch in stderr schreiben (wird von der Webapp nach scanner_output.log umgeleitet)
         print(f"FATAL: {type(e).__name__}: {e}\n{tb}", file=sys.stderr)
         sys.exit(2)
+    finally:
+        _set_keep_awake(False)
 
 
 if __name__ == "__main__":

@@ -412,6 +412,20 @@ def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
     return send_mail(db, recipient_emails, subject, html, text)
 
 
+def get_app_base_url(db) -> str:
+    """Liest die App-Basis-URL aus DB oder Umgebungsvariable."""
+    env_url = os.environ.get("IDV_APP_BASE_URL", "")
+    if env_url:
+        return env_url.rstrip("/")
+    try:
+        row = db.execute("SELECT value FROM app_settings WHERE key='app_base_url'").fetchone()
+        if row and row["value"]:
+            return row["value"].rstrip("/")
+    except Exception:
+        pass
+    return ""
+
+
 def notify_file_bewertung(db, file_row, recipient_email: str) -> bool:
     """Sendet eine Bewertungsanforderung an den Datei-Ersteller/-Eigentümer."""
     fname = file_row["file_name"] if hasattr(file_row, "__getitem__") else str(file_row)
@@ -434,6 +448,96 @@ def notify_file_bewertung(db, file_row, recipient_email: str) -> bool:
         _DEFAULTS["bewertung_body"],
         placeholders,
     )
+    text = _strip_html_tags(html)
+    return send_mail(db, recipient_email, subject, html, text)
+
+
+def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
+                                base_url: str = "") -> bool:
+    """Sendet eine kombinierte Bewertungsanforderung für mehrere Dateien an einen Empfänger.
+
+    Fasst alle übergebenen Dateien in einer einzigen E-Mail zusammen.
+    Wenn base_url angegeben ist, wird für jede Datei ein Link in idvault eingefügt.
+    """
+    if not file_rows:
+        return False
+
+    ersteller = "–"
+    for f in file_rows:
+        val = (f.get("file_owner") or f.get("office_author") or "") if hasattr(f, "__getitem__") else ""
+        if val:
+            ersteller = val
+            break
+
+    n = len(file_rows)
+    if n == 1:
+        subject = f"[idvault] Bitte um Bewertung: {file_rows[0]['file_name']}"
+    else:
+        subject = f"[idvault] Bitte um Bewertung: {n} Dateien"
+
+    with_links = bool(base_url)
+
+    # Tabellen-Header
+    link_th = '<th style="padding:8px;text-align:left;">Link</th>' if with_links else ""
+    rows_html = ""
+    for i, f in enumerate(file_rows):
+        bg = ' style="background:#f8f9fa"' if i % 2 == 0 else ""
+        fname = f["file_name"] if hasattr(f, "__getitem__") else str(f)
+        fpath = f["full_path"] if hasattr(f, "__getitem__") else ""
+        formula_count = f["formula_count"] if hasattr(f, "__getitem__") else 0
+        has_macros = f["has_macros"] if hasattr(f, "__getitem__") else 0
+        file_id = f["id"] if hasattr(f, "__getitem__") else ""
+
+        link_td = ""
+        if with_links and file_id:
+            link = f"{base_url}/scanner/funde?highlight={file_id}"
+            link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In idvault öffnen</a></td>'
+
+        rows_html += f"""
+        <tr{bg}>
+          <td style="padding:8px;font-weight:bold;vertical-align:top;">{fname}</td>
+          <td style="padding:8px;font-family:monospace;font-size:11px;vertical-align:top;">{fpath}</td>
+          <td style="padding:8px;text-align:center;vertical-align:top;">{formula_count or 0}</td>
+          <td style="padding:8px;text-align:center;vertical-align:top;">{'Ja' if has_macros else 'Nein'}</td>
+          {link_td}
+        </tr>"""
+
+    scanner_link_html = ""
+    if with_links:
+        scanner_link_html = (
+            f'<p style="margin-top:12px;">'
+            f'<a href="{base_url}/scanner/funde">Zum Scanner-Eingang in idvault</a>'
+            f'</p>'
+        )
+
+    html = f"""\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2>
+<p>Sehr geehrte/r {ersteller},</p>
+<p>die folgenden Dateien wurden vom idvault-Scanner erkannt und sind Ihnen als
+   Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Dateien als
+   <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2
+   einzustufen sind.</p>
+<table style="border-collapse:collapse;width:100%;border:1px solid #dee2e6;">
+  <thead>
+    <tr style="background:#0d6efd;color:#fff;">
+      <th style="padding:8px;text-align:left;">Dateiname</th>
+      <th style="padding:8px;text-align:left;">Pfad</th>
+      <th style="padding:8px;text-align:center;">Formeln</th>
+      <th style="padding:8px;text-align:center;">Makros</th>
+      {link_th}
+    </tr>
+  </thead>
+  <tbody>{rows_html}
+  </tbody>
+</table>
+<p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen
+   Sie die Bewertung vor.</p>
+{scanner_link_html}
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
     text = _strip_html_tags(html)
     return send_mail(db, recipient_email, subject, html, text)
 

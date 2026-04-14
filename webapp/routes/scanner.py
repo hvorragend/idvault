@@ -821,17 +821,18 @@ def bulk_aktion():
             )
 
     elif aktion == "bewertung_anfordern":
-        from ..email_service import notify_file_bewertung
+        from ..email_service import notify_file_bewertung_batch, get_app_base_url
         placeholders = ",".join("?" * len(file_ids))
         dateien = db.execute(
             f"SELECT * FROM idv_files WHERE id IN ({placeholders})", file_ids
         ).fetchall()
 
-        gesendet = 0
+        base_url = get_app_base_url(db)
+
+        # Dateien nach Empfänger-E-Mail gruppieren
+        grouped: dict[str, list] = {}
         kein_empfaenger = 0
-        fehler = 0
         for datei in dateien:
-            # Empfänger ermitteln: file_owner oder office_author → persons.email
             owner = datei["file_owner"] or datei["office_author"] or ""
             email = None
             if owner:
@@ -844,8 +845,13 @@ def bulk_aktion():
             if not email:
                 kein_empfaenger += 1
                 continue
+            grouped.setdefault(email, []).append(datei)
+
+        gesendet = 0
+        fehler = 0
+        for email, dateien_gruppe in grouped.items():
             try:
-                ok = notify_file_bewertung(db, datei, email)
+                ok = notify_file_bewertung_batch(db, dateien_gruppe, email, base_url)
                 if ok:
                     gesendet += 1
                 else:
@@ -855,7 +861,8 @@ def bulk_aktion():
 
         msg_parts = []
         if gesendet:
-            msg_parts.append(f"{gesendet} Bewertungsanforderung(en) gesendet")
+            n_dateien = sum(len(g) for g in grouped.values() if grouped)
+            msg_parts.append(f"{n_dateien} Datei(en) in {gesendet} E-Mail(s) gesendet")
         if kein_empfaenger:
             msg_parts.append(f"{kein_empfaenger} ohne zugeordnete E-Mail-Adresse")
         if fehler:
