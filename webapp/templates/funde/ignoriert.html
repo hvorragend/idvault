@@ -5,7 +5,7 @@
 {% block content %}
 
 <div class="d-flex justify-content-end align-items-center mb-3">
-  {% include 'scanner/_scan_button.html' %}
+  {% include 'funde/_scan_button.html' %}
 </div>
 
 <p class="text-muted mb-4" style="font-size:.87rem">
@@ -29,11 +29,11 @@
   <div class="row g-2 align-items-end">
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      {% include 'scanner/_dir_search.html' %}
+      {% include 'funde/_dir_search.html' %}
     </div>
     <div class="col-auto d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel me-1"></i>Filtern</button>
-      <a href="{{ url_for('scanner.ignorierte_dateien') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+      <a href="{{ url_for('funde.ignorierte_dateien') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
   </div>
   {% if dir_path_filt %}
@@ -45,8 +45,8 @@
 
 <!-- ── Pagination oben ────────────────────────────────────────────── -->
 {% set url_extra = {'dir_path': dir_path_filt} %}
-{% set endpoint = 'scanner.ignorierte_dateien' %}
-{% include 'scanner/_pagination.html' %}
+{% set endpoint = 'funde.ignorierte_dateien' %}
+{% include 'funde/_pagination.html' %}
 
 <div class="card border-0 shadow-sm mt-2">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -57,7 +57,7 @@
         {% if total > per_page %}{{ dateien|length }} von {{ total }}{% else %}{{ total }}{% endif %}
       </span>
     </span>
-    <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
+    <a href="{{ url_for('funde.list_funde', filter='ignoriert') }}"
        class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-box-arrow-up-right me-1"></i>In Scanner-Funde öffnen
     </a>
@@ -105,7 +105,7 @@
           </td>
           <td class="text-nowrap" style="font-size:.76rem">
             {% if f.sr_id %}
-            <a href="{{ url_for('scanner.list_funde', scan_run=f.sr_id) }}"
+            <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id) }}"
                class="text-decoration-none text-muted"
                title="#{{ f.sr_id }}">
               {{ f.sr_started_at|datefmt if f.sr_started_at else '–' }}
@@ -129,7 +129,7 @@
             {% endif %}
           </td>
           <td>
-            <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
+            <a href="{{ url_for('funde.list_funde', filter='ignoriert') }}"
                class="btn btn-xs btn-outline-secondary" title="In Scanner-Funde anzeigen">
               <i class="bi bi-eye"></i>
             </a>
@@ -149,7 +149,7 @@
 </div>
 
 <!-- ── Pagination unten ───────────────────────────────────────────── -->
-{% include 'scanner/_pagination.html' %}
+{% include 'funde/_pagination.html' %}
 
 <style>
 .btn-xs { padding: .15rem .45rem; font-size: .75rem; }

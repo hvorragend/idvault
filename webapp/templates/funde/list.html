@@ -5,7 +5,7 @@
 {% block content %}
 
 <div class="d-flex justify-content-end align-items-center mb-3">
-  {% include 'scanner/_scan_button.html' %}
+  {% include 'funde/_scan_button.html' %}
 </div>
 
 <!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
@@ -77,7 +77,7 @@
     <span class="badge bg-warning text-dark">{{ letzter_scan.changed_files }} geändert</span>
     <span class="badge bg-secondary">{{ letzter_scan.archived_files }} archiviert</span>
   </div>
-  <a href="{{ url_for('scanner.scan_laeufe') }}" class="btn btn-sm btn-outline-secondary ms-auto flex-shrink-0">
+  <a href="{{ url_for('funde.scan_laeufe') }}" class="btn btn-sm btn-outline-secondary ms-auto flex-shrink-0">
     <i class="bi bi-list-ul me-1"></i>Alle Läufe
   </a>
 </div>
@@ -90,7 +90,7 @@
     <!-- Speicherort (dir_path) – durchsuchbares Eingabefeld, volle Breite -->
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      {% include 'scanner/_dir_search.html' %}
+      {% include 'funde/_dir_search.html' %}
     </div>
     <!-- Scan-Pfad (share_root) -->
     <div class="col-md-4">
@@ -117,7 +117,7 @@
     </div>
     <div class="col-md-3 d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
-      <a href="{{ url_for('scanner.list_funde', filter=filt) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+      <a href="{{ url_for('funde.list_funde', filter=filt) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
   </div>
   {% if dir_path_filt or share_root_filt or scan_run_id_filt %}
@@ -137,40 +137,40 @@
 
 <!-- ── Typ-Filter-Buttons ──────────────────────────────────────────── -->
 <div class="d-flex gap-2 mb-3 flex-wrap">
-  <a href="{{ url_for('scanner.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
     Alle ({{ gesamt }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-secondary' if filt == 'ignoriert' else 'btn-outline-secondary' }}">
     <i class="bi bi-eye-slash me-1"></i>Ignoriert ({{ ignoriert }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
     <i class="bi bi-exclamation-circle me-1"></i>Noch nicht registriert ({{ ohne_idv }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='makros', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='makros', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
     <i class="bi bi-lightning-fill me-1"></i>Mit Makros ({{ mit_makro }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='blattschutz', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='blattschutz', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
     <i class="bi bi-lock-fill me-1"></i>Mit Blattschutz ({{ mit_schutz }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
     <i class="bi bi-check-circle me-1"></i>Bereits registriert
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='zur_registrierung', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='zur_registrierung', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-info' if filt == 'zur_registrierung' else 'btn-outline-info' }}">
     <i class="bi bi-pencil-square me-1"></i>Zur Registrierung ({{ zur_registrierung }})
   </a>
-  <a href="{{ url_for('scanner.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
      class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
     <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
   </a>
   {% if duplikate_anzahl %}
-  <a href="{{ url_for('scanner.list_funde', filter='duplikate', share_root=share_root_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt) }}"
      class="btn btn-sm {{ 'btn-danger' if filt == 'duplikate' else 'btn-outline-danger' }}">
     <i class="bi bi-copy me-1"></i>Duplikate ({{ duplikate_anzahl }} Gruppen)
   </a>
@@ -187,8 +187,8 @@
 
 <!-- ── Pagination + Variablen (vor dem Bulk-Formular setzen) ──────── -->
 {% set url_extra = {'filter': filt, 'share_root': share_root_filt, 'dir_path': dir_path_filt, 'scan_run': scan_run_id_filt} %}
-{% set endpoint = 'scanner.list_funde' %}
-{% include 'scanner/_pagination.html' %}
+{% set endpoint = 'funde.list_funde' %}
+{% include 'funde/_pagination.html' %}
 
 <!-- ── Eigentümer-Modal ────────────────────────────────────────────── -->
 <div class="modal fade" id="ownerModal" tabindex="-1" aria-labelledby="ownerModalLabel" aria-hidden="true">
@@ -219,7 +219,7 @@
 </div>
 
 <!-- ── Massenaktions-Formular + Tabelle ───────────────────────────── -->
-<form method="post" action="{{ url_for('scanner.bulk_aktion') }}" id="bulk-form">
+<form method="post" action="{{ url_for('funde.bulk_aktion') }}" id="bulk-form">
   <input type="hidden" name="filt" value="{{ filt }}">
   <input type="hidden" name="new_owner" id="hidden-new-owner" value="">
 
@@ -403,7 +403,7 @@
                   {% if is_admin and not f.reg_idv_id %}
                   <button type="button" class="btn btn-xs btn-outline-danger"
                           title="Eintrag löschen (Admin)"
-                          data-delete-url="{{ url_for('scanner.loeschen', file_id=f.id) }}"
+                          data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}"
                           data-filename="{{ f.file_name }}"
                           onclick="deleteScannerfund(this)">
                     <i class="bi bi-trash"></i>
@@ -476,7 +476,7 @@
             <!-- Verzeichnis / Pfad -->
             <td style="min-width:150px;max-width:260px">
               {% if f.dir_path %}
-              <a href="{{ url_for('scanner.list_funde', dir_path=f.dir_path, filter=filt, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+              <a href="{{ url_for('funde.list_funde', dir_path=f.dir_path, filter=filt, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
                  class="badge bg-success text-decoration-none d-block text-start"
                  title="{{ f.dir_path }}"
                  style="font-size:.7rem;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">
@@ -488,7 +488,7 @@
             <!-- Scan-Lauf -->
             <td class="text-nowrap" style="font-size:.76rem">
               {% if f.sr_id %}
-              <a href="{{ url_for('scanner.list_funde', scan_run=f.sr_id, filter=filt) }}"
+              <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id, filter=filt) }}"
                  class="text-decoration-none text-muted"
                  title="#{{ f.sr_id }} – Nach diesem Scan-Lauf filtern">
                 {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
@@ -596,7 +596,7 @@
               <button type="button"
                       class="btn btn-xs btn-outline-danger"
                       title="Eintrag löschen (Admin)"
-                      data-delete-url="{{ url_for('scanner.loeschen', file_id=f.id) }}"
+                      data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}"
                       data-filename="{{ f.file_name }}"
                       onclick="deleteScannerfund(this)">
                 <i class="bi bi-trash"></i>
@@ -622,7 +622,7 @@
 </form>
 
 {# ── Pagination unten ── #}
-{% include 'scanner/_pagination.html' %}
+{% include 'funde/_pagination.html' %}
 
 {% endif %}
 

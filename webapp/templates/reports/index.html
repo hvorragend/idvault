@@ -216,7 +216,7 @@
                 {{ r.letzter_scan|datefmt('%d.%m.%Y %H:%M') }}
               </td>
               <td class="text-nowrap">
-                <a href="{{ url_for('scanner.list_funde', share_root=r.share_root) }}"
+                <a href="{{ url_for('funde.list_funde', share_root=r.share_root) }}"
                    class="btn btn-xs btn-outline-secondary" title="Scanner-Funde">
                   <i class="bi bi-radar me-1"></i>Funde
                 </a>
@@ -244,7 +244,7 @@
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white d-flex justify-content-between align-items-center fw-600">
         <span><i class="bi bi-clock-history me-2"></i>Letzte Scan-Läufe</span>
-        <a href="{{ url_for('scanner.scan_laeufe') }}" class="btn btn-sm btn-outline-secondary">
+        <a href="{{ url_for('funde.scan_laeufe') }}" class="btn btn-sm btn-outline-secondary">
           Alle Läufe anzeigen →
         </a>
       </div>
@@ -289,7 +289,7 @@
                 {{ run.errors or '–' }}
               </td>
               <td>
-                <a href="{{ url_for('scanner.list_funde', scan_run=run.id) }}"
+                <a href="{{ url_for('funde.list_funde', scan_run=run.id) }}"
                    class="btn btn-xs btn-outline-secondary">
                   <i class="bi bi-files me-1"></i>Dateien
                 </a>

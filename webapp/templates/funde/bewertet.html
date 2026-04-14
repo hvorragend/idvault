@@ -5,7 +5,7 @@
 {% block content %}
 
 <div class="d-flex justify-content-end align-items-center mb-3">
-  {% include 'scanner/_scan_button.html' %}
+  {% include 'funde/_scan_button.html' %}
 </div>
 
 <p class="text-muted mb-4" style="font-size:.87rem">
@@ -105,7 +105,7 @@
       b) Ignorierte Eigenentwicklungen
       <span class="badge bg-secondary ms-1">{{ ignorierte|length }}</span>
     </span>
-    <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
+    <a href="{{ url_for('funde.list_funde', filter='ignoriert') }}"
        class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-box-arrow-up-right me-1"></i>In Scanner-Funde öffnen
     </a>
@@ -156,7 +156,7 @@
           </td>
           <td class="text-nowrap" style="font-size:.76rem">
             {% if f.sr_id %}
-            <a href="{{ url_for('scanner.list_funde', scan_run=f.sr_id) }}"
+            <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id) }}"
                class="text-decoration-none text-muted"
                title="#{{ f.sr_id }}">
               {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
@@ -180,7 +180,7 @@
             {% endif %}
           </td>
           <td>
-            <a href="{{ url_for('scanner.list_funde', filter='ignoriert') }}"
+            <a href="{{ url_for('funde.list_funde', filter='ignoriert') }}"
                class="btn btn-xs btn-outline-secondary" title="In Scanner-Funde anzeigen">
               <i class="bi bi-eye"></i>
             </a>

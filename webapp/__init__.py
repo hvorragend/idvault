@@ -91,7 +91,7 @@ def create_app(db_path: str = None) -> Flask:
     from .routes.reviews    import bp as rev_bp
     from .routes.measures   import bp as meas_bp
     from .routes.admin      import bp as admin_bp
-    from .routes.scanner    import bp as scanner_bp
+    from .routes.funde      import bp as funde_bp
     from .routes.reports    import bp as reports_bp
     from .routes.freigaben  import bp as freigaben_bp
     from .routes.tests      import bp as tests_bp
@@ -102,7 +102,7 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(rev_bp)
     app.register_blueprint(meas_bp)
     app.register_blueprint(admin_bp)
-    app.register_blueprint(scanner_bp)
+    app.register_blueprint(funde_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(freigaben_bp)
     app.register_blueprint(tests_bp)

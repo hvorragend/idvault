@@ -7,12 +7,12 @@
     total         – Gesamtanzahl Einträge (int)
     per_page      – Einträge pro Seite (int)
     valid_per_page – Tuple erlaubter Werte, z.B. (25, 50, 100, 200, 500)
-    endpoint      – Flask-Endpunkt (str), z.B. 'scanner.list_funde'
+    endpoint      – Flask-Endpunkt (str), z.B. 'funde.list_funde'
     url_extra     – dict mit zusätzlichen URL-Parametern (optional)
 
   Verwendung:
     {% set url_extra = {'filter': filt, 'share_root': share_root_filt} %}
-    {% include 'scanner/_pagination.html' %}
+    {% include 'funde/_pagination.html' %}
 #}
 {% if total_pages > 1 or true %}
 <nav class="d-flex align-items-center justify-content-between gap-2 flex-wrap py-1"

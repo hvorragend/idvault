@@ -5,7 +5,7 @@
 {% block content %}
 
 <div class="d-flex justify-content-end align-items-center mb-3">
-  {% include 'scanner/_scan_button.html' %}
+  {% include 'funde/_scan_button.html' %}
 </div>
 
 <!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
@@ -51,7 +51,7 @@
     <i class="bi bi-check-circle-fill text-success fs-1 d-block mb-3"></i>
     <h5 class="fw-600 mb-1">Eingang leer.</h5>
     <p class="text-muted mb-3">Alle Scanner-Funde wurden bearbeitet.</p>
-    <a href="{{ url_for('scanner.list_funde') }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ url_for('funde.list_funde') }}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-radar me-1"></i>Alle Funde anzeigen
     </a>
   </div>
@@ -124,7 +124,7 @@
                   {% else %}<span class="text-muted">–</span>{% endif %}
                 </td>
                 <td>
-                  <a href="{{ url_for('scanner.eingang_funde', dir_path=row.dir_path, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+                  <a href="{{ url_for('funde.eingang_funde', dir_path=row.dir_path, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
                     class="btn btn-xs btn-outline-secondary" title="Nach diesem Speicherort filtern">
                     <i class="bi bi-funnel"></i>
                   </a>
@@ -181,7 +181,7 @@
     <!-- Speicherort – durchsuchbares Eingabefeld, volle Breite -->
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      {% include 'scanner/_dir_search.html' %}
+      {% include 'funde/_dir_search.html' %}
     </div>
     <!-- Scan-Pfad (share_root) -->
     <div class="col-md-4">
@@ -211,7 +211,7 @@
       <button type="submit" class="btn btn-sm btn-primary w-100">
         <i class="bi bi-funnel me-1"></i>Filtern
       </button>
-      <a href="{{ url_for('scanner.eingang_funde') }}" class="btn btn-sm btn-outline-secondary"
+      <a href="{{ url_for('funde.eingang_funde') }}" class="btn btn-sm btn-outline-secondary"
         title="Filter zurücksetzen">
         <i class="bi bi-x-lg"></i>
       </a>
@@ -280,11 +280,11 @@
 
 <!-- ── Pagination-Variablen (vor dem Formular) ─────────────────────── -->
 {% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run': scan_run_id_filt} %}
-{% set endpoint = 'scanner.eingang_funde' %}
-{% include 'scanner/_pagination.html' %}
+{% set endpoint = 'funde.eingang_funde' %}
+{% include 'funde/_pagination.html' %}
 
 <!-- ── Massenaktions-Formular ──────────────────────────────────────── -->
-<form method="post" action="{{ url_for('scanner.bulk_aktion') }}" id="bulk-form">
+<form method="post" action="{{ url_for('funde.bulk_aktion') }}" id="bulk-form">
   <input type="hidden" name="return_to" value="eingang">
   <input type="hidden" name="dir_path_filt" value="{{ dir_path_filt }}">
   <input type="hidden" name="new_owner" id="hidden-new-owner" value="">
@@ -399,7 +399,7 @@
             <!-- Speicherort -->
             <td style="min-width:150px;max-width:260px">
               {% if f.dir_path %}
-              <a href="{{ url_for('scanner.eingang_funde', dir_path=f.dir_path, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+              <a href="{{ url_for('funde.eingang_funde', dir_path=f.dir_path, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
                 class="badge bg-success text-decoration-none d-block text-start"
                 title="{{ f.dir_path }}"
                 style="font-size:.7rem;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">
@@ -465,7 +465,7 @@
               </a>
               {% if is_admin %}
               <button type="button" class="btn btn-xs btn-outline-danger ms-1" title="Eintrag löschen (Admin)"
-                data-delete-url="{{ url_for('scanner.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
+                data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
                 onclick="deleteScannerfund(this)">
                 <i class="bi bi-trash"></i>
               </button>
@@ -479,7 +479,7 @@
               {% if share_root_filt %}
               <i class="bi bi-funnel fs-3 d-block mb-2"></i>
               Keine neuen Dateien in <strong>{{ share_root_filt }}</strong>.
-              <br><a href="{{ url_for('scanner.eingang_funde', sort=sort, per_page=per_page) }}"
+              <br><a href="{{ url_for('funde.eingang_funde', sort=sort, per_page=per_page) }}"
                 class="btn btn-sm btn-outline-secondary mt-2">Filter entfernen</a>
               {% else %}
               <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-2"></i>
@@ -496,7 +496,7 @@
 </form>
 
 <!-- ── Pagination unten ─────────────────────────────────────────── -->
-{% include 'scanner/_pagination.html' %}
+{% include 'funde/_pagination.html' %}
 
 {% endif %}
 

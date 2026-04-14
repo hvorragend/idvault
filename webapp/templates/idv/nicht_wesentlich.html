@@ -5,7 +5,7 @@
 {% block content %}
 
 <div class="d-flex justify-content-end align-items-center mb-3">
-  {% include 'scanner/_scan_button.html' %}
+  {% include 'funde/_scan_button.html' %}
 </div>
 
 <p class="text-muted mb-4" style="font-size:.87rem">
@@ -29,11 +29,11 @@
   <div class="row g-2 align-items-end">
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      {% include 'scanner/_dir_search.html' %}
+      {% include 'funde/_dir_search.html' %}
     </div>
     <div class="col-auto d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel me-1"></i>Filtern</button>
-      <a href="{{ url_for('scanner.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+      <a href="{{ url_for('idv.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
   </div>
   {% if dir_path_filt %}
@@ -45,8 +45,8 @@
 
 <!-- ── Pagination oben ────────────────────────────────────────────── -->
 {% set url_extra = {'dir_path': dir_path_filt} %}
-{% set endpoint = 'scanner.nicht_wesentliche_idvs' %}
-{% include 'scanner/_pagination.html' %}
+{% set endpoint = 'idv.nicht_wesentliche_idvs' %}
+{% include 'funde/_pagination.html' %}
 
 <div class="card border-0 shadow-sm mt-2">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -126,7 +126,7 @@
 </div>
 
 <!-- ── Pagination unten ───────────────────────────────────────────── -->
-{% include 'scanner/_pagination.html' %}
+{% include 'funde/_pagination.html' %}
 
 <style>
 .btn-xs { padding: .15rem .45rem; font-size: .75rem; }
