@@ -1,20 +1,45 @@
 """Testdokumentation-Blueprint – Fachliche Testfälle & Technischer Test"""
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from . import login_required, own_write_required, get_db, can_create
-import sys
 import os
+from flask import (Blueprint, render_template, request, redirect,
+                   url_for, flash, send_from_directory, current_app)
+from . import login_required, own_write_required, get_db, can_create
+from werkzeug.utils import secure_filename
+import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (
     get_fachliche_testfaelle, get_fachlicher_testfall,
     create_fachlicher_testfall, update_fachlicher_testfall, delete_fachlicher_testfall,
     get_technischer_test, save_technischer_test, delete_technischer_test,
 )
-from datetime import date as _date
+from datetime import date as _date, datetime as _datetime
 
 bp = Blueprint("tests", __name__, url_prefix="/tests")
 
-_BEWERTUNGEN     = ["Offen", "Bestanden", "Nicht bestanden"]
-_TECH_ERGEBNISSE = ["Offen", "Bestanden", "Nicht bestanden", "Entfällt"]
+_BEWERTUNGEN     = ["Offen", "Bestanden"]
+_TECH_ERGEBNISSE = ["Offen", "Bestanden", "Entfällt"]
+
+_ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf", "xlsx", "xls",
+                       "docx", "doc", "txt", "csv", "zip"}
+
+
+def _allowed_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in _ALLOWED_EXTENSIONS
+
+
+def _save_test_upload(file):
+    """Speichert eine Testnachweis-Datei. Gibt (dateiname, originalname) zurück."""
+    if not file or not file.filename:
+        return None, None
+    if not _allowed_file(file.filename):
+        return None, None
+    original_name = file.filename
+    safe_name = secure_filename(original_name)
+    timestamp = _datetime.now().strftime("%Y%m%d_%H%M%S_")
+    save_name = timestamp + safe_name
+    folder = os.path.join(current_app.instance_path, "uploads", "tests")
+    os.makedirs(folder, exist_ok=True)
+    file.save(os.path.join(folder, save_name))
+    return save_name, original_name
 
 
 def _get_idv_or_404(db, idv_db_id):
@@ -22,6 +47,15 @@ def _get_idv_or_404(db, idv_db_id):
     if not idv:
         flash("IDV nicht gefunden.", "error")
     return idv
+
+
+# ── Nachweis-Datei herunterladen ──────────────────────────────────────────────
+
+@bp.route("/nachweis/<path:filename>")
+@login_required
+def nachweis_download(filename):
+    folder = os.path.join(current_app.instance_path, "uploads", "tests")
+    return send_from_directory(folder, filename, as_attachment=True)
 
 
 # ── Fachlicher Testfall: Neu ───────────────────────────────────────────────
@@ -39,6 +73,14 @@ def new_fachlicher_testfall(idv_db_id):
         if not data["beschreibung"]:
             flash("Testfallbeschreibung ist ein Pflichtfeld.", "error")
         else:
+            # Datei-Upload verarbeiten
+            upload_file = request.files.get("nachweis_datei")
+            pfad, name = _save_test_upload(upload_file)
+            if upload_file and upload_file.filename and not pfad:
+                flash("Ungültiges Dateiformat für Nachweis-Upload.", "warning")
+            data["nachweis_datei_pfad"] = pfad
+            data["nachweis_datei_name"] = name
+
             create_fachlicher_testfall(db, idv_db_id, data)
             flash("Testfall gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
@@ -70,6 +112,14 @@ def edit_fachlicher_testfall(testfall_id):
         if not data["beschreibung"]:
             flash("Testfallbeschreibung ist ein Pflichtfeld.", "error")
         else:
+            # Datei-Upload: neue Datei oder vorhandene behalten
+            upload_file = request.files.get("nachweis_datei")
+            pfad, name = _save_test_upload(upload_file)
+            if upload_file and upload_file.filename and not pfad:
+                flash("Ungültiges Dateiformat für Nachweis-Upload.", "warning")
+            data["nachweis_datei_pfad"] = pfad or testfall["nachweis_datei_pfad"]
+            data["nachweis_datei_name"] = name or testfall["nachweis_datei_name"]
+
             update_fachlicher_testfall(db, testfall_id, data)
             flash("Testfall aktualisiert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv["id"],
@@ -117,6 +167,15 @@ def edit_technischer_test(idv_db_id):
             "pruefer":          request.form.get("pruefer", "").strip() or None,
             "pruefungsdatum":   request.form.get("pruefungsdatum") or None,
         }
+
+        # Datei-Upload: neue Datei oder vorhandene behalten
+        upload_file = request.files.get("nachweis_datei")
+        pfad, name = _save_test_upload(upload_file)
+        if upload_file and upload_file.filename and not pfad:
+            flash("Ungültiges Dateiformat für Nachweis-Upload.", "warning")
+        data["nachweis_datei_pfad"] = pfad or (tech_test["nachweis_datei_pfad"] if tech_test else None)
+        data["nachweis_datei_name"] = name or (tech_test["nachweis_datei_name"] if tech_test else None)
+
         save_technischer_test(db, idv_db_id, data)
         flash("Technischer Test gespeichert.", "success")
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
