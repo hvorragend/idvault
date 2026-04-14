@@ -27,24 +27,35 @@
 <!-- ── Filter-Leiste ─────────────────────────────────────────────── -->
 <form method="get" class="card border-0 shadow-sm p-3 mb-3">
   <div class="row g-2 align-items-end">
-    <div class="col-12">
+    <div class="col-md-5">
+      <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Suche</label>
+      <input type="text" name="q" class="form-control form-control-sm"
+             placeholder="IDV-ID, Bezeichnung oder Beschreibung …"
+             value="{{ q }}">
+    </div>
+    <div class="col-md-5">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
       {% include 'funde/_dir_search.html' %}
     </div>
-    <div class="col-auto d-flex gap-1">
+    <div class="col-auto d-flex gap-1 align-items-end">
       <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel me-1"></i>Filtern</button>
       <a href="{{ url_for('idv.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
   </div>
-  {% if dir_path_filt %}
-  <div class="mt-2">
+  {% if q or dir_path_filt %}
+  <div class="mt-2 d-flex flex-wrap gap-1">
+    {% if q %}
+    <span class="badge bg-primary"><i class="bi bi-search me-1"></i>{{ q }}</span>
+    {% endif %}
+    {% if dir_path_filt %}
     <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
+    {% endif %}
   </div>
   {% endif %}
 </form>
 
 <!-- ── Pagination oben ────────────────────────────────────────────── -->
-{% set url_extra = {'dir_path': dir_path_filt} %}
+{% set url_extra = {'q': q, 'dir_path': dir_path_filt} %}
 {% set endpoint = 'idv.nicht_wesentliche_idvs' %}
 {% include 'funde/_pagination.html' %}
 
