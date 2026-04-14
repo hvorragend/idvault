@@ -68,6 +68,12 @@ def new_fachlicher_testfall(idv_db_id):
     if not idv:
         return redirect(url_for("idv.list_idv"))
 
+    # Optionaler Freigabe-Kontext: Testfall schließt gleichzeitig den Freigabe-Schritt ab
+    try:
+        freigabe_id = int(request.args.get("freigabe_id") or request.form.get("freigabe_id") or 0) or None
+    except (ValueError, TypeError):
+        freigabe_id = None
+
     if request.method == "POST":
         data = _fachlich_form_to_dict(request.form)
         if not data["beschreibung"]:
@@ -82,12 +88,21 @@ def new_fachlicher_testfall(idv_db_id):
             data["nachweis_datei_name"] = name
 
             create_fachlicher_testfall(db, idv_db_id, data)
-            flash("Testfall gespeichert.", "success")
+
+            # Freigabe-Schritt automatisch abschließen, wenn aus Freigabe-Kontext aufgerufen
+            if freigabe_id:
+                from . import current_person_id
+                from .freigaben import complete_freigabe_schritt
+                complete_freigabe_schritt(db, freigabe_id, current_person_id())
+                flash("Testfall gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+            else:
+                flash("Testfall gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
                                     _anchor="testdokumentation"))
 
     return render_template("tests/fachlich_form.html",
                            idv=idv, testfall=None,
+                           freigabe_id=freigabe_id,
                            bewertungen=_BEWERTUNGEN,
                            today=_date.today().isoformat())
 
@@ -160,6 +175,12 @@ def edit_technischer_test(idv_db_id):
 
     tech_test = get_technischer_test(db, idv_db_id)
 
+    # Optionaler Freigabe-Kontext
+    try:
+        freigabe_id = int(request.args.get("freigabe_id") or request.form.get("freigabe_id") or 0) or None
+    except (ValueError, TypeError):
+        freigabe_id = None
+
     if request.method == "POST":
         data = {
             "ergebnis":         request.form.get("ergebnis", "Offen"),
@@ -177,12 +198,20 @@ def edit_technischer_test(idv_db_id):
         data["nachweis_datei_name"] = name or (tech_test["nachweis_datei_name"] if tech_test else None)
 
         save_technischer_test(db, idv_db_id, data)
-        flash("Technischer Test gespeichert.", "success")
+
+        if freigabe_id:
+            from . import current_person_id
+            from .freigaben import complete_freigabe_schritt
+            complete_freigabe_schritt(db, freigabe_id, current_person_id())
+            flash("Technischer Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+        else:
+            flash("Technischer Test gespeichert.", "success")
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
                                 _anchor="testdokumentation"))
 
     return render_template("tests/technisch_form.html",
                            idv=idv, tech_test=tech_test,
+                           freigabe_id=freigabe_id,
                            ergebnisse=_TECH_ERGEBNISSE,
                            today=_date.today().isoformat())
 
