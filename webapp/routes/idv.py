@@ -44,6 +44,9 @@ def _int_or_none(val):
         return None
 
 
+_VALID_PER_PAGE_IDV = (25, 50, 100, 200, 500)
+
+
 # ── Liste ──────────────────────────────────────────────────────────────────
 
 @bp.route("/")
@@ -56,6 +59,16 @@ def list_idv():
     oe_id   = _int_or_none(request.args.get("oe_id"))
     fv_id   = _int_or_none(request.args.get("fv_id"))
     share_root = request.args.get("share_root", "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", 100))
+    except (ValueError, TypeError):
+        per_page = 100
+    if per_page not in _VALID_PER_PAGE_IDV:
+        per_page = 100
 
     _WESENTLICH = """(
         v.steuerungsrelevant = 'Ja' OR v.rl_relevant = 'Ja' OR v.dora_kritisch = 'Ja'
@@ -116,6 +129,15 @@ def list_idv():
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
+    count_sql = f"""
+        SELECT COUNT(*) FROM v_idv_uebersicht v
+        JOIN idv_register r ON r.idv_id = v.idv_id
+        {where_sql}
+    """
+    total = db.execute(count_sql, params).fetchone()[0]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+
     sql = f"""
         SELECT r.*, v.*,
           CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich,
@@ -126,8 +148,9 @@ def list_idv():
         JOIN idv_register r ON r.idv_id = v.idv_id
         {where_sql}
         ORDER BY ist_wesentlich DESC, v.bezeichnung
+        LIMIT ? OFFSET ?
     """
-    idvs = db.execute(sql, params).fetchall()
+    idvs = db.execute(sql, params + [per_page, (page - 1) * per_page]).fetchall()
 
     # Filter-Optionen für Dropdowns
     org_units = db.execute(
@@ -147,7 +170,13 @@ def list_idv():
     return render_template("idv/list.html", idvs=idvs, can_write=can_write(),
                            is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
-                           share_roots=share_roots)
+                           share_roots=share_roots,
+                           total=total, total_pages=total_pages,
+                           page=page, per_page=per_page,
+                           valid_per_page=_VALID_PER_PAGE_IDV,
+                           q=q, status=status, filt=filt,
+                           oe_id=oe_id, fv_id=fv_id,
+                           share_root=share_root)
 
 
 # ── Globale Schnellsuche (JSON) ────────────────────────────────────────────
