@@ -287,6 +287,78 @@ aktivierten AD-Benutzerkonten auf einmal in die idvault-Personen-Tabelle überno
 
 ---
 
+## HTTPS / Zertifikate
+
+idvault kann direkt als HTTPS-Server betrieben werden — ohne vorgeschalteten
+Reverse-Proxy. Aktiviert wird der Modus über Umgebungsvariablen; fehlen die
+Zertifikatsdateien, wird beim ersten Start ein selbstsigniertes Zertifikat
+erzeugt und in `instance/certs/` abgelegt.
+
+### Schnellstart (selbstsigniertes Zertifikat)
+
+```bash
+# HTTPS aktivieren – beim ersten Start wird ein Zertifikat erzeugt
+IDV_HTTPS=1 python run.py
+# → https://localhost:5443
+```
+
+Der Hinweis „Nicht vertrauenswürdig" im Browser ist normal — das Zertifikat
+ist selbstsigniert. Für Testzwecke kann die Ausnahme dauerhaft akzeptiert
+werden; für den produktiven Einsatz sollte ein von der internen CA signiertes
+Zertifikat hinterlegt werden (siehe unten).
+
+### Eigenes Zertifikat verwenden
+
+Einfach die PEM-Dateien nach `instance/certs/cert.pem` bzw.
+`instance/certs/key.pem` legen — idvault verwendet sie automatisch, sobald
+`IDV_HTTPS=1` gesetzt ist. Alternativ lassen sich beliebige Pfade über
+Umgebungsvariablen angeben:
+
+```bash
+IDV_HTTPS=1
+IDV_SSL_CERT=/etc/ssl/idvault/fullchain.pem
+IDV_SSL_KEY=/etc/ssl/idvault/privkey.pem
+python run.py
+```
+
+Bei einem Zertifikat, das von einer (Zwischen-)CA signiert wurde, muss die
+Kette in `fullchain.pem` enthalten sein (Server-Zertifikat zuerst, gefolgt
+von allen Zwischenzertifikaten).
+
+### Umgebungsvariablen
+
+| Variable | Beschreibung | Standard |
+|---|---|---|
+| `IDV_HTTPS` | `1` = HTTPS aktivieren | `0` |
+| `IDV_SSL_CERT` | Pfad zum Zertifikat (PEM) | `instance/certs/cert.pem` |
+| `IDV_SSL_KEY` | Pfad zum privaten Schlüssel (PEM) | `instance/certs/key.pem` |
+| `IDV_SSL_AUTOGEN` | `1` = Selbstsigniertes Zertifikat bei Bedarf erzeugen | `1` |
+| `PORT` | Netzwerkport | `5443` (HTTPS) / `5000` (HTTP) |
+
+### Selbstsigniertes Zertifikat manuell erneuern
+
+Das automatisch erzeugte Zertifikat ist 10 Jahre gültig. Soll es vorher
+erneuert werden, genügt das Löschen der Dateien — beim nächsten Start wird
+ein neues Zertifikat generiert:
+
+```bash
+rm instance/certs/cert.pem instance/certs/key.pem
+IDV_HTTPS=1 python run.py
+```
+
+Das Zertifikat enthält Subject-Alternative-Names für den lokalen Hostnamen,
+`localhost`, `127.0.0.1` und `::1`, damit der Zugriff über all diese
+Adressen ohne Zertifikatsfehler im Browser funktioniert.
+
+### Reverse-Proxy statt eingebautem HTTPS
+
+In Umgebungen mit zentralem Reverse-Proxy (nginx, Apache, Traefik, IIS) kann
+die TLS-Terminierung dort stattfinden; idvault läuft dann weiterhin über HTTP
+(`IDV_HTTPS` bleibt leer). Das ist insbesondere für Clusterbetrieb oder
+automatisiertes Let's-Encrypt-Management empfehlenswert.
+
+---
+
 ## E-Mail-Benachrichtigungen
 
 idvault kann automatisch E-Mails versenden — z.B. wenn der Scanner eine neue

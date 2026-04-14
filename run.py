@@ -5,10 +5,15 @@ Entwicklung:  python run.py
 Produktion:   gunicorn "run:app" --workers 2 --bind 0.0.0.0:5000
 
 Umgebungsvariablen:
-  IDV_DB_PATH    Pfad zur SQLite-Datenbank   (Standard: instance/idvault.db)
-  SECRET_KEY     Flask Session Secret        (Pflicht in Produktion!)
-  PORT           HTTP-Port                   (Standard: 5000)
-  DEBUG          1 = Debug-Modus             (Standard: 0)
+  IDV_DB_PATH      Pfad zur SQLite-Datenbank (Standard: instance/idvault.db)
+  SECRET_KEY       Flask Session Secret      (Pflicht in Produktion!)
+  PORT             Netzwerkport              (Standard: 5000 / 5443 bei HTTPS)
+  DEBUG            1 = Debug-Modus           (Standard: 0)
+  IDV_HTTPS        1 = HTTPS aktivieren      (Standard: 0)
+  IDV_SSL_CERT     Pfad zum Zertifikat (PEM) (Standard: instance/certs/cert.pem)
+  IDV_SSL_KEY      Pfad zum priv. Schlüssel  (Standard: instance/certs/key.pem)
+  IDV_SSL_AUTOGEN  1 = Selbstsigniertes Zertifikat erzeugen, falls fehlend
+                                             (Standard: 1)
 """
 
 import os
@@ -195,16 +200,34 @@ def _seed_if_empty(app):
 
 
 if __name__ == "__main__":
-    port  = int(os.environ.get("PORT", 5000))
+    from ssl_utils import build_ssl_context, https_enabled
+
     debug = os.environ.get("DEBUG", "0") == "1"
+
+    # HTTPS optional: Zertifikats-Kontext vorbereiten (ggf. selbstsigniert).
+    # Muss vor dem Port-Default ausgewertet werden, damit 5443 greift.
+    # IDV_INSTANCE_PATH wurde oben bereits gesetzt (Default: <root>/instance).
+    _instance_path = os.environ.get(
+        'IDV_INSTANCE_PATH', os.path.join(_PROJECT_ROOT, 'instance')
+    )
+    ssl_context = build_ssl_context(_instance_path)
+    scheme = "https" if ssl_context is not None else "http"
+    default_port = 5443 if ssl_context is not None else 5000
+    port = int(os.environ.get("PORT", default_port))
 
     print("=" * 55)
     print("  idvault – IDV-Register")
-    print(f"  http://localhost:{port}")
+    print(f"  {scheme}://localhost:{port}")
     print(f"  DB: {app.config['DATABASE']}")
+    if ssl_context is not None:
+        print("  HTTPS aktiv – Zertifikat aus instance/certs/")
+    elif https_enabled():
+        # HTTPS gewünscht, Kontext aber nicht erstellbar (sollte nicht passieren,
+        # build_ssl_context() würde in diesem Fall eine Exception werfen).
+        print("  HTTPS angefordert, aber kein SSL-Kontext verfügbar.")
     print("  Demo-Login: admin / idvault2025")
     print("=" * 55)
 
     _seed_if_empty(app)
 
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context)

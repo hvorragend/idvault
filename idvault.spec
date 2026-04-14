@@ -53,6 +53,7 @@ hiddenimports = [
     'idv_scanner',
     'idv_export',
     # Eigene Module
+    'ssl_utils',
     'webapp',
     'webapp.db_flask',
     'webapp.email_service',
