@@ -1,7 +1,9 @@
 import hashlib
+import logging
 from flask import Blueprint, render_template, request, session, redirect, url_for, flash, current_app
 from . import get_db
 from ..ldap_auth import ldap_is_enabled, ldap_authenticate, ldap_sync_person
+from ..login_logger import log_attempt
 
 bp = Blueprint("auth", __name__)
 
@@ -82,6 +84,7 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+        ip       = request.remote_addr or "–"
 
         db = None
         try:
@@ -97,6 +100,8 @@ def login():
                     person_data = ldap_authenticate(db, username, password, secret_key)
                     if person_data is not None:
                         if person_data.get("rolle") is None:
+                            log_attempt(username, ip, "LDAP", False,
+                                        "Authentifizierung OK – keine idvault-Berechtigung zugewiesen")
                             flash(
                                 "Anmeldung erfolgreich, aber Ihr AD-Konto hat noch keine "
                                 "idvault-Berechtigung. Bitte wenden Sie sich an den Administrator.",
@@ -108,26 +113,34 @@ def login():
                         db_person = db.execute(
                             "SELECT user_id FROM persons WHERE id = ?", (person_id,)
                         ).fetchone()
+                        uid = db_person["user_id"] if db_person and db_person["user_id"] else username
                         session.clear()
-                        session["user_id"]   = (db_person["user_id"] if db_person and db_person["user_id"] else username)
+                        session["user_id"]   = uid
                         session["user_name"] = f"{person_data['vorname']} {person_data['nachname']}".strip() or username
                         session["user_role"] = person_data["rolle"]
                         session["person_id"] = person_id
                         session["ldap_auth"] = True
+                        log_attempt(username, ip, "LDAP", True,
+                                    f"Rolle: {person_data['rolle']}  User-ID: {uid}")
                         return redirect(url_for("dashboard.index"))
                     # LDAP aktiv, aber Credentials passen nicht → lokalen Login versuchen
+                    log_attempt(username, ip, "LDAP", False,
+                                "Credentials abgelehnt (falsches Passwort oder Benutzer nicht gefunden)")
             except Exception as e:
-                import logging
                 logging.getLogger(__name__).error("LDAP-Login-Fehler: %s", e)
+                log_attempt(username, ip, "LDAP", False, f"Verbindungsfehler: {e}")
                 # Bei LDAP-Fehler (Server nicht erreichbar): weiter mit lokalem Login
 
         # ── 2. Lokaler Login (immer als Fallback verfügbar) ──────────────────
         result = _do_local_login(db, username, password)
         if result:
+            method = "Demo" if username in _DEMO_USERS else "lokal"
             session.clear()
             session.update(result)
+            log_attempt(username, ip, method, True, f"Rolle: {result.get('user_role', '–')}")
             return redirect(url_for("dashboard.index"))
 
+        log_attempt(username, ip, "lokal", False, "Benutzername oder Passwort falsch")
         flash("Benutzername oder Passwort falsch.", "error")
 
     # GET

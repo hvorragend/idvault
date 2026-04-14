@@ -19,6 +19,14 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# Login-Logger – wird nach create_app() verfügbar; sicher importieren
+def _llog(username: str, step: str, detail: str = "", level: str = "debug") -> None:
+    try:
+        from .login_logger import log_ldap_step
+        log_ldap_step(username, step, detail, level)
+    except Exception:
+        pass  # Login-Logger nicht verfügbar (Tests, früher Import)
+
 # ---------------------------------------------------------------------------
 # Passwort-Verschlüsselung (Fernet, Key aus SECRET_KEY abgeleitet)
 # ---------------------------------------------------------------------------
@@ -194,11 +202,22 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
     try:
         bind_pw = decrypt_password(cfg["bind_password"], secret_key)
     except Exception as e:
-        logger.error("LDAP: Service-Account-Passwort konnte nicht entschlüsselt werden: %s", e)
+        msg = f"Service-Account-Passwort konnte nicht entschlüsselt werden: {e}"
+        logger.error("LDAP: %s", msg)
+        _llog(username, "Passwort-Entschlüsselung", msg, "error")
         return None
 
+    _llog(username, "Konfiguration",
+          f"Server={cfg['server_url']}:{cfg['port']}  SSL-Verify={cfg['ssl_verify']}  "
+          f"BindDN={cfg['bind_dn']}  BaseDN={cfg['base_dn']}")
+
     try:
-        # TLS-Konfiguration
+        from ldap3.core.exceptions import LDAPBindError, LDAPSocketOpenError
+    except ImportError:
+        LDAPBindError = LDAPSocketOpenError = Exception
+
+    # ── Schritt 1: TLS + Server ──────────────────────────────────────────────
+    try:
         if cfg["ssl_verify"]:
             tls = Tls(validate=_ssl.CERT_REQUIRED)
         else:
@@ -212,22 +231,44 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
             get_info=ALL,
             connect_timeout=10,
         )
+    except Exception as e:
+        msg = f"Server-Objekt konnte nicht erstellt werden: {e}"
+        logger.error("LDAP: %s", msg)
+        _llog(username, "Server-Init", msg, "error")
+        return None
 
-        user_attr = cfg["user_attr"] or "sAMAccountName"
-        search_attrs = [
-            "distinguishedName", "givenName", "sn", "mail",
-            "telephoneNumber", "department", "memberOf",
-            "displayName", "userAccountControl", user_attr,
-        ]
+    user_attr = cfg["user_attr"] or "sAMAccountName"
+    search_attrs = [
+        "distinguishedName", "givenName", "sn", "mail",
+        "telephoneNumber", "department", "memberOf",
+        "displayName", "userAccountControl", user_attr,
+    ]
 
-        # 1. Mit Service-Account verbinden und User-DN suchen
-        with Connection(
+    # ── Schritt 2: Service-Account-Bind ──────────────────────────────────────
+    try:
+        svc_conn = Connection(
             server,
             user=cfg["bind_dn"],
             password=bind_pw,
             auto_bind=True,
             receive_timeout=15,
-        ) as svc_conn:
+        )
+    except LDAPBindError as e:
+        msg = f"Service-Account-Bind fehlgeschlagen (falsches Passwort?): {e}"
+        logger.error("LDAP: %s", msg)
+        _llog(username, "Service-Bind", msg, "error")
+        return None
+    except Exception as e:
+        msg = f"Verbindung zum LDAP-Server fehlgeschlagen: {e}"
+        logger.error("LDAP: %s", msg)
+        _llog(username, "Service-Bind", msg, "error")
+        return None
+
+    _llog(username, "Service-Bind", "erfolgreich")
+
+    # ── Schritt 3: Benutzer suchen ────────────────────────────────────────────
+    try:
+        with svc_conn:
             svc_conn.search(
                 search_base=cfg["base_dn"],
                 search_filter=f"({user_attr}={_escape_ldap(username)})",
@@ -235,40 +276,55 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
                 attributes=search_attrs,
             )
             if not svc_conn.entries:
-                logger.info("LDAP: Benutzer '%s' nicht gefunden", username)
+                msg = f"Benutzer nicht in BaseDN '{cfg['base_dn']}' gefunden (Filter: {user_attr}={username})"
+                logger.warning("LDAP: %s", msg)
+                _llog(username, "Benutzersuche", msg, "warning")
                 return None
 
-            entry = svc_conn.entries[0]
-            user_dn = entry.entry_dn
+            entry    = svc_conn.entries[0]
+            user_dn  = entry.entry_dn
+            _llog(username, "Benutzersuche", f"gefunden: DN={user_dn}")
 
-            # Prüfen ob AD-Account deaktiviert (userAccountControl Bit 1)
+            # AD-Account deaktiviert?
             try:
                 uac = int(str(entry.userAccountControl.value))
                 if uac & 0x2:
-                    logger.info("LDAP: Account '%s' ist deaktiviert (UAC=%d)", username, uac)
+                    msg = f"AD-Account ist deaktiviert (UAC={uac})"
+                    logger.warning("LDAP: '%s' – %s", username, msg)
+                    _llog(username, "Account-Status", msg, "warning")
                     return None
+                _llog(username, "Account-Status", f"aktiv (UAC={uac})")
             except Exception:
-                pass  # UAC nicht verfügbar → weiter
+                _llog(username, "Account-Status", "UAC nicht lesbar – wird ignoriert")
 
             member_of = []
             try:
                 member_of = [str(g) for g in entry.memberOf.values]
+                _llog(username, "Gruppenmitgliedschaft",
+                      f"{len(member_of)} Gruppe(n): {', '.join(member_of[:5])}"
+                      + (" …" if len(member_of) > 5 else ""))
             except Exception:
-                pass
+                _llog(username, "Gruppenmitgliedschaft", "memberOf nicht lesbar")
 
             vorname  = _str(entry, "givenName")
             nachname = _str(entry, "sn")
             email    = _str(entry, "mail")
             telefon  = _str(entry, "telephoneNumber")
 
-            # Fallback: displayName aufsplitten wenn givenName/sn leer
             if not vorname and not nachname:
-                display = _str(entry, "displayName")
-                parts = display.split(" ", 1)
+                display  = _str(entry, "displayName")
+                parts    = display.split(" ", 1)
                 vorname  = parts[0] if parts else username
                 nachname = parts[1] if len(parts) > 1 else ""
 
-        # 2. Mit User-Credentials binden → Passwortprüfung
+    except Exception as e:
+        msg = f"Fehler während der Benutzersuche: {e}"
+        logger.error("LDAP: %s", msg)
+        _llog(username, "Benutzersuche", msg, "error")
+        return None
+
+    # ── Schritt 4: Benutzer-Bind (Passwort prüfen) ───────────────────────────
+    try:
         with Connection(
             server,
             user=user_dn,
@@ -276,41 +332,52 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
             auto_bind=True,
             receive_timeout=15,
         ):
-            pass  # Erfolgreich gebunden → Passwort korrekt
-
-        # 3. Rolle aus Gruppen ermitteln
-        rolle = _get_role_from_groups(db, member_of)
-
-        # Fallback: Wenn keine LDAP-Gruppe gemappt ist, gespeicherte Rolle aus DB nutzen
-        if rolle is None:
-            try:
-                existing = db.execute(
-                    "SELECT rolle FROM persons WHERE ad_name = ? AND aktiv = 1",
-                    (username,)
-                ).fetchone()
-                if existing and existing["rolle"]:
-                    rolle = existing["rolle"]
-                    logger.info(
-                        "LDAP: Keine Gruppen-Rollenzuordnung für '%s' – verwende gespeicherte Rolle '%s'",
-                        username, rolle,
-                    )
-            except Exception:
-                pass
-
-        return {
-            "vorname":  vorname,
-            "nachname": nachname,
-            "email":    email,
-            "telefon":  telefon,
-            "ad_name":  username,
-            "user_id":  username,
-            "rolle":    rolle,
-        }
-
-    except Exception as e:
-        # LDAPBindError: falsches Passwort; andere: Verbindungsfehler
-        logger.info("LDAP: Authentifizierung fehlgeschlagen für '%s': %s", username, e)
+            pass  # Bind erfolgreich → Passwort korrekt
+        _llog(username, "Passwort-Prüfung", "erfolgreich")
+    except LDAPBindError as e:
+        msg = f"Falsches Passwort: {e}"
+        logger.info("LDAP: '%s' – %s", username, msg)
+        _llog(username, "Passwort-Prüfung", msg, "warning")
         return None
+    except Exception as e:
+        msg = f"Fehler beim Benutzer-Bind: {e}"
+        logger.error("LDAP: '%s' – %s", username, msg)
+        _llog(username, "Passwort-Prüfung", msg, "error")
+        return None
+
+    # ── Schritt 5: Rolle ermitteln ────────────────────────────────────────────
+    rolle = _get_role_from_groups(db, member_of)
+    if rolle:
+        _llog(username, "Rollen-Mapping", f"Gruppe → '{rolle}'")
+    else:
+        # Fallback: gespeicherte Rolle aus DB
+        try:
+            existing = db.execute(
+                "SELECT rolle FROM persons WHERE ad_name = ? AND aktiv = 1",
+                (username,)
+            ).fetchone()
+            if existing and existing["rolle"]:
+                rolle = existing["rolle"]
+                _llog(username, "Rollen-Mapping",
+                      f"kein Gruppen-Mapping – DB-Fallback: '{rolle}'", "info")
+                logger.info(
+                    "LDAP: Keine Gruppen-Rollenzuordnung für '%s' – verwende gespeicherte Rolle '%s'",
+                    username, rolle,
+                )
+            else:
+                _llog(username, "Rollen-Mapping", "keine Rolle ermittelbar (kein Mapping, kein DB-Eintrag)", "warning")
+        except Exception:
+            pass
+
+    return {
+        "vorname":  vorname,
+        "nachname": nachname,
+        "email":    email,
+        "telefon":  telefon,
+        "ad_name":  username,
+        "user_id":  username,
+        "rolle":    rolle,
+    }
 
 
 # ---------------------------------------------------------------------------
