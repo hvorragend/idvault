@@ -15,6 +15,7 @@
 
 {% block content %}
 <form method="post" enctype="multipart/form-data">
+  {% if freigabe_id %}<input type="hidden" name="freigabe_id" value="{{ freigabe_id }}">{% endif %}
   <div class="row g-4">
     <div class="col-lg-8">
 
@@ -60,7 +61,7 @@
 
           <div class="col-12">
             <label class="form-label fw-500">Kurzbeschreibung</label>
-            <div data-quill="kurzbeschreibung" style="min-height:100px">{{ tech_test.kurzbeschreibung or '' if tech_test else '' }}</div>
+            <div data-quill="kurzbeschreibung" style="min-height:100px"></div>
             <input type="hidden" name="kurzbeschreibung" id="kurzbeschreibung-hidden"
                    value="{{ tech_test.kurzbeschreibung or '' if tech_test else '' }}">
             <div class="form-text">
@@ -179,7 +180,6 @@
   document.querySelectorAll('[data-quill]').forEach(function (wrapper) {
     var hiddenName = wrapper.dataset.quill;
     var hidden = document.getElementById(hiddenName + '-hidden');
-    var initial = hidden ? hidden.value : '';
     var q = new Quill(wrapper, {
       theme: 'snow',
       modules: {
@@ -190,7 +190,7 @@
         ]
       }
     });
-    if (initial) q.root.innerHTML = initial;
+    if (hidden && hidden.value) q.clipboard.dangerouslyPasteHTML(0, hidden.value);
     editors.push({ q: q, h: hidden });
   });
   document.querySelector('form').addEventListener('submit', function () {

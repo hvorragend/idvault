@@ -17,6 +17,7 @@
 
 {% block content %}
 <form method="post" enctype="multipart/form-data">
+  {% if freigabe_id %}<input type="hidden" name="freigabe_id" value="{{ freigabe_id }}">{% endif %}
   <div class="row g-4">
     <div class="col-lg-8">
 
@@ -30,7 +31,7 @@
           {% if testfall %}
           <form method="post"
                 action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}"
-                onsubmit="return confirm('Testfall TF-{{ \'%02d\'|format(testfall.testfall_nr) }} löschen?')">
+                onsubmit="return confirm('Testfall TF-{{ '%02d'|format(testfall.testfall_nr) }} löschen?')">
             <button type="submit" class="btn btn-outline-danger btn-sm">
               <i class="bi bi-trash me-1"></i>Löschen
             </button>
@@ -52,7 +53,7 @@
 
           <div class="col-12">
             <label class="form-label fw-500">Testfallbeschreibung <span class="required-star">*</span></label>
-            <div data-quill="beschreibung" style="min-height:100px">{{ testfall.beschreibung if testfall else '' }}</div>
+            <div data-quill="beschreibung" style="min-height:100px"></div>
             <input type="hidden" name="beschreibung" id="beschreibung-hidden"
                    value="{{ testfall.beschreibung if testfall else '' }}">
           </div>
@@ -92,7 +93,7 @@
 
           <div class="col-12">
             <label class="form-label fw-500">Erzieltes Ergebnis</label>
-            <div data-quill="erzieltes_ergebnis" style="min-height:80px">{{ testfall.erzieltes_ergebnis or '' if testfall else '' }}</div>
+            <div data-quill="erzieltes_ergebnis" style="min-height:80px"></div>
             <input type="hidden" name="erzieltes_ergebnis" id="erzieltes_ergebnis-hidden"
                    value="{{ testfall.erzieltes_ergebnis or '' if testfall else '' }}">
           </div>
@@ -111,7 +112,7 @@
           <div class="col-12" id="massnahmen-row"
             {% if testfall and testfall.bewertung == 'Bestanden' %}style="display:none"{% endif %}>
             <label class="form-label fw-500">Abgeleitete Maßnahmen</label>
-            <div data-quill="massnahmen" style="min-height:70px">{{ testfall.massnahmen or '' if testfall else '' }}</div>
+            <div data-quill="massnahmen" style="min-height:70px"></div>
             <input type="hidden" name="massnahmen" id="massnahmen-hidden"
                    value="{{ testfall.massnahmen or '' if testfall else '' }}">
             <div class="form-text">Nur auszufüllen, wenn der Testfall noch offen ist.</div>
@@ -168,7 +169,7 @@
           {% if testfall %}
           <form method="post"
                 action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}"
-                onsubmit="return confirm('Testfall TF-{{ \'%02d\'|format(testfall.testfall_nr) }} löschen?')">
+                onsubmit="return confirm('Testfall TF-{{ '%02d'|format(testfall.testfall_nr) }} löschen?')">
             <button type="submit" class="btn btn-outline-danger">
               <i class="bi bi-trash me-1"></i>Löschen
             </button>
@@ -240,7 +241,6 @@
   document.querySelectorAll('[data-quill]').forEach(function (wrapper) {
     var hiddenName = wrapper.dataset.quill;
     var hidden = document.getElementById(hiddenName + '-hidden');
-    var initial = hidden ? hidden.value : '';
     var q = new Quill(wrapper, {
       theme: 'snow',
       modules: {
@@ -251,7 +251,7 @@
         ]
       }
     });
-    if (initial) q.root.innerHTML = initial;
+    if (hidden && hidden.value) q.clipboard.dangerouslyPasteHTML(0, hidden.value);
     editors.push({ q: q, h: hidden });
   });
 

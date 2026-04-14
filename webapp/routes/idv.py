@@ -874,6 +874,7 @@ def nicht_wesentliche_idvs():
         _DIR_PATH_EXPR, _DIR_PATH_EXPR_PLAIN, _VALID_PER_PAGE, _idv_typ_vorschlag, _scan_btn_ctx
     )
     db = get_db()
+    q             = request.args.get("q", "").strip()
     dir_path_filt = request.args.get("dir_path", "").strip()
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
@@ -893,6 +894,9 @@ def nicht_wesentliche_idvs():
 
     where_parts = ["f.status = 'active'", f"NOT {_WESENTLICH_SQL}"]
     params: list = []
+    if q:
+        where_parts.append("(r.idv_id LIKE ? OR r.bezeichnung LIKE ? OR r.kurzbeschreibung LIKE ?)")
+        params += [f"%{q}%", f"%{q}%", f"%{q}%"]
     if dir_path_filt:
         where_parts.append(f"{_DIR_PATH_EXPR} = ?")
         params.append(dir_path_filt)
@@ -939,6 +943,7 @@ def nicht_wesentliche_idvs():
         nicht_wesentliche=nicht_wesentliche,
         total=total, total_pages=total_pages, page=page, per_page=per_page,
         dir_paths=dir_paths, dir_path_filt=dir_path_filt,
+        q=q,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),

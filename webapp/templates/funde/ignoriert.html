@@ -48,24 +48,40 @@
 {% set endpoint = 'funde.ignorierte_dateien' %}
 {% include 'funde/_pagination.html' %}
 
+{% set is_admin = session.get('user_role') == 'IDV-Administrator' %}
+
+<form id="ignoriert-form" method="post" action="{{ url_for('funde.ignorierte_loeschen') }}">
 <div class="card border-0 shadow-sm mt-2">
-  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <span class="fw-600">
       <i class="bi bi-eye-slash me-2 text-secondary"></i>
       Ignorierte Eigenentwicklungen
       <span class="badge bg-secondary ms-1">
-        {% if total > per_page %}{{ dateien|length }} von {{ total }}{% else %}{{ total }}{% endif %}
+        {% if total > per_page %}{{ ignorierte|length }} von {{ total }}{% else %}{{ total }}{% endif %}
       </span>
     </span>
-    <a href="{{ url_for('funde.list_funde', filter='ignoriert') }}"
-       class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-box-arrow-up-right me-1"></i>In Scanner-Funde öffnen
-    </a>
+    <div class="d-flex gap-2 align-items-center">
+      {% if is_admin %}
+      <button type="submit" id="btn-loeschen" class="btn btn-sm btn-outline-danger" disabled
+              onclick="return confirm('Ausgewählte Einträge dauerhaft löschen?')">
+        <i class="bi bi-trash3 me-1"></i>Auswahl löschen
+      </button>
+      {% endif %}
+      <a href="{{ url_for('funde.list_funde', filter='ignoriert') }}"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-box-arrow-up-right me-1"></i>In Scanner-Funde öffnen
+      </a>
+    </div>
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
       <thead>
         <tr>
+          {% if is_admin %}
+          <th style="width:2rem">
+            <input type="checkbox" id="check-all" class="form-check-input" title="Alle markieren">
+          </th>
+          {% endif %}
           <th>Dateiname</th>
           <th>Typ</th>
           <th>Eigentümer</th>
@@ -80,6 +96,12 @@
       <tbody>
         {% for f in ignorierte %}
         <tr>
+          {% if is_admin %}
+          <td>
+            <input type="checkbox" name="file_ids" value="{{ f.id }}"
+                   class="form-check-input row-check">
+          </td>
+          {% endif %}
           <td>
             <span class="fw-500">{{ f.file_name }}</span>
           </td>
@@ -137,7 +159,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="9" class="text-center text-muted py-4">
+          <td colspan="{{ 10 if is_admin else 9 }}" class="text-center text-muted py-4">
             <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
             Keine ignorierten Dateien vorhanden.
           </td>
@@ -147,6 +169,7 @@
     </table>
   </div>
 </div>
+</form>
 
 <!-- ── Pagination unten ───────────────────────────────────────────── -->
 {% include 'funde/_pagination.html' %}
@@ -156,4 +179,30 @@
 .fw-600 { font-weight: 600; }
 .fw-500 { font-weight: 500; }
 </style>
+{% if session.get('user_role') == 'IDV-Administrator' %}
+<script>
+(function () {
+  const checkAll = document.getElementById('check-all');
+  const btnDel   = document.getElementById('btn-loeschen');
+
+  function updateBtn() {
+    const any = document.querySelectorAll('.row-check:checked').length > 0;
+    btnDel.disabled = !any;
+  }
+
+  if (checkAll) {
+    checkAll.addEventListener('change', function () {
+      document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
+      updateBtn();
+    });
+  }
+  document.querySelectorAll('.row-check').forEach(cb =>
+    cb.addEventListener('change', function () {
+      if (!this.checked && checkAll) checkAll.checked = false;
+      updateBtn();
+    })
+  );
+})();
+</script>
+{% endif %}
 {% endblock %}

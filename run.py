@@ -60,6 +60,27 @@ if getattr(sys, 'frozen', False) and '--scan' not in sys.argv:
         pass  # Logging-Fehler dürfen den Start nicht verhindern
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── Windows: Konsolen-X-Button sauber behandeln ──────────────────────────────
+# Werkzeug/Flask fängt CTRL_C_EVENT (Signal 2) über signal.SIGINT ab, aber
+# CTRL_CLOSE_EVENT (Console-X-Button, Wert 2 im Win32-API) wird separat über
+# SetConsoleCtrlHandler zugestellt und vom Werkzeug-Dev-Server nicht verarbeitet.
+# Ohne Handler lässt Windows den Prozess nach ~5 s als "hängend" erscheinen und
+# bietet nur „Prozess beenden" an – das X scheint wirkungslos.
+# Lösung: Eigenen Handler registrieren, der sofort os._exit(0) ruft.
+if getattr(sys, 'frozen', False) and os.name == 'nt' and '--scan' not in sys.argv:
+    import ctypes
+    import ctypes.wintypes as _cwt
+    _CTRL_CLOSE_EVENT = 2
+
+    @ctypes.WINFUNCTYPE(_cwt.BOOL, _cwt.DWORD)
+    def _win_ctrl_handler(ctrl_type):
+        if ctrl_type == _CTRL_CLOSE_EVENT:
+            os._exit(0)
+        return False
+
+    ctypes.windll.kernel32.SetConsoleCtrlHandler(_win_ctrl_handler, True)
+# ─────────────────────────────────────────────────────────────────────────────
+
 # ── Sidecar-Update: Override-Verzeichnis vor gebündelten Modulen laden ───────
 import importlib.util
 

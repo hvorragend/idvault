@@ -118,6 +118,49 @@ def _int_or_none(val):
 
 
 # ---------------------------------------------------------------------------
+# Shared helper: Freigabe-Schritt als Bestanden abschließen
+# ---------------------------------------------------------------------------
+
+def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
+                               nachweise: str = None, kommentar: str = None) -> None:
+    """Markiert einen ausstehenden Freigabe-Schritt als Bestanden und aktualisiert
+    Phase-Status sowie IDV-Teststatus. Wird aus tests.py nach Speichern des Tests aufgerufen."""
+    now      = datetime.now(timezone.utc).isoformat()
+    freigabe = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
+    if not freigabe or freigabe["status"] != "Ausstehend":
+        return
+
+    idv_db_id = freigabe["idv_id"]
+    schritt   = freigabe["schritt"]
+
+    db.execute("""
+        UPDATE idv_freigaben
+        SET status='Bestanden', durchgefuehrt_von_id=?, durchgefuehrt_am=?,
+            kommentar=?, nachweise_text=?
+        WHERE id=?
+    """, (person_id, now, kommentar, nachweise, freigabe_id))
+    db.execute(
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        (idv_db_id, "freigabe_schritt_bestanden", f"{schritt} bestanden", person_id)
+    )
+    db.commit()
+
+    if schritt in _PHASE_2 and _phase2_komplett_bestanden(db, idv_db_id):
+        db.execute("""
+            UPDATE idv_register
+            SET teststatus='Freigegeben', dokumentation_vorhanden=1, aktualisiert_am=?
+            WHERE id=?
+        """, (now, idv_db_id))
+        db.execute(
+            "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+            (idv_db_id, "freigabe_erteilt",
+             "Alle 4 Freigabe-Schritte (Phase 1+2) bestanden – IDV freigegeben", person_id)
+        )
+        db.commit()
+        _notify_freigabe_erteilt(db, idv_db_id)
+
+
+# ---------------------------------------------------------------------------
 # Phase 1 starten: Fachlicher Test + Technischer Test (parallel)
 # ---------------------------------------------------------------------------
 
@@ -235,7 +278,8 @@ def abnahme_starten(idv_db_id):
 @bp.route("/<int:freigabe_id>/bestanden", methods=["GET"])
 @own_write_required
 def bestanden_seite(freigabe_id):
-    """Zeigt das vollseitige Formular zum Abschließen eines Freigabe-Schritts."""
+    """Zeigt das vollseitige Formular zum Abschließen eines Freigabe-Schritts.
+    Für Fachlicher Test / Technischer Test wird direkt zur Testdokumentation weitergeleitet."""
     db = get_db()
     freigabe = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
@@ -245,6 +289,15 @@ def bestanden_seite(freigabe_id):
     if not idv:
         flash("IDV nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
+
+    # Test-Schritte zur spezialisierten Test-Maske weiterleiten (Freigabe-ID mitgeben)
+    if freigabe["schritt"] == "Fachlicher Test":
+        return redirect(url_for("tests.new_fachlicher_testfall",
+                                idv_db_id=idv["id"], freigabe_id=freigabe_id))
+    if freigabe["schritt"] == "Technischer Test":
+        return redirect(url_for("tests.edit_technischer_test",
+                                idv_db_id=idv["id"], freigabe_id=freigabe_id))
+
     return render_template("freigaben/bestanden_form.html", freigabe=freigabe, idv=idv)
 
 

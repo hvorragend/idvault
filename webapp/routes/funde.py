@@ -556,6 +556,52 @@ def ignorierte_dateien():
     )
 
 
+@bp.route("/ignoriert/loeschen", methods=["POST"])
+@admin_required
+def ignorierte_loeschen():
+    """Löscht ausgewählte ignorierte Scanner-Funde dauerhaft (nur Admins)."""
+    db = get_db()
+    raw_ids = request.form.getlist("file_ids")
+    try:
+        file_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        flash("Ungültige Datei-IDs.", "error")
+        return redirect(url_for("funde.ignorierte_dateien"))
+
+    if not file_ids:
+        flash("Keine Einträge ausgewählt.", "warning")
+        return redirect(url_for("funde.ignorierte_dateien"))
+
+    geloescht    = 0
+    uebersprungen = 0
+    for file_id in file_ids:
+        # Nur wirklich ignorierte Dateien betreffen
+        datei = db.execute(
+            "SELECT id, file_name FROM idv_files WHERE id=? AND bearbeitungsstatus='Ignoriert'",
+            (file_id,)
+        ).fetchone()
+        if not datei:
+            continue
+        # Keine verknüpften IDVs löschen
+        if db.execute("SELECT id FROM idv_register WHERE file_id=?", (file_id,)).fetchone():
+            uebersprungen += 1
+            continue
+        db.execute("DELETE FROM idv_file_history WHERE file_id=?", (file_id,))
+        db.execute("DELETE FROM idv_file_links  WHERE file_id=?", (file_id,))
+        db.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
+        geloescht += 1
+
+    db.commit()
+    if geloescht:
+        flash(f"{geloescht} Einträge gelöscht.", "success")
+    if uebersprungen:
+        flash(f"{uebersprungen} Einträge übersprungen (mit IDV verknüpft).", "warning")
+    if not geloescht and not uebersprungen:
+        flash("Keine passenden Einträge gefunden.", "warning")
+
+    return redirect(url_for("funde.ignorierte_dateien"))
+
+
 @bp.route("/laeufe")
 @login_required
 def scan_laeufe():
