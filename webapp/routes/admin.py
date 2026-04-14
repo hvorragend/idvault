@@ -157,13 +157,24 @@ def scanner_einstellungen():
         })
         try:
             _save_scanner_config(cfg)
+            # App-Setting für Auto-Ignorieren speichern
+            db = get_db()
+            val = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
+            db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
+                       ("auto_ignore_no_formula", val))
+            db.commit()
             flash("Scanner-Konfiguration gespeichert.", "success")
         except Exception as exc:
             flash(f"Fehler beim Speichern: {exc}", "error")
         return redirect(url_for("admin.scanner_einstellungen"))
 
+    db = get_db()
+    auto_ignore = db.execute(
+        "SELECT value FROM app_settings WHERE key='auto_ignore_no_formula'"
+    ).fetchone()
     return render_template("admin/scanner_einstellungen.html",
-                           cfg=cfg, scan_running=_scan_is_running())
+                           cfg=cfg, scan_running=_scan_is_running(),
+                           auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"))
 
 
 @bp.route("/scanner/starten", methods=["POST"])
@@ -1028,8 +1039,7 @@ def delete_plattform(plid):
 def save_settings():
     db = get_db()
     keys = ["smtp_host", "smtp_port", "smtp_user", "smtp_password",
-            "smtp_from", "smtp_tls", "notify_new_file", "local_login_enabled",
-            "auto_ignore_no_formula"]
+            "smtp_from", "smtp_tls", "notify_new_file", "local_login_enabled"]
     # Dynamisch alle E-Mail-Template-Keys aufnehmen
     from ..email_service import EMAIL_TEMPLATES
     for tpl_key in EMAIL_TEMPLATES:
