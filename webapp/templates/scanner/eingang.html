@@ -124,7 +124,7 @@
                   {% else %}<span class="text-muted">–</span>{% endif %}
                 </td>
                 <td>
-                  <a href="{{ url_for('scanner.eingang_funde', dir_path=row.dir_path, sort=sort, per_page=per_page) }}"
+                  <a href="{{ url_for('scanner.eingang_funde', dir_path=row.dir_path, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
                     class="btn btn-xs btn-outline-secondary" title="Nach diesem Speicherort filtern">
                     <i class="bi bi-funnel"></i>
                   </a>
@@ -183,6 +183,40 @@
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
       {% include 'scanner/_dir_search.html' %}
     </div>
+    <!-- Scan-Pfad (share_root) -->
+    <div class="col-md-4">
+      <label class="form-label form-label-sm"><i class="bi bi-hdd-network me-1"></i>Scan-Pfad</label>
+      <select name="share_root" class="form-select form-select-sm" title="{{ share_root_filt }}">
+        <option value="">– Alle –</option>
+        {% for sr in share_roots %}
+        <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}
+                title="{{ sr }}">{{ ('…' + sr[-60:]) if sr|length > 63 else sr }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Scan-Lauf -->
+    <div class="col-md-5">
+      <label class="form-label form-label-sm"><i class="bi bi-clock-history me-1"></i>Scan-Lauf</label>
+      <select name="scan_run" class="form-select form-select-sm">
+        <option value="">– Alle Läufe –</option>
+        {% for run in scan_runs %}
+        <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt == run.id|string }}>
+          {{ scan_run_label(run) }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Buttons -->
+    <div class="col-md-3 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary w-100">
+        <i class="bi bi-funnel me-1"></i>Filtern
+      </button>
+      <a href="{{ url_for('scanner.eingang_funde') }}" class="btn btn-sm btn-outline-secondary"
+        title="Filter zurücksetzen">
+        <i class="bi bi-x-lg"></i>
+      </a>
+    </div>
+    <!-- Sortierung + Pro Seite -->
     <div class="col-md-4">
       <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
       <select name="sort" class="form-select form-select-sm">
@@ -200,23 +234,18 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3 d-flex gap-1">
-      <button type="submit" class="btn btn-sm btn-primary w-100">
-        <i class="bi bi-funnel me-1"></i>Filtern
-      </button>
-      <a href="{{ url_for('scanner.eingang_funde') }}" class="btn btn-sm btn-outline-secondary"
-        title="Filter zurücksetzen">
-        <i class="bi bi-x-lg"></i>
-      </a>
-    </div>
   </div>
-  {% if dir_path_filt %}
-  <div class="mt-2">
-    <span class="badge bg-success">
-      <i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}
-      <a href="{{ url_for('scanner.eingang_funde', sort=sort, per_page=per_page) }}"
-        class="text-white text-decoration-none ms-1" title="Filter entfernen">×</a>
-    </span>
+  {% if dir_path_filt or share_root_filt or scan_run_id_filt %}
+  <div class="mt-2 d-flex gap-2 flex-wrap">
+    {% if dir_path_filt %}
+    <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
+    {% endif %}
+    {% if share_root_filt %}
+    <span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt }}</span>
+    {% endif %}
+    {% if scan_run_id_filt %}
+    <span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{ scan_run_id_filt }}</span>
+    {% endif %}
   </div>
   {% endif %}
 </form>
@@ -250,7 +279,7 @@
 </div>
 
 <!-- ── Pagination-Variablen (vor dem Formular) ─────────────────────── -->
-{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt} %}
+{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run': scan_run_id_filt} %}
 {% set endpoint = 'scanner.eingang_funde' %}
 {% include 'scanner/_pagination.html' %}
 
@@ -317,6 +346,7 @@
             <th>Dateiname</th>
             <th>Typ</th>
             <th>Speicherort</th>
+            <th class="text-nowrap">Geändert</th>
             <th class="text-nowrap">Erst gesehen</th>
             <th>Größe</th>
             <th>Eigentümer</th>
@@ -369,13 +399,18 @@
             <!-- Speicherort -->
             <td style="min-width:150px;max-width:260px">
               {% if f.dir_path %}
-              <a href="{{ url_for('scanner.eingang_funde', dir_path=f.dir_path, sort=sort, per_page=per_page) }}"
+              <a href="{{ url_for('scanner.eingang_funde', dir_path=f.dir_path, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
                 class="badge bg-success text-decoration-none d-block text-start"
                 title="{{ f.dir_path }}"
                 style="font-size:.7rem;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">
                 <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-45:]) if f.dir_path|length > 48 else f.dir_path }}
               </a>
               {% endif %}
+            </td>
+
+            <!-- Geändert (Dateisystem-Änderungsdatum) -->
+            <td class="text-nowrap" style="font-size:.76rem">
+              {{ f.modified_at|datefmt if f.modified_at else '–' }}
             </td>
 
             <!-- Erst gesehen -->
@@ -440,7 +475,7 @@
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="11" class="text-center text-muted py-5">
+            <td colspan="12" class="text-center text-muted py-5">
               {% if share_root_filt %}
               <i class="bi bi-funnel fs-3 d-block mb-2"></i>
               Keine neuen Dateien in <strong>{{ share_root_filt }}</strong>.

@@ -52,6 +52,7 @@
           <th>OE</th>
           <th>Fachverantwortlicher</th>
           <th>Status</th>
+          <th>Geändert</th>
           <th>Dateiname</th>
           <th>Verzeichnis</th>
           <th></th>
@@ -68,6 +69,9 @@
           <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
           <td>
             <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
+          </td>
+          <td class="text-nowrap" style="font-size:.76rem">
+            {{ r.file_modified_at|datefmt if r.file_modified_at else '–' }}
           </td>
           <td class="text-truncate" style="max-width:180px" title="{{ r.file_name }}">
             {{ r.file_name or '–' }}
@@ -97,7 +101,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="8" class="text-center text-muted py-4">
+          <td colspan="9" class="text-center text-muted py-4">
             <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
             Keine nicht wesentlichen Scanner-IDVs vorhanden.
           </td>

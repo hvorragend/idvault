@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}IDV-Grundgesamtheit{% endblock %}
-{% block page_title %}<i class="bi bi-table me-2"></i>IDV-Grundgesamtheit{% endblock %}
+{% block title %}Wesentliche IDV{% endblock %}
+{% block page_title %}<i class="bi bi-table me-2"></i>Wesentliche IDV{% endblock %}
 
 {% block content %}
 
@@ -153,6 +153,7 @@
           <th class="sortable">Wesentlichkeit</th>
           <th class="sortable">Status</th>
           <th class="sortable">Fachverantwortlicher</th>
+          <th>Geändert</th>
           <th class="sortable">Nächste Prüfung</th>
           <th></th>
         </tr>
@@ -206,6 +207,7 @@
             <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
           </td>
           <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+          <td class="text-nowrap" style="font-size:.76rem">{{ r.updated_at|datefmt if r.updated_at else '–' }}</td>
           <td style="font-size:.82rem">
             {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
               <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
@@ -232,7 +234,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="{{ 11 if can_write else 10 }}" class="text-center text-muted py-5">
+          <td colspan="{{ 12 if can_write else 11 }}" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine IDVs gefunden.
             {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}

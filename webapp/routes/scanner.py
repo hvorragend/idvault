@@ -302,6 +302,8 @@ def eingang_funde():
     """Eingang: Neue, unbearbeitete Scanner-Funde als priorisierte Arbeitsliste."""
     db = get_db()
     dir_path_filt = request.args.get("dir_path", "").strip()
+    share_root    = request.args.get("share_root", "").strip()
+    scan_run_id   = request.args.get("scan_run", "").strip()
     sort          = request.args.get("sort", "prioritaet")
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
@@ -324,6 +326,15 @@ def eingang_funde():
     if dir_path_filt:
         where_parts.append(f"{_DIR_PATH_EXPR} = ?")
         params.append(dir_path_filt)
+    if share_root:
+        where_parts.append("f.share_root = ?")
+        params.append(share_root)
+    if scan_run_id:
+        try:
+            where_parts.append("f.last_scan_run_id = ?")
+            params.append(int(scan_run_id))
+        except ValueError:
+            scan_run_id = ""
     where_sql = "WHERE " + " AND ".join(where_parts)
 
     sort_map = {
@@ -400,6 +411,23 @@ def eingang_funde():
         if r["dir_path"]
     ]
 
+    share_roots = [
+        r["share_root"] for r in db.execute("""
+            SELECT DISTINCT share_root FROM idv_files
+            WHERE share_root IS NOT NULL AND status = 'active' AND bearbeitungsstatus = 'Neu'
+            ORDER BY share_root
+        """).fetchall()
+    ]
+
+    try:
+        scan_runs = db.execute("""
+            SELECT id, started_at, finished_at, scan_paths,
+                   total_files, new_files, changed_files, archived_files
+            FROM scan_runs ORDER BY started_at DESC LIMIT 30
+        """).fetchall()
+    except Exception:
+        scan_runs = []
+
     # Duplikate datenbankweit ermitteln (nicht nur auf der aktuellen Seite)
     duplicate_hashes = {
         r["file_hash"] for r in db.execute("""
@@ -425,6 +453,11 @@ def eingang_funde():
         nach_typ=nach_typ,
         dir_paths=dir_paths,
         dir_path_filt=dir_path_filt,
+        share_roots=share_roots,
+        share_root_filt=share_root,
+        scan_runs=scan_runs,
+        scan_run_id_filt=scan_run_id,
+        scan_run_label=_scan_run_label,
         sort=sort,
         duplicate_hashes=duplicate_hashes,
         idv_typ_vorschlag=_idv_typ_vorschlag,
@@ -546,6 +579,7 @@ def nicht_wesentliche_idvs():
                r.teststatus AS idv_teststatus,
                f.file_name, f.full_path, f.share_root,
                f.id AS file_id,
+               f.modified_at AS file_modified_at,
                p.nachname || ', ' || p.vorname AS fachverantwortlicher,
                ou.kuerzel AS org_einheit
         FROM idv_register r
