@@ -281,6 +281,22 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
         # 3. Rolle aus Gruppen ermitteln
         rolle = _get_role_from_groups(db, member_of)
 
+        # Fallback: Wenn keine LDAP-Gruppe gemappt ist, gespeicherte Rolle aus DB nutzen
+        if rolle is None:
+            try:
+                existing = db.execute(
+                    "SELECT rolle FROM persons WHERE ad_name = ? AND aktiv = 1",
+                    (username,)
+                ).fetchone()
+                if existing and existing["rolle"]:
+                    rolle = existing["rolle"]
+                    logger.info(
+                        "LDAP: Keine Gruppen-Rollenzuordnung für '%s' – verwende gespeicherte Rolle '%s'",
+                        username, rolle,
+                    )
+            except Exception:
+                pass
+
         return {
             "vorname":  vorname,
             "nachname": nachname,
