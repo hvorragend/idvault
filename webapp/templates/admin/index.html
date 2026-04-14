@@ -431,11 +431,6 @@
                      {{ 'checked' if settings.get('smtp_tls','1')=='1' else '' }}>
               <label class="form-check-label" for="smtp_tls">STARTTLS verwenden</label>
             </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="notify_new_file" value="1" id="notify_nf"
-                     {{ 'checked' if settings.get('notify_new_file','1')=='1' else '' }}>
-              <label class="form-check-label" for="notify_nf">Neue Dateien benachrichtigen</label>
-            </div>
           </div>
           <div class="col-md-4 d-flex align-items-end">
             <button type="submit" class="btn btn-sm btn-primary">
@@ -456,16 +451,21 @@
               {% for tpl_key, tpl_meta in email_templates.items() %}
               {% set subj_key = 'email_tpl_' + tpl_key + '_subject' %}
               {% set body_key = 'email_tpl_' + tpl_key + '_body' %}
+              {% set enabled_key = 'notify_enabled_' + tpl_key %}
               {% set default_subj = email_defaults.get(tpl_key + '_subject', '') %}
               {% set default_body = email_defaults.get(tpl_key + '_body', '') %}
               {% set has_custom = settings.get(subj_key, '') or settings.get(body_key, '') %}
+              {% set is_enabled = settings.get(enabled_key, '1') == '1' %}
               <div class="accordion-item">
                 <h2 class="accordion-header">
                   <button class="accordion-button collapsed py-2" type="button"
                           data-bs-toggle="collapse" data-bs-target="#tpl-{{ tpl_key }}"
                           style="font-size:.85rem">
-                    <i class="bi bi-envelope me-2 text-primary"></i>
+                    <i class="bi bi-envelope me-2 {% if is_enabled %}text-primary{% else %}text-muted{% endif %}"></i>
                     {{ tpl_meta.label }}
+                    {% if not is_enabled %}
+                    <span class="badge bg-secondary ms-2" style="font-size:.68rem">deaktiviert</span>
+                    {% endif %}
                     {% if has_custom %}
                     <span class="badge bg-info ms-2" style="font-size:.68rem">angepasst</span>
                     {% endif %}
@@ -474,6 +474,15 @@
                 <div id="tpl-{{ tpl_key }}" class="accordion-collapse collapse"
                      data-bs-parent="#email-tpl-accordion">
                   <div class="accordion-body py-2">
+                    <div class="mb-3 d-flex align-items-center gap-2">
+                      <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox"
+                               name="{{ enabled_key }}" value="1"
+                               id="{{ enabled_key }}"
+                               {{ 'checked' if is_enabled else '' }}>
+                        <label class="form-check-label fw-600" for="{{ enabled_key }}">Versand aktiviert</label>
+                      </div>
+                    </div>
                     <div class="mb-2">
                       <span class="text-muted" style="font-size:.78rem">Platzhalter:
                         {% for ph in tpl_meta.placeholders %}

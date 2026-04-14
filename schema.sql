@@ -163,6 +163,12 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('smtp_from',     ''),
     ('smtp_tls',      '1'),
     ('notify_new_file', '1'),
+    ('notify_enabled_neue_datei',             '1'),
+    ('notify_enabled_pruefung_faellig',       '1'),
+    ('notify_enabled_freigabe_schritt',       '1'),
+    ('notify_enabled_freigabe_abgeschlossen', '1'),
+    ('notify_enabled_bewertung',              '1'),
+    ('notify_enabled_massnahme_ueberfaellig', '1'),
     ('auto_ignore_no_formula', '0');
 
 -- Konfigurierbare Klassifizierungskriterien

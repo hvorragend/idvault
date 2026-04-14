@@ -315,15 +315,35 @@ EMAIL_TEMPLATES = {
 # Benachrichtigungs-Funktionen
 # ---------------------------------------------------------------------------
 
+def _is_notify_enabled(db, tpl_key: str) -> bool:
+    """Prüft ob der Mailversand für diesen Template-Typ in den Einstellungen aktiviert ist.
+
+    Liest den Key ``notify_enabled_{tpl_key}`` aus app_settings.
+    Fehlt der Eintrag, gilt die Benachrichtigung als aktiviert (sicherer Default).
+    Rückwärtskompatibilität: Für 'neue_datei' wird zusätzlich der alte
+    Key 'notify_new_file' als Fallback geprüft.
+    """
+    try:
+        row = db.execute(
+            "SELECT value FROM app_settings WHERE key=?",
+            (f"notify_enabled_{tpl_key}",)
+        ).fetchone()
+        if row is not None:
+            return row["value"] == "1"
+        # Rückwärtskompatibilität für den alten 'notify_new_file'-Key
+        if tpl_key == "neue_datei":
+            row = db.execute(
+                "SELECT value FROM app_settings WHERE key='notify_new_file'"
+            ).fetchone()
+            return bool(row and row["value"] == "1")
+        return True  # Kein Eintrag → Default aktiviert
+    except Exception:
+        return True
+
+
 def notify_new_scanner_file(db, file_row, responsible_emails: list[str]) -> bool:
     """Benachrichtigt Verantwortliche über eine neu erkannte Datei."""
-    try:
-        notify_enabled = db.execute(
-            "SELECT value FROM app_settings WHERE key='notify_new_file'"
-        ).fetchone()
-        if not notify_enabled or notify_enabled["value"] != "1":
-            return False
-    except Exception:
+    if not _is_notify_enabled(db, "neue_datei"):
         return False
 
     fname    = file_row["file_name"] if hasattr(file_row, "__getitem__") else str(file_row)
@@ -348,6 +368,8 @@ def notify_new_scanner_file(db, file_row, responsible_emails: list[str]) -> bool
 
 def notify_review_due(db, idv_row, responsible_email: str) -> bool:
     """Erinnerung an fällige Prüfung."""
+    if not _is_notify_enabled(db, "pruefung_faellig"):
+        return False
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
     datum  = idv_row["naechste_pruefung"] if hasattr(idv_row, "__getitem__") else ""
@@ -372,6 +394,8 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
                             recipient_emails: list,
                             versions_kommentar: str = None) -> bool:
     """Benachrichtigt Prüfer über einen neuen offenen Freigabe-Schritt."""
+    if not _is_notify_enabled(db, "freigabe_schritt"):
+        return False
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
 
@@ -394,6 +418,8 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
 
 def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
     """Benachrichtigung wenn alle 4 Freigabe-Schritte bestanden wurden."""
+    if not _is_notify_enabled(db, "freigabe_abgeschlossen"):
+        return False
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
 
@@ -428,6 +454,8 @@ def get_app_base_url(db) -> str:
 
 def notify_file_bewertung(db, file_row, recipient_email: str) -> bool:
     """Sendet eine Bewertungsanforderung an den Datei-Ersteller/-Eigentümer."""
+    if not _is_notify_enabled(db, "bewertung"):
+        return False
     fname = file_row["file_name"] if hasattr(file_row, "__getitem__") else str(file_row)
     fpath = file_row["full_path"] if hasattr(file_row, "__getitem__") else ""
     formula_count = file_row["formula_count"] if hasattr(file_row, "__getitem__") else 0
@@ -460,6 +488,8 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
     Wenn base_url angegeben ist, wird für jede Datei ein Link in idvault eingefügt.
     """
     if not file_rows:
+        return False
+    if not _is_notify_enabled(db, "bewertung"):
         return False
 
     ersteller = "–"
@@ -544,6 +574,8 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
 
 def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:
     """Eskalation für überfällige Maßnahme."""
+    if not _is_notify_enabled(db, "massnahme_ueberfaellig"):
+        return False
     titel   = massnahme_row["titel"] if hasattr(massnahme_row, "__getitem__") else str(massnahme_row)
     faellig = massnahme_row["faellig_am"] if hasattr(massnahme_row, "__getitem__") else ""
 
