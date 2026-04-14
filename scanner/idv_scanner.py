@@ -633,7 +633,7 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                 data = scan_file(full_path, config, all_scan_paths, logger=logger)
                 if data:
                     yield data
-            except BaseException as e:
+            except Exception as e:
                 logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
@@ -666,7 +666,7 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
             data = scan_file(full_path, config, all_scan_paths, logger=logger)
             if data:
                 yield data
-        except BaseException as e:
+        except Exception as e:
             logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
