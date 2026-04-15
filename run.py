@@ -124,6 +124,50 @@ def _read_version_json(path: str) -> dict:
         return {}
 
 
+# ── config.json laden / beim ersten Start automatisch anlegen ────────────────
+# config.json liegt neben run.py bzw. neben der EXE und enthält dieselben
+# Schlüssel wie die Umgebungsvariablen (SECRET_KEY, PORT, IDV_HTTPS, …).
+# Werte werden nur gesetzt, wenn die Variable noch NICHT in der Umgebung steht
+# → OS-Umgebungsvariablen, Docker-Secrets usw. haben immer Vorrang.
+_config_file = os.path.join(_PROJECT_ROOT, 'config.json')
+if not os.path.isfile(_config_file):
+    # Erster Start ohne config.json und ohne SECRET_KEY-Env-Variable:
+    # Datei automatisch mit zufälligem SECRET_KEY anlegen.
+    if not os.environ.get('SECRET_KEY'):
+        import secrets as _secrets
+        _auto_cfg = {
+            "SECRET_KEY": _secrets.token_hex(32),
+            "PORT": 5000,
+            "IDV_HTTPS": 0,
+            "IDV_SSL_CERT": "instance/certs/cert.pem",
+            "IDV_SSL_KEY": "instance/certs/key.pem",
+            "IDV_SSL_AUTOGEN": 1,
+            "IDV_DB_PATH": "instance/idvault.db",
+            "IDV_INSTANCE_PATH": "instance",
+            "IDV_SMTP_HOST": "",
+            "IDV_SMTP_PORT": 587,
+            "IDV_SMTP_USER": "",
+            "IDV_SMTP_PASSWORD": "",
+            "IDV_SMTP_FROM": "",
+            "IDV_SMTP_TLS": 1,
+            "IDV_APP_BASE_URL": ""
+        }
+        try:
+            with open(_config_file, 'w', encoding='utf-8') as _f:
+                _json.dump(_auto_cfg, _f, indent=2, ensure_ascii=False)
+            print(f"  [config] Neue config.json angelegt: {_config_file}")
+        except Exception:
+            pass  # Schreibfehler dürfen den Start nicht verhindern
+
+if os.path.isfile(_config_file):
+    try:
+        _cfg_data = _read_version_json(_config_file)
+        for _cfg_k, _cfg_v in _cfg_data.items():
+            os.environ.setdefault(_cfg_k, str(_cfg_v))
+    except Exception as _cfg_err:
+        print(f"  [config] config.json konnte nicht geladen werden: {_cfg_err}")
+# ─────────────────────────────────────────────────────────────────────────────
+
 # Gebündelte version.json lesen (immer, unabhängig vom Sidecar)
 if getattr(sys, 'frozen', False):
     _bundled_vf = os.path.join(sys._MEIPASS, 'version.json')

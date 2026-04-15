@@ -1,0 +1,21 @@
+{
+  "SECRET_KEY": "BITTE_ERSETZEN_mindestens_32_Zeichen",
+
+  "PORT": 5000,
+
+  "IDV_HTTPS": 0,
+  "IDV_SSL_CERT": "instance/certs/cert.pem",
+  "IDV_SSL_KEY": "instance/certs/key.pem",
+  "IDV_SSL_AUTOGEN": 1,
+
+  "IDV_DB_PATH": "instance/idvault.db",
+  "IDV_INSTANCE_PATH": "instance",
+
+  "IDV_SMTP_HOST": "",
+  "IDV_SMTP_PORT": 587,
+  "IDV_SMTP_USER": "",
+  "IDV_SMTP_PASSWORD": "",
+  "IDV_SMTP_FROM": "",
+  "IDV_SMTP_TLS": 1,
+  "IDV_APP_BASE_URL": ""
+}
