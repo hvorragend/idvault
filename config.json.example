@@ -39,7 +39,7 @@
       "AppData"
     ],
     "db_path": "instance/idvault.db",
-    "log_path": "scanner/idv_scanner.log",
+    "log_path": "instance/logs/idv_scanner.log",
     "hash_size_limit_mb": 500,
     "max_workers": 4,
     "move_detection": "name_and_hash",

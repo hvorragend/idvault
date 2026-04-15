@@ -112,6 +112,7 @@ def setup_logging(log_path: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
+    os.makedirs(os.path.dirname(os.path.abspath(log_path)), exist_ok=True)
     fh = logging.FileHandler(log_path, encoding="utf-8")
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(fmt)

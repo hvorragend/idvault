@@ -109,19 +109,20 @@ def create_app(db_path: str = None) -> Flask:
 
     os.makedirs(_instance_path, exist_ok=True)
     os.makedirs(upload_folder, exist_ok=True)
+    os.makedirs(os.path.join(_instance_path, 'logs'), exist_ok=True)
 
-    # Login-Logger einrichten (instance/login.log)
+    # Login-Logger einrichten (instance/logs/login.log)
     from .login_logger import setup_login_logger
     setup_login_logger(_instance_path)
 
-    # Datei-Logging: WARNING+ → instance/idvault.log
+    # Datei-Logging: WARNING+ → instance/logs/idvault.log
     # RotatingFileHandler: 1 MB pro Datei, 7 Backups (idvault.log … idvault.log.7)
     # Die Crash-/stderr-Umleitung in run.py schreibt in idvault_crash.log
     # (separate Datei), damit dieser Handler die Datei sperr-frei rotieren kann.
     import logging
     from logging.handlers import RotatingFileHandler as _RFH
     _fh = _RFH(
-        os.path.join(_instance_path, 'idvault.log'),
+        os.path.join(_instance_path, 'logs', 'idvault.log'),
         maxBytes=1 * 1024 * 1024,   # 1 MB pro Segment
         backupCount=7,              # idvault.log + .1 … .7
         encoding='utf-8',

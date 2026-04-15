@@ -58,6 +58,11 @@ _DEFAULT_SCANNER_EXCLUDE = [
 ]
 
 
+def _instance_logs_dir() -> str:
+    """Gibt den absoluten Pfad zum instance/logs/-Verzeichnis zurück."""
+    return os.path.join(os.path.dirname(current_app.config['DATABASE']), 'logs')
+
+
 def _default_scanner_cfg() -> dict:
     """Erstellt die Standardkonfiguration mit dem tatsächlichen DB-Pfad der Webapp."""
     from flask import current_app
@@ -66,7 +71,7 @@ def _default_scanner_cfg() -> dict:
         "extensions": _DEFAULT_SCANNER_EXTENSIONS,
         "exclude_paths": _DEFAULT_SCANNER_EXCLUDE,
         "db_path": current_app.config['DATABASE'],
-        "log_path": "idv_scanner.log",
+        "log_path": os.path.join(_instance_logs_dir(), 'idv_scanner.log'),
         "hash_size_limit_mb": 500,
         "max_workers": 4,
         "move_detection": "name_and_hash",
@@ -233,7 +238,9 @@ def scanner_starten():
         if resume:
             cmd.append("--resume")
 
-        output_log = os.path.join(scanner_dir, "scanner_output.log")
+        _logs_dir = _instance_logs_dir()
+        os.makedirs(_logs_dir, exist_ok=True)
+        output_log = os.path.join(_logs_dir, "scanner_output.log")
         try:
             log_fh = open(output_log, "w", encoding="utf-8")
             # Subprocess von der Konsole des Parents isolieren: sonst werden
@@ -569,7 +576,7 @@ def _default_teams_cfg() -> dict:
         "client_id":          "",
         "client_secret":      "",
         "db_path":            current_app.config["DATABASE"],
-        "log_path":           "teams_scanner.log",
+        "log_path":           os.path.join(_instance_logs_dir(), 'teams_scanner.log'),
         "hash_size_limit_mb": 100,
         "download_for_ooxml": True,
         "move_detection":     "name_and_hash",
@@ -684,7 +691,9 @@ def teams_scan_starten():
             return jsonify({"ok": False, "msg": f"Teams-Scanner nicht gefunden: {script}"})
 
         cmd = [sys.executable, script, "--config", config_path]
-        output_log = os.path.join(scanner_dir, "teams_scanner_output.log")
+        _logs_dir = _instance_logs_dir()
+        os.makedirs(_logs_dir, exist_ok=True)
+        output_log = os.path.join(_logs_dir, "teams_scanner_output.log")
 
         try:
             log_fh = open(output_log, "w", encoding="utf-8")
@@ -2216,7 +2225,7 @@ def update_rollback():
 def update_log():
     """Gibt die letzten 500 Zeilen des App-Logs als Plaintext zurück."""
     log_path = os.path.join(
-        os.path.dirname(current_app.config['DATABASE']), 'idvault.log'
+        os.path.dirname(current_app.config['DATABASE']), 'logs', 'idvault.log'
     )
     if not os.path.isfile(log_path):
         return Response("Keine Log-Datei vorhanden.", mimetype='text/plain; charset=utf-8')

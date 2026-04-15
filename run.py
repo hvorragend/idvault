@@ -51,7 +51,7 @@ os.environ.setdefault('IDV_PROJECT_ROOT', _PROJECT_ROOT)
 # fälschlich in idvault_crash.log. Der Scanner hat zudem sein eigenes
 # Crash-Log (scanner_crash.log, siehe unten).
 if getattr(sys, 'frozen', False) and '--scan' not in sys.argv:
-    _log_dir = os.path.join(_PROJECT_ROOT, 'instance')
+    _log_dir = os.path.join(_PROJECT_ROOT, 'instance', 'logs')
     os.makedirs(_log_dir, exist_ok=True)
     try:
         _crash_log_path = os.path.join(_log_dir, 'idvault_crash.log')
@@ -177,7 +177,7 @@ if not os.path.isfile(_config_file):
                     "AppData"
                 ],
                 "db_path": "instance/idvault.db",
-                "log_path": "scanner/idv_scanner.log",
+                "log_path": "instance/logs/idv_scanner.log",
                 "hash_size_limit_mb": 500,
                 "max_workers": 4,
                 "move_detection": "name_and_hash",
@@ -235,7 +235,8 @@ os.environ.setdefault('IDV_INSTANCE_PATH', os.path.join(_PROJECT_ROOT, 'instance
 # admin.py den gleichen Executable mit --scan auf.
 if '--scan' in sys.argv:
     sys.argv = [a for a in sys.argv if a != '--scan']
-    _crash_log = os.path.join(os.path.dirname(sys.executable), 'scanner_crash.log')
+    _crash_log = os.path.join(_PROJECT_ROOT, 'instance', 'logs', 'scanner_crash.log')
+    os.makedirs(os.path.join(_PROJECT_ROOT, 'instance', 'logs'), exist_ok=True)
     try:
         import idv_scanner
         idv_scanner.main()
