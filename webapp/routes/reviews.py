@@ -1,10 +1,11 @@
 """Prüfungen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from . import login_required, get_db
+from . import login_required, own_write_required, get_db
 from datetime import datetime, timezone, date as _date
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import get_klassifizierungen
+from ..security import ensure_can_read_idv, ensure_can_write_idv
 
 bp = Blueprint("reviews", __name__, url_prefix="/pruefungen")
 
@@ -33,9 +34,11 @@ def list_reviews():
 
 
 @bp.route("/neu/<int:idv_db_id>", methods=["GET", "POST"])
-@login_required
+@own_write_required
 def new_review(idv_db_id):
     db  = get_db()
+    # VULN-E: Fremde IDVs dürfen nicht geprüft werden, wenn man nicht beteiligt ist.
+    ensure_can_write_idv(db, idv_db_id)
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
         flash("IDV nicht gefunden.", "error")

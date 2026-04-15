@@ -19,6 +19,26 @@
   "IDV_SMTP_TLS": 1,
   "IDV_APP_BASE_URL": "",
 
+  "_kommentar_sicherheit": "Folgende Schalter steuern Sicherheitsfunktionen – vor Produktivbetrieb unbedingt anpassen.",
+
+  "IDV_ALLOW_SIDECAR_UPDATES": 1,
+  "_kommentar_sidecar": "Auf 0 setzen, um das Hochladen von Sidecar-Updates (Admin → Update) komplett zu deaktivieren. Empfohlen in regulierten Umgebungen oder wenn Updates ausschließlich über neue EXE-Builds erfolgen sollen.",
+
+  "IDV_LOCAL_USERS": [
+    {
+      "_hinweis": "Beispiel-Eintrag (auskommentieren oder entfernen). Passwort-Hash erzeugen mit: python -c \"from werkzeug.security import generate_password_hash; print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))\"",
+      "username": "admin",
+      "password_hash": "pbkdf2:sha256:600000$REPLACE$REPLACE",
+      "name": "Administrator",
+      "role": "IDV-Administrator",
+      "person_id": null
+    }
+  ],
+  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Wenn LDAP aktiv ist, bleibt diese Liste als Fallback bestehen (z.B. für Break-Glass-Admin). Leere Liste = kein lokaler Login.",
+
+  "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",
+  "_kommentar_ratelimit": "Flask-Limiter-Syntax. Gilt pro Client-IP am POST /login.",
+
   "scanner": {
     "scan_paths": [],
     "extensions": [

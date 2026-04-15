@@ -34,12 +34,13 @@
     {% endif %}
 
     <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="mb-3">
         <label class="form-label">Benutzername</label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-person"></i></span>
           <input type="text" name="username" class="form-control" autofocus
-                 placeholder="{{ 'AD-Anmeldename oder Kürzel' if ldap_active else 'admin' }}"
+                 placeholder="{{ 'AD-Anmeldename oder Kürzel' if ldap_active else 'Benutzername' }}"
                  autocomplete="username">
         </div>
       </div>
@@ -55,15 +56,6 @@
         <i class="bi bi-box-arrow-in-right me-2"></i>Anmelden
       </button>
     </form>
-
-    {% if not ldap_active %}
-    <div class="mt-4 p-3 rounded" style="background:#f8f9fa;font-size:.78rem">
-      <strong>Demo-Zugänge:</strong><br>
-      <code>admin</code> / <code>idvault2026</code> (Administrator)<br>
-      <code>koordinator</code> / <code>demo</code><br>
-      <code>fachverantwortlicher</code> / <code>demo</code>
-    </div>
-    {% endif %}
   </div>
 </body>
 </html>

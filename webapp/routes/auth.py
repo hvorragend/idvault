@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from . import get_db
 from ..ldap_auth import ldap_is_enabled, ldap_authenticate, ldap_sync_person
 from ..login_logger import log_attempt
+from .. import limiter
 
 bp = Blueprint("auth", __name__)
 
@@ -12,29 +13,12 @@ bp = Blueprint("auth", __name__)
 _MODERN_HASH_METHOD = "pbkdf2:sha256"
 
 # ---------------------------------------------------------------------------
-# Demo-Fallback-Benutzer (für Erstinstallation / wenn keine Persons-Einträge).
-# Für Produktion: Mitarbeiter über Admin → Import anlegen und Passwort setzen.
+# VULN-F: Demo-Benutzer wurden entfernt.
+# Lokale Benutzer werden ausschließlich über ``config.json`` (Feld
+# ``IDV_LOCAL_USERS``, Liste von Objekten mit ``username``/``password_hash``)
+# konfiguriert und landen in ``current_app.config["IDV_LOCAL_USERS"]``.
+# Das verhindert statische, im Quellcode dokumentierte Default-Passwörter.
 # ---------------------------------------------------------------------------
-_DEMO_USERS = {
-    "admin": {
-        "password": "idvault2026",
-        "name": "Administrator",
-        "role": "IDV-Administrator",
-        "person_id": None,
-    },
-    "koordinator": {
-        "password": "demo",
-        "name": "Max Mustermann",
-        "role": "IDV-Koordinator",
-        "person_id": 1,
-    },
-    "fachverantwortlicher": {
-        "password": "demo",
-        "name": "Anna Beispiel",
-        "role": "Fachverantwortlicher",
-        "person_id": 2,
-    },
-}
 
 
 def _hash_pw(pw: str) -> str:
@@ -68,13 +52,27 @@ def _check_person_login(db, username: str, password: str):
     return row
 
 
-def _local_login_enabled(db) -> bool:
-    """Lokaler Login ist immer verfügbar (Einstellung wird nicht mehr ausgewertet)."""
-    return True
+def _check_config_user(username: str, password: str):
+    """Prüft Benutzer aus ``config.json``-Sektion ``IDV_LOCAL_USERS`` (VULN-F).
+
+    Gibt Session-Dict zurück oder ``None``.
+    """
+    users = current_app.config.get("IDV_LOCAL_USERS") or {}
+    user  = users.get(username)
+    if not user:
+        return None
+    if not _verify_password(user.get("password_hash", ""), password):
+        return None
+    return {
+        "user_id":   username,
+        "user_name": user.get("name") or username,
+        "user_role": user.get("role") or "Fachverantwortlicher",
+        "person_id": user.get("person_id"),
+    }
 
 
 def _do_local_login(db, username: str, password: str):
-    """Versucht lokalen Login (Personen-DB, dann Demo-Fallback). Gibt Session-Dict oder None zurück."""
+    """Versucht lokalen Login: zuerst Personen-DB, dann config.json-User."""
     if db is not None:
         try:
             row = _check_person_login(db, username, password)
@@ -87,18 +85,21 @@ def _do_local_login(db, username: str, password: str):
                 }
         except Exception:
             pass
-    user = _DEMO_USERS.get(username)
-    if user and user["password"] == password:
-        return {
-            "user_id":   username,
-            "user_name": user["name"],
-            "user_role": user["role"],
-            "person_id": user.get("person_id"),
-        }
-    return None
+    return _check_config_user(username, password)
+
+
+def _login_rate_limit():
+    """Liefert das aktuell in app.config konfigurierte Rate-Limit für /login."""
+    try:
+        return current_app.config.get(
+            "IDV_LOGIN_RATE_LIMIT", "5 per minute;30 per hour"
+        )
+    except RuntimeError:
+        return "5 per minute;30 per hour"
 
 
 @bp.route("/login", methods=["GET", "POST"])
+@limiter.limit(_login_rate_limit, methods=["POST"])
 def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -150,13 +151,12 @@ def login():
                 log_attempt(username, ip, "LDAP", False, f"Verbindungsfehler: {e}")
                 # Bei LDAP-Fehler (Server nicht erreichbar): weiter mit lokalem Login
 
-        # ── 2. Lokaler Login (immer als Fallback verfügbar) ──────────────────
+        # ── 2. Lokaler Login (DB-Person oder config.json-Fallback) ───────────
         result = _do_local_login(db, username, password)
         if result:
-            method = "Demo" if username in _DEMO_USERS else "lokal"
             session.clear()
             session.update(result)
-            log_attempt(username, ip, method, True, f"Rolle: {result.get('user_role', '–')}")
+            log_attempt(username, ip, "lokal", True, f"Rolle: {result.get('user_role', '–')}")
             return redirect(url_for("dashboard.index"))
 
         log_attempt(username, ip, "lokal", False, "Benutzername oder Passwort falsch")
@@ -173,7 +173,11 @@ def login():
     return render_template("auth/login.html", ldap_active=ldap_active)
 
 
-@bp.route("/logout")
+@bp.route("/logout", methods=["POST"])
 def logout():
+    """Logout ausschließlich per POST (VULN-O), damit GET-basierte
+    Cross-Site-Requests (z. B. ``<img src="/logout">`` auf einer bösartigen
+    Seite) keinen unbeabsichtigten Logout auslösen. Das Logout-Formular
+    in base.html sendet den CSRF-Token mit."""
     session.clear()
     return redirect(url_for("auth.login"))

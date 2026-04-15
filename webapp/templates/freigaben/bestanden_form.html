@@ -75,7 +75,7 @@
       {% if freigabe.nachweis_datei_name %}
       <div class="mt-2" style="font-size:.85rem">
         <i class="bi bi-paperclip me-1 text-muted"></i>
-        <a href="{{ url_for('freigaben.nachweis_download', filename=freigabe.nachweis_datei_pfad) }}"
+        <a href="{{ url_for('freigaben.nachweis_download', freigabe_id=freigabe.id) }}"
            class="text-decoration-none">{{ freigabe.nachweis_datei_name }}</a>
       </div>
       {% endif %}
@@ -89,6 +89,7 @@
     <!-- ── Bearbeitungsmodus ── -->
     <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=freigabe.id) }}"
           enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div class="form-section">
         <div class="form-section-title">

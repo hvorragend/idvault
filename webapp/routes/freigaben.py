@@ -12,11 +12,13 @@ Statuswerte (idv_freigaben.status):
   'Ausstehend' | 'Erledigt' | 'Nicht erledigt' | 'Abgebrochen'
 """
 import os
-from flask import (Blueprint, request, flash, redirect, url_for,
+from flask import (Blueprint, request, flash, redirect, url_for, abort,
                    session, current_app, send_from_directory, render_template)
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 from . import login_required, own_write_required, admin_required, get_db, current_person_id
+from ..security import (sanitize_html, validate_upload_mime,
+                        ensure_can_read_idv, ensure_can_write_idv)
 
 bp = Blueprint("freigaben", __name__, url_prefix="/freigaben")
 
@@ -44,13 +46,25 @@ def _upload_folder() -> str:
 
 
 def _save_upload(file):
-    """Speichert eine hochgeladene Datei. Gibt (relativer_pfad, originaldateiname) zurück."""
+    """Speichert eine hochgeladene Datei. Gibt (relativer_pfad, originaldateiname) zurück.
+
+    Prüft Extension (VULN-I Whitelist) UND Magic-Byte-Signatur
+    (VULN-I: verhindert polyglot-Uploads wie ``evil.svg`` getarnt als
+    ``evil.png``). Gibt ``(None, None)`` zurück, wenn beides nicht passt.
+    """
     if not file or not file.filename:
         return None, None
     if not _allowed_file(file.filename):
         return None, None
+    ext = file.filename.rsplit(".", 1)[1].lower()
+    if not validate_upload_mime(file.stream, ext):
+        current_app.logger.warning(
+            "Upload abgelehnt: Magic-Bytes passen nicht zur Extension '%s' (Datei: %s)",
+            ext, file.filename,
+        )
+        return None, None
     original_name = file.filename
-    safe_name = secure_filename(original_name)
+    safe_name = secure_filename(original_name) or f"upload.{ext}"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_")
     save_name = timestamp + safe_name
     folder = _upload_folder()
@@ -198,6 +212,7 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
 def starten(idv_db_id):
     """Startet Phase 1: Fachlicher Test + Technischer Test gleichzeitig."""
     db        = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     person_id = current_person_id()
     now       = datetime.now(timezone.utc).isoformat()
 
@@ -264,6 +279,7 @@ def starten(idv_db_id):
 def abnahme_starten(idv_db_id):
     """Startet Phase 2: Fachliche Abnahme + Technische Abnahme – erst nach vollständiger Phase 1."""
     db        = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     person_id = current_person_id()
     now       = datetime.now(timezone.utc).isoformat()
 
@@ -326,6 +342,7 @@ def erledigt_seite(freigabe_id):
     if not freigabe:
         flash("Freigabe-Schritt nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
+    ensure_can_read_idv(db, freigabe["idv_id"])
     idv = db.execute("SELECT * FROM idv_register WHERE id=?", (freigabe["idv_id"],)).fetchone()
     if not idv:
         flash("IDV nicht gefunden.", "error")
@@ -369,6 +386,7 @@ def abschliessen(freigabe_id):
         return redirect(url_for("idv.list_idv"))
 
     idv_db_id = freigabe["idv_id"]
+    ensure_can_write_idv(db, idv_db_id)
 
     if not _funktionstrennung_ok(db, idv_db_id, person_id):
         flash(
@@ -378,7 +396,8 @@ def abschliessen(freigabe_id):
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
     kommentar = request.form.get("kommentar", "").strip() or None
-    nachweise = request.form.get("nachweise_text", "").strip() or None
+    # VULN-C: Quill-Rich-Text vor dem Speichern entschärfen (bleach).
+    nachweise = sanitize_html(request.form.get("nachweise_text", ""))
 
     nachweis_pfad = nachweis_name = None
     upload_file = request.files.get("nachweis_datei")
@@ -447,6 +466,7 @@ def ablehnen(freigabe_id):
         return redirect(url_for("idv.list_idv"))
 
     idv_db_id = freigabe["idv_id"]
+    ensure_can_write_idv(db, idv_db_id)
 
     if not _funktionstrennung_ok(db, idv_db_id, person_id):
         flash(
@@ -457,7 +477,8 @@ def ablehnen(freigabe_id):
 
     befunde   = request.form.get("befunde", "").strip() or None
     kommentar = request.form.get("kommentar", "").strip() or None
-    nachweise = request.form.get("nachweise_text", "").strip() or None
+    # VULN-C: Quill-Rich-Text vor dem Speichern entschärfen (bleach).
+    nachweise = sanitize_html(request.form.get("nachweise_text", ""))
 
     nachweis_pfad = nachweis_name = None
     upload_file = request.files.get("nachweis_datei")
@@ -548,6 +569,7 @@ def schritt_anlegen(idv_db_id):
     """Legt einen einzelnen Freigabe-Schritt wieder an, wenn er zuvor
     gelöscht wurde. Funktioniert für Phase-1- und Phase-2-Schritte."""
     db        = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     person_id = current_person_id()
     now       = datetime.now(timezone.utc).isoformat()
     schritt   = (request.form.get("schritt") or "").strip()
@@ -622,11 +644,42 @@ def loeschen(freigabe_id):
 # Nachweis-Datei herunterladen
 # ---------------------------------------------------------------------------
 
-@bp.route("/nachweis/<path:filename>")
+@bp.route("/nachweis/<int:freigabe_id>")
 @login_required
-def nachweis_download(filename):
+def nachweis_download(freigabe_id):
+    """Nachweis-Download an Freigabe-ID + Ownership gebunden (VULN-D).
+
+    Frühere Implementierung nahm den Dateinamen aus der URL und verließ sich
+    auf ``send_from_directory``, um Path-Traversal zu blocken. Das genügte,
+    um das Dateisystem zu schützen, verhinderte aber nicht IDOR: jeder
+    authentifizierte Benutzer konnte fremde Nachweise ziehen, sobald er den
+    Dateinamen kannte/erriet.
+    """
+    db  = get_db()
+    row = db.execute(
+        """SELECT f.nachweis_datei_pfad AS pfad,
+                  f.nachweis_datei_name AS name,
+                  f.idv_id              AS idv_db_id
+             FROM idv_freigaben f
+            WHERE f.id = ?""",
+        (freigabe_id,),
+    ).fetchone()
+    if not row or not row["pfad"]:
+        abort(404)
+    ensure_can_read_idv(db, row["idv_db_id"])
+
+    # Letzter Defense-in-Depth-Check: der gespeicherte Pfad darf nur ein
+    # reiner Dateiname sein – keine ``../``-Traversals aus Altbeständen.
+    if os.sep in row["pfad"] or "/" in row["pfad"] or "\\" in row["pfad"] \
+            or row["pfad"].startswith("."):
+        abort(404)
+
     folder = os.path.join(current_app.instance_path, "uploads", "freigaben")
-    return send_from_directory(folder, filename, as_attachment=True)
+    return send_from_directory(
+        folder, row["pfad"],
+        as_attachment=True,
+        download_name=row["name"] or row["pfad"],
+    )
 
 
 # ---------------------------------------------------------------------------

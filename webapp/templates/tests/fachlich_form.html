@@ -18,6 +18,7 @@
 
 {% block content %}
 <form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if freigabe_id %}<input type="hidden" name="freigabe_id" value="{{ freigabe_id }}">{% endif %}
   <div class="row g-4">
     <div class="col-lg-8">
@@ -33,6 +34,7 @@
           <form method="post"
                 action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}"
                 onsubmit="return confirm('Fachlichen Test löschen?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger btn-sm">
               <i class="bi bi-trash me-1"></i>Löschen
             </button>
@@ -136,7 +138,7 @@
             {% if testfall and testfall.nachweis_datei_name %}
             <div class="mb-2" style="font-size:.85rem">
               <i class="bi bi-paperclip me-1 text-muted"></i>
-              <a href="{{ url_for('tests.nachweis_download', filename=testfall.nachweis_datei_pfad) }}"
+              <a href="{{ url_for('tests.nachweis_download_fachlich', testfall_id=testfall.id) }}"
                  class="text-decoration-none">{{ testfall.nachweis_datei_name }}</a>
               <span class="text-muted ms-2">(neue Datei auswählen zum Ersetzen)</span>
             </div>
@@ -171,6 +173,7 @@
           <form method="post"
                 action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}"
                 onsubmit="return confirm('Fachlichen Test löschen?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger">
               <i class="bi bi-trash me-1"></i>Löschen
             </button>

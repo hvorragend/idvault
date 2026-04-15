@@ -9,6 +9,7 @@
       <div class="card-header bg-white fw-600">{{ oe.bezeichnung }}</div>
       <div class="card-body">
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="row g-3">
             <div class="col-md-12">
               <label class="form-label fw-600">Bezeichnung <span class="text-danger">*</span></label>

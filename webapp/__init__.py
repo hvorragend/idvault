@@ -6,10 +6,15 @@ von Eigenentwicklungen (Individuelle Datenverarbeitung).
 """
 
 import os
+import re
+import secrets
 import sys
 from pathlib import Path
 from datetime import datetime, date, timedelta
-from flask import Flask
+from flask import Flask, g, request
+from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from .db_flask import get_db, close_db, init_app_db
 
 
@@ -17,28 +22,138 @@ from .db_flask import get_db, close_db, init_app_db
 # Die folgenden Konstanten werden in create_app() ausgewertet.
 _DEFAULT_DEV_SECRET = "dev-change-in-production-!"
 
+# Flask-Erweiterungen (als Modul-Singletons, damit sie von Tests importiert
+# und von Blueprints referenziert werden können).
+csrf    = CSRFProtect()
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri="memory://",
+    strategy="fixed-window",
+)
+
 # HTTP-Security-Header, die bei jeder Antwort gesetzt werden (VULN-008).
 # Content-Security-Policy bewusst konservativ und **offline-tauglich**:
 #   - Alle Frontend-Assets (Bootstrap, Bootstrap Icons, QuillJS) werden lokal
 #     unter webapp/static/vendor/ ausgeliefert. Deshalb keine CDN-Freigabe.
-#   - 'unsafe-inline' für style/script bleibt bestehen, weil Templates
-#     inline onclick-Handler und kleine Script-/Style-Blöcke nutzen. Eine
-#     spätere Härtung auf nonce-basiertes CSP ist dokumentiert in docs/09.
-_SECURITY_HEADERS = {
-    "X-Content-Type-Options":  "nosniff",
-    "X-Frame-Options":         "DENY",
-    "Referrer-Policy":         "strict-origin-when-cross-origin",
-    "Permissions-Policy":      "geolocation=(), microphone=(), camera=()",
-    "Content-Security-Policy": (
-        "default-src 'self'; "
-        "img-src 'self' data:; "
-        "style-src 'self' 'unsafe-inline'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "font-src 'self' data:; "
-        "frame-ancestors 'none'; "
-        "base-uri 'self'"
-    ),
+#   - Inline ``<script>``- und ``<style>``-Blöcke laufen nur noch mit dem
+#     Request-spezifischen CSP-Nonce (VULN-M). Injizierte ``<script>``-Tags
+#     aus z. B. Rich-Text-Feldern sind damit blockiert.
+#   - Inline-Event-Handler (``onclick=…``) verbleiben in den Templates;
+#     dafür erlaubt CSP Level 3 ``script-src-attr 'unsafe-inline'``.
+_SECURITY_HEADERS_STATIC = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options":        "DENY",
+    "Referrer-Policy":        "strict-origin-when-cross-origin",
+    "Permissions-Policy":     "geolocation=(), microphone=(), camera=()",
 }
+
+
+def _build_csp(nonce: str) -> str:
+    return (
+        "default-src 'self'; "
+        f"script-src 'self' 'nonce-{nonce}'; "
+        "script-src-attr 'unsafe-inline'; "
+        f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline'; "
+        "style-src-attr 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self' data:; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "frame-src 'none'; "
+        "worker-src 'none'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
+
+
+# Regex erkennt öffnende ``<script>``-/``<style>``-Tags (mit oder ohne
+# Attribute), aber nicht abschließende (``</script>``) oder verwandte
+# Tag-Namen (``<scripts>``). Der Lookahead ``(?=\s|>|/>)`` erzwingt, dass
+# unmittelbar nach dem Tag-Namen ein Whitespace, ein ``/`` oder das
+# schließende ``>`` steht.
+_INLINE_SCRIPT_TAG = re.compile(
+    rb"<script(?P<attrs>(?:\s[^>]*)?)\s*>", re.IGNORECASE
+)
+_INLINE_STYLE_TAG = re.compile(
+    rb"<style(?P<attrs>(?:\s[^>]*)?)\s*>", re.IGNORECASE
+)
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Liest einen Env-Wert ``0/1`` oder ``true/false`` als Bool."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _load_local_users_from_env() -> dict:
+    """Liest lokale Benutzer aus der ``IDV_LOCAL_USERS``-Umgebungsvariable.
+
+    VULN-F: Demo-Logins sind entfernt. Wer lokale Kennungen braucht, kann sie
+    über ``config.json`` (``"IDV_LOCAL_USERS"``-Key, JSON-Array) konfigurieren
+    – ``run.py`` schreibt den JSON-String in die Umgebung.
+
+    Format::
+
+        [
+            {
+                "username": "admin",
+                "password_hash": "pbkdf2:sha256:…",
+                "name": "Administrator",
+                "role": "IDV-Administrator",
+                "person_id": null
+            }
+        ]
+
+    ``password_hash`` MUSS ein Werkzeug-Hash sein (``werkzeug.security.
+    generate_password_hash``). Klartextpasswörter werden ignoriert.
+    """
+    import json
+    raw = os.environ.get("IDV_LOCAL_USERS")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return {}
+    out: dict = {}
+    if not isinstance(data, list):
+        return out
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        username = str(entry.get("username") or "").strip()
+        pw_hash  = str(entry.get("password_hash") or "").strip()
+        if not username or not pw_hash or ":" not in pw_hash:
+            continue
+        out[username] = {
+            "password_hash": pw_hash,
+            "name":          str(entry.get("name") or username),
+            "role":          str(entry.get("role") or "Fachverantwortlicher"),
+            "person_id":     entry.get("person_id"),
+        }
+    return out
+
+
+def _inject_nonces(body: bytes, nonce: str) -> bytes:
+    """Fügt ``nonce="…"`` in Inline-``<script>``/``<style>``-Tags ein."""
+    nonce_bytes = nonce.encode("ascii")
+
+    def _inject(tag: bytes, match) -> bytes:
+        attrs = match.group("attrs") or b""
+        # ``src=``-Attribut → externe Ressource, kein Nonce nötig.
+        if tag == b"script" and b"src=" in attrs.lower():
+            return match.group(0)
+        if b"nonce=" in attrs.lower():
+            return match.group(0)
+        return b"<" + tag + b' nonce="' + nonce_bytes + b'"' + attrs + b">"
+
+    body = _INLINE_SCRIPT_TAG.sub(lambda m: _inject(b"script", m), body)
+    body = _INLINE_STYLE_TAG.sub(lambda m: _inject(b"style", m), body)
+    return body
 
 
 def create_app(db_path: str = None) -> Flask:
@@ -103,6 +218,17 @@ def create_app(db_path: str = None) -> Flask:
         APP_NAME="idvault",
         BUNDLED_VERSION=os.environ.get('BUNDLED_VERSION', '0.1.0'),
         APP_VERSION=os.environ.get('IDV_ACTIVE_VERSION') or os.environ.get('BUNDLED_VERSION', '0.1.0'),
+        # VULN-A: CSRFProtect
+        WTF_CSRF_TIME_LIMIT=None,          # Token für gesamte Session gültig
+        WTF_CSRF_SSL_STRICT=False,          # Referer-Check würde bei HTTP-Proxy scheitern
+        # VULN-B: Sidecar-Update-Upload per config.json abschaltbar.
+        IDV_ALLOW_SIDECAR_UPDATES=_env_bool("IDV_ALLOW_SIDECAR_UPDATES", True),
+        # VULN-F: Lokale Benutzer werden ausschließlich aus config.json gelesen.
+        IDV_LOCAL_USERS=_load_local_users_from_env(),
+        # VULN-J: Login-Rate-Limit konfigurierbar.
+        IDV_LOGIN_RATE_LIMIT=os.environ.get(
+            "IDV_LOGIN_RATE_LIMIT", "5 per minute;30 per hour"
+        ),
     )
 
     # VULN-013: Session-Hardening
@@ -144,6 +270,24 @@ def create_app(db_path: str = None) -> Flask:
     app.logger.addHandler(_fh)
     app.logger.setLevel(logging.WARNING)
     logging.getLogger().addHandler(_fh)  # Root-Logger: werkzeug, sqlalchemy etc.
+
+    # VULN-A / VULN-J: Flask-Erweiterungen initialisieren
+    csrf.init_app(app)
+    limiter.init_app(app)
+
+    # CSP-Nonce pro Request bereitstellen (VULN-M)
+    @app.before_request
+    def _set_csp_nonce():
+        g.csp_nonce = secrets.token_urlsafe(16)
+
+    @app.context_processor
+    def _csp_nonce_ctx():
+        return {"csp_nonce": lambda: getattr(g, "csp_nonce", "")}
+
+    # CSRF-Token in Templates bequem verfügbar machen (z. B. für AJAX)
+    @app.context_processor
+    def _csrf_ctx():
+        return {"csrf_token": generate_csrf}
 
     # Datenbank
     init_app_db(app)
@@ -210,11 +354,33 @@ def create_app(db_path: str = None) -> Flask:
             except Exception as _be:
                 app.logger.warning("Sidecar-Blueprint '%s' nicht geladen: %s", _bpname, _be)
 
-    # VULN-008: HTTP-Security-Header bei jeder Antwort setzen
+    # VULN-008 / VULN-M: HTTP-Security-Header bei jeder Antwort setzen.
+    # CSP-Nonce wird an dieser Stelle in inline <script>/<style>-Tags injiziert
+    # und der Header passend dazu gesetzt.
     @app.after_request
     def _add_security_headers(response):
-        for name, value in _SECURITY_HEADERS.items():
+        for name, value in _SECURITY_HEADERS_STATIC.items():
             response.headers.setdefault(name, value)
+
+        nonce = getattr(g, "csp_nonce", None)
+        if nonce:
+            response.headers.setdefault(
+                "Content-Security-Policy", _build_csp(nonce)
+            )
+            # Nur HTML-Antworten (keine Downloads, kein JSON) bekommen
+            # Nonces in inline Scripts/Styles injiziert.
+            ctype = (response.content_type or "").lower()
+            if (
+                ctype.startswith("text/html")
+                and not response.direct_passthrough
+                and response.is_sequence
+            ):
+                try:
+                    body = response.get_data()
+                    response.set_data(_inject_nonces(body, nonce))
+                except (RuntimeError, AttributeError):
+                    pass
+
         # HSTS nur senden, wenn HTTPS aktiv ist – sonst sperren wir HTTP
         # unbeabsichtigt aus.
         if os.environ.get("IDV_HTTPS", "0") == "1":

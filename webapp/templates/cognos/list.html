@@ -178,6 +178,7 @@
 
 <!-- ── Bulk-Aktions-Formular + Tabelle ───────────────────────────────── -->
 <form method="post" action="{{ url_for('cognos.bulk_aktion') }}" id="bulk-form" class="mt-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="new_owner" id="hidden-new-owner" value="">
 
   {% if can_write %}

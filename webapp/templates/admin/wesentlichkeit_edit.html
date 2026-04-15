@@ -16,6 +16,7 @@
           Beim Deaktivieren bleiben alle bisherigen Antworten erhalten; sie werden nur nicht mehr im Formular angezeigt.
         </div>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="row g-3">
             <div class="col-12">
               <label class="form-label fw-600">Bezeichnung <span class="text-danger">*</span></label>

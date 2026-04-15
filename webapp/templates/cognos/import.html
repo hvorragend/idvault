@@ -25,6 +25,7 @@
         </div>
 
         <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label fw-500" for="berichtsuebersicht">
               Datei auswählen <span class="text-danger">*</span>

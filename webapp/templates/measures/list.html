@@ -51,6 +51,7 @@
           <td><span class="badge bg-{{ 'secondary' if m.status == 'Offen' else 'primary' }}">{{ m.status }}</span></td>
           <td>
             <form method="post" action="{{ url_for('measures.complete_measure', m_id=m.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-xs btn-outline-success" title="Als erledigt markieren"
                       onclick="return confirm('Maßnahme als erledigt markieren?')">
                 <i class="bi bi-check-lg"></i>

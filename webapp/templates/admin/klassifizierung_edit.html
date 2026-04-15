@@ -17,6 +17,7 @@
           Die <strong>Beschreibung</strong> erscheint als Hinweis im Formular (z.&nbsp;B. bei GDA-Stufen).
         </div>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="row g-3">
             <div class="col-12">
               <label class="form-label fw-600">Wert (wird in der DB gespeichert) <span class="text-danger">*</span></label>

@@ -13,6 +13,7 @@
       <div class="card-header bg-white fw-600"><i class="bi bi-envelope-gear me-2"></i>E-Mail-Einstellungen (SMTP)</div>
       <div class="card-body">
         <form method="post" action="{{ url_for('admin.mail') }}" class="row g-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="col-md-4">
             <label class="form-label form-label-sm fw-600">SMTP-Host</label>
             <input type="text" name="smtp_host" class="form-control form-control-sm"
@@ -127,10 +128,9 @@
                     </div>
                     {% if has_custom %}
                     <div class="text-end">
-                      <button type="button" class="btn btn-xs btn-outline-secondary"
-                              onclick="this.closest('.accordion-body').querySelector('input[name={{ subj_key }}]').value='';
-                                       this.closest('.accordion-body').querySelector('textarea[name={{ body_key }}]').value='';
-                                       this.remove();">
+                      {# VULN-K: Schlüssel per data-Attribut statt Jinja-Interpolation in onclick. #}
+                      <button type="button" class="btn btn-xs btn-outline-secondary mail-reset-btn"
+                              data-subj-key="{{ subj_key }}" data-body-key="{{ body_key }}">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Auf Standard zurücksetzen
                       </button>
                     </div>
@@ -156,6 +156,22 @@
   </div>
 
 </div>
+
+<script>
+// VULN-K: Event-Delegation für die "Auf Standard zurücksetzen"-Buttons.
+document.addEventListener('click', function (ev) {
+  var btn = ev.target.closest('.mail-reset-btn');
+  if (!btn) return;
+  var body = btn.closest('.accordion-body');
+  var subjKey = btn.dataset.subjKey;
+  var bodyKey = btn.dataset.bodyKey;
+  var subj = body.querySelector('input[name="' + subjKey + '"]');
+  var bodyEl = body.querySelector('textarea[name="' + bodyKey + '"]');
+  if (subj)   subj.value = '';
+  if (bodyEl) bodyEl.value = '';
+  btn.remove();
+});
+</script>
 
 <style>
   .fw-600 { font-weight: 600; }

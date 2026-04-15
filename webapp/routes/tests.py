@@ -1,7 +1,7 @@
 """Testdokumentation-Blueprint – Fachliche Testfälle & Technischer Test"""
 import os
 from flask import (Blueprint, render_template, request, redirect,
-                   url_for, flash, send_from_directory, current_app)
+                   url_for, flash, abort, send_from_directory, current_app)
 from . import login_required, own_write_required, get_db, can_create
 from werkzeug.utils import secure_filename
 import sys
@@ -12,6 +12,7 @@ from db import (
     get_technischer_test, save_technischer_test, delete_technischer_test,
 )
 from datetime import date as _date, datetime as _datetime
+from ..security import validate_upload_mime, ensure_can_read_idv, ensure_can_write_idv
 
 bp = Blueprint("tests", __name__, url_prefix="/tests")
 
@@ -27,13 +28,24 @@ def _allowed_file(filename: str) -> bool:
 
 
 def _save_test_upload(file):
-    """Speichert eine Testnachweis-Datei. Gibt (dateiname, originalname) zurück."""
+    """Speichert eine Testnachweis-Datei. Gibt (dateiname, originalname) zurück.
+
+    VULN-I: Prüft zusätzlich die Magic-Bytes der Datei gegen die deklarierte
+    Extension, um polyglot-Uploads (``evil.svg`` als ``.png``) auszuschließen.
+    """
     if not file or not file.filename:
         return None, None
     if not _allowed_file(file.filename):
         return None, None
+    ext = file.filename.rsplit(".", 1)[1].lower()
+    if not validate_upload_mime(file.stream, ext):
+        current_app.logger.warning(
+            "Test-Upload abgelehnt: Magic-Bytes passen nicht zur Extension '%s' (Datei: %s)",
+            ext, file.filename,
+        )
+        return None, None
     original_name = file.filename
-    safe_name = secure_filename(original_name)
+    safe_name = secure_filename(original_name) or f"upload.{ext}"
     timestamp = _datetime.now().strftime("%Y%m%d_%H%M%S_")
     save_name = timestamp + safe_name
     folder = os.path.join(current_app.instance_path, "uploads", "tests")
@@ -82,13 +94,51 @@ def _require_phase1_schritt(db, idv_db_id: int, schritt: str):
     return None
 
 
-# ── Nachweis-Datei herunterladen ──────────────────────────────────────────────
+# ── Nachweis-Datei herunterladen (VULN-D) ────────────────────────────────────
 
-@bp.route("/nachweis/<path:filename>")
+@bp.route("/nachweis/fachlich/<int:testfall_id>")
 @login_required
-def nachweis_download(filename):
+def nachweis_download_fachlich(testfall_id):
+    """Liefert den Nachweis eines fachlichen Testfalls – an Ownership gebunden."""
+    db  = get_db()
+    row = db.execute(
+        """SELECT idv_id             AS idv_db_id,
+                  nachweis_datei_pfad AS pfad,
+                  nachweis_datei_name AS name
+             FROM fachliche_testfaelle WHERE id = ?""",
+        (testfall_id,),
+    ).fetchone()
+    return _serve_test_nachweis(db, row)
+
+
+@bp.route("/nachweis/technisch/<int:idv_db_id>")
+@login_required
+def nachweis_download_technisch(idv_db_id):
+    """Liefert den Nachweis des technischen Tests – an Ownership gebunden."""
+    db  = get_db()
+    row = db.execute(
+        """SELECT idv_id             AS idv_db_id,
+                  nachweis_datei_pfad AS pfad,
+                  nachweis_datei_name AS name
+             FROM technischer_test WHERE idv_id = ?""",
+        (idv_db_id,),
+    ).fetchone()
+    return _serve_test_nachweis(db, row)
+
+
+def _serve_test_nachweis(db, row):
+    if not row or not row["pfad"]:
+        abort(404)
+    ensure_can_read_idv(db, row["idv_db_id"])
+    if os.sep in row["pfad"] or "/" in row["pfad"] or "\\" in row["pfad"] \
+            or row["pfad"].startswith("."):
+        abort(404)
     folder = os.path.join(current_app.instance_path, "uploads", "tests")
-    return send_from_directory(folder, filename, as_attachment=True)
+    return send_from_directory(
+        folder, row["pfad"],
+        as_attachment=True,
+        download_name=row["name"] or row["pfad"],
+    )
 
 
 # ── Fachlicher Testfall: Neu ───────────────────────────────────────────────
@@ -97,6 +147,7 @@ def nachweis_download(filename):
 @own_write_required
 def new_fachlicher_testfall(idv_db_id):
     db  = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     idv = _get_idv_or_404(db, idv_db_id)
     if not idv:
         return redirect(url_for("idv.list_idv"))
@@ -166,6 +217,7 @@ def edit_fachlicher_testfall(testfall_id):
         flash("Testfall nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
 
+    ensure_can_write_idv(db, testfall["idv_id"])
     idv = _get_idv_or_404(db, testfall["idv_id"])
     if not idv:
         return redirect(url_for("idv.list_idv"))
@@ -226,6 +278,7 @@ def delete_fachlicher_testfall_route(testfall_id):
         flash("Testfall nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
     idv_db_id = testfall["idv_id"]
+    ensure_can_write_idv(db, idv_db_id)
     delete_fachlicher_testfall(db, testfall_id)
     # Freigabe-Schritt zurücksetzen, damit ein neuer Test angelegt werden kann
     _reset_freigabe_schritt(db, idv_db_id, "Fachlicher Test")
@@ -239,6 +292,7 @@ def delete_fachlicher_testfall_route(testfall_id):
 @own_write_required
 def edit_technischer_test(idv_db_id):
     db        = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     idv       = _get_idv_or_404(db, idv_db_id)
     if not idv:
         return redirect(url_for("idv.list_idv"))
@@ -299,6 +353,7 @@ def edit_technischer_test(idv_db_id):
 @own_write_required
 def delete_technischer_test_route(idv_db_id):
     db  = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     idv = _get_idv_or_404(db, idv_db_id)
     if not idv:
         return redirect(url_for("idv.list_idv"))

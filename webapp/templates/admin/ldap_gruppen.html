@@ -79,6 +79,7 @@
                       action="{{ url_for('admin.ldap_gruppe_loeschen', mid=m.id) }}"
                       class="d-inline"
                       onsubmit="return confirm('Dieses Mapping löschen?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"
                           title="Löschen">
                     <i class="bi bi-trash"></i>
@@ -93,6 +94,7 @@
                 <div class="modal-content">
                   <form method="post"
                         action="{{ url_for('admin.ldap_gruppe_bearbeiten', mid=m.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="modal-header">
                       <h5 class="modal-title">Mapping bearbeiten</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -151,6 +153,7 @@
           </summary>
           <form method="post" action="{{ url_for('admin.ldap_gruppe_neu') }}"
                 class="row g-2 mt-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="col-12">
               <label class="form-label fw-600">Gruppen-DN <span class="text-danger">*</span></label>

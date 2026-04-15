@@ -245,6 +245,7 @@
 
 <!-- ── Massenaktions-Formular + Tabelle ───────────────────────────── -->
 <form method="post" action="{{ url_for('funde.bulk_aktion') }}" id="bulk-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="filt" value="{{ filt }}">
   <input type="hidden" name="new_owner" id="hidden-new-owner" value="">
 
@@ -338,15 +339,17 @@
             {% for hash_val, gruppe in dateien | groupby('file_hash') %}
               {% set grp = gruppe | list %}
               {% set gid = 'dup-' ~ hash_val[:8] %}
-              {# Gruppen-Header-Zeile #}
-              <tr class="table-warning" style="cursor:pointer" onclick="toggleDupGroup('{{ gid }}', this)">
+              {# Gruppen-Header-Zeile (VULN-K: gid wird über data-Attribut übergeben,
+                  damit keine dynamischen Jinja-Werte in JS-String-Literale fließen) #}
+              <tr class="table-warning dup-group-header" style="cursor:pointer"
+                  data-gid="{{ gid }}">
                 <td class="text-center">
                   {% for f in grp %}
                   <input type="checkbox" name="file_ids" value="{{ f.id }}"
                          class="form-check-input row-check dup-group-cb" style="display:none">
                   {% endfor %}
                   <input type="checkbox" class="form-check-input dup-master-cb"
-                         data-gid="{{ gid }}" onchange="masterCbChange(this)" onclick="event.stopPropagation()">
+                         data-gid="{{ gid }}">
                 </td>
                 <td colspan="12">
                   <span class="fw-600">
@@ -696,7 +699,7 @@
 </style>
 
 <script>
-function toggleDupGroup(gid, headerRow) {
+function toggleDupGroup(gid) {
   const rows  = document.querySelectorAll('.' + gid + '-row');
   const icon  = document.getElementById(gid + '-icon');
   const open  = rows.length && !rows[0].classList.contains('d-none');
@@ -710,19 +713,33 @@ function toggleDupGroup(gid, headerRow) {
 function masterCbChange(masterCb) {
   const gid  = masterCb.dataset.gid;
   const rows = document.querySelectorAll('.' + gid + '-row');
-  // Öffne Gruppe wenn Haken gesetzt
   if (masterCb.checked) {
     rows.forEach(r => r.classList.remove('d-none'));
     const icon = document.getElementById(gid + '-icon');
     if (icon) { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
   }
-  // Alle versteckten Checkboxen (file_ids) synchronisieren
   const headerRow = masterCb.closest('tr');
   headerRow.querySelectorAll('.dup-group-cb').forEach(cb => {
     cb.checked = masterCb.checked;
   });
   updateBar();
 }
+
+// VULN-K: Event-Delegation statt Inline-Handler mit Jinja-Interpolation.
+document.addEventListener('click', function (ev) {
+  const header = ev.target.closest('.dup-group-header');
+  if (header && !ev.target.closest('.dup-master-cb')) {
+    toggleDupGroup(header.dataset.gid);
+  }
+  if (ev.target.classList.contains('dup-master-cb')) {
+    ev.stopPropagation();
+  }
+});
+document.addEventListener('change', function (ev) {
+  if (ev.target.classList.contains('dup-master-cb')) {
+    masterCbChange(ev.target);
+  }
+});
 
 function deleteScannerfund(btn) {
   const name = btn.dataset.filename;

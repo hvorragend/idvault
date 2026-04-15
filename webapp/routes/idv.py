@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify, abort
 from . import (login_required, write_access_required, own_write_required, admin_required,
                get_db, can_write, can_create, can_read_all, current_person_id)
 import sys, os, io
@@ -7,6 +7,8 @@ from db import (create_idv, update_idv, change_status, search_idv,
                 get_klassifizierungen, get_wesentlichkeitskriterien,
                 get_idv_wesentlichkeit, save_idv_wesentlichkeit,
                 get_fachliche_testfaelle, get_technischer_test)
+from ..security import (ensure_can_read_idv, ensure_can_write_idv,
+                        user_can_read_idv, in_clause)
 
 # Dateierweiterung → IDV-Typ-Vorschlag (gespiegelt aus scanner.py)
 _EXT_TO_TYP = {
@@ -116,11 +118,10 @@ def list_idv():
         where_parts.append("v.pruefstatus = 'ÜBERFÄLLIG'")
     elif filt == "unvollstaendig":
         ids = [r["idv_id"] for r in db.execute("SELECT idv_id FROM v_unvollstaendige_idvs").fetchall()]
-        if ids:
-            where_parts.append(f"r.idv_id IN ({','.join(['?']*len(ids))})")
-            params.extend(ids)
-        else:
-            where_parts.append("1=0")
+        # VULN-L: einheitlicher, sicherer IN-Clause-Helper.
+        ph_sql, ph_params = in_clause(ids)
+        where_parts.append(f"r.idv_id IN ({ph_sql})")
+        params.extend(ph_params)
 
     # Rollenbasierte Sichtbarkeit
     person_id = current_person_id()
@@ -323,6 +324,8 @@ def bulk_status():
 @login_required
 def detail_idv(idv_db_id):
     db  = get_db()
+    # VULN-E: Fachverantwortliche dürfen nur eigene IDVs einsehen.
+    ensure_can_read_idv(db, idv_db_id)
     idv = db.execute("""
         SELECT r.*, v.*,
           p_fv.nachname || ', ' || p_fv.vorname AS fachverantwortlicher,
@@ -560,21 +563,12 @@ def new_idv():
 @own_write_required
 def edit_idv(idv_db_id):
     db  = get_db()
+    # VULN-E: einheitlicher Ownership-Guard.
+    ensure_can_write_idv(db, idv_db_id)
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
         flash("IDV nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
-    # Eingeschränkte Rollen dürfen nur IDVs bearbeiten, an denen sie beteiligt sind
-    pid = current_person_id()
-    if not can_write() and pid not in (
-        idv["fachverantwortlicher_id"],
-        idv["idv_entwickler_id"],
-        idv["idv_koordinator_id"],
-        idv["stellvertreter_id"],
-    ):
-        flash("Zugriff verweigert – Sie sind an dieser IDV nicht als Verantwortlicher erfasst.", "error")
-        from flask import abort
-        abort(403)
 
     if request.method == "POST":
         data = _form_to_dict(request.form)
@@ -603,7 +597,11 @@ def edit_idv(idv_db_id):
 @bp.route("/<int:idv_db_id>/status", methods=["POST"])
 @write_access_required
 def change_status_route(idv_db_id):
+    # ``@write_access_required`` erlaubt nur Admin/Koordinator – dort reicht
+    # die rollenbasierte Prüfung aus. Der explizite Ownership-Check schadet
+    # nicht und ist konsistent mit anderen schreibenden Routen (VULN-E).
     db        = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     new_status = request.form.get("status")
     person_id  = session.get("person_id")
     if new_status:
@@ -621,6 +619,7 @@ _TESTSTATUS_WERTE = [
 @own_write_required
 def change_teststatus(idv_db_id):
     db  = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     val = request.form.get("teststatus", "")
     if val not in _TESTSTATUS_WERTE:
         flash("Ungültiger Teststatus.", "error")
@@ -646,6 +645,7 @@ def change_teststatus(idv_db_id):
 def unlink_file(idv_db_id, link_id):
     """Entfernt eine zusätzliche Datei-Verknüpfung (idv_file_links)."""
     db = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     row = db.execute(
         "SELECT lnk.*, f.file_name FROM idv_file_links lnk JOIN idv_files f ON f.id=lnk.file_id WHERE lnk.id=? AND lnk.idv_db_id=?",
         (link_id, idv_db_id)
@@ -668,6 +668,7 @@ def unlink_file(idv_db_id, link_id):
 def link_files(idv_db_id):
     """Direkte Datei-Verknüpfung: zeigt freie Scanner-Funde und verknüpft ausgewählte mit dem IDV."""
     db = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
         flash("IDV nicht gefunden.", "error")
@@ -726,6 +727,7 @@ def link_files(idv_db_id):
 def link_files_search(idv_db_id):
     """AJAX-Endpoint: freie Scanner-Funde suchen und paginiert zurückgeben."""
     db = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     if not db.execute("SELECT 1 FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone():
         return jsonify({"error": "IDV nicht gefunden"}), 404
 
@@ -772,6 +774,7 @@ def link_files_search(idv_db_id):
 def neue_version(idv_db_id):
     """Erstellt eine neue Version einer IDV (Nachfolger-Dokument)."""
     db  = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     src = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not src:
         flash("IDV nicht gefunden.", "error")
