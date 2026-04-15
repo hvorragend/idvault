@@ -684,29 +684,28 @@
                     {% elif f.status == 'Nicht bestanden' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
-                  <div class="d-flex align-items-center gap-2 ms-1">
-                    <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                       class="text-muted" title="Öffnen" style="font-size:.8rem;line-height:1">
-                      <i class="bi bi-box-arrow-up-right"></i>
-                    </a>
-                    {% if session.get('user_role') == 'IDV-Administrator' %}
-                    <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
-                          onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
-                      <button type="submit" class="btn btn-link text-danger p-0" title="Löschen"
-                              style="font-size:.8rem;line-height:1">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </form>
-                    {% endif %}
-                  </div>
                   {% endif %}
                 </div>
-                {% if f and f.status == 'Ausstehend' and can_create %}
-                <div class="mt-2">
+                {% if f %}
+                <div class="d-flex gap-1 mt-2">
                   <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                     class="btn btn-xs btn-success w-100">
-                    <i class="bi bi-check2 me-1"></i>Bestanden markieren
+                     class="btn btn-xs btn-outline-secondary flex-grow-1">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Öffnen
                   </a>
+                  {% if f.status == 'Ausstehend' and can_create %}
+                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
+                     class="btn btn-xs btn-success flex-grow-1">
+                    <i class="bi bi-check2 me-1"></i>Bestanden
+                  </a>
+                  {% endif %}
+                  {% if session.get('user_role') == 'IDV-Administrator' %}
+                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
+                        onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
+                    <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                  {% endif %}
                 </div>
                 {% endif %}
               </div>
@@ -752,29 +751,28 @@
                     {% elif f.status == 'Nicht bestanden' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
-                  <div class="d-flex align-items-center gap-2 ms-1">
-                    <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                       class="text-muted" title="Öffnen" style="font-size:.8rem;line-height:1">
-                      <i class="bi bi-box-arrow-up-right"></i>
-                    </a>
-                    {% if session.get('user_role') == 'IDV-Administrator' %}
-                    <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
-                          onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
-                      <button type="submit" class="btn btn-link text-danger p-0" title="Löschen"
-                              style="font-size:.8rem;line-height:1">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </form>
-                    {% endif %}
-                  </div>
                   {% endif %}
                 </div>
-                {% if f and f.status == 'Ausstehend' and can_create %}
-                <div class="mt-2">
+                {% if f %}
+                <div class="d-flex gap-1 mt-2">
                   <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                     class="btn btn-xs btn-success w-100">
-                    <i class="bi bi-check2 me-1"></i>Bestanden markieren
+                     class="btn btn-xs btn-outline-secondary flex-grow-1">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Öffnen
                   </a>
+                  {% if f.status == 'Ausstehend' and can_create %}
+                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
+                     class="btn btn-xs btn-success flex-grow-1">
+                    <i class="bi bi-check2 me-1"></i>Bestanden
+                  </a>
+                  {% endif %}
+                  {% if session.get('user_role') == 'IDV-Administrator' %}
+                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
+                        onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
+                    <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                  {% endif %}
                 </div>
                 {% endif %}
               </div>
