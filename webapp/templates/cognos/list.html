@@ -4,6 +4,24 @@
 
 {% block content %}
 
+{# ── Sortierspalten-Makro ──────────────────────────────────────────────── #}
+{% macro sort_th(col, label, classes='', title='') %}
+{% set new_ord = 'desc' if (sort == col and order == 'asc') else 'asc' %}
+<th class="{{ classes }}"{% if title %} title="{{ title }}"{% endif %}>
+  <a href="{{ url_for('cognos.list_berichte', sort=col, order=new_ord,
+                      q=q, package=package_filt, status=status_filt,
+                      page=1, per_page=per_page) }}"
+     class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
+    {{ label }}
+    {% if sort == col %}
+      <i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>
+    {% else %}
+      <i class="bi bi-arrow-down-up text-muted" style="opacity:.35;font-size:.7em"></i>
+    {% endif %}
+  </a>
+</th>
+{% endmacro %}
+
 <!-- ── Kennzahlen ────────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
   <div class="col-sm-3">
@@ -32,24 +50,15 @@
   </div>
 </div>
 
-<!-- ── Filter + Aktionen ─────────────────────────────────────────────── -->
+<!-- ── Filter ────────────────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
     <form method="get" class="row g-2 align-items-end">
-      <div class="col-sm-3">
+      <div class="col-sm-4">
         <label class="form-label small mb-1">Suche</label>
         <input type="text" name="q" class="form-control form-control-sm"
                placeholder="Berichtsname, Suchpfad, Eigentümer …"
                value="{{ q }}">
-      </div>
-      <div class="col-sm-2">
-        <label class="form-label small mb-1">Anwendung</label>
-        <select name="anwendung" class="form-select form-select-sm">
-          <option value="">Alle</option>
-          {% for a in anwendungen %}
-          <option value="{{ a }}" {% if a == anwendung_filt %}selected{% endif %}>{{ a }}</option>
-          {% endfor %}
-        </select>
       </div>
       <div class="col-sm-2">
         <label class="form-label small mb-1">Package</label>
@@ -69,6 +78,9 @@
           <option value="Ignoriert"    {% if status_filt=='Ignoriert'    %}selected{% endif %}>Ignoriert</option>
         </select>
       </div>
+      {# Sortierung und Reihenfolge als hidden fields erhalten #}
+      <input type="hidden" name="sort"  value="{{ sort }}">
+      <input type="hidden" name="order" value="{{ order }}">
       <div class="col-auto">
         <button type="submit" class="btn btn-primary btn-sm">
           <i class="bi bi-search me-1"></i>Filtern
@@ -88,156 +100,274 @@
   </div>
 </div>
 
-<!-- ── Ergebnistabelle ───────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm">
-  <div class="card-header bg-white py-2 d-flex align-items-center justify-content-between">
-    <span class="fw-600 small">{{ total }} Berichte</span>
-    <div class="d-flex gap-2 align-items-center">
-      <span class="text-muted small">Seite {{ page }}/{{ total_pages }}</span>
-      <select class="form-select form-select-sm" style="width:auto"
-              onchange="location.href=this.value">
-        {% for pp in [25, 50, 100, 200] %}
-        <option value="?{{ request.query_string.decode().replace('per_page=' ~ per_page, 'per_page=' ~ pp)|replace('page=' ~ page, 'page=1') }}"
-          {% if pp == per_page %}selected{% endif %}>{{ pp }} / Seite</option>
-        {% endfor %}
-      </select>
+<!-- ── Pagination oben ────────────────────────────────────────────────── -->
+{% set endpoint  = 'cognos.list_berichte' %}
+{% set url_extra = {'q': q, 'package': package_filt, 'status': status_filt, 'sort': sort, 'order': order} %}
+{% include 'funde/_pagination.html' %}
+
+<!-- ── Bulk-Aktions-Formular + Tabelle ───────────────────────────────── -->
+<form method="post" action="{{ url_for('cognos.bulk_aktion') }}" id="bulk-form" class="mt-2">
+
+  {% if can_write %}
+  <!-- Bulk-Aktionsleiste (wird eingeblendet sobald Checkboxen aktiv) -->
+  <div id="bulk-bar" class="card border-primary shadow-sm mb-3 p-2 d-none">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <span class="fw-600 text-primary">
+        <i class="bi bi-check2-square me-1"></i>
+        <span id="bulk-count">0</span> ausgewählt
+      </span>
+      <button type="submit" name="aktion" value="ignorieren"
+              class="btn btn-sm btn-outline-secondary" id="btn-bulk-ignorieren">
+        <i class="bi bi-eye-slash me-1"></i>Ignorieren
+      </button>
+      <button type="submit" name="aktion" value="reaktivieren"
+              class="btn btn-sm btn-outline-warning" id="btn-bulk-reaktivieren">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Reaktivieren
+      </button>
+      <button type="submit" name="aktion" value="loeschen"
+              class="btn btn-sm btn-outline-danger" id="btn-bulk-loeschen"
+              onclick="return confirm('Ausgewählte Berichte wirklich löschen?')">
+        <i class="bi bi-trash me-1"></i>Löschen
+      </button>
+      <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
+        Auswahl aufheben
+      </button>
     </div>
   </div>
-  <div class="table-responsive">
-    <table class="table table-hover table-sm mb-0 small">
-      <thead class="table-light">
-        <tr>
-          <th>Berichtsname</th>
-          <th>Anwendung</th>
-          <th class="d-none d-md-table-cell">Suchpfad</th>
-          <th>Package</th>
-          <th class="d-none d-lg-table-cell">Eigentümer</th>
-          <th class="text-end d-none d-lg-table-cell">Abfragen</th>
-          <th class="text-end d-none d-lg-table-cell">Kompl.</th>
-          <th class="text-end d-none d-lg-table-cell">Letzter Status</th>
-          <th>Status</th>
-          {% if can_write %}<th></th>{% endif %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for b in berichte %}
-        <tr>
-          <td>
-            <span class="fw-500">{{ b.berichtsname }}</span>
-            {% if b.umfeld %}
-            <span class="badge bg-light text-muted ms-1">{{ b.umfeld }}</span>
-            {% endif %}
-          </td>
-          <td>{{ b.anwendung or '–' }}</td>
-          <td class="d-none d-md-table-cell text-muted" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-              title="{{ b.suchpfad }}">{{ b.suchpfad or '–' }}</td>
-          <td>{{ b.package or '–' }}</td>
-          <td class="d-none d-lg-table-cell text-muted">{{ b.eigentuemer or '–' }}</td>
-          <td class="text-end d-none d-lg-table-cell">{{ b.anz_abfragen if b.anz_abfragen is not none else '–' }}</td>
-          <td class="text-end d-none d-lg-table-cell">
-            {% if b.komplexitaet is not none %}
-              <span class="badge {% if b.komplexitaet >= 7 %}bg-danger{% elif b.komplexitaet >= 4 %}bg-warning text-dark{% else %}bg-success{% endif %}">
-                {{ b.komplexitaet|int }}
-              </span>
-            {% else %}–{% endif %}
-          </td>
-          <td class="d-none d-lg-table-cell">
-            {% if b.letzter_ausfuehrungsstatus %}
-              <span class="badge {% if b.letzter_ausfuehrungsstatus == 'Erfolgreich' %}bg-success{% else %}bg-danger{% endif %}">
-                {{ b.letzter_ausfuehrungsstatus }}
-              </span>
-            {% else %}–{% endif %}
-          </td>
-          <td>
-            {% if b.bearbeitungsstatus == 'Registriert' %}
-              <span class="badge bg-success">
-                <i class="bi bi-check-circle me-1"></i>IDV
-                {% if b.idv_id_str %}
-                  <a href="{{ url_for('idv.detail_idv', id=b.idv_register_id) }}"
-                     class="text-white text-decoration-none ms-1">{{ b.idv_id_str }}</a>
-                {% endif %}
-              </span>
-            {% elif b.bearbeitungsstatus == 'Ignoriert' %}
-              <span class="badge bg-secondary">Ignoriert</span>
-            {% else %}
-              <span class="badge bg-warning text-dark">Neu</span>
-            {% endif %}
-          </td>
-          {% if can_write %}
-          <td class="text-end text-nowrap">
-            {% if b.bearbeitungsstatus == 'Neu' %}
-              <form method="post" action="{{ url_for('cognos.als_idv_registrieren', bericht_id=b.id) }}"
-                    class="d-inline">
-                <button type="submit" class="btn btn-outline-primary btn-sm py-0 px-1"
-                        title="Als IDV registrieren">
-                  <i class="bi bi-plus-circle"></i>
-                </button>
-              </form>
-              <form method="post" action="{{ url_for('cognos.ignorieren', bericht_id=b.id) }}"
-                    class="d-inline ms-1">
-                <button type="submit" class="btn btn-outline-secondary btn-sm py-0 px-1"
-                        title="Ignorieren">
-                  <i class="bi bi-eye-slash"></i>
-                </button>
-              </form>
-            {% elif b.bearbeitungsstatus == 'Ignoriert' %}
-              <form method="post" action="{{ url_for('cognos.reaktivieren', bericht_id=b.id) }}"
-                    class="d-inline">
-                <button type="submit" class="btn btn-outline-warning btn-sm py-0 px-1"
-                        title="Reaktivieren">
-                  <i class="bi bi-arrow-counterclockwise"></i>
-                </button>
-              </form>
-            {% elif b.bearbeitungsstatus == 'Registriert' and b.idv_register_id %}
-              <a href="{{ url_for('idv.detail_idv', id=b.idv_register_id) }}"
-                 class="btn btn-outline-success btn-sm py-0 px-1" title="IDV öffnen">
-                <i class="bi bi-box-arrow-up-right"></i>
-              </a>
-            {% endif %}
-          </td>
-          {% endif %}
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="10" class="text-center text-muted py-4">
-            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-            Keine Berichte gefunden.
+  {% endif %}
+
+  <!-- Ergebnistabelle -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-2 d-flex align-items-center justify-content-between">
+      <span class="fw-600 small">
+        {% if can_write %}
+        <input type="checkbox" id="select-all" class="form-check-input me-2"
+               title="Alle auf dieser Seite auswählen">
+        {% endif %}
+        {{ total }} Berichte
+      </span>
+      <span class="text-muted small">Seite {{ page }}/{{ total_pages }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0 small">
+        <thead class="table-light">
+          <tr>
+            {% if can_write %}<th style="width:32px"></th>{% endif %}
+            {{ sort_th('berichtsname', 'Berichtsname') }}
+            {{ sort_th('suchpfad', 'Suchpfad') }}
+            {{ sort_th('package', 'Package') }}
+            {{ sort_th('eigentuemer', 'Eigentümer', 'd-none d-lg-table-cell') }}
+            {{ sort_th('anz_abfragen', 'Abfragen', 'text-end d-none d-xl-table-cell') }}
+            {{ sort_th('anz_datenelemente', 'Datenelm.', 'text-end d-none d-xl-table-cell', 'Anz. Datenelemente') }}
+            {{ sort_th('anz_felder_klarnamen', 'Felder', 'text-end d-none d-xl-table-cell', 'Anz. Felder/Klarnamen') }}
+            {{ sort_th('anz_filter', 'Filter', 'text-end d-none d-xl-table-cell', 'Anz. Filter') }}
+            {{ sort_th('summe_ausdruckslaenge', 'Ausdr.-Lg.', 'text-end d-none d-xl-table-cell', 'Summe Ausdruckslänge') }}
+            {{ sort_th('komplexitaet', 'Kompl.', 'text-end d-none d-lg-table-cell') }}
+            {{ sort_th('status', 'Status') }}
+            {% if can_write %}<th></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in berichte %}
+          <tr>
             {% if can_write %}
-            <br><a href="{{ url_for('cognos.import_berichte') }}" class="btn btn-sm btn-success mt-2">
-              <i class="bi bi-cloud-upload me-1"></i>Berichtsübersicht importieren
-            </a>
+            <td class="text-center align-middle">
+              <input type="checkbox" name="bericht_ids" value="{{ b.id }}"
+                     class="form-check-input row-check"
+                     data-status="{{ b.bearbeitungsstatus }}">
+            </td>
             {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+            <!-- Berichtsname -->
+            <td><span class="fw-500">{{ b.berichtsname }}</span></td>
+
+            <!-- Suchpfad (kann sehr lang sein) -->
+            <td style="max-width:260px">
+              {% if b.suchpfad %}
+              <span class="d-block font-monospace text-muted"
+                    style="font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                    title="{{ b.suchpfad }}">{{ b.suchpfad }}</span>
+              {% else %}–{% endif %}
+            </td>
+
+            <!-- Package -->
+            <td>{{ b.package or '–' }}</td>
+
+            <!-- Eigentümer -->
+            <td class="d-none d-lg-table-cell text-muted">{{ b.eigentuemer or '–' }}</td>
+
+            <!-- Anz. Abfragen -->
+            <td class="text-end d-none d-xl-table-cell">
+              {{ b.anz_abfragen if b.anz_abfragen is not none else '–' }}
+            </td>
+
+            <!-- Anz. Datenelemente -->
+            <td class="text-end d-none d-xl-table-cell">
+              {{ b.anz_datenelemente if b.anz_datenelemente is not none else '–' }}
+            </td>
+
+            <!-- Anz. Felder/Klarnamen -->
+            <td class="text-end d-none d-xl-table-cell">
+              {{ b.anz_felder_klarnamen if b.anz_felder_klarnamen is not none else '–' }}
+            </td>
+
+            <!-- Anz. Filter -->
+            <td class="text-end d-none d-xl-table-cell">
+              {{ b.anz_filter if b.anz_filter is not none else '–' }}
+            </td>
+
+            <!-- Summe Ausdruckslänge -->
+            <td class="text-end d-none d-xl-table-cell">
+              {{ b.summe_ausdruckslaenge if b.summe_ausdruckslaenge is not none else '–' }}
+            </td>
+
+            <!-- Komplexität -->
+            <td class="text-end d-none d-lg-table-cell">
+              {% if b.komplexitaet is not none %}
+                <span class="badge {% if b.komplexitaet >= 7 %}bg-danger{% elif b.komplexitaet >= 4 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                  {{ b.komplexitaet|int }}
+                </span>
+              {% else %}–{% endif %}
+            </td>
+
+            <!-- Bearbeitungsstatus -->
+            <td>
+              {% if b.bearbeitungsstatus == 'Registriert' %}
+                <span class="badge bg-success">
+                  <i class="bi bi-check-circle me-1"></i>IDV
+                  {% if b.idv_id_str %}
+                    <a href="{{ url_for('idv.detail_idv', idv_db_id=b.idv_register_id) }}"
+                       class="text-white text-decoration-none ms-1">{{ b.idv_id_str }}</a>
+                  {% endif %}
+                </span>
+              {% elif b.bearbeitungsstatus == 'Ignoriert' %}
+                <span class="badge bg-secondary">Ignoriert</span>
+              {% else %}
+                <span class="badge bg-warning text-dark">Neu</span>
+              {% endif %}
+            </td>
+
+            <!-- Aktionen -->
+            {% if can_write %}
+            <td class="text-end text-nowrap">
+              {% if b.bearbeitungsstatus == 'Neu' %}
+                <form method="post"
+                      action="{{ url_for('cognos.als_idv_registrieren', bericht_id=b.id) }}"
+                      class="d-inline">
+                  <button type="submit" class="btn btn-outline-primary btn-xs"
+                          title="Als IDV registrieren">
+                    <i class="bi bi-plus-circle"></i>
+                  </button>
+                </form>
+                <form method="post"
+                      action="{{ url_for('cognos.ignorieren', bericht_id=b.id) }}"
+                      class="d-inline ms-1">
+                  <button type="submit" class="btn btn-outline-secondary btn-xs"
+                          title="Ignorieren">
+                    <i class="bi bi-eye-slash"></i>
+                  </button>
+                </form>
+              {% elif b.bearbeitungsstatus == 'Ignoriert' %}
+                <form method="post"
+                      action="{{ url_for('cognos.reaktivieren', bericht_id=b.id) }}"
+                      class="d-inline">
+                  <button type="submit" class="btn btn-outline-warning btn-xs"
+                          title="Reaktivieren">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                  </button>
+                </form>
+              {% elif b.bearbeitungsstatus == 'Registriert' and b.idv_register_id %}
+                <a href="{{ url_for('idv.detail_idv', idv_db_id=b.idv_register_id) }}"
+                   class="btn btn-outline-success btn-xs" title="IDV öffnen">
+                  <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+              {% endif %}
+              <form method="post"
+                    action="{{ url_for('cognos.loeschen', bericht_id=b.id) }}"
+                    class="d-inline ms-1"
+                    onsubmit="return confirm('Bericht \"{{ b.berichtsname|e }}\" wirklich löschen?')">
+                <button type="submit" class="btn btn-outline-danger btn-xs" title="Löschen">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="14" class="text-center text-muted py-4">
+              <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+              Keine Berichte gefunden.
+              {% if can_write %}
+              <br><a href="{{ url_for('cognos.import_berichte') }}"
+                     class="btn btn-sm btn-success mt-2">
+                <i class="bi bi-cloud-upload me-1"></i>Berichtsübersicht importieren
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 
-  <!-- Pagination -->
-  {% if total_pages > 1 %}
-  <div class="card-footer bg-white py-2">
-    <nav>
-      <ul class="pagination pagination-sm mb-0 justify-content-center flex-wrap">
-        <li class="page-item {% if page == 1 %}disabled{% endif %}">
-          <a class="page-link" href="?{{ request.query_string.decode()|replace('page=' ~ page, 'page=' ~ (page-1)) }}">
-            &laquo;
-          </a>
-        </li>
-        {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
-        <li class="page-item {% if p == page %}active{% endif %}">
-          <a class="page-link" href="?{{ request.query_string.decode()|replace('page=' ~ page, 'page=' ~ p) }}">{{ p }}</a>
-        </li>
-        {% endfor %}
-        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
-          <a class="page-link" href="?{{ request.query_string.decode()|replace('page=' ~ page, 'page=' ~ (page+1)) }}">
-            &raquo;
-          </a>
-        </li>
-      </ul>
-    </nav>
-  </div>
-  {% endif %}
-</div>
+</form>
+
+<!-- ── Pagination unten ───────────────────────────────────────────────── -->
+{% include 'funde/_pagination.html' %}
+
+<style>
+  .btn-xs { padding: .15rem .45rem; font-size: .75rem; }
+  .fw-600 { font-weight: 600; }
+  .fw-500 { font-weight: 500; }
+</style>
+
+<script>
+(function () {
+  const selectAll  = document.getElementById('select-all');
+  const bulkBar    = document.getElementById('bulk-bar');
+  const bulkCount  = document.getElementById('bulk-count');
+  const btnDeselect = document.getElementById('btn-deselect-all');
+
+  function updateBar() {
+    const checked = document.querySelectorAll('.row-check:checked');
+    const n = checked.length;
+    if (bulkCount)  bulkCount.textContent = n;
+    if (bulkBar)    bulkBar.classList.toggle('d-none', n === 0);
+
+    // Ignorieren nur für "Neu"-Zeilen, Reaktivieren nur für "Ignoriert"-Zeilen
+    const btnIgn  = document.getElementById('btn-bulk-ignorieren');
+    const btnReakt = document.getElementById('btn-bulk-reaktivieren');
+    if (btnIgn) {
+      const anyNeu = [...checked].some(cb => cb.dataset.status === 'Neu');
+      btnIgn.disabled = !anyNeu;
+    }
+    if (btnReakt) {
+      const anyIgn = [...checked].some(cb => cb.dataset.status === 'Ignoriert');
+      btnReakt.disabled = !anyIgn;
+    }
+  }
+
+  document.querySelectorAll('.row-check').forEach(cb =>
+    cb.addEventListener('change', updateBar)
+  );
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      document.querySelectorAll('.row-check').forEach(cb => { cb.checked = this.checked; });
+      updateBar();
+    });
+  }
+
+  if (btnDeselect) {
+    btnDeselect.addEventListener('click', function () {
+      document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
+      if (selectAll) selectAll.checked = false;
+      updateBar();
+    });
+  }
+})();
+</script>
 
 {% endblock %}
