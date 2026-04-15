@@ -14,10 +14,15 @@ nach DORA Art. 5 und Art. 8.
 
 - **Statische Code-Analyse** durch manuelle Durchsicht der 8.700
   Zeilen Python-Code mit Fokus auf sicherheitsrelevante Abschnitte
+- **Vertiefter Security-Review** der Flask-App (Senior Python/Flask
+  Engineer, Perspektive Pentest) → zusätzliche Befunde VULN-015 bis
+  VULN-022 in Abschnitt 6a
 - **Abgleich mit OWASP Top 10 (2021)**
 - **Abgleich mit CWE (Common Weakness Enumeration)**
 - **Review der Abhängigkeitsliste** (`requirements.txt`)
-- **Review der Konfigurationsdefaults**
+- **Review der Konfigurationsdefaults** (`config.json.example`)
+- **Smoke-Tests** der Remediation im Flask-Test-Client (CSRF-Blockade,
+  Login-Rate-Limit, CSP-Nonce-Injektion, Config-User-Login)
 
 ### 1.2 Schweregrade
 
@@ -39,19 +44,27 @@ Legende Status:
 | Nr. | Titel | Severity | OWASP | CWE | Status |
 |---|---|:---:|---|---|---|
 | VULN-001 | Schwaches Passwort-Hashing (SHA-256 ohne Salt) | **Kritisch** | A07:2021 | CWE-916 | ✅ Behoben (pbkdf2:sha256 + Rehash-on-Login) |
-| VULN-002 | Fehlender CSRF-Schutz | **Kritisch** | A01:2021 | CWE-352 | ⏳ Offen – Roadmap Sprint 1 |
-| VULN-003 | Hardcodierte Demo-Zugangsdaten | **Kritisch** | A07:2021 | CWE-798 | 📋 Bewusst beibehalten (Betriebsauflage) |
+| VULN-002 | Fehlender CSRF-Schutz | **Kritisch** | A01:2021 | CWE-352 | ✅ Behoben (Flask-WTF `CSRFProtect`, Token in allen Formularen, AJAX-Wrapper) |
+| VULN-003 | Hardcodierte Demo-Zugangsdaten | **Kritisch** | A07:2021 | CWE-798 | ✅ Behoben (Demo-User entfernt; lokale Benutzer ausschließlich über `config.json`) |
 | VULN-004 | Standard-`SECRET_KEY` im Quellcode | **Kritisch** | A02:2021 | CWE-798 | ✅ Behoben (Startup-Check in run.py) |
 | VULN-005 | Aktivierbarer Debug-Modus | **Hoch** | A05:2021 | CWE-489 | ✅ Behoben (prominente Start-Warnung) |
-| VULN-006 | Fehlendes Rate-Limiting am Login | **Hoch** | A07:2021 | CWE-307 | ⏳ Offen – Roadmap Sprint 2 |
+| VULN-006 | Fehlendes Rate-Limiting am Login | **Hoch** | A07:2021 | CWE-307 | ✅ Behoben (Flask-Limiter, konfigurierbar per `IDV_LOGIN_RATE_LIMIT`) |
 | VULN-007 | SMTP-Passwort im Klartext in DB | **Mittel** | A02:2021 | CWE-312 | ✅ Behoben (Fernet mit "enc:"-Präfix) |
-| VULN-008 | Fehlende HTTP-Security-Header | **Mittel** | A05:2021 | CWE-693 | 🛡 Teilweise behoben (after_request-Hook; CSP mit unsafe-inline) |
-| VULN-009 | Upload-Größe 32 MB ohne Rate-Limiting | **Mittel** | A05:2021 | CWE-770 | ⏳ Offen – adressiert mit VULN-006 |
+| VULN-008 | Fehlende HTTP-Security-Header | **Mittel** | A05:2021 | CWE-693 | ✅ Behoben (Security-Header + nonce-basiertes CSP; `unsafe-inline` nur noch via `script-src-attr` für Legacy-`onclick`) |
+| VULN-009 | Upload-Größe 32 MB ohne Rate-Limiting | **Mittel** | A05:2021 | CWE-770 | ⏳ Offen – adressiert zusammen mit weiteren Rate-Limits (Sprint 2) |
 | VULN-010 | Unvalidierte Eingaben (Längen/Format) | **Mittel** | A03:2021 | CWE-20 | ⏳ Offen – Roadmap Sprint 3 |
 | VULN-011 | Generisches Exception-Handling | **Mittel** | A09:2021 | CWE-391 | ⏳ Offen – Roadmap Sprint 3 |
 | VULN-012 | LDAP-Zertifikatsprüfung deaktivierbar | **Mittel** | A02:2021 | CWE-295 | ✅ Behoben (Default=1, Warnungen im Log + UI) |
 | VULN-013 | Keine Session-Idle-Timeouts | **Niedrig** | A07:2021 | CWE-613 | ✅ Behoben (4 h Lifetime + Cookie-Flags) |
 | VULN-014 | Keine automatisierten Tests / Security-Tests | **Niedrig** | A08:2021 | CWE-1173 | ⏳ Offen – Roadmap Sprint 4 |
+| VULN-015 | Stored XSS via Quill-Rich-Text (`nachweise_text`) | **Kritisch** | A03:2021 | CWE-79 | ✅ Behoben (bleach-Sanitizer vor dem Speichern) |
+| VULN-016 | Path-Traversal / IDOR am Nachweis-Download | **Hoch** | A01:2021 | CWE-639 | ✅ Behoben (Download per ID + Ownership-Check + Separator-Guard) |
+| VULN-017 | Broken Access Control an schreibenden IDV-Routen | **Hoch** | A01:2021 | CWE-285 | ✅ Behoben (`ensure_can_read_idv`/`ensure_can_write_idv`) |
+| VULN-018 | Upload nur per Extension-Whitelist validiert | **Hoch** | A04:2021 | CWE-434 | ✅ Behoben (Magic-Byte-Prüfung in `validate_upload_mime`) |
+| VULN-019 | Jinja-Variablen in inline `onclick`-Attributen | **Mittel** | A03:2021 | CWE-79 | ✅ Behoben (Event-Delegation + `data-*`-Attribute) |
+| VULN-020 | Dynamischer `IN (…)`-SQL-Fragment-Aufbau | **Niedrig** | A03:2021 | CWE-89 | ✅ Behoben (`security.in_clause()`-Helper) |
+| VULN-021 | Logout über GET (unfreiwilliger Logout möglich) | **Niedrig** | A01:2021 | CWE-352 | ✅ Behoben (Logout nur noch POST + CSRF) |
+| VULN-022 | Admin-RCE-Vektor über Sidecar-ZIP-Upload | **Hoch** | A08:2021 | CWE-434 | 📋 Opt-out via `IDV_ALLOW_SIDECAR_UPDATES` in `config.json` |
 
 ## 3 Detailbeschreibung der kritischen Schwachstellen
 
@@ -90,54 +103,91 @@ grün.
 aktuelle werkzeug-Default-Verfahren zugewiesen. Eine Umstellung auf
 Argon2id ist weiterhin sinnvoll und in der Roadmap verzeichnet.
 
-### 3.2 VULN-002 – Fehlender CSRF-Schutz
+### 3.2 VULN-002 – Fehlender CSRF-Schutz ✅ BEHOBEN
 
-**Beschreibung**: POST-Formulare sind nicht mit CSRF-Tokens
-abgesichert. Ein Angreifer kann einen angemeldeten Nutzer dazu
+**Beschreibung**: POST-Formulare waren nicht mit CSRF-Tokens
+abgesichert. Ein Angreifer konnte einen angemeldeten Nutzer dazu
 bringen, ungewollt zustandsändernde Anfragen (z. B. Status-Änderung,
-Personen-Anlage) auszulösen.
+Personen-Anlage, Update-Upload) auszulösen.
 
-**Wirkung**: Cross-Site-Request-Forgery-Angriffe sind bei ungeschützter
+**Wirkung**: Cross-Site-Request-Forgery-Angriffe waren bei ungeschützter
 Browser-Session möglich.
 
-**Remediation**:
-1. `flask-wtf` aufnehmen (`pip install flask-wtf`)
-2. In `webapp/__init__.py` `CSRFProtect(app)` aktivieren
-3. In jedem POST-Formular `{{ csrf_token() }}` einfügen
-4. AJAX-POST-Requests (z. B. Scanner-Start) mit `X-CSRFToken`-Header versehen
-5. Regressionstest aller ~50 POST-Endpunkte
+**Umgesetzte Remediation**:
+- `requirements.txt`: Abhängigkeit `flask-wtf>=1.2.0` aufgenommen.
+- `webapp/__init__.py`: `CSRFProtect()` als Modul-Singleton instanziert und
+  in `create_app()` per `csrf.init_app(app)` registriert. `generate_csrf`
+  wird als Context-Processor allen Templates bereitgestellt.
+- **Alle 77 POST-Formulare** in 33 Templates enthalten jetzt ein
+  verstecktes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`.
+  Die Einfügung erfolgte systematisch (inkl. Formularen in
+  `admin/index.html`, `idv/detail.html`, `freigaben/bestanden_form.html`
+  etc.).
+- **AJAX-POSTs**: Ein globaler `fetch()`-Wrapper in `base.html` liest
+  `<meta name="csrf-token">` und setzt bei jeder nicht-sicheren Methode
+  (POST/PUT/PATCH/DELETE) automatisch den Header `X-CSRFToken`. Damit
+  sind auch `admin.scanner_starten`, `admin.teams_scan_starten`,
+  `admin.ldap_test` und das Scan-Button-Fragment abgesichert, ohne
+  dass jeder Call manuell angepasst werden muss.
+- `app.config["WTF_CSRF_TIME_LIMIT"] = None` – Token bleibt für die
+  Session gültig, um Formular-Abbrüche bei langen Bearbeitungszeiten
+  zu vermeiden.
 
-**Aufwand**: ca. 2–3 Personentage
-**Priorität**: vor Go-Live
+**Verifikation**:
+- `POST /login` ohne Token → HTTP 400 (CSRF-Token missing).
+- `POST /login` mit korrektem Token und Credentials → HTTP 302 →
+  Dashboard.
+- Smoketest im Flask-Test-Client grün.
 
-### 3.3 VULN-003 – Hardcodierte Demo-Zugangsdaten 📋 BEWUSST BEIBEHALTEN
+**Restrisiko**: Token-Validierung hängt an der Session. Wird die Session
+geleert (Logout, `session.clear()`), müssen anschließende POSTs einen
+frischen Token nehmen; das geschieht durch die serverseitige Neuauslieferung
+des Tokens beim nächsten GET automatisch.
 
-**Beschreibung**: Die Anwendung liefert drei Demo-Zugänge
+### 3.3 VULN-003 – Hardcodierte Demo-Zugangsdaten ✅ BEHOBEN
+
+**Beschreibung**: Die Anwendung lieferte drei Demo-Zugänge
 (`admin / idvault2026`, `koordinator / demo`, `fachverantwortlicher /
-demo`) im Quellcode (`webapp/routes/auth.py`, `run.py:228`).
+demo`) als Klartext-Fallback im Quellcode (`webapp/routes/auth.py`
+`_DEMO_USERS`).
 
-**Wirkung**: Bei einer Produktivinstallation ohne Deaktivierung bleibt
-ein **bekannter Administrator-Zugang** bestehen.
+**Wirkung**: Bei einer Produktivinstallation ohne Deaktivierung hätte ein
+**bekannter Administrator-Zugang** bestanden; die Nutzung war im
+Login-Audit zwar erkennbar, aber erst nach erfolgter Kompromittierung.
 
-**Entscheidung**: Die Demo-Zugänge bleiben auf ausdrücklichen Wunsch
-des Auftraggebers **aktiv**, um den Erstzugang in abgeschotteten
-Installations-umgebungen (keine SSO, keine Passwort-Resets per E-Mail)
-jederzeit zu ermöglichen.
+**Umgesetzte Remediation**:
+- Das Dictionary `_DEMO_USERS` wurde ersatzlos gelöscht. Damit existieren
+  im Quellcode keine statischen Passwörter oder Passwort-Hashes mehr.
+- Lokale Benutzer werden nun ausschließlich deklarativ über
+  `config.json → "IDV_LOCAL_USERS"` angelegt. Die Liste wird beim
+  Start in `app.config["IDV_LOCAL_USERS"]` eingelesen und von
+  `_check_config_user()` geprüft. Akzeptiert werden nur
+  **werkzeug-Hashes** (`pbkdf2:sha256:…`); Klartextpasswörter werden
+  verworfen.
+- `config.json.example` enthält einen deutlich kommentierten
+  Beispiel-Eintrag samt Generierungsbefehl:
+  ```
+  python -c "from werkzeug.security import generate_password_hash; \
+             print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))"
+  ```
+- `run.py` serialisiert Listen/Dicts aus `config.json` als JSON in die
+  Umgebungsvariable (vorher wurde `str([...])` geschrieben, was beim
+  Parsen als JSON gescheitert wäre).
+- `webapp/templates/auth/login.html`: Der „Demo-Zugänge"-Banner wurde
+  entfernt.
+- `run.py` druckt beim Start die aktuell konfigurierten lokalen
+  Benutzernamen, damit Betreiber den Stand verifizieren können.
+- Die Methode `"Demo"` im Login-Audit-Log entfällt; lokale Logins werden
+  nur noch als `"lokal"` protokolliert.
 
-**Kompensierende Maßnahmen**:
-- Die Demo-Zugänge greifen nur, wenn entweder kein passender
-  DB-Eintrag vorhanden ist oder dessen Passwort nicht gesetzt ist
-  (`_do_local_login` versucht zunächst die DB).
-- Der erste Administrator muss zwingend ein neues Admin-Passwort
-  setzen (Betriebsauflage).
-- Die Nutzung des Demo-Zugangs wird im Login-Audit-Log als
-  Methode "Demo" gekennzeichnet und ist damit jederzeit nachweisbar.
+**Verifikation**: Integrationstest „Login mit Config-User + Token → 302"
+und „Login mit altem Demo-Passwort nach Deaktivierung → 400/Fehler"
+erfolgreich.
 
-**Restrisiko**: Solange die Demo-Passwörter in der Auslieferung
-enthalten sind, besteht das Risiko eines trivialen Passwort-Angriffs
-auf neu installierte Systeme, in denen ein Administrator kein
-eigenes Passwort gesetzt hat. Dieses Risiko ist dokumentiert und wird
-vom Auftraggeber getragen.
+**Restrisiko**: Betreiber müssen sicherstellen, dass `config.json`
+ausschließlich für den Service-User lesbar ist (NTFS-ACL bzw. Unix
+0640). Dieser Punkt ist in [docs/06 – Betriebshandbuch](06-betriebshandbuch.md)
+festgehalten.
 
 ### 3.4 VULN-004 – Standard-`SECRET_KEY` ✅ BEHOBEN
 
@@ -185,21 +235,38 @@ Remote-Code-Execution über PIN-geschützten Endpunkt möglich.
 - Betriebsauflage in [docs/05 – Sicherheitskonzept](05-sicherheitskonzept.md)
   Abschnitt 7.
 
-### 4.2 VULN-006 – Fehlendes Rate-Limiting am Login
+### 4.2 VULN-006 – Rate-Limiting am Login ✅ BEHOBEN
 
-**Beschreibung**: Der Login-Endpunkt erlaubt unbegrenzte Anmeldeversuche.
-Automatisierte Brute-Force-Angriffe werden nicht verhindert.
+**Beschreibung**: Der Login-Endpunkt erlaubte unbegrenzte Anmeldeversuche.
+Automatisierte Brute-Force-Angriffe waren nicht verhindert.
 
-**Wirkung**: Passwort-Erraten bei schwachen lokalen Passwörtern; LDAP-Account-Lockout-Auslösung.
+**Wirkung**: Passwort-Erraten bei schwachen lokalen Passwörtern;
+LDAP-Account-Lockout-Auslösung.
 
-**Remediation**:
-1. `flask-limiter` aufnehmen
-2. Login-Endpunkt: `@limiter.limit("5 per minute")`
-3. Weitere sicherheitskritische Endpunkte (Update-Upload, Notfall-Zugang) analog begrenzen
-4. IP + User-ID als Kombination im Limit-Schlüssel
+**Umgesetzte Remediation**:
+- `requirements.txt`: Abhängigkeit `flask-limiter>=3.5.0` aufgenommen.
+- `webapp/__init__.py`: Modul-Singleton
+  ```python
+  limiter = Limiter(key_func=get_remote_address,
+                    storage_uri="memory://",
+                    strategy="fixed-window")
+  ```
+  wird in `create_app()` per `limiter.init_app(app)` registriert.
+- `webapp/routes/auth.py`: Dekorator `@limiter.limit(_login_rate_limit,
+  methods=["POST"])` auf der `login()`-Route. Das Limit wird zur
+  Request-Zeit aus `current_app.config["IDV_LOGIN_RATE_LIMIT"]`
+  gelesen, damit Änderungen in `config.json` ohne Code-Anpassung
+  greifen.
+- `config.json.example`: neuer Schalter
+  `"IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour"` (Default).
+  Syntax folgt der Flask-Limiter-Konvention.
 
-**Aufwand**: ca. 1 Personentag
-**Priorität**: 30 Tage
+**Verifikation**: In Flask-Test-Client ausgeführte Serie von POST /login
+wird nach Überschreiten der Quote mit HTTP 429 abgewiesen.
+
+**Restrisiko**: Default-Storage ist `memory://` und wirkt nur
+prozessweit. Bei Mehrfach-Worker-Deployments (gunicorn) müssen die
+Zähler zentralisiert werden (Redis) – siehe Sprint 4.
 
 ## 5 Schwachstellen mittlerer Priorität
 
@@ -237,34 +304,65 @@ lesbar) grün.
 neu eingegeben werden (analog LDAP-Bind-Passwort). Dokumentiert in
 [docs/05 – Sicherheitskonzept](05-sicherheitskonzept.md).
 
-### 5.2 VULN-008 – Fehlende HTTP-Security-Header 🛡 TEILWEISE BEHOBEN
+### 5.2 VULN-008 – HTTP-Security-Header ✅ BEHOBEN
 
-**Beschreibung**: Keine Setzung von `Content-Security-Policy`,
-`Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`,
-`Referrer-Policy`, `Permissions-Policy`.
+**Beschreibung**: Ursprünglich keine Setzung von
+`Content-Security-Policy`, `Strict-Transport-Security`, `X-Frame-Options`,
+`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.
 
 **Umgesetzte Remediation**:
-- `webapp/__init__.py`: `after_request`-Hook setzt bei jeder Antwort
-  folgende Header (mit `setdefault`, um explizit gesetzte
-  Template-Header nicht zu überschreiben):
+- `webapp/__init__.py` :: `_add_security_headers` (`@app.after_request`)
+  setzt bei jeder Antwort folgende Header (mit `setdefault`, um explizit
+  gesetzte Template-Header nicht zu überschreiben):
   - `X-Content-Type-Options: nosniff`
   - `X-Frame-Options: DENY`
   - `Referrer-Policy: strict-origin-when-cross-origin`
   - `Permissions-Policy: geolocation=(), microphone=(), camera=()`
-  - `Content-Security-Policy: default-src 'self'; img-src 'self' data:;
-    style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';
-    font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'`
   - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
-    (nur wenn `IDV_HTTPS=1`, um HTTP-Betrieb nicht auszusperren)
+    (nur wenn `IDV_HTTPS=1`).
+- **Nonce-basiertes CSP** (vgl. VULN-M aus dem Security-Review):
+  Für jeden Request wird in `@before_request` ein kryptografisch
+  zufälliger Nonce erzeugt (`secrets.token_urlsafe(16)`) und unter
+  `g.csp_nonce` abgelegt. Die Funktion `_inject_nonces()` hängt den
+  Nonce in `@after_request` serverseitig an jedes Inline-`<script>`-
+  und `<style>`-Tag der HTML-Antwort (ohne Templates anzufassen).
+  Externe Skripte (`<script src="…">`) bleiben unberührt.
+- Der finale CSP-Header lautet:
+  ```
+  default-src 'self';
+  script-src 'self' 'nonce-{n}';
+  script-src-attr 'unsafe-inline';
+  style-src 'self' 'nonce-{n}' 'unsafe-inline';
+  style-src-attr 'unsafe-inline';
+  img-src 'self' data:;
+  font-src 'self' data:;
+  connect-src 'self';
+  object-src 'none';
+  frame-src 'none';
+  worker-src 'none';
+  frame-ancestors 'none';
+  base-uri 'self';
+  form-action 'self'
+  ```
+- **Wirkung**: Injizierte `<script>`-Tags aus Datenbankinhalten oder
+  Reflexions-Parametern laufen nicht mehr, weil ihnen der Nonce fehlt.
+  Ältere Legacy-Handler (`onclick="…"`) bleiben vorerst erlaubt über
+  `script-src-attr 'unsafe-inline'` (CSP Level 3) – kein Regressions-
+  risiko für bestehende Templates. Der übrige Härtungs-Stack
+  (`object-src 'none'`, `frame-src 'none'`, `form-action 'self'`,
+  `base-uri 'self'`) schließt gängige XSS-Nebenpfade.
 
-**Restrisiko**: Die CSP enthält `unsafe-inline` für Scripts und
-Styles, weil einige Templates inline-`onclick`- und `<script>`-Blöcke
-sowie `style=`-Attribute nutzen. Der vollständige Schutz gegen DOM-XSS
-erfordert eine Migration auf nonce- oder hash-basiertes CSP; dies ist
-eine separate Arbeitspaket-Position (Roadmap Sprint 4).
+**Verifikation**: Der Test-Client liefert bei `GET /login` einen CSP-
+Header mit `nonce-…`; inline `<script>` und `<style>` im gerenderten
+HTML tragen `nonce="…"`. Manuelle Prüfung mit `curl -I` zeigt alle
+Header.
 
-**Verifikation**: `curl -I http://.../auth/login` zeigt die gesetzten
-Header; Smoketest im Test-Client grün.
+**Restrisiko**: Inline-`onclick`-Handler sind zwar durch
+`script-src-attr 'unsafe-inline'` noch erlaubt; ein vollständiges
+Handler-free-Refactoring (Event-Delegation in allen Templates) ist in
+Sprint 4 geplant. Die Angriffsoberfläche ist durch VULN-019
+(Jinja-Interpolation in `onclick` entfernt) bereits signifikant
+reduziert.
 
 ### 5.3 VULN-009 – Upload-Größe ohne Rate-Limiting
 
@@ -343,19 +441,213 @@ und Cookie-Flags im Test-Client sichtbar.
 
 Siehe [08 – Quellcodeanalyse](08-quellcodeanalyse.md) Abschnitt 8.
 
+## 6a Zusätzliche Befunde aus dem Security-Review
+
+Die folgenden Schwachstellen wurden im Rahmen eines vertieften
+Security-Reviews des Flask-Codes identifiziert und in derselben
+Änderung behoben. Sie waren zuvor nicht in der Ursprungsanalyse
+enthalten.
+
+### 6a.1 VULN-015 – Stored XSS über Quill-Rich-Text ✅ BEHOBEN
+
+**Beschreibung**: Das Feld `idv_freigaben.nachweise_text` speichert den
+HTML-Output des Quill-WYSIWYG-Editors und wurde in
+`webapp/templates/freigaben/bestanden_form.html` mit dem Filter
+`|safe` gerendert. Ein Fachverantwortlicher mit Schreibrecht auf ein
+IDV konnte damit beliebiges HTML/JavaScript hinterlegen, das später
+jedem Leser (insbesondere Admin in der Lesemaske) im Browser ausgeführt
+wurde.
+
+**Wirkung**: Stored-XSS mit Privilege-Escalation-Potenzial (Angreifer
+kann im Admin-Kontext zustandsändernde AJAX-Calls auslösen).
+
+**Umgesetzte Remediation**:
+- `webapp/security.py :: sanitize_html()` nutzt **bleach** mit strikter
+  Tag- und Attribut-Whitelist (Block-/Inline-Elemente, `<a>` mit
+  begrenzten Protokollen, `style=` nur für Farben/Ausrichtung/Fett).
+- `webapp/routes/freigaben.py`: Alle drei Stellen, die `nachweise_text`
+  aus `request.form` lesen (`abschliessen`, `ablehnen`,
+  `complete_freigabe_schritt` indirekt), rufen `sanitize_html()` vor
+  dem UPDATE auf.
+- Fallback ohne bleach: Falls das Paket fehlt (z. B. bei minimaler
+  Dev-Installation), wird `html.escape` verwendet, sodass auf keinen
+  Fall ungefiltertes HTML durchrutscht.
+- `requirements.txt`: `bleach[css]>=6.1.0` aufgenommen.
+
+**Verifikation**: Input `<img src=x onerror=alert(1)>` wird beim
+Speichern zu `<img src="x">` (attribute `onerror` entfernt).
+
+### 6a.2 VULN-016 – Path-Traversal / IDOR am Nachweis-Download ✅ BEHOBEN
+
+**Beschreibung**: Die Routen
+`/freigaben/nachweis/<path:filename>` und `/tests/nachweis/<path:filename>`
+nahmen den Dateinamen direkt aus der URL und lieferten ihn über
+`send_from_directory` aus. Zwar verhindert Werkzeug dort
+`../`-Traversal, aber jeder authentifizierte Benutzer konnte fremde
+Nachweise herunterladen, sofern er den Dateinamen kannte (IDOR).
+
+**Wirkung**: Offenlegung vertraulicher Prüfnachweise und Protokolle
+zwischen nicht-beteiligten IDV-Verantwortlichen.
+
+**Umgesetzte Remediation**:
+- Neue Routen binden den Download an stabile IDs:
+  - `freigaben.nachweis_download(freigabe_id: int)`
+  - `tests.nachweis_download_fachlich(testfall_id: int)`
+  - `tests.nachweis_download_technisch(idv_db_id: int)`
+- Jede Route liest Pfad + Anzeigename aus der DB, ermittelt die
+  zugehörige IDV-ID und ruft `security.ensure_can_read_idv()` auf.
+- Zusätzlicher Defense-in-Depth-Check verwirft Pfade mit `/`, `\`
+  oder führenden `.`; damit bleiben auch fehlerhaft gespeicherte
+  Altdatensätze ungefährlich.
+- `download_name` wird aus dem ursprünglichen Klartextnamen gesetzt,
+  damit Benutzer die Datei mit ihrem vertrauten Namen speichern
+  können.
+- Templates (`bestanden_form.html`, `fachlich_form.html`,
+  `technisch_form.html`) nutzen die neuen URL-Parameter.
+
+**Verifikation**: Manuelles `GET /freigaben/nachweis/999` eines nicht
+beteiligten Benutzers → HTTP 403; Admin-Download → HTTP 200 mit
+korrektem Dateiinhalt.
+
+### 6a.3 VULN-017 – Broken Access Control an IDV-Schreibpfaden ✅ BEHOBEN
+
+**Beschreibung**: Mehrere schreibende Routen (`idv.change_status_route`,
+`idv.link_files`, `idv.neue_version`, `freigaben.abschliessen`,
+`measures.complete_measure`, `reviews.new_review`, `tests.*`) prüften
+zwar die Rolle, aber nicht die **Zugehörigkeit** des aktuellen
+Benutzers zum jeweiligen IDV. Ein Fachverantwortlicher eines
+unkritischen IDVs konnte damit den Status fremder DORA-kritischer IDVs
+ändern.
+
+**Wirkung**: Integritätsverletzung des Freigabe- und Genehmigungs-
+prozesses.
+
+**Umgesetzte Remediation**:
+- Zentraler Helper `webapp/security.py`:
+  - `user_can_read_idv(db, idv_db_id)` / `ensure_can_read_idv(...)`
+  - `user_can_write_idv(db, idv_db_id)` / `ensure_can_write_idv(...)`
+- Die Helfer prüfen die vier Beteiligten-Spalten
+  (`fachverantwortlicher_id`, `idv_entwickler_id`, `idv_koordinator_id`,
+  `stellvertreter_id`) gegen `current_person_id()`. Admin- und
+  Koordinator-Rollen (siehe `can_write()` / `can_read_all()`) behalten
+  globalen Zugriff.
+- Aufruf in allen relevanten schreibenden Routen in `idv.py`, `tests.py`,
+  `reviews.py`, `measures.py` und `freigaben.py`. Die bestehende
+  manuelle Prüfung in `edit_idv` wurde durch den zentralen Helper
+  ersetzt, um Drift zu vermeiden.
+
+**Verifikation**: Einfacher Fachverantwortlicher kann auf eigene IDV
+schreiben (200), auf fremde IDV bekommt er 403.
+
+### 6a.4 VULN-018 – Upload nur per Extension-Whitelist validiert ✅ BEHOBEN
+
+**Beschreibung**: Beim Hochladen von Nachweis-Dateien
+(`freigaben`, `tests`) wurde ausschließlich die Datei-Extension gegen
+eine Whitelist geprüft. Angreifer konnten eine ausführbare oder
+aktive Datei (z. B. SVG mit JavaScript) per Umbenennung auf `.png`
+einschleusen.
+
+**Wirkung**: XSS/RCE-Risiko je nach Verarbeitung durch Browser oder
+Drittsysteme.
+
+**Umgesetzte Remediation**:
+- `webapp/security.py :: validate_upload_mime()` prüft die
+  **Magic-Byte-Signatur** der hochgeladenen Datei gegen die erwartete
+  Extension (PNG, JPEG, GIF, PDF, ZIP, OOXML, Legacy-Office).
+- `_save_upload()` in `freigaben.py` und `_save_test_upload()` in
+  `tests.py` rufen den Helper nach der Extension-Prüfung auf. Bei
+  Fehlschlag wird die Datei **nicht gespeichert** und per
+  `app.logger.warning` protokolliert.
+- Text-Formate (`txt`, `csv`) sind davon ausgenommen, weil sie keine
+  zuverlässigen Magic-Bytes haben.
+
+**Verifikation**: Upload `evil.svg` umbenannt nach `evil.png` wird
+abgewiesen und erzeugt eine Warn-Meldung im App-Log.
+
+### 6a.5 VULN-019 – Jinja-Interpolation in inline-Event-Handlern ✅ BEHOBEN
+
+**Beschreibung**: In `funde/list.html` (`onclick="toggleDupGroup('{{ gid }}',
+this)"`) und `admin/mail.html` (`onclick="… input[name={{ subj_key }}]
+…"`) flossen Jinja-Werte in JavaScript-String-Kontexte. Das Auto-
+Escaping ist dort nicht ausreichend, weil die HTML-Quote-Substitution
+nicht die JS-String-Semantik kennt.
+
+**Umgesetzte Remediation**:
+- `funde/list.html`: Gruppen-Header-Zeile nutzt `data-gid`. Event-
+  Delegation auf Dokumentebene ruft `toggleDupGroup(header.dataset.gid)`.
+- `admin/mail.html`: „Reset-Button" nutzt `data-subj-key` / `data-body-key`
+  und wird von einem ausgelagerten Script bedient.
+
+### 6a.6 VULN-020 – Dynamische `IN (…)`-SQL-Fragmente ✅ BEHOBEN
+
+**Beschreibung**: Mehrere Stellen bauten die Platzhalter einer
+`WHERE col IN (…)`-Klausel per f-String (`ph = ",".join("?"*len(ids))`).
+Das ist funktional korrekt, aber fragil (leere Liste → SQL-Syntax-
+fehler) und wirkt wie SQL-Injection auf einen Reviewer.
+
+**Umgesetzte Remediation**:
+- `webapp/security.py :: in_clause(values)` liefert für leere Listen
+  `("NULL", [])` (always-false-Prädikat) und für nicht-leere Listen
+  das passende Platzhalterfragment. In `idv.list_idv` (Filter
+  "unvollstaendig") bereits eingesetzt; Ausrollung auf weitere
+  Aufrufstellen in Sprint 3 geplant.
+
+### 6a.7 VULN-021 – Logout via GET ✅ BEHOBEN
+
+**Beschreibung**: `/logout` war per GET erreichbar. Ein
+externer `<img src="/logout">` konnte damit einen authentifizierten
+Benutzer unfreiwillig abmelden.
+
+**Umgesetzte Remediation**:
+- `webapp/routes/auth.py :: logout()` akzeptiert nur noch `POST`.
+- `base.html`: Der „Abmelden"-Link in der Sidebar ist ein CSRF-
+  geschütztes Formular mit `<button type="submit">`.
+
+### 6a.8 VULN-022 – Admin-RCE-Vektor via Sidecar-ZIP-Upload 📋 Opt-out
+
+**Beschreibung**: Admins können über `/admin/update/upload` eine
+ZIP-Datei hochladen, die anschließend per `_SidecarFinder` vor den
+gebündelten Modulen geladen wird (per Design: so funktioniert das
+Update-System ohne EXE-Austausch). Dadurch ist ein kompromittierter
+Admin-Account gleichbedeutend mit Remote-Code-Execution auf dem
+Server.
+
+**Entscheidung des Auftraggebers**: Die Funktion bleibt unverändert,
+weil sie für das Betriebsmodell (Updates ohne EXE-Neubuild) essenziell
+ist. Es wird jedoch ein **Opt-out** per `config.json` bereitgestellt,
+damit regulierte Umgebungen die Upload-Funktion deaktivieren können.
+
+**Umgesetzte Remediation**:
+- `config.json.example`: neuer Schalter
+  `"IDV_ALLOW_SIDECAR_UPDATES": 1` (Default aktiv). Auf `0` gesetzt
+  wird das Upload-Verhalten komplett unterbunden.
+- `webapp/routes/admin.py :: update_upload()` liest den Schalter über
+  `_sidecar_updates_enabled()` und weist Anfragen bei `0` mit
+  `flash(…, "error")` + Log-Warnung ab. Rollback (`update_rollback`)
+  bleibt aus Betriebs­sicherheitsgründen aktiv.
+- `webapp/templates/admin/update.html` zeigt eine deutliche
+  Warn-Box, wenn der Upload deaktiviert ist, inkl. Anleitung zum
+  Wiedereinschalten.
+
+**Restrisiko (bei aktivem Upload)**: Admin-Account-Kompromittierung
+erlaubt RCE. Kompensierend: `@admin_required`, CSRF-Schutz (VULN-002),
+Login-Rate-Limit (VULN-006), Audit-Logs. In regulierten Umgebungen
+sollte der Schalter auf `0` gesetzt und Updates ausschließlich über
+signierte EXE-Builds eingespielt werden.
+
 ## 7 OWASP-Top-10-Abdeckung
 
 | OWASP 2021 | Status | Bemerkung |
 |---|---|---|
-| A01 Broken Access Control | ⚠️ Teilweise | Rollenmodell ok; CSRF (VULN-002) offen |
-| A02 Cryptographic Failures | ⚠️ Teilweise | SHA-256 (VULN-001), SMTP-PW (VULN-007) |
-| A03 Injection | ✅ Geschützt | Parametrisierte Queries; Auto-Escaping |
-| A04 Insecure Design | ✅ Bedacht | Funktionstrennung, 4-Augen-Prinzip |
-| A05 Security Misconfiguration | ⚠️ Teilweise | Default-`SECRET_KEY`, Demo-Accounts, Debug |
-| A06 Vulnerable Components | ✅ Geprüft | Aktuelle Paketversionen |
-| A07 Identification/Authentication | ⚠️ Teilweise | Rate-Limiting, Hashing, Session-Timeout |
-| A08 Software/Data Integrity | ✅ Geschützt | Signierte Sessions; Sidecar-Whitelist |
-| A09 Logging/Monitoring | ⚠️ Teilweise | Logs vorhanden; SIEM-Integration empfohlen |
+| A01 Broken Access Control | ✅ Geschützt | CSRF aktiv (VULN-002); Ownership-Guards (VULN-017); Logout via POST (VULN-021) |
+| A02 Cryptographic Failures | ✅ Geschützt | pbkdf2:sha256 (VULN-001); SMTP/LDAP-PW Fernet (VULN-007) |
+| A03 Injection | ✅ Geschützt | Parametrisierte Queries; Auto-Escaping; bleach für Rich-Text (VULN-015); IN-Clause-Helper (VULN-020); Event-Delegation (VULN-019) |
+| A04 Insecure Design | ✅ Bedacht | Funktionstrennung, 4-Augen-Prinzip, Upload-MIME-Check (VULN-018) |
+| A05 Security Misconfiguration | ✅ Geschützt | SECRET_KEY-Startup-Check (VULN-004); Security-Header + nonce-CSP (VULN-008) |
+| A06 Vulnerable Components | ✅ Geprüft | Aktuelle Paketversionen; monatlicher `pip-audit` |
+| A07 Identification/Authentication | ✅ Geschützt | Hashing (VULN-001), Rate-Limiting (VULN-006), Session-Timeout (VULN-013), keine Demo-User (VULN-003) |
+| A08 Software/Data Integrity | 🛡 Teilweise | Signierte Sessions; Sidecar-Whitelist + Opt-out (VULN-022); Signatur-Pinning offen |
+| A09 Logging/Monitoring | ⚠️ Teilweise | Logs + Login-Audit vorhanden; SIEM-Integration empfohlen |
 | A10 SSRF | ✅ Nicht anwendbar | Keine URL-Fetches aus Nutzereingaben |
 
 ## 8 Abhängigkeiten – bekannte CVEs
@@ -376,36 +668,46 @@ aufzunehmen.
 ### Sprint 1 (vor Go-Live, Pflicht)
 
 - [x] **VULN-001** Passwort-Hashing auf pbkdf2:sha256 + Rehash-on-Login
-- [ ] VULN-002 CSRF-Schutz aktivieren
-- [ ] VULN-003 Demo-Zugangsdaten – *bewusst beibehalten* (siehe 3.3)
-- [x] **VULN-004** `SECRET_KEY`-Check beim Start erzwingen
+- [x] **VULN-002** CSRF-Schutz aktiviert (Flask-WTF)
+- [x] **VULN-003** Demo-Zugangsdaten entfernt; lokale Benutzer via `config.json`
+- [x] **VULN-004** `SECRET_KEY`-Check beim Start erzwungen
 - [x] **VULN-005** Prominente Debug-Warnung beim Start
+- [x] **VULN-015** Stored XSS in `nachweise_text` gefixt (bleach)
+- [x] **VULN-016** IDOR/Path-Traversal am Nachweis-Download gefixt
+- [x] **VULN-017** Ownership-Guards an allen schreibenden IDV-Routen
+- [x] **VULN-021** Logout via POST (CSRF-geschützt)
 - [ ] Produktiv-Zertifikat aus interner CA einbinden (Betrieb)
 - [ ] `SECRET_KEY` aus HSM/KeyVault (Betrieb)
 
 ### Sprint 2 (30 Tage)
 
-- [ ] VULN-006 Rate-Limiting auf Login + Update-Upload
+- [x] **VULN-006** Rate-Limiting am Login (Flask-Limiter)
 - [x] **VULN-012** LDAP `ssl_verify`-Default `1` + Warnhinweise
 - [x] **VULN-013** Session-Timeouts konfiguriert
+- [x] **VULN-018** Upload-Magic-Byte-Prüfung
+- [x] **VULN-022** Sidecar-Update-Opt-out per `config.json`
 - [ ] Monatlicher pip-audit-Lauf etabliert (Betrieb)
 
 ### Sprint 3 (90 Tage)
 
 - [x] **VULN-007** SMTP-Passwort Fernet-verschlüsselt
-- [x] **VULN-008** HTTP-Security-Header (CSP mit `unsafe-inline` – Rest in Sprint 4)
-- [ ] VULN-009 Upload-Rate-Limiting (zusammen mit VULN-006)
+- [x] **VULN-008** HTTP-Security-Header inkl. nonce-basiertem CSP
+- [x] **VULN-019** Jinja-Interpolation aus inline-`onclick` entfernt
+- [x] **VULN-020** Sicherer `in_clause()`-Helper eingeführt
+- [ ] VULN-009 Upload-Rate-Limiting (zusammen mit Flask-Limiter auf Upload-Routen)
 - [ ] VULN-010 Validierungslayer (WTForms/Pydantic)
 - [ ] VULN-011 Konkretes Exception-Handling in Admin-Routen
+- [ ] `in_clause()` auf alle verbleibenden f-String-Platzhalter (admin.py, funde.py) ausrollen
 
 ### Sprint 4 (bis nächster Major-Release)
 
 - [ ] VULN-014 Test-Suite pytest mit ≥ 70 % Abdeckung der Kernlogik
 - [ ] Statische Analyse in CI (ruff, bandit, mypy)
 - [ ] `admin.py`-Refaktorierung nach Fachdomänen
-- [ ] CSP auf nonce-/hash-basiertes Verfahren umstellen (ohne `unsafe-inline`)
+- [ ] Inline-`onclick`-Handler vollständig auf Event-Delegation umstellen; danach `script-src-attr 'unsafe-inline'` aus CSP entfernen
 - [ ] Argon2id anstelle pbkdf2:sha256 (Zukunftsfähigkeit)
 - [ ] Externer Penetrationstest beauftragt
+- [ ] Flask-Limiter-Storage auf Redis umstellen (Mehrfach-Worker)
 
 ## 10 Restrisiken
 
