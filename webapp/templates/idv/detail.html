@@ -670,17 +670,12 @@
                 {% elif f and f.status == 'Ausstehend' %}border-warning bg-warning bg-opacity-10
                 {% elif f and f.status == 'Abgebrochen' %}border-secondary bg-light
                 {% else %}bg-light{% endif %}">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  {% if not f %}
-                  <i class="bi bi-circle text-muted"></i>
-                  {% elif f.status == 'Bestanden' %}
-                  <i class="bi bi-check-circle-fill text-success"></i>
-                  {% elif f.status == 'Nicht bestanden' %}
-                  <i class="bi bi-x-circle-fill text-danger"></i>
-                  {% elif f.status == 'Ausstehend' %}
-                  <i class="bi bi-hourglass-split text-warning"></i>
-                  {% elif f.status == 'Abgebrochen' %}
-                  <i class="bi bi-slash-circle text-secondary"></i>
+                <div class="d-flex align-items-center gap-2">
+                  {% if not f %}<i class="bi bi-circle text-muted"></i>
+                  {% elif f.status == 'Bestanden' %}<i class="bi bi-check-circle-fill text-success"></i>
+                  {% elif f.status == 'Nicht bestanden' %}<i class="bi bi-x-circle-fill text-danger"></i>
+                  {% elif f.status == 'Ausstehend' %}<i class="bi bi-hourglass-split text-warning"></i>
+                  {% else %}<i class="bi bi-slash-circle text-secondary"></i>
                   {% endif %}
                   <span class="fw-500" style="font-size:.82rem">{{ schritt_name }}</span>
                   {% if f %}
@@ -689,46 +684,30 @@
                     {% elif f.status == 'Nicht bestanden' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
+                  <div class="d-flex gap-1 ms-1">
+                    <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
+                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
+                      <i class="bi bi-arrow-up-right-square"></i>
+                    </a>
+                    {% if session.get('user_role') == 'IDV-Administrator' %}
+                    <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
+                          onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
+                      <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                    {% endif %}
+                  </div>
+                  {% elif can_create %}
+                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=0) }}"
+                     class="btn btn-xs btn-success ms-auto" style="display:none"></a>
                   {% endif %}
                 </div>
-                {% if f and f.zugewiesen_an %}
-                <div class="text-muted" style="font-size:.72rem">
-                  <i class="bi bi-person me-1"></i>Beauftragt: {{ f.zugewiesen_an }}
-                </div>
-                {% endif %}
-                {% if f and f.durchgefuehrt_von %}
-                <div style="font-size:.72rem;color:#198754">
-                  <i class="bi bi-person-check me-1"></i><strong>{{ f.durchgefuehrt_von }}</strong>
-                  <span class="text-muted">· {{ f.durchgefuehrt_am[:10] if f.durchgefuehrt_am else '' }}</span>
-                </div>
-                {% endif %}
-                {% if f and f.befunde %}
-                <div class="text-danger mt-1" style="font-size:.72rem">
-                  <i class="bi bi-exclamation-triangle me-1"></i>{{ f.befunde }}
-                </div>
-                {% endif %}
-                {% if f and f.nachweise_text %}
-                <div class="text-muted mt-1" style="font-size:.72rem">
-                  <i class="bi bi-card-text me-1"></i>{{ f.nachweise_text }}
-                </div>
-                {% endif %}
-                {% if f and f.nachweis_datei_name %}
-                <div class="mt-1" style="font-size:.72rem">
-                  <i class="bi bi-paperclip me-1"></i>
-                  <a href="{{ url_for('freigaben.nachweis_download', filename=f.nachweis_datei_pfad) }}"
-                    class="text-decoration-none">{{ f.nachweis_datei_name }}</a>
-                </div>
-                {% endif %}
-                {% if f and f.status == 'Abgebrochen' and f.abbruch_kommentar %}
-                <div class="text-muted mt-1" style="font-size:.72rem">
-                  <i class="bi bi-slash-circle me-1"></i>{{ f.abbruch_kommentar }}
-                </div>
-                {% endif %}
                 {% if f and f.status == 'Ausstehend' and can_create %}
                 <div class="mt-2">
                   <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
                      class="btn btn-xs btn-success w-100">
-                    <i class="bi bi-check2 me-1"></i>Bestanden
+                    <i class="bi bi-check2 me-1"></i>Bestanden markieren
                   </a>
                 </div>
                 {% endif %}
@@ -761,17 +740,12 @@
                 {% elif f and f.status == 'Ausstehend' %}border-warning bg-warning bg-opacity-10
                 {% elif f and f.status == 'Abgebrochen' %}border-secondary bg-light
                 {% else %}bg-light{% endif %}">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  {% if not f %}
-                  <i class="bi bi-circle text-muted"></i>
-                  {% elif f.status == 'Bestanden' %}
-                  <i class="bi bi-check-circle-fill text-success"></i>
-                  {% elif f.status == 'Nicht bestanden' %}
-                  <i class="bi bi-x-circle-fill text-danger"></i>
-                  {% elif f.status == 'Ausstehend' %}
-                  <i class="bi bi-hourglass-split text-warning"></i>
-                  {% elif f.status == 'Abgebrochen' %}
-                  <i class="bi bi-slash-circle text-secondary"></i>
+                <div class="d-flex align-items-center gap-2">
+                  {% if not f %}<i class="bi bi-circle text-muted"></i>
+                  {% elif f.status == 'Bestanden' %}<i class="bi bi-check-circle-fill text-success"></i>
+                  {% elif f.status == 'Nicht bestanden' %}<i class="bi bi-x-circle-fill text-danger"></i>
+                  {% elif f.status == 'Ausstehend' %}<i class="bi bi-hourglass-split text-warning"></i>
+                  {% else %}<i class="bi bi-slash-circle text-secondary"></i>
                   {% endif %}
                   <span class="fw-500" style="font-size:.82rem">{{ schritt_name }}</span>
                   {% if f %}
@@ -780,46 +754,27 @@
                     {% elif f.status == 'Nicht bestanden' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
+                  <div class="d-flex gap-1 ms-1">
+                    <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
+                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
+                      <i class="bi bi-arrow-up-right-square"></i>
+                    </a>
+                    {% if session.get('user_role') == 'IDV-Administrator' %}
+                    <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
+                          onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
+                      <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                    {% endif %}
+                  </div>
                   {% endif %}
                 </div>
-                {% if f and f.zugewiesen_an %}
-                <div class="text-muted" style="font-size:.72rem">
-                  <i class="bi bi-person me-1"></i>Beauftragt: {{ f.zugewiesen_an }}
-                </div>
-                {% endif %}
-                {% if f and f.durchgefuehrt_von %}
-                <div style="font-size:.72rem;color:#198754">
-                  <i class="bi bi-person-check me-1"></i><strong>{{ f.durchgefuehrt_von }}</strong>
-                  <span class="text-muted">· {{ f.durchgefuehrt_am[:10] if f.durchgefuehrt_am else '' }}</span>
-                </div>
-                {% endif %}
-                {% if f and f.befunde %}
-                <div class="text-danger mt-1" style="font-size:.72rem">
-                  <i class="bi bi-exclamation-triangle me-1"></i>{{ f.befunde }}
-                </div>
-                {% endif %}
-                {% if f and f.nachweise_text %}
-                <div class="text-muted mt-1" style="font-size:.72rem">
-                  <i class="bi bi-card-text me-1"></i>{{ f.nachweise_text }}
-                </div>
-                {% endif %}
-                {% if f and f.nachweis_datei_name %}
-                <div class="mt-1" style="font-size:.72rem">
-                  <i class="bi bi-paperclip me-1"></i>
-                  <a href="{{ url_for('freigaben.nachweis_download', filename=f.nachweis_datei_pfad) }}"
-                    class="text-decoration-none">{{ f.nachweis_datei_name }}</a>
-                </div>
-                {% endif %}
-                {% if f and f.status == 'Abgebrochen' and f.abbruch_kommentar %}
-                <div class="text-muted mt-1" style="font-size:.72rem">
-                  <i class="bi bi-slash-circle me-1"></i>{{ f.abbruch_kommentar }}
-                </div>
-                {% endif %}
                 {% if f and f.status == 'Ausstehend' and can_create %}
                 <div class="mt-2">
                   <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
                      class="btn btn-xs btn-success w-100">
-                    <i class="bi bi-check2 me-1"></i>Bestanden
+                    <i class="bi bi-check2 me-1"></i>Bestanden markieren
                   </a>
                 </div>
                 {% endif %}
@@ -867,28 +822,13 @@
             {% endif %}
           </div>
           {% if fachlicher_test %}
-          <div class="d-flex align-items-start gap-2 rounded p-2
-            {% if fachlicher_test.bewertung == 'Bestanden' %}bg-success bg-opacity-10
-            {% else %}bg-light{% endif %}" style="font-size:.78rem">
-            <span class="flex-shrink-0 mt-1">
-              {% if fachlicher_test.bewertung == 'Bestanden' %}
-              <i class="bi bi-check-circle-fill text-success"></i>
-              {% else %}
-              <i class="bi bi-circle text-secondary"></i>
-              {% endif %}
-            </span>
-            <div>
-              <span class="fw-500">{{ fachlicher_test.bewertung }}</span>
-              {% if fachlicher_test.tester %}
-              <span class="text-muted ms-1">· {{ fachlicher_test.tester }}</span>
-              {% endif %}
-              {% if fachlicher_test.testdatum %}
-              <span class="text-muted ms-1">· {{ fachlicher_test.testdatum|datefmt }}</span>
-              {% endif %}
-              {% if fachlicher_test.beschreibung %}
-              <div class="text-muted mt-1">{{ fachlicher_test.beschreibung|striptags|truncate(80) }}</div>
-              {% endif %}
-            </div>
+          <div class="d-flex align-items-center gap-2" style="font-size:.78rem">
+            {% if fachlicher_test.bewertung == 'Bestanden' %}
+            <i class="bi bi-check-circle-fill text-success"></i>
+            {% else %}
+            <i class="bi bi-circle text-secondary"></i>
+            {% endif %}
+            <span class="fw-500">{{ fachlicher_test.bewertung }}</span>
           </div>
           {% else %}
           <div class="text-muted" style="font-size:.78rem">
@@ -924,30 +864,15 @@
             {% endif %}
           </div>
           {% if technischer_test %}
-          <div class="d-flex align-items-start gap-2 rounded p-2
-            {% if technischer_test.ergebnis == 'Bestanden' %}bg-success bg-opacity-10
-            {% else %}bg-light{% endif %}" style="font-size:.78rem">
-            <span class="flex-shrink-0 mt-1">
-              {% if technischer_test.ergebnis == 'Bestanden' %}
-              <i class="bi bi-check-circle-fill text-success"></i>
-              {% elif technischer_test.ergebnis == 'Entfällt' %}
-              <i class="bi bi-dash-circle text-secondary"></i>
-              {% else %}
-              <i class="bi bi-circle text-secondary"></i>
-              {% endif %}
-            </span>
-            <div>
-              <span class="fw-500">{{ technischer_test.ergebnis }}</span>
-              {% if technischer_test.pruefer %}
-              <span class="text-muted ms-1">· {{ technischer_test.pruefer }}</span>
-              {% endif %}
-              {% if technischer_test.pruefungsdatum %}
-              <span class="text-muted ms-1">· {{ technischer_test.pruefungsdatum|datefmt }}</span>
-              {% endif %}
-              {% if technischer_test.kurzbeschreibung %}
-              <div class="text-muted mt-1">{{ technischer_test.kurzbeschreibung|striptags|truncate(80) }}</div>
-              {% endif %}
-            </div>
+          <div class="d-flex align-items-center gap-2" style="font-size:.78rem">
+            {% if technischer_test.ergebnis == 'Bestanden' %}
+            <i class="bi bi-check-circle-fill text-success"></i>
+            {% elif technischer_test.ergebnis == 'Entfällt' %}
+            <i class="bi bi-dash-circle text-secondary"></i>
+            {% else %}
+            <i class="bi bi-circle text-secondary"></i>
+            {% endif %}
+            <span class="fw-500">{{ technischer_test.ergebnis }}</span>
           </div>
           {% else %}
           <div class="text-muted" style="font-size:.78rem">

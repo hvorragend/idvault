@@ -278,27 +278,41 @@ def abnahme_starten(idv_db_id):
 @bp.route("/<int:freigabe_id>/bestanden", methods=["GET"])
 @own_write_required
 def bestanden_seite(freigabe_id):
-    """Zeigt das vollseitige Formular zum Abschließen eines Freigabe-Schritts.
-    Für Fachlicher Test / Technischer Test wird direkt zur Testdokumentation weitergeleitet."""
+    """Zeigt das Formular zum Abschließen eines Freigabe-Schritts (oder read-only wenn bereits abgeschlossen)."""
     db = get_db()
-    freigabe = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
-    if not freigabe or freigabe["status"] != "Ausstehend":
-        flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
+    freigabe = db.execute("""
+        SELECT f.*,
+               p_d.nachname || ', ' || p_d.vorname AS durchgefuehrt_von,
+               p_z.nachname || ', ' || p_z.vorname AS zugewiesen_an
+        FROM idv_freigaben f
+        LEFT JOIN persons p_d ON f.durchgefuehrt_von_id = p_d.id
+        LEFT JOIN persons p_z ON f.zugewiesen_an_id     = p_z.id
+        WHERE f.id = ?
+    """, (freigabe_id,)).fetchone()
+    if not freigabe:
+        flash("Freigabe-Schritt nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
     idv = db.execute("SELECT * FROM idv_register WHERE id=?", (freigabe["idv_id"],)).fetchone()
     if not idv:
         flash("IDV nicht gefunden.", "error")
         return redirect(url_for("idv.list_idv"))
 
-    # Test-Schritte zur spezialisierten Test-Maske weiterleiten (Freigabe-ID mitgeben)
+    # Phase-1-Schritte: immer zur spezialisierten Testmaske weiterleiten
     if freigabe["schritt"] == "Fachlicher Test":
-        return redirect(url_for("tests.new_fachlicher_testfall",
-                                idv_db_id=idv["id"], freigabe_id=freigabe_id))
+        kwargs = {"idv_db_id": idv["id"]}
+        if freigabe["status"] == "Ausstehend":
+            kwargs["freigabe_id"] = freigabe_id
+        return redirect(url_for("tests.new_fachlicher_testfall", **kwargs))
     if freigabe["schritt"] == "Technischer Test":
-        return redirect(url_for("tests.edit_technischer_test",
-                                idv_db_id=idv["id"], freigabe_id=freigabe_id))
+        kwargs = {"idv_db_id": idv["id"]}
+        if freigabe["status"] == "Ausstehend":
+            kwargs["freigabe_id"] = freigabe_id
+        return redirect(url_for("tests.edit_technischer_test", **kwargs))
 
-    return render_template("freigaben/bestanden_form.html", freigabe=freigabe, idv=idv)
+    # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend, sonst Lesemodus
+    readonly = freigabe["status"] != "Ausstehend"
+    return render_template("freigaben/bestanden_form.html",
+                           freigabe=freigabe, idv=idv, readonly=readonly)
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +501,32 @@ def abbrechen(idv_db_id):
     db.commit()
 
     flash("Freigabeverfahren wurde abgebrochen.", "warning")
+    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+
+# ---------------------------------------------------------------------------
+# Freigabe-Schritt löschen (Admin)
+# ---------------------------------------------------------------------------
+
+@bp.route("/<int:freigabe_id>/loeschen", methods=["POST"])
+@admin_required
+def loeschen(freigabe_id):
+    """Admin löscht einen einzelnen Freigabe-Schritt."""
+    db        = get_db()
+    person_id = current_person_id()
+    freigabe  = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
+    if not freigabe:
+        flash("Freigabe-Schritt nicht gefunden.", "error")
+        return redirect(url_for("idv.list_idv"))
+    idv_db_id = freigabe["idv_id"]
+    schritt   = freigabe["schritt"]
+    db.execute("DELETE FROM idv_freigaben WHERE id=?", (freigabe_id,))
+    db.execute(
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        (idv_db_id, "freigabe_schritt_geloescht", f"{schritt} gelöscht", person_id)
+    )
+    db.commit()
+    flash(f"'{schritt}' wurde gelöscht.", "success")
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 
