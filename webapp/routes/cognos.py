@@ -141,7 +141,7 @@ def _parse_file(file_bytes: bytes, filename: str) -> tuple:
 # Routen
 # ---------------------------------------------------------------------------
 
-_VALID_PER_PAGE = (25, 50, 100, 200, 500)
+_VALID_PER_PAGE = (25, 50, 100, 200, 500, 1000, 2000)
 
 
 _SORT_COLS = {
