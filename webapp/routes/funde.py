@@ -12,6 +12,7 @@ def _bootstrap_extras(state):
 
     1. Registriert safe_url_for als Jinja2-Global (verhindert BuildError in base.html).
     2. Registriert das cognos-Blueprint falls cognos.py im Updates-Ordner vorhanden ist.
+    3. Führt Cognos-DB-Migrationen aus (Tabelle + Spalten), falls noch nicht vorhanden.
     """
     from werkzeug.routing import BuildError
 
@@ -30,6 +31,96 @@ def _bootstrap_extras(state):
             state.app.register_blueprint(cognos_bp)
         except Exception:
             pass
+
+    # ── Cognos-DB-Migration ───────────────────────────────────────────────
+    # db.py läuft aus der alten EXE und kennt die neuen Tabellen/Spalten noch
+    # nicht. Wir führen die Migration hier direkt durch.
+    try:
+        import sqlite3 as _sqlite3
+        db_path = state.app.config.get("DATABASE")
+        if not db_path:
+            return
+        _conn = _sqlite3.connect(db_path, timeout=10)
+        _conn.execute("PRAGMA foreign_keys = ON")
+        _conn.execute("PRAGMA journal_mode = WAL")
+
+        def _has_col(table, col):
+            rows = _conn.execute(f"PRAGMA table_info({table})").fetchall()
+            return any(r[1] == col for r in rows)
+
+        def _has_table(name):
+            return _conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?",
+                (name,)
+            ).fetchone()[0] > 0
+
+        # --- idv_files: Cognos-Spalten ---
+        for _col, _typedef in [
+            ("ist_cognos_report",          "INTEGER DEFAULT 0"),
+            ("cognos_report_name",         "TEXT"),
+            ("cognos_paket_pfad",          "TEXT"),
+            ("cognos_abfragen_anzahl",     "INTEGER"),
+            ("cognos_datenpunkte_anzahl",  "INTEGER"),
+            ("cognos_filter_anzahl",       "INTEGER"),
+            ("cognos_seiten_anzahl",       "INTEGER"),
+            ("cognos_parameter_anzahl",    "INTEGER"),
+            ("cognos_namespace_version",   "TEXT"),
+        ]:
+            if not _has_col("idv_files", _col):
+                _conn.execute(
+                    f"ALTER TABLE idv_files ADD COLUMN {_col} {_typedef}"
+                )
+
+        # --- klassifizierungen: Cognos-Report IDV-Typ ---
+        _conn.execute(
+            "INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) "
+            "VALUES ('idv_typ', 'Cognos-Report', 9)"
+        )
+
+        # --- cognos_berichte Tabelle ---
+        if not _has_table("cognos_berichte"):
+            _conn.executescript("""
+                CREATE TABLE IF NOT EXISTS cognos_berichte (
+                    id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    import_datei_name           TEXT,
+                    importiert_am               TEXT NOT NULL DEFAULT (datetime('now','utc')),
+                    importiert_von_id           INTEGER REFERENCES persons(id),
+                    umfeld                      TEXT,
+                    bank_id                     TEXT,
+                    anwendung                   TEXT,
+                    berichtsname                TEXT NOT NULL,
+                    suchpfad                    TEXT,
+                    package                     TEXT,
+                    eigentuemer                 TEXT,
+                    berichtsbeschreibung        TEXT,
+                    erstelldatum                TEXT,
+                    aenderungsdatum             TEXT,
+                    letztes_ausfuehrungsdatum   TEXT,
+                    letzter_ausfuehrungsstatus  TEXT,
+                    anz_abfragen                INTEGER,
+                    anz_datenelemente           INTEGER,
+                    anz_felder_klarnamen        INTEGER,
+                    anz_filter                  INTEGER,
+                    summe_ausdruckslaenge       INTEGER,
+                    komplexitaet                REAL,
+                    datum_berichtsabzug         TEXT,
+                    idv_file_id                 INTEGER REFERENCES idv_files(id),
+                    idv_register_id             INTEGER REFERENCES idv_register(id),
+                    bearbeitungsstatus          TEXT NOT NULL DEFAULT 'Neu',
+                    UNIQUE(bank_id, berichtsname, suchpfad)
+                );
+                CREATE INDEX IF NOT EXISTS idx_cognos_berichte_anwendung
+                    ON cognos_berichte(anwendung);
+                CREATE INDEX IF NOT EXISTS idx_cognos_berichte_bank_id
+                    ON cognos_berichte(bank_id);
+                CREATE INDEX IF NOT EXISTS idx_cognos_berichte_status
+                    ON cognos_berichte(bearbeitungsstatus);
+            """)
+
+        _conn.commit()
+        _conn.close()
+    except Exception:
+        pass
 
 
 def _scan_btn_ctx() -> dict:
