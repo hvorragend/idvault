@@ -37,8 +37,10 @@ REM 3. Browser öffnen
 http://localhost:5000
 ```
 
-Beim ersten Start wird `instance/idvault.db` angelegt und die
-Demo-Zugangsdaten (`admin / idvault2025`) aktiviert.
+Beim ersten Start wird `instance/idvault.db` angelegt, die
+Demo-Zugangsdaten (`admin / idvault2025`) aktiviert und — falls noch
+keine `config.json` vorhanden ist — automatisch eine `config.json` mit
+einem zufälligen `SECRET_KEY` neben der EXE erzeugt.
 
 ### 2.2 Variante B – Quellinstallation
 
@@ -66,31 +68,76 @@ Keine MSI, keine Dienste, keine Registry-Einträge.
 6. Administration → Scanner-Einstellungen: Scan-Pfade hinterlegen
 7. Demo-Zugangsdaten deaktivieren (siehe [05 – Sicherheitskonzept](05-sicherheitskonzept.md) Abschnitt 7)
 
-### 3.2 Umgebungsvariablen
+### 3.2 Konfigurationsdatei (config.json)
+
+Die bevorzugte Methode zur Konfiguration ist die Datei `config.json`
+neben der EXE (bzw. im Projektverzeichnis). Sie wird beim ersten Start
+**automatisch angelegt**, falls weder die Datei noch die Env-Variable
+`SECRET_KEY` vorhanden ist.
+
+Vorlage für manuelle Anpassung:
+
+```
+config.json.example  →  config.json kopieren und bearbeiten
+```
+
+Beispielinhalt:
+
+```json
+{
+  "SECRET_KEY": "zufaelliger-schluessel-mind-32-zeichen",
+  "PORT": 5000,
+  "IDV_HTTPS": 0,
+  "IDV_SMTP_HOST": "mail.bank.de",
+  "IDV_SMTP_PORT": 587,
+  "IDV_SMTP_USER": "idvault@bank.de",
+  "IDV_SMTP_PASSWORD": "Passwort",
+  "IDV_SMTP_FROM": "idvault@bank.de",
+  "IDV_APP_BASE_URL": "https://idvault.bank.de"
+}
+```
+
+Die vollständige Vorlage mit allen Schlüsseln liegt in `config.json.example`.
+
+> **Sicherheitshinweis:** `config.json` enthält den `SECRET_KEY` im
+> Klartext. Dateizugriffsrechte auf den Betriebssystemnutzer der
+> Anwendung einschränken.
+
+### 3.3 Umgebungsvariablen
+
+OS-Umgebungsvariablen haben **immer Vorrang** über `config.json` — sie
+eignen sich als Override in CI/CD-Pipelines, Docker-Containern oder
+Skripten.
 
 | Variable | Zweck | Default |
 |---|---|---|
-| `SECRET_KEY` | **Zwingend** zu setzen (≥ 32 Zeichen). Beim Start ohne Variable bricht die Anwendung mit Exit-Code 2 ab (Ausnahme: `DEBUG=1`). | `"dev-change-in-production-!"` (nur im Debug) |
+| `SECRET_KEY` | Flask Session Secret (≥ 32 Zeichen). Wird beim ersten Start ohne `config.json` automatisch generiert. | — (auto) |
 | `IDV_HTTPS` | HTTPS aktivieren | `0` |
 | `IDV_SSL_CERT` | Zertifikatspfad | `instance/certs/cert.pem` |
 | `IDV_SSL_KEY` | Privater Schlüssel | `instance/certs/key.pem` |
 | `IDV_SSL_AUTOGEN` | Auto-Generierung selbstsigniert | `1` |
 | `PORT` | Netzwerk-Port | 5000 HTTP / 5443 HTTPS |
+| `IDV_DB_PATH` | Datenbankpfad | `instance/idvault.db` |
+| `IDV_INSTANCE_PATH` | Instanzverzeichnis | `instance/` |
 | `IDV_SMTP_HOST` | SMTP-Server | — |
 | `IDV_SMTP_PORT` | SMTP-Port | 587 |
 | `IDV_SMTP_USER` | SMTP-Benutzer | — |
 | `IDV_SMTP_PASSWORD` | SMTP-Passwort | — |
 | `IDV_SMTP_FROM` | Absenderadresse | — |
 | `IDV_SMTP_TLS` | STARTTLS (1) / SMTPS (0) | 1 |
+| `IDV_APP_BASE_URL` | Basis-URL für E-Mail-Links | — |
 | `DEBUG` | **Niemals produktiv** | 0 |
 
 ## 4 HTTPS-Konfiguration
 
 ### 4.1 Schnellstart mit selbstsigniertem Zertifikat
 
-```cmd
-set IDV_HTTPS=1
-idvault.exe
+In `config.json` eintragen:
+
+```json
+{
+  "IDV_HTTPS": 1
+}
 ```
 
 → Zertifikat wird beim ersten Start unter `instance\certs\` angelegt
@@ -98,11 +145,14 @@ idvault.exe
 
 ### 4.2 Eigenes Zertifikat verwenden
 
-```cmd
-set IDV_HTTPS=1
-set IDV_SSL_CERT=C:\zertifikate\idvault-fullchain.pem
-set IDV_SSL_KEY=C:\zertifikate\idvault-key.pem
-idvault.exe
+In `config.json` eintragen:
+
+```json
+{
+  "IDV_HTTPS": 1,
+  "IDV_SSL_CERT": "C:\\zertifikate\\idvault-fullchain.pem",
+  "IDV_SSL_KEY": "C:\\zertifikate\\idvault-key.pem"
+}
 ```
 
 Bei CA-signierten Zertifikaten muss die vollständige Zertifikatskette
@@ -249,6 +299,7 @@ Details siehe [10 – Scanner](10-scanner.md).
 ### 8.1 Sicherungsobjekt
 
 ```
+config.json               Konfigurationsdatei (SECRET_KEY, SMTP, ...)
 instance/
 ├── idvault.db            SQLite-Datenbank
 ├── idvault.log*          Anwendungs-Logs

@@ -4,8 +4,14 @@ idvault – Startpunkt
 Entwicklung:  python run.py
 Produktion:   gunicorn "run:app" --workers 2 --bind 0.0.0.0:5000
 
-Umgebungsvariablen:
-  IDV_DB_PATH      Pfad zur SQLite-Datenbank (Standard: instance/idvault.db)
+Konfiguration (config.json):
+  Beim ersten Start wird config.json mit einem zufälligen SECRET_KEY
+  automatisch angelegt (falls weder Datei noch Env-Variable vorhanden).
+  Vorlage: config.json.example → config.json kopieren und anpassen.
+
+  OS-Umgebungsvariablen haben immer Vorrang über config.json.
+
+Umgebungsvariablen (alternativ zu config.json oder als Override):
   SECRET_KEY       Flask Session Secret      (Pflicht in Produktion!)
   PORT             Netzwerkport              (Standard: 5000 / 5443 bei HTTPS)
   DEBUG            1 = Debug-Modus           (Standard: 0)
@@ -14,6 +20,7 @@ Umgebungsvariablen:
   IDV_SSL_KEY      Pfad zum priv. Schlüssel  (Standard: instance/certs/key.pem)
   IDV_SSL_AUTOGEN  1 = Selbstsigniertes Zertifikat erzeugen, falls fehlend
                                              (Standard: 1)
+  IDV_DB_PATH      Pfad zur SQLite-Datenbank (Standard: instance/idvault.db)
 """
 
 import os
