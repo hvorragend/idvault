@@ -1254,30 +1254,34 @@ def run_scan(config: dict, logger: logging.Logger,
         deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, scan_paths)
         conn.commit()
 
-        # ── Auto-Ignorieren am Scan-Ende: verbleibende Dateien ohne Formeln ─
+        # ── Auto-Ignorieren am Scan-Ende: verbleibende Excel-Dateien ohne Formeln ─
         # (deckt Dateien ab, die bereits vor diesem Scan existierten und noch 'Neu' sind)
+        # WICHTIG: Nur Excel-Dateien – andere Dateitypen (Access, Cognos, Skripte …)
+        # dürfen nicht pauschal ignoriert werden, nur weil sie keine Formeln haben.
         auto_ignored = 0
         try:
             if runtime_auto_ignore:
-                cur_ai = conn.execute("""
+                ext_placeholders = ",".join("?" * len(_EXCEL_EXTENSIONS))
+                cur_ai = conn.execute(f"""
                     UPDATE idv_files
                     SET bearbeitungsstatus = 'Ignoriert'
                     WHERE status = 'active'
                       AND bearbeitungsstatus = 'Neu'
+                      AND LOWER(extension) IN ({ext_placeholders})
                       AND (formula_count IS NULL OR formula_count = 0)
                       AND (has_macros IS NULL OR has_macros = 0)
                       AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)
                       AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)
-                """)
+                """, tuple(_EXCEL_EXTENSIONS))
                 auto_ignored = cur_ai.rowcount
                 conn.commit()
                 if auto_ignored:
-                    logger.info(f"  Auto-Ignoriert  : {auto_ignored} Dateien (ohne Formeln/Makros)")
+                    logger.info(f"  Auto-Ignoriert  : {auto_ignored} Excel-Dateien (ohne Formeln/Makros)")
         except Exception as e:
             logger.warning(f"Auto-Ignorieren fehlgeschlagen: {e}")
 
         if stats.get("discarded"):
-            logger.info(f"  Verworfen       : {stats['discarded']} Dateien (kein Formel/Makro)")
+            logger.info(f"  Verworfen       : {stats['discarded']} Excel-Dateien (kein Formel/Makro)")
 
         finished = datetime.now(timezone.utc).isoformat()
         conn.execute("""
