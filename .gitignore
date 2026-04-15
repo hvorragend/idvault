@@ -41,3 +41,6 @@ scanner/config.json
 
 # Patch files
 *.patch
+
+# Lokale Anwendungskonfiguration (kann Secrets enthalten – nie einchecken)
+config.json
