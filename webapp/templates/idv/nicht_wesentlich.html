@@ -4,69 +4,95 @@
 
 {% block content %}
 
-<div class="d-flex justify-content-end align-items-center mb-3">
-  {% include 'funde/_scan_button.html' %}
-</div>
-
 <p class="text-muted mb-4" style="font-size:.87rem">
   Eigenentwicklungen, die als <strong>nicht wesentlich</strong> eingestuft wurden.
   Diese IDVs unterliegen keiner vollständigen Freigabepflicht gemäß MaRisk AT 7.2,
   sind aber dennoch im IDV-Register erfasst.
 </p>
 
-<!-- ── Kennzahl ──────────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
-  <div class="col-sm-3">
-    <div class="card border-0 shadow-sm stat-card p-3 text-center">
-      <div class="stat-val text-secondary">{{ total }}</div>
-      <div class="stat-lbl">Nicht wesentliche IDVs</div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Filter-Leiste ─────────────────────────────────────────────── -->
-<form method="get" class="card border-0 shadow-sm p-3 mb-3">
+<!-- ── Filter-Leiste ──────────────────────────────────────────────── -->
+<form method="get" class="card border-0 shadow-sm p-3 mb-4">
   <div class="row g-2 align-items-end">
-    <div class="col-md-5">
-      <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Suche</label>
-      <input type="text" name="q" class="form-control form-control-sm"
-             placeholder="IDV-ID, Bezeichnung oder Beschreibung …"
-             value="{{ q }}">
+
+    <!-- Zeile 1: Suche + Status + Buttons -->
+    <div class="col-md-4">
+      <label class="form-label form-label-sm">Suche</label>
+      <input type="text" name="q" value="{{ q }}"
+             class="form-control form-control-sm" placeholder="IDV-ID, Name, Beschreibung …">
     </div>
-    <div class="col-md-5">
-      <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
+    <div class="col-md-2">
+      <label class="form-label form-label-sm">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">Alle</option>
+        {% for s in ['Entwurf','In Prüfung','Genehmigt','Genehmigt mit Auflagen','Abgelehnt','Abgekündigt'] %}
+        <option {{ 'selected' if status == s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
+      {% set field_name    = "share_root" %}
+      {% set field_options = share_roots %}
+      {% set field_value   = share_root %}
+      {% set input_id      = "share-root-search" %}
       {% include 'funde/_dir_search.html' %}
     </div>
-    <div class="col-auto d-flex gap-1 align-items-end">
-      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel me-1"></i>Filtern</button>
+    <div class="col-md-2 d-flex gap-1 align-items-end">
+      <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
       <a href="{{ url_for('idv.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
-  </div>
-  {% if q or dir_path_filt %}
-  <div class="mt-2 d-flex flex-wrap gap-1">
-    {% if q %}
-    <span class="badge bg-primary"><i class="bi bi-search me-1"></i>{{ q }}</span>
+
+    <!-- Zeile 2: OE + Fachverantwortlicher -->
+    <div class="col-md-6">
+      <label class="form-label form-label-sm"><i class="bi bi-diagram-3 me-1"></i>Organisationseinheit</label>
+      <select name="oe_id" class="form-select form-select-sm">
+        <option value="">– Alle OEs –</option>
+        {% for ou in org_units %}
+        <option value="{{ ou.id }}" {{ 'selected' if oe_id == ou.id }}>
+          {{ ou.kuerzel }} – {{ ou.bezeichnung }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Fachverantwortlicher</label>
+      <select name="fv_id" class="form-select form-select-sm">
+        <option value="">– Alle –</option>
+        {% for p in persons_fv %}
+        <option value="{{ p.id }}" {{ 'selected' if fv_id == p.id }}>
+          {{ p.nachname }}, {{ p.vorname }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Aktive Filter anzeigen -->
+    {% if share_root or oe_id or fv_id %}
+    <div class="col-12 d-flex gap-2 flex-wrap mt-1">
+      {% if share_root %}
+      <span class="badge bg-success font-monospace"><i class="bi bi-folder me-1"></i>{{ share_root }}</span>
+      {% endif %}
+    </div>
     {% endif %}
-    {% if dir_path_filt %}
-    <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
-    {% endif %}
+
   </div>
-  {% endif %}
 </form>
 
 <!-- ── Pagination oben ────────────────────────────────────────────── -->
-{% set url_extra = {'q': q, 'dir_path': dir_path_filt} %}
+{% set url_extra = {'q': q, 'status': status, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root} %}
 {% set endpoint = 'idv.nicht_wesentliche_idvs' %}
 {% include 'funde/_pagination.html' %}
 
+<!-- ── Tabelle ────────────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm mt-2">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-600">
       <i class="bi bi-dash-circle me-2 text-secondary"></i>
-      Nicht wesentliche Eigenentwicklungen
-      <span class="badge bg-secondary ms-1">
-        {% if total > per_page %}{{ nicht_wesentliche|length }} von {{ total }}{% else %}{{ total }}{% endif %}
-      </span>
+      {% if total > per_page %}
+      {{ nicht_wesentliche|length }} von {{ total }} Einträgen (Seite {{ page }})
+      {% else %}
+      {{ total }} Einträge
+      {% endif %}
     </span>
     <a href="{{ url_for('idv.list_idv', filter='nicht_wesentlich') }}"
        class="btn btn-sm btn-outline-secondary">
@@ -74,60 +100,90 @@
     </a>
   </div>
   <div class="table-responsive">
-    <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+    <table class="table table-hover mb-0 table-idv" id="nw-table" style="font-size:.82rem">
       <thead>
         <tr>
-          <th>IDV-ID</th>
-          <th>Bezeichnung</th>
-          <th>OE</th>
-          <th>Fachverantwortlicher</th>
-          <th>Status</th>
+          <th class="sortable">IDV-ID</th>
+          <th class="sortable">Bezeichnung</th>
+          <th class="sortable">OE</th>
+          <th class="sortable">Typ</th>
+          <th>Version / Dateien</th>
+          <th class="sortable">Status</th>
+          <th class="sortable">Fachverantwortlicher</th>
           <th>Geändert</th>
-          <th>Dateiname</th>
-          <th>Verzeichnis</th>
+          <th class="sortable">Nächste Prüfung</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         {% for r in nicht_wesentliche %}
         <tr>
-          <td class="font-monospace" style="font-size:.78rem">{{ r.idv_id }}</td>
-          <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">
+          <td>
+            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
+               class="fw-500 text-decoration-none font-monospace" style="font-size:.82rem">
+              {{ r.idv_id }}
+            </a>
+          </td>
+          <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">
             {{ r.bezeichnung }}
           </td>
-          <td style="font-size:.78rem">{{ r.org_einheit or '–' }}</td>
-          <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+          <td style="font-size:.78rem;white-space:nowrap">
+            {% if r.org_einheit %}
+            <a href="{{ url_for('idv.nicht_wesentliche_idvs', oe_id=r.org_unit_id, status=status, q=q) }}"
+               class="text-decoration-none text-muted" title="Nach dieser OE filtern">
+              {{ r.org_einheit }}
+            </a>
+            {% else %}–{% endif %}
+          </td>
           <td>
-            <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
+            <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
           </td>
-          <td class="text-nowrap" style="font-size:.76rem">
-            {{ r.file_modified_at|datefmt if r.file_modified_at else '–' }}
-          </td>
-          <td class="text-truncate" style="max-width:180px" title="{{ r.file_name }}">
-            {{ r.file_name or '–' }}
-          </td>
-          <td style="font-size:.74rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-              title="{{ r.full_path }}">
-            {% if r.dir_path %}
-            <span class="badge bg-success font-monospace"
-                  style="font-size:.68rem"
-                  title="{{ r.dir_path }}">
-              <i class="bi bi-folder2-open me-1"></i>{{ ('…' + r.dir_path[-55:]) if r.dir_path|length > 58 else r.dir_path }}
-            </span>
+          <td style="white-space:nowrap;font-size:.78rem">
+            {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
+              <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige IDV"></i>
+            {% endif %}
+            <span class="text-muted">v{{ r.version or '1.0' }}</span>
+            {% if r.datei_anzahl %}
+              <span class="badge bg-secondary ms-1" title="{{ r.datei_anzahl }} verknüpfte Datei(en)">
+                <i class="bi bi-file-earmark me-1"></i>{{ r.datei_anzahl }}
+              </span>
+            {% endif %}
+            {% if r.file_has_macros %}
+              <span class="badge bg-danger ms-1" title="VBA-Makros vorhanden">VBA</span>
+            {% endif %}
+            {% if r.file_has_sheet_protection %}
+              <span class="badge bg-warning text-dark ms-1" title="Blattschutz aktiv"><i class="bi bi-lock-fill"></i></span>
+            {% endif %}
+            {% if r.file_formula_count %}
+              <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{ r.file_formula_count }}</span>
             {% endif %}
           </td>
           <td>
-            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.idv_db_id) }}"
-               class="btn btn-xs btn-outline-secondary" title="IDV-Detail">
+            <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
+          </td>
+          <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+          <td class="text-nowrap" style="font-size:.76rem">{{ r.updated_at|datefmt if r.updated_at else '–' }}</td>
+          <td style="font-size:.82rem">
+            {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
+              <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
+            {% elif r.pruefstatus == 'BALD FÄLLIG' %}
+              <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
+            {% else %}
+              {{ r.naechste_pruefung|datefmt if r.naechste_pruefung else '–' }}
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
+               class="btn btn-xs btn-outline-secondary" title="Detail">
               <i class="bi bi-eye"></i>
             </a>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="9" class="text-center text-muted py-4">
-            <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
-            Keine nicht wesentlichen Scanner-IDVs vorhanden.
+          <td colspan="10" class="text-center text-muted py-5">
+            <i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>
+            Keine nicht wesentlichen IDVs gefunden.
           </td>
         </tr>
         {% endfor %}
@@ -140,8 +196,60 @@
 {% include 'funde/_pagination.html' %}
 
 <style>
-.btn-xs { padding: .15rem .45rem; font-size: .75rem; }
+.btn-xs { padding: .15rem .4rem; font-size: .75rem; }
 .fw-600 { font-weight: 600; }
 .fw-500 { font-weight: 500; }
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th.sortable::after {
+  content: ' \2195';
+  opacity: .35;
+  font-size: .7em;
+}
+th.sortable.asc::after  { content: ' \2191'; opacity: .8; }
+th.sortable.desc::after { content: ' \2193'; opacity: .8; }
 </style>
+
+<script>
+(function() {
+  const table = document.getElementById('nw-table');
+  if (!table) return;
+  const tbody = table.querySelector('tbody');
+  const headers = [...table.querySelectorAll('thead th.sortable')];
+  const allThs = [...table.querySelectorAll('thead tr th')];
+
+  headers.forEach(th => {
+    const colIdx = allThs.indexOf(th);
+    let dir = 0;
+
+    th.addEventListener('click', () => {
+      headers.forEach(h => { if (h !== th) { h.classList.remove('asc','desc'); } });
+      dir = dir === 1 ? -1 : 1;
+      th.classList.toggle('asc',  dir ===  1);
+      th.classList.toggle('desc', dir === -1);
+
+      const rows = [...tbody.querySelectorAll('tr')];
+      rows.sort((a, b) => {
+        const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
+        const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
+        const da = parseDate(ta), db = parseDate(tb);
+        if (da !== null && db !== null) return dir * (da - db);
+        return dir * ta.localeCompare(tb, 'de');
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+
+  function parseDate(s) {
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
+    m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1]).getTime();
+    return null;
+  }
+})();
+</script>
 {% endblock %}
