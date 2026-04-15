@@ -9,7 +9,8 @@
 {% set new_ord = 'desc' if (sort == col and order == 'asc') else 'asc' %}
 <th class="{{ classes }}"{% if title %} title="{{ title }}"{% endif %}>
   <a href="{{ url_for('cognos.list_berichte', sort=col, order=new_ord,
-                      q=q, package=package_filt, status=status_filt,
+                      q=q, status=status_filt, komplexitaet=komplexitaet_filt,
+                      abfragen=abfragen_filt, pfad_prefix=pfad_prefix,
                       page=1, per_page=per_page) }}"
      class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
     {{ label }}
@@ -110,9 +111,35 @@
   </div>
 </div>
 
+{% if pfad_prefix %}
+<!-- Aktiver Pfad-Filter -->
+<div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
+  <span class="text-muted small"><i class="bi bi-funnel-fill me-1"></i>Pfad-Filter:</span>
+  {# Gemeinsamen Prefix aus Anzeige weglassen #}
+  {% set display_pfad = pfad_prefix %}
+  {% if common_prefix and display_pfad.startswith(common_prefix) %}
+    {% set display_pfad = display_pfad[common_prefix|length:] %}
+    {% if display_pfad.startswith(' / ') %}{% set display_pfad = display_pfad[3:] %}{% endif %}
+  {% endif %}
+  {# Klickbare Segmente des aktiven Filters (zum Hochnavigieren) #}
+  {% set filter_segs = pfad_prefix.split(' / ') %}
+  {% set cp_depth = (common_prefix.split(' / ')|length) if common_prefix else 0 %}
+  {% for seg in filter_segs[cp_depth:] %}
+    {% set parent_path = filter_segs[:cp_depth + loop.index] | join(' / ') %}
+    <a href="{{ url_for('cognos.list_berichte', pfad_prefix=parent_path, q=q, status=status_filt, komplexitaet=komplexitaet_filt, abfragen=abfragen_filt, sort=sort, order=order) }}"
+       class="badge bg-primary text-decoration-none" style="font-size:.78rem">{{ seg }}</a>
+    {% if not loop.last %}<span class="text-muted">/</span>{% endif %}
+  {% endfor %}
+  <a href="{{ url_for('cognos.list_berichte', q=q, status=status_filt, komplexitaet=komplexitaet_filt, abfragen=abfragen_filt, sort=sort, order=order) }}"
+     class="btn btn-xs btn-outline-secondary ms-1" title="Pfad-Filter aufheben">
+    <i class="bi bi-x-lg"></i>
+  </a>
+</div>
+{% endif %}
+
 <!-- ── Pagination oben ────────────────────────────────────────────────── -->
 {% set endpoint  = 'cognos.list_berichte' %}
-{% set url_extra = {'q': q, 'status': status_filt, 'komplexitaet': komplexitaet_filt, 'abfragen': abfragen_filt, 'sort': sort, 'order': order} %}
+{% set url_extra = {'q': q, 'status': status_filt, 'komplexitaet': komplexitaet_filt, 'abfragen': abfragen_filt, 'pfad_prefix': pfad_prefix, 'sort': sort, 'order': order} %}
 {% include 'funde/_pagination.html' %}
 
 {% if can_write %}
@@ -246,12 +273,38 @@
             <!-- Berichtsname -->
             <td><span class="fw-500">{{ b.berichtsname }}</span></td>
 
-            <!-- Suchpfad (kann sehr lang sein) -->
-            <td style="max-width:260px">
+            <!-- Suchpfad als klickbare Breadcrumbs (gemeinsamer Präfix ausgeblendet) -->
+            <td style="max-width:320px" title="{{ b.suchpfad or '' }}">
               {% if b.suchpfad %}
-              <span class="d-block font-monospace text-muted"
-                    style="font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                    title="{{ b.suchpfad }}">{{ b.suchpfad }}</span>
+                {# Alle Segmente des ursprünglichen Pfads #}
+                {% set orig_segs = b.suchpfad.split(' / ') %}
+                {# Wie viele führende Segmente sind gemeinsamer Prefix? #}
+                {% set cp_depth = (common_prefix.split(' / ')|length) if common_prefix else 0 %}
+                {# Anzeigesegmente = alles nach dem gemeinsamen Prefix #}
+                {% set disp_segs = orig_segs[cp_depth:] %}
+                {% if disp_segs %}
+                  <div class="d-flex flex-wrap align-items-center gap-1" style="row-gap:.2rem">
+                  {% for seg in disp_segs %}
+                    {# Vollständiger Filterpfad bis einschließlich dieses Segments #}
+                    {% set filter_path = orig_segs[:cp_depth + loop.index] | join(' / ') %}
+                    <a href="{{ url_for('cognos.list_berichte',
+                                       pfad_prefix=filter_path,
+                                       q=q, status=status_filt,
+                                       komplexitaet=komplexitaet_filt,
+                                       abfragen=abfragen_filt,
+                                       sort=sort, order=order) }}"
+                       class="badge text-decoration-none {% if pfad_prefix == filter_path %}bg-primary{% else %}bg-light text-dark border{% endif %}"
+                       style="font-size:.7rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                       title="{{ filter_path }}">{{ seg }}</a>
+                    {% if not loop.last %}
+                      <span class="text-muted" style="font-size:.7rem;line-height:1">/</span>
+                    {% endif %}
+                  {% endfor %}
+                  </div>
+                {% else %}
+                  {# Pfad endet genau beim gemeinsamen Prefix #}
+                  <span class="text-muted" style="font-size:.72rem">{{ b.suchpfad }}</span>
+                {% endif %}
               {% else %}–{% endif %}
             </td>
 

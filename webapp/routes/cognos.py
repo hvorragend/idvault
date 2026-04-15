@@ -168,6 +168,7 @@ def list_berichte():
     status_filt       = request.args.get("status",       "").strip()
     komplexitaet_filt = request.args.get("komplexitaet", "").strip()
     abfragen_filt     = request.args.get("abfragen",     "").strip()
+    pfad_prefix       = request.args.get("pfad_prefix",  "").strip()
     q                 = request.args.get("q",             "").strip()
     sort              = request.args.get("sort",  "berichtsname").strip()
     order             = request.args.get("order", "asc").strip()
@@ -213,6 +214,9 @@ def list_berichte():
         where_parts.append("anz_abfragen IS NOT NULL AND anz_abfragen >= 11 AND anz_abfragen <= 20")
     elif abfragen_filt == "21+":
         where_parts.append("anz_abfragen IS NOT NULL AND anz_abfragen > 20")
+    if pfad_prefix:
+        where_parts.append("(suchpfad = ? OR suchpfad LIKE ?)")
+        params.extend([pfad_prefix, pfad_prefix + " /%"])
     if q:
         where_parts.append("(berichtsname LIKE ? OR suchpfad LIKE ? OR eigentuemer LIKE ?)")
         params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
@@ -250,6 +254,28 @@ def list_berichte():
         "SELECT kuerzel, vorname, nachname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
 
+    # Gemeinsamen Pfad-Präfix über ALLE Einträge der DB ermitteln (nicht nur aktuelle Seite)
+    common_prefix = ""
+    all_paths = [r[0] for r in db.execute(
+        "SELECT DISTINCT suchpfad FROM cognos_berichte WHERE suchpfad IS NOT NULL"
+    ).fetchall()]
+    if len(all_paths) >= 2:
+        split_paths = [p.split(" / ") for p in all_paths]
+        min_len = min(len(p) for p in split_paths)
+        depth = 0
+        for i in range(min_len):
+            if len({p[i] for p in split_paths}) == 1:
+                depth += 1
+            else:
+                break
+        if depth:
+            common_prefix = " / ".join(split_paths[0][:depth])
+    elif len(all_paths) == 1:
+        # Nur ein Pfad: zeige alles ab Ebene 2 an (erste Ebene als Prefix)
+        parts = all_paths[0].split(" / ")
+        if len(parts) > 1:
+            common_prefix = parts[0]
+
     # Eigentuemer → Person-Lookup (kuerzel, ad_name, user_id, oder "vorname nachname")
     eigentuemer_vals = {b["eigentuemer"] for b in berichte if b["eigentuemer"]}
     eigentuemer_map: dict[str, str] = {}
@@ -278,6 +304,7 @@ def list_berichte():
         status_filt=status_filt,
         komplexitaet_filt=komplexitaet_filt,
         abfragen_filt=abfragen_filt,
+        pfad_prefix=pfad_prefix,
         q=q,
         sort=sort,
         order=order,
@@ -285,6 +312,7 @@ def list_berichte():
         can_write=can_write(),
         persons=persons,
         eigentuemer_map=eigentuemer_map,
+        common_prefix=common_prefix,
     )
 
 
