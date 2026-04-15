@@ -1,10 +1,11 @@
 """Maßnahmen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from . import login_required, get_db
+from . import login_required, own_write_required, get_db
 from datetime import datetime, timezone
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import get_klassifizierungen
+from ..security import ensure_can_write_idv
 
 bp = Blueprint("measures", __name__, url_prefix="/massnahmen")
 
@@ -34,9 +35,10 @@ def list_measures():
 
 
 @bp.route("/neu/<int:idv_db_id>", methods=["GET", "POST"])
-@login_required
+@own_write_required
 def new_measure(idv_db_id):
     db  = get_db()
+    ensure_can_write_idv(db, idv_db_id)
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
         flash("IDV nicht gefunden.", "error")
@@ -70,10 +72,14 @@ def new_measure(idv_db_id):
 
 
 @bp.route("/<int:m_id>/erledigen", methods=["POST"])
-@login_required
+@own_write_required
 def complete_measure(m_id):
     db  = get_db()
     row = db.execute("SELECT idv_id FROM massnahmen WHERE id=?", (m_id,)).fetchone()
+    if not row:
+        flash("Maßnahme nicht gefunden.", "error")
+        return redirect(url_for("measures.list_measures"))
+    ensure_can_write_idv(db, row[0])
     now = datetime.now(timezone.utc).isoformat()
     db.execute("""
         UPDATE massnahmen SET status='Erledigt', erledigt_am=?, aktualisiert_am=?
@@ -81,6 +87,4 @@ def complete_measure(m_id):
     """, (now, now, m_id))
     db.commit()
     flash("Maßnahme als erledigt markiert.", "success")
-    if row:
-        return redirect(url_for("idv.detail_idv", idv_db_id=row[0]))
-    return redirect(url_for("measures.list_measures"))
+    return redirect(url_for("idv.detail_idv", idv_db_id=row[0]))

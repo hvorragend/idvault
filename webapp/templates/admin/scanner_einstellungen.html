@@ -19,6 +19,7 @@
   <!-- ── Scan-Pfade ───────────────────────────────────────────────── -->
   <div class="col-12">
     <form method="post" action="{{ url_for('admin.scanner_einstellungen') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
         <i class="bi bi-folder2-open me-2"></i>Scan-Konfiguration (config.json)
@@ -239,6 +240,7 @@
 
         <form method="post" action="{{ url_for('admin.scanner_bereinigen') }}"
               onsubmit="return confirm('Alte Scan-Daten wirklich löschen?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="d-flex align-items-center gap-3">
             <div>
               <label class="form-label mb-1" style="font-size:.88rem">Einträge älter als</label>
@@ -289,8 +291,8 @@
 
   btn.addEventListener("click", function () {
     btn.disabled = true;
-    fetch("{{ url_for('admin.scanner_starten') }}", { method: "POST",
-      headers: { "X-CSRFToken": "" } })
+    // X-CSRFToken wird vom globalen fetch-Wrapper in base.html gesetzt.
+    fetch("{{ url_for('admin.scanner_starten') }}", { method: "POST" })
     .then(r => r.json())
     .then(data => {
       if (data.ok) {
@@ -354,6 +356,7 @@
     </div>
 
     <form method="post" action="{{ url_for('admin.scanner_db_importieren') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="mb-3">
         <label class="form-label form-label-sm fw-600" for="src-db-path">
           Pfad zur Scanner-Datenbank

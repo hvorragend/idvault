@@ -49,6 +49,7 @@
           alle weiteren werden automatisch mit dem neuen IDV verknüpft.
         </p>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {% for b in berichte %}
           <input type="hidden" name="bericht_ids" value="{{ b.id }}">
           {% endfor %}
@@ -92,6 +93,7 @@
         </p>
         {% if idvs %}
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {% for b in berichte %}
           <input type="hidden" name="bericht_ids" value="{{ b.id }}">
           {% endfor %}

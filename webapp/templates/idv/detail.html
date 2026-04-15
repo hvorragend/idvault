@@ -32,6 +32,7 @@
         {% if s != idv.status %}
         <li>
           <form method="post" action="{{ url_for('idv.change_status_route', idv_db_id=idv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="status" value="{{ s }}">
             <button class="dropdown-item">→ {{ s }}</button>
           </form>
@@ -74,6 +75,7 @@
         {% if s != ts %}
         <li>
           <form method="post" action="{{ url_for('idv.change_teststatus', idv_db_id=idv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="teststatus" value="{{ s }}">
             <button class="dropdown-item">→ {{ s }}</button>
           </form>
@@ -421,6 +423,7 @@
           {% if can_create %}
           <form method="post" action="{{ url_for('idv.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}"
             onsubmit="return confirm('Verknüpfung mit {{ ef.file_name }} aufheben?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-xs btn-outline-danger" title="Verknüpfung aufheben">
               <i class="bi bi-x-lg"></i>
             </button>
@@ -570,6 +573,7 @@
       <div class="modal fade" id="modal-neue-version" tabindex="-1">
         <div class="modal-dialog">
           <form method="post" action="{{ url_for('idv.neue_version', idv_db_id=idv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-content">
               <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Neue Version anlegen</h5>
@@ -702,6 +706,7 @@
                   {% if not f and can_create %}
                     {# Freigabe-Schritt wurde gelöscht → Anlage anbieten #}
                     <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <input type="hidden" name="schritt" value="{{ schritt_name }}">
                       <button type="submit" class="btn btn-xs btn-primary">
                         <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
@@ -744,6 +749,7 @@
                   {% if f and is_admin %}
                   <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
                         onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
                       <i class="bi bi-trash"></i>
                     </button>
@@ -802,6 +808,7 @@
                   {% if not f and can_create %}
                     {# Abnahme-Schritt wurde gelöscht → Anlage anbieten #}
                     <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <input type="hidden" name="schritt" value="{{ schritt_name }}">
                       <button type="submit" class="btn btn-xs btn-primary">
                         <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
@@ -822,6 +829,7 @@
                   {% if f and is_admin %}
                   <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
                         onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
                       <i class="bi bi-trash"></i>
                     </button>
@@ -880,6 +888,7 @@
     <div class="modal fade" id="modal-starten" tabindex="-1">
       <div class="modal-dialog">
         <form method="post" action="{{ url_for('freigaben.starten', idv_db_id=idv.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title"><i class="bi bi-play-circle me-2"></i>Freigabeverfahren starten</h5>
@@ -927,6 +936,7 @@
     <div class="modal fade" id="modal-abnahme-starten" tabindex="-1">
       <div class="modal-dialog">
         <form method="post" action="{{ url_for('freigaben.abnahme_starten', idv_db_id=idv.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title"><i class="bi bi-2-circle me-2"></i>Phase 2 starten – Abnahmen</h5>
@@ -975,6 +985,7 @@
     <div class="modal fade" id="modal-abbrechen" tabindex="-1">
       <div class="modal-dialog">
         <form method="post" action="{{ url_for('freigaben.abbrechen', idv_db_id=idv.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="modal-content">
             <div class="modal-header border-danger">
               <h5 class="modal-title text-danger"><i class="bi bi-slash-circle me-2"></i>Freigabeverfahren abbrechen

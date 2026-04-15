@@ -70,6 +70,7 @@
 
 <!-- ── Import-Formular ────────────────────────────────────────────────── -->
 <form method="post" action="{{ url_for('admin.ldap_import') }}" id="ldapImportForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if extra_filter %}
   <input type="hidden" name="extra_filter" value="{{ extra_filter }}">
   {% endif %}

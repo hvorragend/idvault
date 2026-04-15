@@ -33,6 +33,7 @@
   <!-- ── Konfigurationsformular ─────────────────────────────────────────── -->
   <div class="col-lg-8">
     <form method="post" action="{{ url_for('admin.ldap_config') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
         <i class="bi bi-server me-2"></i>Server-Konfiguration

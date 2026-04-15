@@ -158,6 +158,18 @@ if not os.path.isfile(_config_file):
             "IDV_SMTP_FROM": "",
             "IDV_SMTP_TLS": 1,
             "IDV_APP_BASE_URL": "",
+            # VULN-B: Sidecar-Update-Upload (Admin kann Python/Template-Dateien
+            # als ZIP hochladen, die beim nächsten Start die gebündelten Module
+            # überschreiben) – kann durch Setzen auf 0 komplett deaktiviert werden.
+            "IDV_ALLOW_SIDECAR_UPDATES": 1,
+            # VULN-F: Lokale Benutzer. Leere Liste = kein lokaler Login möglich
+            # (nur LDAP). Passwort-Hashes werden mit werkzeug erzeugt:
+            #   from werkzeug.security import generate_password_hash
+            #   generate_password_hash("mein-passwort", method="pbkdf2:sha256")
+            # Beispiel-Eintrag siehe config.json.example.
+            "IDV_LOCAL_USERS": [],
+            # VULN-J: Login-Rate-Limit (Flask-Limiter-Syntax).
+            "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",
             "scanner": {
                 "scan_paths": [],
                 "extensions": [
@@ -200,7 +212,15 @@ if os.path.isfile(_config_file):
             # er wird direkt von idv_scanner.py aus der config.json gelesen.
             if _cfg_k == "scanner":
                 continue
-            os.environ.setdefault(_cfg_k, str(_cfg_v))
+            # Lokale Benutzer (VULN-F) und komplexe Werte müssen als JSON
+            # serialisiert werden, sonst wird "[{'username': ...}]" als
+            # String mit Python-Repr übergeben.
+            if isinstance(_cfg_v, (list, dict)):
+                os.environ.setdefault(_cfg_k, _json.dumps(_cfg_v))
+            elif isinstance(_cfg_v, bool):
+                os.environ.setdefault(_cfg_k, "1" if _cfg_v else "0")
+            else:
+                os.environ.setdefault(_cfg_k, str(_cfg_v))
     except Exception as _cfg_err:
         print(f"  [config] config.json konnte nicht geladen werden: {_cfg_err}")
 # ─────────────────────────────────────────────────────────────────────────────
@@ -344,7 +364,11 @@ if __name__ == "__main__":
         # HTTPS gewünscht, Kontext aber nicht erstellbar (sollte nicht passieren,
         # build_ssl_context() würde in diesem Fall eine Exception werfen).
         print("  HTTPS angefordert, aber kein SSL-Kontext verfügbar.")
-    print("  Demo-Login: admin / idvault2026")
+    _local_users = app.config.get("IDV_LOCAL_USERS") or {}
+    if _local_users:
+        print(f"  Lokale Benutzer (config.json): {', '.join(sorted(_local_users))}")
+    else:
+        print("  Keine lokalen Benutzer konfiguriert – nur DB-Konten/LDAP.")
     print("=" * 55)
 
     _seed_if_empty(app)

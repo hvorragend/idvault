@@ -4,6 +4,15 @@
 # Web-Framework
 flask>=3.0.0
 
+# CSRF-Schutz (VULN-A)
+flask-wtf>=1.2.0
+
+# Rate-Limiting am Login (VULN-J)
+flask-limiter>=3.5.0
+
+# HTML-Sanitizing für Rich-Text-Felder (VULN-C)
+bleach[css]>=6.1.0
+
 # Excel-Export
 openpyxl>=3.1.0
 

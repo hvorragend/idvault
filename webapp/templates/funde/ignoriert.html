@@ -53,9 +53,11 @@
 
 <!-- Reaktivierungs-Formular (Bulk) -->
 <form id="reaktivieren-form" method="post" action="{{ url_for('funde.ignorierte_reaktivieren') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <!-- Lösch-Formular (Admin, inline versteckt – submit via JS) -->
 </form>
 <form id="loeschen-form" method="post" action="{{ url_for('funde.ignorierte_loeschen') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 </form>
 
 <div class="card border-0 shadow-sm mt-2">

@@ -289,6 +289,7 @@
 
 <!-- ── Massenaktions-Formular ──────────────────────────────────────── -->
 <form method="post" action="{{ url_for('funde.bulk_aktion') }}" id="bulk-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="return_to" value="eingang">
   <input type="hidden" name="dir_path_filt" value="{{ dir_path_filt }}">
   <input type="hidden" name="new_owner" id="hidden-new-owner" value="">

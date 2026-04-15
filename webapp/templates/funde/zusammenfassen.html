@@ -78,6 +78,7 @@
           alle weiteren werden automatisch als zusätzliche Projektdateien verknüpft.
         </p>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {% for f in dateien %}
           <input type="hidden" name="file_ids" value="{{ f.id }}">
           {% endfor %}
@@ -122,6 +123,7 @@
         </p>
         {% if idvs %}
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {% for f in dateien %}
           <input type="hidden" name="file_ids" value="{{ f.id }}">
           {% endfor %}

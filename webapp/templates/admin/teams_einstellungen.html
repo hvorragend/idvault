@@ -21,6 +21,7 @@
        ══════════════════════════════════════════════════════════ -->
   <div class="col-12">
     <form method="post" action="{{ url_for('admin.teams_einstellungen') }}" id="teams-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <!-- hidden field: Teams-Liste wird per JS befüllt -->
     <input type="hidden" name="teams_json" id="teams-json-field">
 

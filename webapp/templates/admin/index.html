@@ -23,6 +23,7 @@
               <td>
                 <a href="{{ url_for('admin.edit_oe', oid=ou.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
                 <form method="post" action="{{ url_for('admin.delete_oe', oid=ou.id) }}" class="d-inline" onsubmit="return confirm('OE deaktivieren?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-dash-circle"></i></button>
                 </form>
               </td>
@@ -35,6 +36,7 @@
         <details>
           <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neue OE anlegen</summary>
           <form method="post" action="{{ url_for('admin.new_oe') }}" class="row g-2 mt-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-5"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
             <div class="col-md-3">
               <select name="ebene" class="form-select form-select-sm">
@@ -74,6 +76,7 @@
               <td>
                 <a href="{{ url_for('admin.edit_plattform', plid=p.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
                 <form method="post" action="{{ url_for('admin.delete_plattform', plid=p.id) }}" class="d-inline" onsubmit="return confirm('Plattform deaktivieren?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-dash-circle"></i></button>
                 </form>
               </td>
@@ -86,6 +89,7 @@
         <details>
           <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neue Plattform anlegen</summary>
           <form method="post" action="{{ url_for('admin.new_plattform') }}" class="row g-2 mt-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-4"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
             <div class="col-md-3">
               <select name="typ" class="form-select form-select-sm">
@@ -115,6 +119,7 @@
       <div id="gpBulkBar" class="border-bottom px-3 py-2 d-none bg-light">
         <form method="post" action="{{ url_for('admin.bulk_gps') }}" id="gpBulkForm"
               onsubmit="return this.querySelector('[name=action]').value !== 'delete' || confirm('Ausgewählte Geschäftsprozesse endgültig löschen?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <span class="fw-600 text-primary" style="font-size:.88rem">
               <i class="bi bi-check2-square me-1"></i><span id="gpBulkCount">0</span> ausgewählt
@@ -148,10 +153,12 @@
               <td>
                 <a href="{{ url_for('admin.edit_gp', gid=gp.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
                 <form method="post" action="{{ url_for('admin.delete_gp', gid=gp.id) }}" class="d-inline" onsubmit="return confirm('GP deaktivieren?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Deaktivieren"><i class="bi bi-dash-circle"></i></button>
                 </form>
                 <form method="post" action="{{ url_for('admin.bulk_gps') }}" class="d-inline"
                       onsubmit="return confirm('Geschäftsprozess endgültig löschen?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="gp_ids" value="{{ gp.id }}">
                   <button type="submit" name="action" value="delete" class="btn btn-xs btn-outline-danger py-0 px-1" title="Endgültig löschen"><i class="bi bi-trash"></i></button>
                 </form>
@@ -165,6 +172,7 @@
         <details>
           <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neuen GP anlegen</summary>
           <form method="post" action="{{ url_for('admin.new_gp') }}" class="row g-2 mt-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-3"><input type="text" name="gp_nummer" class="form-control form-control-sm" placeholder="GP-XXX-001" required></div>
             <div class="col-md-5"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
             <div class="col-auto">
@@ -186,6 +194,7 @@
             <i class="bi bi-file-earmark-arrow-up me-1"></i>Geschäftsprozesse aus CSV importieren
           </summary>
           <form method="post" action="{{ url_for('admin.import_geschaeftsprozesse') }}" enctype="multipart/form-data" class="row g-2 mt-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-8">
               <input type="file" name="csv_file" accept=".csv,.txt" class="form-control form-control-sm" required>
               <div class="form-text">
@@ -213,6 +222,7 @@
             </p>
             <form method="post" action="{{ url_for('admin.delete_all_gp') }}"
                   onsubmit="return confirm('Wirklich ALLE Geschäftsprozesse löschen?\nDiese Aktion kann nicht rückgängig gemacht werden.')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-danger">
                 <i class="bi bi-trash3 me-1"></i>Alle löschen
               </button>
@@ -268,6 +278,7 @@
                       action="{{ url_for('admin.delete_wesentlichkeitskriterium', kid=k.id) }}"
                       class="d-inline"
                       onsubmit="return confirm('Kriterium deaktivieren? Vorhandene Antworten bleiben erhalten.')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Deaktivieren">
                     <i class="bi bi-dash-circle"></i>
                   </button>
@@ -285,6 +296,7 @@
         <div class="p-3 border-top bg-light">
           <form method="post" action="{{ url_for('admin.new_wesentlichkeitskriterium') }}"
                 class="row g-2 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-3">
               <label class="form-label form-label-sm">Bezeichnung <span class="text-danger">*</span></label>
               <input type="text" name="bezeichnung" class="form-control form-control-sm"
@@ -373,6 +385,7 @@
                               action="{{ url_for('admin.delete_klassifizierung', kid=e.id) }}"
                               class="d-inline"
                               onsubmit="return confirm('Eintrag deaktivieren?')">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                           <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
                             <i class="bi bi-dash-circle"></i>
                           </button>
@@ -387,6 +400,7 @@
                   <form method="post"
                         action="{{ url_for('admin.new_klassifizierung', bereich=bereich) }}"
                         class="row g-2 align-items-end">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="col-md-3">
                       <label class="form-label form-label-sm">Wert <span class="text-danger">*</span></label>
                       <input type="text" name="wert" class="form-control form-control-sm"

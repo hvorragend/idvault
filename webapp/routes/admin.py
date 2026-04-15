@@ -1997,6 +1997,13 @@ def _validate_zip_member(name: str) -> bool:
     return True
 
 
+def _sidecar_updates_enabled() -> bool:
+    """Sidecar-ZIP-Updates können per config.json komplett abgeschaltet werden
+    (VULN-B: reduziert den Admin-RCE-Vektor, wenn ZIP-Uploads nicht benötigt
+    werden oder separate Change-Management-Prozesse verwendet werden)."""
+    return bool(current_app.config.get("IDV_ALLOW_SIDECAR_UPDATES", True))
+
+
 @bp.route("/update")
 @admin_required
 def update_index():
@@ -2023,6 +2030,7 @@ def update_index():
         update_active=update_active,
         changelog=changelog,
         upd_dir=upd_dir,
+        sidecar_updates_enabled=_sidecar_updates_enabled(),
     )
 
 
@@ -2055,6 +2063,22 @@ def _zip_remap(rel: str) -> str:
 @bp.route("/update/upload", methods=["POST"])
 @admin_required
 def update_upload():
+    # VULN-B: Opt-out über config.json. Wenn IDV_ALLOW_SIDECAR_UPDATES=0
+    # gesetzt ist, wird der Endpoint komplett abgewiesen – das reduziert
+    # den Admin-RCE-Vektor in Umgebungen, in denen Sidecar-Updates nicht
+    # gebraucht werden.
+    if not _sidecar_updates_enabled():
+        current_app.logger.warning(
+            "Sidecar-Update-Upload blockiert (IDV_ALLOW_SIDECAR_UPDATES=0)"
+        )
+        flash(
+            "Sidecar-Updates sind deaktiviert (config.json → "
+            "IDV_ALLOW_SIDECAR_UPDATES=0). Zum Aktivieren bitte Wert auf 1 setzen "
+            "und neu starten.",
+            "error",
+        )
+        return redirect(url_for("admin.update_index"))
+
     f = request.files.get("update_zip")
     if not f or not f.filename:
         flash("Keine Datei ausgewählt.", "error")
@@ -2190,6 +2214,8 @@ def update_restart():
 @admin_required
 def update_rollback():
     """Benennt das updates/-Verzeichnis um und startet neu (gebündelte Version)."""
+    # Rollback bleibt auch bei abgeschalteten Uploads erlaubt: die Funktion
+    # dient gerade dazu, ein bereits eingespieltes Update rückgängig zu machen.
     upd_dir = _updates_dir()
     if not os.path.isdir(upd_dir):
         flash("Kein aktives Update vorhanden.", "info")

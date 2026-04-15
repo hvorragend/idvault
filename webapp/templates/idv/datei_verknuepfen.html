@@ -9,6 +9,7 @@
 {% block content %}
 
 <form method="post" id="linkForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <!-- Suche & Auswahl-Toolbar -->
   <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
