@@ -149,6 +149,7 @@ def create_app(db_path: str = None) -> Flask:
     from .routes.reports    import bp as reports_bp
     from .routes.freigaben  import bp as freigaben_bp
     from .routes.tests      import bp as tests_bp
+    from .routes.cognos     import bp as cognos_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
@@ -160,6 +161,7 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(reports_bp)
     app.register_blueprint(freigaben_bp)
     app.register_blueprint(tests_bp)
+    app.register_blueprint(cognos_bp)
 
     # VULN-008: HTTP-Security-Header bei jeder Antwort setzen
     @app.after_request
