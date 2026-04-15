@@ -29,93 +29,17 @@
     </div>
   </div>
 
-  {% if verfuegbare_dateien %}
-
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white fw-600 d-flex align-items-center gap-2">
       <i class="bi bi-folder2-open me-1 text-primary"></i>
       Verfügbare Scanner-Funde
-      <span class="badge bg-secondary ms-1">{{ verfuegbare_dateien|length }}</span>
+      <span class="badge bg-secondary ms-1" id="totalBadge">{{ total_count }}</span>
       <span class="text-muted fw-400 ms-2" style="font-size:.8rem">
         — Dateien, die noch keinem IDV zugeordnet sind
       </span>
     </div>
-    <div class="table-responsive">
-      <table class="table table-hover mb-0" style="font-size:.83rem" id="fileTable">
-        <thead class="table-light">
-          <tr>
-            <th style="width:2rem">
-              <input type="checkbox" id="checkAll" class="form-check-input" title="Alle auswählen">
-            </th>
-            <th>Dateiname</th>
-            <th>Pfad</th>
-            <th>Größe</th>
-            <th>Zuletzt geändert</th>
-            <th class="text-center">Typ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in verfuegbare_dateien %}
-          {% set ext = f.extension|lower if f.extension else '' %}
-          {% if ext in ('.xlsm', '.xlsb', '.xltm') or (ext in ('.xlsx', '.xls', '.xltx') and f.has_macros) %}
-            {% set typ_badge = 'Excel-Makro' %}
-            {% set typ_class = 'bg-danger' %}
-          {% elif ext in ('.xlsx', '.xls', '.xltx') %}
-            {% set typ_badge = 'Excel-Tabelle' %}
-            {% set typ_class = 'bg-success' %}
-          {% elif ext in ('.accdb', '.mdb', '.accde', '.accdr') %}
-            {% set typ_badge = 'Access-DB' %}
-            {% set typ_class = 'bg-info text-dark' %}
-          {% elif ext in ('.pbix', '.pbit') %}
-            {% set typ_badge = 'Power BI' %}
-            {% set typ_class = 'bg-warning text-dark' %}
-          {% elif ext in ('.py',) %}
-            {% set typ_badge = 'Python' %}
-            {% set typ_class = 'bg-secondary' %}
-          {% elif ext in ('.sql',) %}
-            {% set typ_badge = 'SQL' %}
-            {% set typ_class = 'bg-secondary' %}
-          {% else %}
-            {% set typ_badge = (f.extension or '?')|upper|replace('.','') %}
-            {% set typ_class = 'bg-light text-dark border' %}
-          {% endif %}
-          <tr class="file-row">
-            <td>
-              <input type="checkbox" name="file_ids" value="{{ f.id }}"
-                     class="form-check-input file-cb">
-            </td>
-            <td>
-              <span class="fw-500">{{ f.file_name }}</span>
-              {% if f.has_macros %}
-              <span class="badge bg-danger ms-1" style="font-size:.68rem">VBA</span>
-              {% endif %}
-            </td>
-            <td style="max-width:320px">
-              {% if f.share_root %}
-              <span class="badge bg-primary" style="font-size:.68rem;font-family:monospace">
-                <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
-              </span>
-              {% endif %}
-              <div class="text-truncate text-muted" style="font-size:.75rem;max-width:300px"
-                   title="{{ f.full_path }}">
-                {{ f.relative_path or f.full_path }}
-              </div>
-            </td>
-            <td class="text-nowrap text-muted">{{ f.size_bytes|mb if f.size_bytes else '–' }}</td>
-            <td class="text-nowrap text-muted">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
-            <td class="text-center">
-              <span class="badge {{ typ_class }}" style="font-size:.7rem">{{ typ_badge }}</span>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
 
-  {% else %}
-
-  <div class="card border-0 shadow-sm">
+    {% if total_count == 0 %}
     <div class="card-body text-center py-5 text-muted">
       <i class="bi bi-folder2-open fs-1 mb-3 d-block" style="opacity:.3"></i>
       <strong>Keine freien Scanner-Funde vorhanden.</strong>
@@ -132,65 +56,240 @@
         </a>
       </div>
     </div>
+    {% else %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.83rem" id="fileTable">
+        <thead class="table-light">
+          <tr>
+            <th style="width:2rem">
+              <input type="checkbox" id="checkAll" class="form-check-input" title="Alle auswählen">
+            </th>
+            <th>Dateiname</th>
+            <th>Pfad</th>
+            <th>Größe</th>
+            <th>Zuletzt geändert</th>
+            <th class="text-center">Typ</th>
+          </tr>
+        </thead>
+        <tbody id="fileTableBody">
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">
+              <span class="spinner-border spinner-border-sm me-2"></span>Lädt …
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
   </div>
-
-  {% endif %}
 
 </form>
 
+{% if total_count > 0 %}
 <script>
 (function () {
+  const LIMIT      = 50;
+  const searchUrl  = {{ url_for('idv.link_files_search', idv_db_id=idv.id)|tojson }};
+
   const searchInput  = document.getElementById('fileSearch');
   const checkAll     = document.getElementById('checkAll');
   const selectAllBtn = document.getElementById('selectAllVisible');
   const submitBtn    = document.getElementById('submitBtn');
   const visibleCount = document.getElementById('visibleCount');
-  const rows         = Array.from(document.querySelectorAll('.file-row'));
-  const cbs          = Array.from(document.querySelectorAll('.file-cb'));
+  const totalBadge   = document.getElementById('totalBadge');
+  const tbody        = document.getElementById('fileTableBody');
+  const form         = document.getElementById('linkForm');
 
-  function updateUI() {
-    const visible = rows.filter(r => r.style.display !== 'none');
-    visibleCount.textContent = visible.length + ' von {{ verfuegbare_dateien|length }} Dateien';
-    const checked = cbs.filter(cb => cb.checked);
-    submitBtn.disabled = checked.length === 0;
-    submitBtn.textContent = checked.length > 0
-      ? checked.length + ' Datei(en) verknüpfen'
-      : 'Verknüpfen';
-    if (submitBtn.textContent.startsWith(checked.length)) {
-      submitBtn.innerHTML = '<i class="bi bi-link me-1"></i>' + checked.length + ' Datei(en) verknüpfen';
+  // Ausgewählte Datei-IDs – bleibt über Suchanfragen hinweg erhalten
+  const selectedIds = new Set();
+  let searchTimer   = null;
+
+  // ── Hilfsfunktionen ──────────────────────────────────────────────────────
+
+  function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str ?? '';
+    return d.innerHTML;
+  }
+
+  function getTypBadge(ext, hasMacros) {
+    ext = (ext || '').toLowerCase();
+    if (['.xlsm', '.xlsb', '.xltm'].includes(ext) ||
+        (['.xlsx', '.xls', '.xltx'].includes(ext) && hasMacros)) {
+      return ['Excel-Makro', 'bg-danger'];
+    }
+    if (['.xlsx', '.xls', '.xltx'].includes(ext)) return ['Excel-Tabelle', 'bg-success'];
+    if (['.accdb', '.mdb', '.accde', '.accdr'].includes(ext)) return ['Access-DB', 'bg-info text-dark'];
+    if (['.pbix', '.pbit'].includes(ext)) return ['Power BI', 'bg-warning text-dark'];
+    if (ext === '.py')  return ['Python', 'bg-secondary'];
+    if (ext === '.sql') return ['SQL',    'bg-secondary'];
+    return [(ext || '?').toUpperCase().replace('.', ''), 'bg-light text-dark border'];
+  }
+
+  function formatSize(bytes) {
+    if (!bytes) return '–';
+    return (bytes / 1048576).toFixed(2) + '\u00a0MB';
+  }
+
+  function formatDate(s) {
+    if (!s) return '–';
+    const p = s.split(/[T ]/)[0].split('-');
+    return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : s;
+  }
+
+  // ── UI-Status aktualisieren ───────────────────────────────────────────────
+
+  function updateUI(total, shown) {
+    if (total !== undefined) {
+      totalBadge.textContent = total;
+      if (shown !== undefined && shown < total) {
+        visibleCount.textContent =
+          `${shown} von ${total} Dateien — Suche verfeinern für mehr`;
+      } else {
+        visibleCount.textContent = `${total} Dateien`;
+      }
+    }
+    const n = selectedIds.size;
+    submitBtn.disabled = n === 0;
+    submitBtn.innerHTML = n > 0
+      ? `<i class="bi bi-link me-1"></i>${n} Datei(en) verknüpfen`
+      : `<i class="bi bi-link me-1"></i>Verknüpfen`;
+
+    // Master-Checkbox Zustand
+    const cbs = Array.from(tbody.querySelectorAll('.file-cb'));
+    if (cbs.length > 0) {
+      const allChecked = cbs.every(cb => cb.checked);
+      checkAll.checked       = allChecked;
+      checkAll.indeterminate = !allChecked && cbs.some(cb => cb.checked);
+    } else {
+      checkAll.checked = checkAll.indeterminate = false;
     }
   }
 
-  function filterRows() {
-    const q = searchInput.value.toLowerCase();
-    rows.forEach(row => {
-      const text = row.textContent.toLowerCase();
-      row.style.display = (!q || text.includes(q)) ? '' : 'none';
+  // ── Zeilen rendern ────────────────────────────────────────────────────────
+
+  function renderRows(files) {
+    tbody.innerHTML = '';
+
+    if (files.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="6" class="text-center text-muted py-4">Keine Einträge gefunden.</td></tr>';
+      return;
+    }
+
+    files.forEach(f => {
+      const [typBadge, typClass] = getTypBadge(f.extension, f.has_macros);
+      const tr = document.createElement('tr');
+      tr.className  = 'file-row';
+      tr.dataset.id = f.id;
+      tr.innerHTML  = `
+        <td><input type="checkbox" class="form-check-input file-cb"${selectedIds.has(f.id) ? ' checked' : ''}></td>
+        <td>
+          <span class="fw-500">${escHtml(f.file_name)}</span>
+          ${f.has_macros ? '<span class="badge bg-danger ms-1" style="font-size:.68rem">VBA</span>' : ''}
+        </td>
+        <td style="max-width:320px">
+          ${f.share_root
+            ? `<span class="badge bg-primary" style="font-size:.68rem;font-family:monospace">`
+            + `<i class="bi bi-folder-fill me-1"></i>${escHtml(f.share_root)}</span>`
+            : ''}
+          <div class="text-truncate text-muted" style="font-size:.75rem;max-width:300px"
+               title="${escHtml(f.full_path)}">
+            ${escHtml(f.relative_path || f.full_path)}
+          </div>
+        </td>
+        <td class="text-nowrap text-muted">${formatSize(f.size_bytes)}</td>
+        <td class="text-nowrap text-muted">${formatDate(f.modified_at)}</td>
+        <td class="text-center">
+          <span class="badge ${typClass}" style="font-size:.7rem">${escHtml(typBadge)}</span>
+        </td>`;
+
+      tr.querySelector('.file-cb').addEventListener('change', function () {
+        if (this.checked) selectedIds.add(f.id);
+        else              selectedIds.delete(f.id);
+        updateUI();
+      });
+
+      tbody.appendChild(tr);
     });
-    updateUI();
   }
 
-  searchInput.addEventListener('input', filterRows);
+  // ── Daten vom Server laden ────────────────────────────────────────────────
 
-  cbs.forEach(cb => cb.addEventListener('change', updateUI));
+  async function loadFiles(q) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" class="text-center text-muted py-4">'
+      + '<span class="spinner-border spinner-border-sm me-2"></span>Lädt …</td></tr>';
+
+    try {
+      const params = new URLSearchParams({ q: q || '', limit: LIMIT });
+      const res    = await fetch(`${searchUrl}?${params}`);
+      if (!res.ok) throw new Error(res.statusText);
+      const data   = await res.json();
+
+      renderRows(data.files);
+      updateUI(data.total, data.files.length);
+
+      if (data.total > data.files.length) {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          `<td colspan="6" class="text-center text-muted py-2" style="font-size:.8rem">`
+          + `<i class="bi bi-info-circle me-1"></i>`
+          + `${data.files.length} von ${data.total} Einträgen — Suche verfeinern für weitere Ergebnisse`
+          + `</td>`;
+        tbody.appendChild(tr);
+      }
+    } catch {
+      tbody.innerHTML =
+        '<tr><td colspan="6" class="text-danger text-center py-3">'
+        + '<i class="bi bi-exclamation-triangle me-1"></i>Fehler beim Laden der Dateien.</td></tr>';
+    }
+  }
+
+  // ── Event-Listener ────────────────────────────────────────────────────────
+
+  searchInput.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadFiles(this.value.trim()), 300);
+  });
 
   checkAll.addEventListener('change', function () {
-    rows.forEach((row, i) => {
-      if (row.style.display !== 'none') cbs[i].checked = this.checked;
+    tbody.querySelectorAll('.file-cb').forEach(cb => {
+      cb.checked = this.checked;
+      const id = parseInt(cb.closest('tr').dataset.id, 10);
+      if (id) { if (this.checked) selectedIds.add(id); else selectedIds.delete(id); }
     });
     updateUI();
   });
 
   selectAllBtn.addEventListener('click', function () {
-    rows.forEach((row, i) => {
-      if (row.style.display !== 'none') cbs[i].checked = true;
+    tbody.querySelectorAll('.file-cb').forEach(cb => {
+      cb.checked = true;
+      const id = parseInt(cb.closest('tr').dataset.id, 10);
+      if (id) selectedIds.add(id);
     });
-    checkAll.checked = true;
+    checkAll.checked       = true;
+    checkAll.indeterminate = false;
     updateUI();
   });
 
-  updateUI();
+  // Beim Absenden: ausgewählte IDs als Hidden-Felder injizieren
+  form.addEventListener('submit', function () {
+    form.querySelectorAll('input[name="file_ids"]').forEach(el => el.remove());
+    selectedIds.forEach(id => {
+      const inp = document.createElement('input');
+      inp.type  = 'hidden';
+      inp.name  = 'file_ids';
+      inp.value = id;
+      form.appendChild(inp);
+    });
+  });
+
+  // Erster Ladevorgang
+  loadFiles('');
+  updateUI({{ total_count }}, 0);
 })();
 </script>
+{% endif %}
 
 {% endblock %}
