@@ -92,11 +92,17 @@ Anschließend im Browser `http://localhost:5000` aufrufen.
 
 ### HTTPS aktivieren
 
-Soll die Anwendung direkt per HTTPS erreichbar sein, genügt das Setzen der
-Umgebungsvariable `IDV_HTTPS=1` beim Start:
+Soll die Anwendung direkt per HTTPS erreichbar sein, `config.json`
+neben der EXE anlegen (oder `config.json.example` kopieren) und
+`IDV_HTTPS` auf `1` setzen:
+
+```json
+{
+  "IDV_HTTPS": 1
+}
+```
 
 ```cmd
-set IDV_HTTPS=1
 dist\idvault.exe
 ```
 
@@ -104,7 +110,7 @@ Beim ersten Start wird ein selbstsigniertes Zertifikat in
 `instance\certs\` erzeugt (10 Jahre gültig). Für produktive Umgebungen kann
 ein eigenes Zertifikat unter `instance\certs\cert.pem` und
 `instance\certs\key.pem` hinterlegt werden — Details siehe
-[HTTPS / Zertifikate in README.md](README.md#https--zertifikate).
+[docs/06-betriebshandbuch.md](docs/06-betriebshandbuch.md) Abschnitt 4.
 
 ---
 

@@ -88,7 +88,7 @@ Vollständiges Compliance-Mapping: [docs/07-aufsichtsrecht.md](docs/07-aufsichts
 Bereits umgesetzte Hardening-Maßnahmen (Details: [docs/09-schwachstellenanalyse.md](docs/09-schwachstellenanalyse.md)):
 
 - ✅ Modernes Passwort-Hashing (`pbkdf2:sha256`) mit automatischer Migration von Legacy-SHA-256-Hashes
-- ✅ `SECRET_KEY`-Enforcement beim Start (bricht ab, wenn nicht gesetzt)
+- ✅ `SECRET_KEY`-Enforcement: beim ersten Start wird `config.json` mit zufälligem Key auto-generiert; ohne Key und ohne `config.json` bricht die Anwendung ab
 - ✅ Warnung, wenn Debug-Modus aktiv ist
 - ✅ SMTP-Passwort Fernet-verschlüsselt in der Datenbank
 - ✅ HTTP-Security-Header (CSP, X-Frame-Options, HSTS) per `after_request`
