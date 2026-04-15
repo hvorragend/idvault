@@ -737,7 +737,7 @@ def neue_version(idv_db_id):
 
     person_id = session.get("person_id")
     try:
-        new_id = create_idv(db, data, erfasser_id=person_id)
+        new_id = create_idv(db, data, erfasser_id=person_id, commit=False)
 
         # Wesentlichkeitskriterien-Antworten aus Quelle kopieren
         antworten = get_idv_wesentlichkeit(db, idv_db_id)
@@ -746,7 +746,7 @@ def neue_version(idv_db_id):
             {"kriterium_id": a["kriterium_id"], "erfuellt": a["erfuellt"],
              "begruendung": a["begruendung"]}
             for a in antworten
-        ])
+        ], commit=False)
 
         # History-Eintrag auf Quell-IDV
         new_idv_row = db.execute("SELECT idv_id FROM idv_register WHERE id=?", (new_id,)).fetchone()

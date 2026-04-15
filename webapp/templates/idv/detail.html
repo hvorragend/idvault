@@ -842,52 +842,59 @@
         <div class="border-top mt-3 pt-3" id="testdokumentation">
 
           {# Fachlicher Test #}
+          {% set fachlicher_test = fachliche_testfaelle[0] if fachliche_testfaelle else none %}
           <div class="d-flex align-items-center justify-content-between mb-1">
             <span class="fw-600" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d">
               <i class="bi bi-clipboard2-check me-1"></i>Fachlicher Test
             </span>
             {% if can_create %}
-            <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}"
-               class="btn btn-xs btn-outline-primary">
-              <i class="bi bi-plus me-1"></i>Anlegen
-            </a>
-            {% endif %}
-          </div>
-          {% if fachliche_testfaelle %}
-          <ul class="list-unstyled mb-0">
-            {% for tf in fachliche_testfaelle %}
-            <li class="d-flex align-items-center gap-2 py-1 border-bottom" style="font-size:.78rem">
-              <span class="font-monospace text-muted flex-shrink-0"
-                    style="font-size:.72rem;min-width:2.5rem">TF-{{ "%02d"|format(tf.testfall_nr) }}</span>
-              <span class="flex-grow-1 text-truncate" title="{{ tf.beschreibung }}">{{ tf.beschreibung|truncate(45) }}</span>
-              <span class="flex-shrink-0">
-                {% if tf.bewertung == 'Bestanden' %}
-                <i class="bi bi-check-circle-fill text-success"></i>
-                {% else %}
-                <i class="bi bi-circle text-secondary"></i>
-                {% endif %}
-              </span>
-              {% if can_create %}
-              <a href="{{ url_for('tests.edit_fachlicher_testfall', testfall_id=tf.id) }}"
-                 class="text-muted flex-shrink-0" title="Bearbeiten" style="font-size:.78rem">
-                <i class="bi bi-pencil"></i>
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}"
+                 class="btn btn-xs btn-outline-secondary">
+                <i class="bi bi-pencil me-1"></i>{{ 'Bearbeiten' if fachlicher_test else 'Erfassen' }}
               </a>
+              {% if fachlicher_test %}
               <form method="post"
-                action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=tf.id) }}"
-                onsubmit="return confirm('Testfall TF-{{ '%02d'|format(tf.testfall_nr) }} löschen?')"
-                class="d-inline flex-shrink-0">
-                <button type="submit" class="btn btn-xs btn-link text-danger p-0" title="Löschen"
-                        style="font-size:.78rem"><i class="bi bi-trash"></i></button>
+                    action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=fachlicher_test.id) }}"
+                    onsubmit="return confirm('Fachlichen Test löschen?')"
+                    class="d-inline">
+                <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                  <i class="bi bi-trash"></i>
+                </button>
               </form>
               {% endif %}
-            </li>
-            {% endfor %}
-          </ul>
+            </div>
+            {% endif %}
+          </div>
+          {% if fachlicher_test %}
+          <div class="d-flex align-items-start gap-2 rounded p-2
+            {% if fachlicher_test.bewertung == 'Bestanden' %}bg-success bg-opacity-10
+            {% else %}bg-light{% endif %}" style="font-size:.78rem">
+            <span class="flex-shrink-0 mt-1">
+              {% if fachlicher_test.bewertung == 'Bestanden' %}
+              <i class="bi bi-check-circle-fill text-success"></i>
+              {% else %}
+              <i class="bi bi-circle text-secondary"></i>
+              {% endif %}
+            </span>
+            <div>
+              <span class="fw-500">{{ fachlicher_test.bewertung }}</span>
+              {% if fachlicher_test.tester %}
+              <span class="text-muted ms-1">· {{ fachlicher_test.tester }}</span>
+              {% endif %}
+              {% if fachlicher_test.testdatum %}
+              <span class="text-muted ms-1">· {{ fachlicher_test.testdatum|datefmt }}</span>
+              {% endif %}
+              {% if fachlicher_test.beschreibung %}
+              <div class="text-muted mt-1">{{ fachlicher_test.beschreibung|striptags|truncate(80) }}</div>
+              {% endif %}
+            </div>
+          </div>
           {% else %}
           <div class="text-muted" style="font-size:.78rem">
-            Noch kein Testfall.
+            Nicht erfasst.
             {% if can_create %}
-            <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}">Anlegen</a>
+            <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}">Jetzt erfassen</a>
             {% endif %}
           </div>
           {% endif %}
@@ -938,7 +945,7 @@
               <span class="text-muted ms-1">· {{ technischer_test.pruefungsdatum|datefmt }}</span>
               {% endif %}
               {% if technischer_test.kurzbeschreibung %}
-              <div class="text-muted mt-1">{{ technischer_test.kurzbeschreibung|truncate(80) }}</div>
+              <div class="text-muted mt-1">{{ technischer_test.kurzbeschreibung|striptags|truncate(80) }}</div>
               {% endif %}
             </div>
           </div>

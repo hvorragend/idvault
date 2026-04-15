@@ -26,11 +26,12 @@ def _resource_path(relative: str) -> Path:
 # ---------------------------------------------------------------------------
 
 def get_connection(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn = sqlite3.connect(db_path, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA busy_timeout = 10000")
     return conn
 
 
@@ -212,11 +213,12 @@ def get_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int) -> list:
 
 
 def save_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int,
-                             antworten: list) -> None:
+                             antworten: list, commit: bool = True) -> None:
     """
     Speichert die Antworten einer IDV auf konfigurierbare Kriterien (UPSERT).
     antworten: [{kriterium_id, erfuellt, begruendung}]
     Bereits vorhandene Antworten zu inaktiven Kriterien bleiben unberührt.
+    commit=False erlaubt dem Aufrufer, mehrere Operationen in einer Transaktion zu bündeln.
     """
     now = datetime.now(timezone.utc).isoformat()
     for a in antworten:
@@ -230,7 +232,8 @@ def save_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int,
                 geaendert_am = excluded.geaendert_am
         """, (idv_db_id, a["kriterium_id"], int(a.get("erfuellt", 0)),
               a.get("begruendung") or None, now))
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def _compute_dora(conn: sqlite3.Connection, gp_id, gda_wert) -> int:
@@ -267,7 +270,8 @@ def generate_idv_id(conn: sqlite3.Connection) -> str:
 # ---------------------------------------------------------------------------
 
 def create_idv(conn: sqlite3.Connection, data: dict,
-               erfasser_id: Optional[int] = None) -> int:
+               erfasser_id: Optional[int] = None,
+               commit: bool = True) -> int:
     """Legt einen neuen IDV-Register-Eintrag an."""
     now = datetime.now(timezone.utc).isoformat()
     idv_id = generate_idv_id(conn)
@@ -363,7 +367,8 @@ def create_idv(conn: sqlite3.Connection, data: dict,
             (data["file_id"],)
         )
 
-    conn.commit()
+    if commit:
+        conn.commit()
     return new_id
 
 

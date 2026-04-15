@@ -74,10 +74,16 @@ def new_fachlicher_testfall(idv_db_id):
     except (ValueError, TypeError):
         freigabe_id = None
 
+    # Nur ein fachlicher Test pro IDV – wenn schon vorhanden, direkt zum Bearbeiten
+    existing = get_fachliche_testfaelle(db, idv_db_id)
+    if existing and request.method == "GET":
+        return redirect(url_for("tests.edit_fachlicher_testfall",
+                                testfall_id=existing[0]["id"]))
+
     if request.method == "POST":
         data = _fachlich_form_to_dict(request.form)
         if not data["beschreibung"]:
-            flash("Testfallbeschreibung ist ein Pflichtfeld.", "error")
+            flash("Testbeschreibung ist ein Pflichtfeld.", "error")
         else:
             # Datei-Upload verarbeiten
             upload_file = request.files.get("nachweis_datei")
