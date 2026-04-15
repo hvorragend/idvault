@@ -183,6 +183,17 @@ def create_app(db_path: str = None) -> Flask:
         from flask import session
         session.permanent = True
 
+    # Template-Global: url_for-Wrapper der keinen BuildError wirft
+    @app.template_global()
+    def safe_url_for(endpoint: str, **values) -> str:
+        """Gibt die URL zurück oder '#' wenn der Endpoint nicht existiert."""
+        from flask import url_for
+        from werkzeug.routing import BuildError
+        try:
+            return url_for(endpoint, **values)
+        except BuildError:
+            return "#"
+
     # Context Processor: Scanner-Eingang Badge-Count für alle Templates
     @app.context_processor
     def inject_scanner_badge():
