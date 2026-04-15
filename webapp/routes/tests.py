@@ -106,13 +106,17 @@ def new_fachlicher_testfall(idv_db_id):
 
             create_fachlicher_testfall(db, idv_db_id, data)
 
-            # Freigabe-Schritt nur abschließen, wenn Bewertung = "Bestanden"
-            if freigabe_id and data["bewertung"] == "Bestanden":
-                from . import current_person_id
-                from .freigaben import complete_freigabe_schritt
-                complete_freigabe_schritt(db, freigabe_id, current_person_id())
-                flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+            if data["bewertung"] == "Bestanden":
+                if freigabe_id:
+                    from . import current_person_id
+                    from .freigaben import complete_freigabe_schritt
+                    complete_freigabe_schritt(db, freigabe_id, current_person_id())
+                    flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                else:
+                    flash("Test gespeichert.", "success")
             else:
+                # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Bestanden" gesetzt war
+                _reset_freigabe_schritt(db, idv_db_id, "Fachlicher Test")
                 flash("Test gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
@@ -157,13 +161,17 @@ def edit_fachlicher_testfall(testfall_id):
 
             update_fachlicher_testfall(db, testfall_id, data)
 
-            # Freigabe-Schritt nur abschließen, wenn Bewertung = "Bestanden"
-            if freigabe_id and data["bewertung"] == "Bestanden":
-                from . import current_person_id
-                from .freigaben import complete_freigabe_schritt
-                complete_freigabe_schritt(db, freigabe_id, current_person_id())
-                flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+            if data["bewertung"] == "Bestanden":
+                if freigabe_id:
+                    from . import current_person_id
+                    from .freigaben import complete_freigabe_schritt
+                    complete_freigabe_schritt(db, freigabe_id, current_person_id())
+                    flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                else:
+                    flash("Test gespeichert.", "success")
             else:
+                # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Bestanden" gesetzt war
+                _reset_freigabe_schritt(db, idv["id"], "Fachlicher Test")
                 flash("Test gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv["id"]))
 
@@ -226,13 +234,17 @@ def edit_technischer_test(idv_db_id):
 
         save_technischer_test(db, idv_db_id, data)
 
-        # Freigabe-Schritt nur abschließen, wenn Ergebnis = "Bestanden"
-        if freigabe_id and data["ergebnis"] == "Bestanden":
-            from . import current_person_id
-            from .freigaben import complete_freigabe_schritt
-            complete_freigabe_schritt(db, freigabe_id, current_person_id())
-            flash("Technischer Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+        if data["ergebnis"] == "Bestanden":
+            if freigabe_id:
+                from . import current_person_id
+                from .freigaben import complete_freigabe_schritt
+                complete_freigabe_schritt(db, freigabe_id, current_person_id())
+                flash("Technischer Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+            else:
+                flash("Technischer Test gespeichert.", "success")
         else:
+            # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Bestanden" gesetzt war
+            _reset_freigabe_schritt(db, idv_db_id, "Technischer Test")
             flash("Technischer Test gespeichert.", "success")
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
