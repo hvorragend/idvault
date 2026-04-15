@@ -1384,6 +1384,9 @@ def main():
     parser = argparse.ArgumentParser(description="IDV-Scanner – Netzlaufwerk-Discovery")
     parser.add_argument("--config", default="config.json",
                         help="Pfad zur Konfigurationsdatei (default: config.json)")
+    parser.add_argument("--signal-dir", default=None,
+                        help="Verzeichnis für Signal-Dateien (Pause/Abbruch/Checkpoint). "
+                             "Standard: Verzeichnis der config.json")
     parser.add_argument("--init-config", action="store_true",
                         help="Erstellt eine Beispiel-config.json und beendet sich")
     parser.add_argument("--resume", action="store_true",
@@ -1392,20 +1395,26 @@ def main():
 
     if args.init_config:
         with open("config.json", "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)
-        print("config.json erstellt. Bitte Scan-Pfade anpassen.")
+            json.dump({"scanner": DEFAULT_CONFIG}, f, indent=2, ensure_ascii=False)
+        print("config.json erstellt. Bitte Scan-Pfade unter 'scanner' anpassen.")
         sys.exit(0)
 
     # Konfiguration laden
+    # Unterstützt zusammengeführte config.json mit "scanner"-Abschnitt
+    # sowie die frühere flache Scanner-Konfiguration (rückwärtskompatibel).
     config = dict(DEFAULT_CONFIG)
     if os.path.exists(args.config):
         with open(args.config, encoding="utf-8") as f:
-            config.update(json.load(f))
+            raw = json.load(f)
+        if "scanner" in raw:
+            config.update(raw["scanner"])
+        else:
+            config.update(raw)
     else:
         print(f"Keine config.json gefunden. Starte mit: python idv_scanner.py --init-config")
         sys.exit(1)
 
-    signal_dir = os.path.dirname(os.path.abspath(args.config))
+    signal_dir = args.signal_dir if args.signal_dir else os.path.dirname(os.path.abspath(args.config))
     logger = setup_logging(config["log_path"])
 
     _set_keep_awake(True)

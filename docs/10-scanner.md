@@ -32,31 +32,35 @@ folgende Metadaten:
 - Blattschutz aktiv (Excel)
 - Dateieigentümer (Windows, via `pywin32`)
 
-### 2.2 Konfiguration (`scanner/config.json`)
+### 2.2 Konfiguration (`config.json` → Abschnitt `scanner`)
+
+Die Scanner-Einstellungen liegen im `"scanner"`-Abschnitt der gemeinsamen
+`config.json` neben der EXE (bzw. im Projektverzeichnis):
+
+```json
+{
+  "scanner": {
+    "scan_paths": ["\\\\server01\\freigabe"],
+    "db_path": "instance/idvault.db"
+  }
+}
+```
 
 | Parameter | Typ | Standard | Beschreibung |
 |---|---|---|---|
 | `scan_paths` | Liste | `[]` | Zu scannende Pfade (UNC oder Laufwerksbuchstaben) |
 | `extensions` | Liste | `.xlsx`, `.xlsm`, `.py`, `.sql`, … | Erfasste Dateierweiterungen |
 | `exclude_paths` | Liste | `["~$", ".tmp", …]` | Pfadmuster, die ausgeschlossen werden |
-| `db_path` | String | `"idv_register.db"` | Pfad zur SQLite-Datenbank |
-| `log_path` | String | `"idv_scanner.log"` | Pfad zur Logdatei |
+| `db_path` | String | `"instance/idvault.db"` | Pfad zur SQLite-Datenbank |
+| `log_path` | String | `"scanner/idv_scanner.log"` | Pfad zur Logdatei |
 | `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |
 | `max_workers` | Integer | `4` | Reserviert (zukünftige Parallelisierung) |
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung |
 | `scan_since` | String\|null | `null` | Nur Dateien mit mtime ≥ diesem Datum verarbeiten |
 | `read_file_owner` | Boolean | `true` | Dateibesitzer via Windows-API lesen |
 
-### 2.3 Integration mit der Webapp
-
-Damit Scanner und Webapp dieselbe Datenbank nutzen:
-
-```json
-{
-  "db_path": "../instance/idvault.db",
-  "scan_paths": ["\\\\server01\\freigabe"]
-}
-```
+Die Scanner-Einstellungen können auch über die Web-Oberfläche bearbeitet
+werden: Administration → Scanner-Einstellungen.
 
 ### 2.4 Datei-Stati
 
@@ -199,7 +203,7 @@ Import: `Admin → Scanner-Einstellungen → Scanner-Datenbank importieren`
 ```
 Aufgabenplanung → Neue Aufgabe
   Programm:  C:\idvault\idvault.exe
-  Argumente: --scan --config C:\idvault\scanner\config.json
+  Argumente: --scan --config C:\idvault\config.json
   Trigger:   Wöchentlich, Montag 06:00
   Konto:     Dienstkonto mit Leserechten auf Shares
 ```

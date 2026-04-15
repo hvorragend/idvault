@@ -157,7 +157,33 @@ if not os.path.isfile(_config_file):
             "IDV_SMTP_PASSWORD": "",
             "IDV_SMTP_FROM": "",
             "IDV_SMTP_TLS": 1,
-            "IDV_APP_BASE_URL": ""
+            "IDV_APP_BASE_URL": "",
+            "scanner": {
+                "scan_paths": [],
+                "extensions": [
+                    ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
+                    ".accdb", ".mdb", ".accde", ".accdr",
+                    ".ida", ".idv",
+                    ".bas", ".cls", ".frm",
+                    ".pbix", ".pbit",
+                    ".dotm", ".pptm",
+                    ".py", ".r", ".rmd",
+                    ".sql"
+                ],
+                "exclude_paths": [
+                    "~$", ".tmp",
+                    "$RECYCLE.BIN",
+                    "System Volume Information",
+                    "AppData"
+                ],
+                "db_path": "instance/idvault.db",
+                "log_path": "scanner/idv_scanner.log",
+                "hash_size_limit_mb": 500,
+                "max_workers": 4,
+                "move_detection": "name_and_hash",
+                "scan_since": None,
+                "read_file_owner": True
+            }
         }
         try:
             with open(_config_file, 'w', encoding='utf-8') as _f:
@@ -170,6 +196,10 @@ if os.path.isfile(_config_file):
     try:
         _cfg_data = _read_version_json(_config_file)
         for _cfg_k, _cfg_v in _cfg_data.items():
+            # Den "scanner"-Abschnitt nicht als Env-Variable setzen –
+            # er wird direkt von idv_scanner.py aus der config.json gelesen.
+            if _cfg_k == "scanner":
+                continue
             os.environ.setdefault(_cfg_k, str(_cfg_v))
     except Exception as _cfg_err:
         print(f"  [config] config.json konnte nicht geladen werden: {_cfg_err}")
