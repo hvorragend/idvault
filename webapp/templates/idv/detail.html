@@ -684,23 +684,21 @@
                     {% elif f.status == 'Nicht bestanden' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
-                  <div class="d-flex gap-1 ms-1">
+                  <div class="d-flex align-items-center gap-2 ms-1">
                     <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
-                      <i class="bi bi-arrow-up-right-square"></i>
+                       class="text-muted" title="Öffnen" style="font-size:.8rem;line-height:1">
+                      <i class="bi bi-box-arrow-up-right"></i>
                     </a>
                     {% if session.get('user_role') == 'IDV-Administrator' %}
                     <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
                           onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
-                      <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                      <button type="submit" class="btn btn-link text-danger p-0" title="Löschen"
+                              style="font-size:.8rem;line-height:1">
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>
                     {% endif %}
                   </div>
-                  {% elif can_create %}
-                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=0) }}"
-                     class="btn btn-xs btn-success ms-auto" style="display:none"></a>
                   {% endif %}
                 </div>
                 {% if f and f.status == 'Ausstehend' and can_create %}
@@ -754,15 +752,16 @@
                     {% elif f.status == 'Nicht bestanden' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
-                  <div class="d-flex gap-1 ms-1">
+                  <div class="d-flex align-items-center gap-2 ms-1">
                     <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
-                      <i class="bi bi-arrow-up-right-square"></i>
+                       class="text-muted" title="Öffnen" style="font-size:.8rem;line-height:1">
+                      <i class="bi bi-box-arrow-up-right"></i>
                     </a>
                     {% if session.get('user_role') == 'IDV-Administrator' %}
                     <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
                           onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
-                      <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                      <button type="submit" class="btn btn-link text-danger p-0" title="Löschen"
+                              style="font-size:.8rem;line-height:1">
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>
@@ -794,96 +793,6 @@
         {% endif %}
 
         {# ── Testdokumentation ── #}
-        <div class="border-top mt-3 pt-3" id="testdokumentation">
-
-          {# Fachlicher Test #}
-          {% set fachlicher_test = fachliche_testfaelle[0] if fachliche_testfaelle else none %}
-          <div class="d-flex align-items-center justify-content-between mb-1">
-            <span class="fw-600" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d">
-              <i class="bi bi-clipboard2-check me-1"></i>Fachlicher Test
-            </span>
-            {% if can_create %}
-            <div class="d-flex gap-1">
-              <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}"
-                 class="btn btn-xs btn-outline-secondary">
-                <i class="bi bi-pencil me-1"></i>{{ 'Bearbeiten' if fachlicher_test else 'Erfassen' }}
-              </a>
-              {% if fachlicher_test %}
-              <form method="post"
-                    action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=fachlicher_test.id) }}"
-                    onsubmit="return confirm('Fachlichen Test löschen?')"
-                    class="d-inline">
-                <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </form>
-              {% endif %}
-            </div>
-            {% endif %}
-          </div>
-          {% if fachlicher_test %}
-          <div class="d-flex align-items-center gap-2" style="font-size:.78rem">
-            {% if fachlicher_test.bewertung == 'Bestanden' %}
-            <i class="bi bi-check-circle-fill text-success"></i>
-            {% else %}
-            <i class="bi bi-circle text-secondary"></i>
-            {% endif %}
-            <span class="fw-500">{{ fachlicher_test.bewertung }}</span>
-          </div>
-          {% else %}
-          <div class="text-muted" style="font-size:.78rem">
-            Nicht erfasst.
-            {% if can_create %}
-            <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}">Jetzt erfassen</a>
-            {% endif %}
-          </div>
-          {% endif %}
-
-          {# Technischer Test #}
-          <div class="d-flex align-items-center justify-content-between mt-3 mb-1">
-            <span class="fw-600" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d">
-              <i class="bi bi-cpu me-1"></i>Technischer Test
-            </span>
-            {% if can_create %}
-            <div class="d-flex gap-1">
-              <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}"
-                 class="btn btn-xs btn-outline-secondary">
-                <i class="bi bi-pencil me-1"></i>{{ 'Bearbeiten' if technischer_test else 'Erfassen' }}
-              </a>
-              {% if technischer_test %}
-              <form method="post"
-                    action="{{ url_for('tests.delete_technischer_test_route', idv_db_id=idv.id) }}"
-                    onsubmit="return confirm('Technischen Test löschen?')"
-                    class="d-inline">
-                <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </form>
-              {% endif %}
-            </div>
-            {% endif %}
-          </div>
-          {% if technischer_test %}
-          <div class="d-flex align-items-center gap-2" style="font-size:.78rem">
-            {% if technischer_test.ergebnis == 'Bestanden' %}
-            <i class="bi bi-check-circle-fill text-success"></i>
-            {% elif technischer_test.ergebnis == 'Entfällt' %}
-            <i class="bi bi-dash-circle text-secondary"></i>
-            {% else %}
-            <i class="bi bi-circle text-secondary"></i>
-            {% endif %}
-            <span class="fw-500">{{ technischer_test.ergebnis }}</span>
-          </div>
-          {% else %}
-          <div class="text-muted" style="font-size:.78rem">
-            Nicht erfasst.
-            {% if can_create %}
-            <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}">Jetzt erfassen</a>
-            {% endif %}
-          </div>
-          {% endif %}
-
-        </div><!-- /testdokumentation -->
 
       </div><!-- /.card-body -->
 
