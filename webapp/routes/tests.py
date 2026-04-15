@@ -77,8 +77,10 @@ def new_fachlicher_testfall(idv_db_id):
     # Nur ein fachlicher Test pro IDV – wenn schon vorhanden, direkt zum Bearbeiten
     existing = get_fachliche_testfaelle(db, idv_db_id)
     if existing and request.method == "GET":
-        return redirect(url_for("tests.edit_fachlicher_testfall",
-                                testfall_id=existing[0]["id"]))
+        kwargs = {"testfall_id": existing[0]["id"]}
+        if freigabe_id:
+            kwargs["freigabe_id"] = freigabe_id
+        return redirect(url_for("tests.edit_fachlicher_testfall", **kwargs))
 
     if request.method == "POST":
         data = _fachlich_form_to_dict(request.form)
@@ -103,8 +105,7 @@ def new_fachlicher_testfall(idv_db_id):
                 flash("Testfall gespeichert und Freigabe-Schritt abgeschlossen.", "success")
             else:
                 flash("Testfall gespeichert.", "success")
-            return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
-                                    _anchor="testdokumentation"))
+            return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
     return render_template("tests/fachlich_form.html",
                            idv=idv, testfall=None,
@@ -128,6 +129,11 @@ def edit_fachlicher_testfall(testfall_id):
     if not idv:
         return redirect(url_for("idv.list_idv"))
 
+    try:
+        freigabe_id = int(request.args.get("freigabe_id") or request.form.get("freigabe_id") or 0) or None
+    except (ValueError, TypeError):
+        freigabe_id = None
+
     if request.method == "POST":
         data = _fachlich_form_to_dict(request.form)
         if not data["beschreibung"]:
@@ -142,12 +148,19 @@ def edit_fachlicher_testfall(testfall_id):
             data["nachweis_datei_name"] = name or testfall["nachweis_datei_name"]
 
             update_fachlicher_testfall(db, testfall_id, data)
-            flash("Testfall aktualisiert.", "success")
-            return redirect(url_for("idv.detail_idv", idv_db_id=idv["id"],
-                                    _anchor="testdokumentation"))
+
+            if freigabe_id:
+                from . import current_person_id
+                from .freigaben import complete_freigabe_schritt
+                complete_freigabe_schritt(db, freigabe_id, current_person_id())
+                flash("Testfall gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+            else:
+                flash("Testfall aktualisiert.", "success")
+            return redirect(url_for("idv.detail_idv", idv_db_id=idv["id"]))
 
     return render_template("tests/fachlich_form.html",
                            idv=idv, testfall=testfall,
+                           freigabe_id=freigabe_id,
                            bewertungen=_BEWERTUNGEN,
                            today=_date.today().isoformat())
 
