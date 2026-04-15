@@ -86,6 +86,22 @@ Anschließend im Browser `http://localhost:5000` aufrufen.
 > Die Datenbank (`idvault.db`) wird beim ersten Start automatisch im Ordner
 > `instance\` neben der `.exe` angelegt und bleibt beim nächsten Start erhalten.
 
+### HTTPS aktivieren
+
+Soll die Anwendung direkt per HTTPS erreichbar sein, genügt das Setzen der
+Umgebungsvariable `IDV_HTTPS=1` beim Start:
+
+```cmd
+set IDV_HTTPS=1
+dist\idvault.exe
+```
+
+Beim ersten Start wird ein selbstsigniertes Zertifikat in
+`instance\certs\` erzeugt (10 Jahre gültig). Für produktive Umgebungen kann
+ein eigenes Zertifikat unter `instance\certs\cert.pem` und
+`instance\certs\key.pem` hinterlegt werden — Details siehe
+[HTTPS / Zertifikate in README.md](README.md#https--zertifikate).
+
 ---
 
 ## Fehlerbehebung
