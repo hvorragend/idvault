@@ -920,81 +920,99 @@ def _save_wesentlichkeit_from_form(db, idv_db_id: int, form) -> None:
 @login_required
 def nicht_wesentliche_idvs():
     """Eigene Seite: Nicht-wesentliche IDVs aus dem Register."""
-    from .funde import (
-        _DIR_PATH_EXPR, _DIR_PATH_EXPR_PLAIN, _VALID_PER_PAGE, _idv_typ_vorschlag, _scan_btn_ctx
-    )
     db = get_db()
-    q             = request.args.get("q", "").strip()
-    dir_path_filt = request.args.get("dir_path", "").strip()
+    q          = request.args.get("q", "").strip()
+    share_root = request.args.get("share_root", "").strip()
+    status     = request.args.get("status", "")
+    oe_id      = _int_or_none(request.args.get("oe_id"))
+    fv_id      = _int_or_none(request.args.get("fv_id"))
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
         page = 1
-    try:
-        per_page = int(request.args.get("per_page", 100))
-    except (ValueError, TypeError):
-        per_page = 100
-    if per_page not in _VALID_PER_PAGE:
+    if "per_page" in request.args:
+        try:
+            per_page = int(request.args["per_page"])
+        except (ValueError, TypeError):
+            per_page = 100
+        if per_page in _VALID_PER_PAGE_IDV:
+            session["pref_per_page_nw"] = per_page
+    else:
+        per_page = session.get("pref_per_page_nw", 100)
+    if per_page not in _VALID_PER_PAGE_IDV:
         per_page = 100
 
-    _WESENTLICH_SQL = """(
-        r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
+    _WESENTLICH = """(
+        v.steuerungsrelevant = 'Ja' OR v.rl_relevant = 'Ja' OR v.dora_kritisch = 'Ja'
         OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
     )"""
 
-    where_parts = ["f.status = 'active'", f"NOT {_WESENTLICH_SQL}"]
+    where_parts = [f"NOT {_WESENTLICH}"]
     params: list = []
+
     if q:
-        where_parts.append("(r.idv_id LIKE ? OR r.bezeichnung LIKE ? OR r.kurzbeschreibung LIKE ?)")
+        where_parts.append("(v.idv_id LIKE ? OR v.bezeichnung LIKE ? OR v.geschaeftsprozess LIKE ?)")
         params += [f"%{q}%", f"%{q}%", f"%{q}%"]
-    if dir_path_filt:
-        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
-        params.append(dir_path_filt)
+    if status:
+        where_parts.append("v.status = ?")
+        params.append(status)
+    if oe_id:
+        where_parts.append("r.org_unit_id = ?")
+        params.append(oe_id)
+    if fv_id:
+        where_parts.append("r.fachverantwortlicher_id = ?")
+        params.append(fv_id)
+    if share_root:
+        where_parts.append(
+            "r.file_id IN (SELECT id FROM idv_files WHERE share_root = ?)"
+        )
+        params.append(share_root)
+
     where_sql = "WHERE " + " AND ".join(where_parts)
 
     total = db.execute(
-        f"SELECT COUNT(*) FROM idv_register r JOIN idv_files f ON r.file_id = f.id {where_sql}",
+        f"""SELECT COUNT(*) FROM v_idv_uebersicht v
+            JOIN idv_register r ON r.idv_id = v.idv_id
+            {where_sql}""",
         params,
     ).fetchone()[0]
     total_pages = max(1, (total + per_page - 1) // per_page)
     page = min(page, total_pages)
 
     nicht_wesentliche = db.execute(f"""
-        SELECT r.id AS idv_db_id, r.idv_id, r.bezeichnung, r.status,
-               r.teststatus AS idv_teststatus,
-               f.file_name, f.full_path, f.share_root,
-               f.id AS file_id,
-               f.modified_at AS file_modified_at,
-               p.nachname || ', ' || p.vorname AS fachverantwortlicher,
-               ou.kuerzel AS org_einheit,
-               {_DIR_PATH_EXPR} AS dir_path
-        FROM idv_register r
-        JOIN idv_files f ON r.file_id = f.id
-        LEFT JOIN persons   p  ON r.fachverantwortlicher_id = p.id
-        LEFT JOIN org_units ou ON r.org_unit_id = ou.id
+        SELECT r.*, v.*,
+          CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich,
+          EXISTS(SELECT 1 FROM idv_register x WHERE x.vorgaenger_idv_id = r.id) AS hat_nachfolger,
+          (CASE WHEN r.file_id IS NOT NULL THEN 1 ELSE 0 END
+           + (SELECT COUNT(*) FROM idv_file_links lnk WHERE lnk.idv_db_id = r.id)) AS datei_anzahl,
+          f.formula_count        AS file_formula_count,
+          f.has_macros           AS file_has_macros,
+          f.has_sheet_protection AS file_has_sheet_protection
+        FROM v_idv_uebersicht v
+        JOIN idv_register r ON r.idv_id = v.idv_id
+        LEFT JOIN idv_files f ON f.id = r.file_id
         {where_sql}
-        ORDER BY r.bezeichnung
+        ORDER BY v.bezeichnung
         LIMIT ? OFFSET ?
     """, params + [per_page, (page - 1) * per_page]).fetchall()
 
-    dir_paths = [
-        r["dir_path"] for r in db.execute(f"""
-            SELECT DISTINCT {_DIR_PATH_EXPR_PLAIN} AS dir_path
-            FROM idv_register r
-            JOIN idv_files f ON r.file_id = f.id
-            WHERE f.full_path IS NOT NULL AND f.status = 'active'
-              AND NOT {_WESENTLICH_SQL}
-            ORDER BY 1
-        """).fetchall()
-        if r["dir_path"]
+    org_units = db.execute(
+        "SELECT id, kuerzel, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
+    ).fetchall()
+    persons_fv = db.execute(
+        "SELECT id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname"
+    ).fetchall()
+    share_roots = [
+        r["share_root"] for r in db.execute(
+            "SELECT DISTINCT share_root FROM idv_files WHERE share_root IS NOT NULL AND status='active' ORDER BY share_root"
+        ).fetchall()
     ]
 
     return render_template("idv/nicht_wesentlich.html",
         nicht_wesentliche=nicht_wesentliche,
         total=total, total_pages=total_pages, page=page, per_page=per_page,
-        dir_paths=dir_paths, dir_path_filt=dir_path_filt,
-        q=q,
-        idv_typ_vorschlag=_idv_typ_vorschlag,
-        valid_per_page=_VALID_PER_PAGE,
-        **_scan_btn_ctx(),
+        org_units=org_units, persons_fv=persons_fv,
+        share_roots=share_roots, share_root=share_root,
+        q=q, status=status, oe_id=oe_id, fv_id=fv_id,
+        valid_per_page=_VALID_PER_PAGE_IDV,
     )
