@@ -171,7 +171,11 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(reports_bp)
     app.register_blueprint(freigaben_bp)
     app.register_blueprint(tests_bp)
-    app.register_blueprint(cognos_bp)
+    # funde_bp registriert cognos_bp bereits via @record_once als Legacy-Pfad
+    # für Sidecar-Updates alter EXEs (webapp/routes/funde.py). In neuen Builds
+    # ist cognos.py Teil des Hauptpakets – dann erst hier registrieren.
+    if "cognos" not in app.blueprints:
+        app.register_blueprint(cognos_bp)
 
     # VULN-008: HTTP-Security-Header bei jeder Antwort setzen
     @app.after_request
