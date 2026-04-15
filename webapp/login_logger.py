@@ -23,7 +23,7 @@ def setup_login_logger(instance_path: str) -> None:
     if _logger.handlers:
         return  # Bereits initialisiert (z.B. durch Sidecar-Reload)
 
-    _login_log_path = os.path.join(instance_path, "login.log")
+    _login_log_path = os.path.join(instance_path, "logs", "login.log")
     fh = RotatingFileHandler(
         _login_log_path,
         maxBytes=2 * 1024 * 1024,   # 2 MB pro Datei
