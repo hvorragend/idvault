@@ -162,7 +162,7 @@
             <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
           </td>
           <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
-          <td class="text-nowrap" style="font-size:.76rem">{{ r.updated_at|datefmt if r.updated_at else '–' }}</td>
+          <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}</td>
           <td style="font-size:.82rem">
             {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
               <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
