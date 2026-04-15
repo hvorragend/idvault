@@ -307,6 +307,11 @@
         class="btn btn-sm btn-outline-secondary" title="Nur für Dateien ohne Formeln verfügbar">
         <i class="bi bi-eye-slash me-1"></i>Ignorieren
       </button>
+      <button type="submit" name="aktion" value="nicht_mehr_ignorieren" id="btn-nicht-mehr-ignorieren"
+              class="btn btn-sm btn-outline-secondary"
+              title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
+        <i class="bi bi-eye me-1"></i>Nicht mehr ignorieren
+      </button>
       <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
         <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
       </button>
@@ -314,6 +319,11 @@
               class="btn btn-sm btn-outline-secondary"
               title="Als nicht wesentliche IDV einstufen (kein weiterer Handlungsbedarf)">
         <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
+      </button>
+      <button type="submit" name="aktion" value="zusammenfassen"
+              class="btn btn-sm btn-outline-primary"
+              title="Ausgewählte Dateien als IDV-Projekt zusammenfassen oder mit bestehendem IDV verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu IDV-Projekt zusammenfassen
       </button>
       <button type="submit" name="aktion" value="bewertung_anfordern" class="btn btn-sm btn-outline-primary"
               title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
@@ -372,7 +382,8 @@
 
             <!-- Checkbox -->
             <td class="text-center align-middle">
-              <input type="checkbox" name="file_ids" value="{{ f.id }}" class="form-check-input row-check">
+              <input type="checkbox" name="file_ids" value="{{ f.id }}" class="form-check-input row-check"
+                     data-bearbeitungsstatus="{{ f.bearbeitungsstatus or 'Neu' }}">
             </td>
 
             <!-- Dateiname + Hash -->
@@ -540,6 +551,7 @@
     const bulkBar = document.getElementById('bulk-bar');
     const bulkCount = document.getElementById('bulk-count');
     const btnIgn = document.getElementById('btn-ignorieren');
+    const btnNichtMehrIgn = document.getElementById('btn-nicht-mehr-ignorieren');
     const btnDeselect = document.getElementById('btn-deselect-all');
 
     function updateBar() {
@@ -557,6 +569,10 @@
         btnIgn.title = allNoFormula
           ? 'Alle ausgewählten Dateien haben keine Formeln – Ignorieren möglich'
           : 'Eine oder mehrere Dateien haben Formeln';
+      }
+      if (btnNichtMehrIgn) {
+        const anyIgnoriert = [...checked].some(cb => cb.dataset.bearbeitungsstatus === 'Ignoriert');
+        btnNichtMehrIgn.disabled = !anyIgnoriert;
       }
     }
 

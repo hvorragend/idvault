@@ -859,7 +859,7 @@ def bulk_aktion():
         ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
         return redirect(url_for("funde.zusammenfassen") + "?" + ids_qs)
 
-    if aktion not in ("ignorieren", "zur_registrierung", "nicht_wesentlich", "owner_aendern", "bewertung_anfordern"):
+    if aktion not in ("ignorieren", "nicht_mehr_ignorieren", "zur_registrierung", "nicht_wesentlich", "owner_aendern", "bewertung_anfordern"):
         flash("Ungültige Aktion.", "error")
         return redirect(url_for("funde.list_funde"))
 
@@ -913,6 +913,16 @@ def bulk_aktion():
                 "(Formeln vorhanden oder bereits im IDV-Register).",
                 "warning"
             )
+
+    elif aktion == "nicht_mehr_ignorieren":
+        placeholders = ",".join("?" * len(file_ids))
+        db.execute(
+            f"UPDATE idv_files SET bearbeitungsstatus = 'Neu'"
+            f" WHERE id IN ({placeholders}) AND bearbeitungsstatus = 'Ignoriert'",
+            file_ids
+        )
+        db.commit()
+        flash(f"{len(file_ids)} Datei(en): Ignorierung aufgehoben.", "success")
 
     elif aktion == "zur_registrierung":
         placeholders = ",".join("?" * len(file_ids))

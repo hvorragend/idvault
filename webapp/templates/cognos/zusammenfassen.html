@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Berichte zu IDV-Projekt zusammenfassen{% endblock %}
+{% block page_title %}
+  <i class="bi bi-diagram-3 me-2"></i>Berichte zu IDV-Projekt zusammenfassen
+{% endblock %}
+
+{% block content %}
+
+<div class="row g-4">
+  <div class="col-lg-8">
+
+    <!-- Ausgewählte Berichte -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-filetype-xml me-2"></i>Ausgewählte Berichte ({{ berichte|length }})
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:.83rem">
+          <thead>
+            <tr>
+              <th>Berichtsname</th>
+              <th>Suchpfad</th>
+              <th>Eigentümer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in berichte %}
+            <tr>
+              <td class="fw-500">{{ b.berichtsname }}</td>
+              <td class="text-muted font-monospace" style="font-size:.75rem;max-width:260px">
+                <span class="d-block text-truncate" title="{{ b.suchpfad }}">{{ b.suchpfad or '–' }}</span>
+              </td>
+              <td class="text-muted">{{ b.eigentuemer or '–' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Option A: Neues IDV anlegen -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-plus-circle me-2 text-primary"></i>Option A – Neues IDV anlegen
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.88rem">
+          Legt ein neues IDV an. Ein Bericht wird als Primäreintrag gewählt;
+          alle weiteren werden automatisch mit dem neuen IDV verknüpft.
+        </p>
+        <form method="post">
+          {% for b in berichte %}
+          <input type="hidden" name="bericht_ids" value="{{ b.id }}">
+          {% endfor %}
+          <input type="hidden" name="aktion" value="neues_idv">
+
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-600">
+              Primärbericht (wird im IDV-Formular vorausgefüllt)
+            </label>
+            {% for b in berichte %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio"
+                     name="primary_bericht_id" value="{{ b.id }}"
+                     id="prim-{{ b.id }}"
+                     {{ 'checked' if loop.first }}>
+              <label class="form-check-label" for="prim-{{ b.id }}">
+                <span class="fw-500">{{ b.berichtsname }}</span>
+                {% if b.suchpfad %}
+                <span class="text-muted ms-1" style="font-size:.8rem">{{ b.suchpfad }}</span>
+                {% endif %}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Weiter zum IDV-Formular
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Option B: Zu bestehendem IDV verknüpfen -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-link-45deg me-2 text-success"></i>Option B – Zu bestehendem IDV hinzufügen
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.88rem">
+          Alle ausgewählten Berichte werden mit einem bestehenden IDV-Eintrag verknüpft.
+        </p>
+        {% if idvs %}
+        <form method="post">
+          {% for b in berichte %}
+          <input type="hidden" name="bericht_ids" value="{{ b.id }}">
+          {% endfor %}
+          <input type="hidden" name="aktion" value="zu_idv">
+
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-600" for="idv-select">IDV auswählen</label>
+            <select name="idv_db_id" id="idv-select" class="form-select form-select-sm" required>
+              <option value="">– IDV auswählen –</option>
+              {% for idv in idvs %}
+              <option value="{{ idv.id }}">{{ idv.idv_id }} – {{ idv.bezeichnung }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-link me-1"></i>Mit IDV verknüpfen
+          </button>
+        </form>
+        {% else %}
+        <div class="alert alert-warning py-2 mb-0">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Keine aktiven IDV-Einträge vorhanden. Bitte zuerst Option A verwenden.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-1"></i>Hinweis</h6>
+        <p class="text-muted small mb-2">
+          Mit <strong>Option A</strong> wird ein neues IDV angelegt. Der ausgewählte
+          Primärbericht füllt das IDV-Formular vor; alle weiteren Berichte werden
+          automatisch verknüpft.
+        </p>
+        <p class="text-muted small mb-0">
+          Mit <strong>Option B</strong> werden alle Berichte einem bereits bestehenden
+          IDV zugeordnet und als „Registriert" markiert.
+        </p>
+        <hr>
+        <a href="{{ url_for('cognos.list_berichte') }}" class="btn btn-sm btn-outline-secondary w-100">
+          <i class="bi bi-arrow-left me-1"></i>Zurück zur Übersicht
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

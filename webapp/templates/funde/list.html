@@ -238,7 +238,13 @@
               id="btn-ignorieren"
               class="btn btn-sm btn-outline-secondary"
               title="Nur für Excel-Dateien ohne Formeln verfügbar">
-        <i class="bi bi-eye-slash me-1"></i>Ignorieren (keine Formeln)
+        <i class="bi bi-eye-slash me-1"></i>Ignorieren
+      </button>
+      <button type="submit" name="aktion" value="nicht_mehr_ignorieren"
+              id="btn-nicht-mehr-ignorieren"
+              class="btn btn-sm btn-outline-secondary"
+              title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
+        <i class="bi bi-eye me-1"></i>Nicht mehr ignorieren
       </button>
       <button type="submit" name="aktion" value="zur_registrierung"
               class="btn btn-sm btn-outline-info">
@@ -440,7 +446,8 @@
             <td class="text-center align-middle">
               {% if filt != 'archiv' %}
               <input type="checkbox" name="file_ids" value="{{ f.id }}"
-                     class="form-check-input row-check">
+                     class="form-check-input row-check"
+                     data-bearbeitungsstatus="{{ f.bearbeitungsstatus or 'Neu' }}">
               {% endif %}
             </td>
 
@@ -682,10 +689,11 @@ function deleteScannerfund(btn) {
 
 (function () {
   const selectAll   = document.getElementById('select-all');
-  const bulkBar     = document.getElementById('bulk-bar');
-  const bulkCount   = document.getElementById('bulk-count');
-  const btnIgn      = document.getElementById('btn-ignorieren');
-  const btnDeselect = document.getElementById('btn-deselect-all');
+  const bulkBar          = document.getElementById('bulk-bar');
+  const bulkCount        = document.getElementById('bulk-count');
+  const btnIgn           = document.getElementById('btn-ignorieren');
+  const btnNichtMehrIgn  = document.getElementById('btn-nicht-mehr-ignorieren');
+  const btnDeselect      = document.getElementById('btn-deselect-all');
 
   function updateBar() {
     const checked = document.querySelectorAll('.row-check:checked');
@@ -704,6 +712,10 @@ function deleteScannerfund(btn) {
       btnIgn.title = allNoFormula
         ? 'Alle ausgewählten Dateien haben keine Formeln – Ignorieren möglich'
         : 'Eine oder mehrere Dateien haben Formeln oder sind bereits registriert';
+    }
+    if (btnNichtMehrIgn) {
+      const anyIgnoriert = [...checked].some(cb => cb.dataset.bearbeitungsstatus === 'Ignoriert');
+      btnNichtMehrIgn.disabled = !anyIgnoriert;
     }
   }
 
