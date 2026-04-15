@@ -10,7 +10,8 @@
 <style>
 .ql-container { font-size: .9rem; }
 .ql-toolbar { border-radius: .375rem .375rem 0 0; }
-.ql-container.ql-snow { border-radius: 0 0 .375rem .375rem; min-height: 100px; }
+.ql-container.ql-snow { border-radius: 0 0 .375rem .375rem; height: auto; }
+.ql-editor { min-height: 100px; }
 </style>
 {% endblock %}
 
@@ -51,7 +52,7 @@
               Nachweise / Abnahmeprotokoll
               {% endif %}
             </label>
-            <div data-quill="nachweise_text" style="min-height:140px"></div>
+            <div data-quill="nachweise_text"></div>
             <input type="hidden" name="nachweise_text" id="nachweise_text-hidden">
             <div class="form-text">
               {% if freigabe.schritt in ['Fachlicher Test', 'Technischer Test'] %}
