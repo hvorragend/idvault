@@ -411,6 +411,70 @@ def analyze_ooxml(path: str, ext: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Cognos IDA-Report-Analyse (*.ida)
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+_COGNOS_NS_RE = _re.compile(
+    r'\{http://developer\.cognos\.com/schemas/report/(\d+\.\d+)/\}'
+)
+
+
+def analyze_cognos_xml(path: str) -> dict:
+    """Parst eine Cognos Report-Spezifikation (*.ida).
+
+    Gibt immer ein dict zurück. 'ist_cognos_report' == 0, wenn die Datei
+    kein gültiger Cognos-Report ist oder das Parsen fehlschlug.
+    """
+    result = {
+        "ist_cognos_report":          0,
+        "cognos_report_name":         None,
+        "cognos_paket_pfad":          None,
+        "cognos_abfragen_anzahl":     None,
+        "cognos_datenpunkte_anzahl":  None,
+        "cognos_filter_anzahl":       None,
+        "cognos_seiten_anzahl":       None,
+        "cognos_parameter_anzahl":    None,
+        "cognos_namespace_version":   None,
+    }
+    try:
+        tree = ET.parse(path)
+        root = tree.getroot()
+
+        m = _COGNOS_NS_RE.match(root.tag)
+        if not m:
+            return result   # kein Cognos-Namespace → kein Cognos-Report
+
+        ns  = m.group(0)[1:-1]   # URI ohne geschweifte Klammern
+        pfx = f"{{{ns}}}"
+
+        def find_all(tag):
+            return root.findall(f".//{pfx}{tag}")
+
+        result["ist_cognos_report"]         = 1
+        result["cognos_namespace_version"]  = m.group(1)
+        result["cognos_report_name"]        = root.get("name")
+
+        mp = root.find(f"{pfx}modelPath") or root.find(f".//{pfx}modelPath")
+        result["cognos_paket_pfad"] = (
+            mp.text.strip() if mp is not None and mp.text else None
+        )
+
+        result["cognos_abfragen_anzahl"]    = len(find_all("query"))
+        result["cognos_datenpunkte_anzahl"] = len(find_all("dataItem"))
+        result["cognos_filter_anzahl"]      = (
+            len(find_all("detailFilter")) + len(find_all("summaryFilter"))
+        )
+        result["cognos_seiten_anzahl"]      = len(find_all("page"))
+        result["cognos_parameter_anzahl"]   = len(find_all("parameter"))
+
+    except Exception:
+        pass  # Kein gültiger Cognos-Report – result['ist_cognos_report'] bleibt 0
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Pfad-Hilfsfunktionen
 # ---------------------------------------------------------------------------
 
@@ -536,6 +600,11 @@ def scan_file(path: str, config: dict, scan_paths: list,
     if ext in ooxml_exts:
         ooxml = analyze_ooxml(path, ext)
 
+    # Cognos IDA-Report-Analyse
+    cognos = {}
+    if ext == ".ida":
+        cognos = analyze_cognos_xml(path)
+
     share_root, rel_path = get_share_root(path, scan_paths)
 
     return {
@@ -562,6 +631,16 @@ def scan_file(path: str, config: dict, scan_paths: list,
         "protected_sheets_count": ooxml.get("protected_sheets_count", 0),
         "sheet_protection_has_pw":ooxml.get("sheet_protection_has_pw", 0),
         "workbook_protected":     ooxml.get("workbook_protected", 0),
+        # Cognos IDA-Report-Felder
+        "ist_cognos_report":          cognos.get("ist_cognos_report", 0),
+        "cognos_report_name":         cognos.get("cognos_report_name"),
+        "cognos_paket_pfad":          cognos.get("cognos_paket_pfad"),
+        "cognos_abfragen_anzahl":     cognos.get("cognos_abfragen_anzahl"),
+        "cognos_datenpunkte_anzahl":  cognos.get("cognos_datenpunkte_anzahl"),
+        "cognos_filter_anzahl":       cognos.get("cognos_filter_anzahl"),
+        "cognos_seiten_anzahl":       cognos.get("cognos_seiten_anzahl"),
+        "cognos_parameter_anzahl":    cognos.get("cognos_parameter_anzahl"),
+        "cognos_namespace_version":   cognos.get("cognos_namespace_version"),
     }
 
 
@@ -890,6 +969,9 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 formula_count,
                 has_sheet_protection, protected_sheets_count,
                 sheet_protection_has_pw, workbook_protected,
+                ist_cognos_report, cognos_report_name, cognos_paket_pfad,
+                cognos_abfragen_anzahl, cognos_datenpunkte_anzahl, cognos_filter_anzahl,
+                cognos_seiten_anzahl, cognos_parameter_anzahl, cognos_namespace_version,
                 first_seen_at, last_seen_at, last_scan_run_id, status
             ) VALUES (
                 :file_hash, :full_path, :file_name, :extension, :share_root,
@@ -899,6 +981,9 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 :formula_count,
                 :has_sheet_protection, :protected_sheets_count,
                 :sheet_protection_has_pw, :workbook_protected,
+                :ist_cognos_report, :cognos_report_name, :cognos_paket_pfad,
+                :cognos_abfragen_anzahl, :cognos_datenpunkte_anzahl, :cognos_filter_anzahl,
+                :cognos_seiten_anzahl, :cognos_parameter_anzahl, :cognos_namespace_version,
                 :first_seen_at, :last_seen_at, :last_scan_run_id, 'active'
             )
         """, insert_data)
@@ -929,6 +1014,15 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                 protected_sheets_count = :protected_sheets_count,
                 sheet_protection_has_pw = :sheet_protection_has_pw,
                 workbook_protected = :workbook_protected,
+                ist_cognos_report = :ist_cognos_report,
+                cognos_report_name = :cognos_report_name,
+                cognos_paket_pfad = :cognos_paket_pfad,
+                cognos_abfragen_anzahl = :cognos_abfragen_anzahl,
+                cognos_datenpunkte_anzahl = :cognos_datenpunkte_anzahl,
+                cognos_filter_anzahl = :cognos_filter_anzahl,
+                cognos_seiten_anzahl = :cognos_seiten_anzahl,
+                cognos_parameter_anzahl = :cognos_parameter_anzahl,
+                cognos_namespace_version = :cognos_namespace_version,
                 last_seen_at = :now, last_scan_run_id = :run_id, status = 'active'
             WHERE full_path = :full_path
         """, {**data, "now": now, "run_id": scan_run_id})

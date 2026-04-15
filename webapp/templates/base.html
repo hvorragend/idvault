@@ -368,6 +368,10 @@
       class="nav-link {% if request.endpoint == 'funde.scan_laeufe' %}active{% endif %}">
       <i class="bi bi-clock-history"></i> Scan-Läufe
     </a>
+    <a href="{{ url_for('cognos.list_berichte') }}"
+      class="nav-link {% if request.blueprint == 'cognos' %}active{% endif %}">
+      <i class="bi bi-filetype-xml"></i> Cognos-Berichte
+    </a>
     {% endif %}
 
     <div class="nav-label">Workflow</div>

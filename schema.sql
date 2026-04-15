@@ -60,6 +60,16 @@ CREATE TABLE IF NOT EXISTS idv_files (
     protected_sheets_count  INTEGER DEFAULT 0,
     sheet_protection_has_pw INTEGER DEFAULT 0,
     workbook_protected      INTEGER DEFAULT 0,
+    -- Cognos IDA-Report (*.ida)
+    ist_cognos_report         INTEGER DEFAULT 0,
+    cognos_report_name        TEXT,
+    cognos_paket_pfad         TEXT,
+    cognos_abfragen_anzahl    INTEGER,
+    cognos_datenpunkte_anzahl INTEGER,
+    cognos_filter_anzahl      INTEGER,
+    cognos_seiten_anzahl      INTEGER,
+    cognos_parameter_anzahl   INTEGER,
+    cognos_namespace_version  TEXT,
     first_seen_at           TEXT NOT NULL DEFAULT (datetime('now','utc')),
     last_seen_at            TEXT NOT NULL DEFAULT (datetime('now','utc')),
     last_scan_run_id        INTEGER,
@@ -192,7 +202,8 @@ INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
     ('idv_typ', 'Python-Skript',    5),
     ('idv_typ', 'SQL-Skript',       6),
     ('idv_typ', 'Power-BI-Bericht', 7),
-    ('idv_typ', 'Sonstige',         8);
+    ('idv_typ', 'Sonstige',         8),
+    ('idv_typ', 'Cognos-Report',   9);
 
 INSERT OR IGNORE INTO klassifizierungen (bereich, wert, bezeichnung, sort_order) VALUES
     ('pruefintervall_monate', '3',  '3 Monate (quartalsweise)', 1),
@@ -836,3 +847,45 @@ CREATE TABLE IF NOT EXISTS technischer_test (
     aktualisiert_am     TEXT NOT NULL DEFAULT (datetime('now','utc')),
     UNIQUE (idv_id)
 );
+
+-- -----------------------------------------------------------------------------
+-- Cognos-Berichte (Berichtsübersicht-Import aus agree21Analysen)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS cognos_berichte (
+    id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- Import-Metadaten
+    import_datei_name           TEXT,
+    importiert_am               TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    importiert_von_id           INTEGER REFERENCES persons(id),
+    -- Felder aus Berichtsübersicht (TSV)
+    umfeld                      TEXT,
+    bank_id                     TEXT,
+    anwendung                   TEXT,
+    berichtsname                TEXT NOT NULL,
+    suchpfad                    TEXT,
+    package                     TEXT,
+    eigentuemer                 TEXT,
+    berichtsbeschreibung        TEXT,
+    erstelldatum                TEXT,
+    aenderungsdatum             TEXT,
+    letztes_ausfuehrungsdatum   TEXT,
+    letzter_ausfuehrungsstatus  TEXT,
+    anz_abfragen                INTEGER,
+    anz_datenelemente           INTEGER,
+    anz_felder_klarnamen        INTEGER,
+    anz_filter                  INTEGER,
+    summe_ausdruckslaenge       INTEGER,
+    komplexitaet                REAL,
+    datum_berichtsabzug         TEXT,
+    -- Optionale Verknüpfungen
+    idv_file_id                 INTEGER REFERENCES idv_files(id),
+    idv_register_id             INTEGER REFERENCES idv_register(id),
+    -- Status
+    bearbeitungsstatus          TEXT NOT NULL DEFAULT 'Neu',
+    UNIQUE(bank_id, berichtsname, suchpfad)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cognos_berichte_anwendung ON cognos_berichte(anwendung);
+CREATE INDEX IF NOT EXISTS idx_cognos_berichte_bank_id   ON cognos_berichte(bank_id);
+CREATE INDEX IF NOT EXISTS idx_cognos_berichte_status    ON cognos_berichte(bearbeitungsstatus);

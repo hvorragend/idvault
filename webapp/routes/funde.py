@@ -37,6 +37,7 @@ _EXT_TO_TYP = {
     ".sql":   "SQL-Skript",
     ".pbix":  "Power-BI-Bericht",
     ".pbit":  "Power-BI-Bericht",
+    ".ida":   "Cognos-Report",
 }
 
 

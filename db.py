@@ -159,6 +159,21 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
         if not has_column("technischer_test", col):
             conn.execute(f"ALTER TABLE technischer_test ADD COLUMN {col} {typedef}")
 
+    # idv_files: Cognos IDA-Report-Felder
+    for col, typedef in [
+        ("ist_cognos_report",          "INTEGER DEFAULT 0"),
+        ("cognos_report_name",         "TEXT"),
+        ("cognos_paket_pfad",          "TEXT"),
+        ("cognos_abfragen_anzahl",     "INTEGER"),
+        ("cognos_datenpunkte_anzahl",  "INTEGER"),
+        ("cognos_filter_anzahl",       "INTEGER"),
+        ("cognos_seiten_anzahl",       "INTEGER"),
+        ("cognos_parameter_anzahl",    "INTEGER"),
+        ("cognos_namespace_version",   "TEXT"),
+    ]:
+        if not has_column("idv_files", col):
+            conn.execute(f"ALTER TABLE idv_files ADD COLUMN {col} {typedef}")
+
     conn.commit()
 
 
