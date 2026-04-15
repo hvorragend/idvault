@@ -15,8 +15,8 @@ from datetime import date as _date, datetime as _datetime
 
 bp = Blueprint("tests", __name__, url_prefix="/tests")
 
-_BEWERTUNGEN     = ["Offen", "Bestanden"]
-_TECH_ERGEBNISSE = ["Offen", "Bestanden", "Entfällt"]
+_BEWERTUNGEN     = ["Offen", "Erledigt"]
+_TECH_ERGEBNISSE = ["Offen", "Erledigt", "Entfällt"]
 
 _ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf", "xlsx", "xls",
                        "docx", "doc", "txt", "csv", "zip"}
@@ -53,10 +53,33 @@ def _reset_freigabe_schritt(db, idv_db_id: int, schritt: str) -> None:
     """Setzt einen Freigabe-Schritt auf 'Ausstehend' zurück, wenn der Test gelöscht wird."""
     db.execute(
         "UPDATE idv_freigaben SET status='Ausstehend', durchgefuehrt_von_id=NULL, "
-        "durchgefuehrt_am=NULL WHERE idv_id=? AND schritt=? AND status='Bestanden'",
+        "durchgefuehrt_am=NULL WHERE idv_id=? AND schritt=? AND status='Erledigt'",
         (idv_db_id, schritt)
     )
     db.commit()
+
+
+def _phase1_schritt_aktiv(db, idv_db_id: int, schritt: str) -> bool:
+    """True wenn für die IDV ein Phase-1-Freigabe-Schritt mit dem gegebenen
+    Namen existiert. Wird verwendet, um den Zugriff auf die Test-Formulare
+    nur bei aktivem Verfahren zu erlauben."""
+    return db.execute(
+        "SELECT 1 FROM idv_freigaben WHERE idv_id=? AND schritt=? LIMIT 1",
+        (idv_db_id, schritt)
+    ).fetchone() is not None
+
+
+def _require_phase1_schritt(db, idv_db_id: int, schritt: str):
+    """Redirect+Flash wenn Phase-1-Schritt nicht aktiv ist. Gibt None zurück
+    wenn alles ok, sonst ein Redirect-Response."""
+    if not _phase1_schritt_aktiv(db, idv_db_id, schritt):
+        flash(
+            f"'{schritt}' ist nicht aktiv. Bitte zuerst das Freigabeverfahren starten "
+            f"oder den Schritt wieder anlegen.",
+            "warning"
+        )
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return None
 
 
 # ── Nachweis-Datei herunterladen ──────────────────────────────────────────────
@@ -77,6 +100,11 @@ def new_fachlicher_testfall(idv_db_id):
     idv = _get_idv_or_404(db, idv_db_id)
     if not idv:
         return redirect(url_for("idv.list_idv"))
+
+    # Zugriff nur, wenn der Phase-1-Schritt aktiv ist
+    gate = _require_phase1_schritt(db, idv_db_id, "Fachlicher Test")
+    if gate is not None:
+        return gate
 
     # Optionaler Freigabe-Kontext
     try:
@@ -106,7 +134,7 @@ def new_fachlicher_testfall(idv_db_id):
 
             create_fachlicher_testfall(db, idv_db_id, data)
 
-            if data["bewertung"] == "Bestanden":
+            if data["bewertung"] == "Erledigt":
                 if freigabe_id:
                     from . import current_person_id
                     from .freigaben import complete_freigabe_schritt
@@ -115,7 +143,7 @@ def new_fachlicher_testfall(idv_db_id):
                 else:
                     flash("Test gespeichert.", "success")
             else:
-                # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Bestanden" gesetzt war
+                # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Erledigt" gesetzt war
                 _reset_freigabe_schritt(db, idv_db_id, "Fachlicher Test")
                 flash("Test gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
@@ -142,6 +170,11 @@ def edit_fachlicher_testfall(testfall_id):
     if not idv:
         return redirect(url_for("idv.list_idv"))
 
+    # Zugriff nur, wenn der Phase-1-Schritt aktiv ist
+    gate = _require_phase1_schritt(db, idv["id"], "Fachlicher Test")
+    if gate is not None:
+        return gate
+
     try:
         freigabe_id = int(request.args.get("freigabe_id") or request.form.get("freigabe_id") or 0) or None
     except (ValueError, TypeError):
@@ -161,7 +194,7 @@ def edit_fachlicher_testfall(testfall_id):
 
             update_fachlicher_testfall(db, testfall_id, data)
 
-            if data["bewertung"] == "Bestanden":
+            if data["bewertung"] == "Erledigt":
                 if freigabe_id:
                     from . import current_person_id
                     from .freigaben import complete_freigabe_schritt
@@ -170,7 +203,7 @@ def edit_fachlicher_testfall(testfall_id):
                 else:
                     flash("Test gespeichert.", "success")
             else:
-                # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Bestanden" gesetzt war
+                # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Erledigt" gesetzt war
                 _reset_freigabe_schritt(db, idv["id"], "Fachlicher Test")
                 flash("Test gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv["id"]))
@@ -210,6 +243,11 @@ def edit_technischer_test(idv_db_id):
     if not idv:
         return redirect(url_for("idv.list_idv"))
 
+    # Zugriff nur, wenn der Phase-1-Schritt aktiv ist
+    gate = _require_phase1_schritt(db, idv_db_id, "Technischer Test")
+    if gate is not None:
+        return gate
+
     tech_test = get_technischer_test(db, idv_db_id)
 
     try:
@@ -234,7 +272,7 @@ def edit_technischer_test(idv_db_id):
 
         save_technischer_test(db, idv_db_id, data)
 
-        if data["ergebnis"] == "Bestanden":
+        if data["ergebnis"] == "Erledigt":
             if freigabe_id:
                 from . import current_person_id
                 from .freigaben import complete_freigabe_schritt
@@ -243,7 +281,7 @@ def edit_technischer_test(idv_db_id):
             else:
                 flash("Technischer Test gespeichert.", "success")
         else:
-            # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Bestanden" gesetzt war
+            # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Erledigt" gesetzt war
             _reset_freigabe_schritt(db, idv_db_id, "Technischer Test")
             flash("Technischer Test gespeichert.", "success")
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))

@@ -100,7 +100,7 @@
           </div>
 
           <div class="col-12" id="massnahmen-row"
-            {% if testfall and testfall.bewertung == 'Bestanden' %}style="display:none"{% endif %}>
+            {% if testfall and testfall.bewertung == 'Erledigt' %}style="display:none"{% endif %}>
             <label class="form-label fw-500">Abgeleitete Maßnahmen</label>
             <div data-quill="massnahmen"></div>
             <input type="hidden" name="massnahmen" id="massnahmen-hidden"
@@ -213,7 +213,7 @@
         </div>
         <div class="card-body py-2" style="font-size:.82rem;color:#555">
           <p class="mb-2">
-            <strong>Bewertung „Bestanden":</strong> Erzieltes Ergebnis entspricht dem
+            <strong>Bewertung „Erledigt":</strong> Erzieltes Ergebnis entspricht dem
             Erwarteten. Keine Maßnahmen erforderlich.
           </p>
           <p class="mb-0">
@@ -262,7 +262,7 @@
   var row = document.getElementById('massnahmen-row');
   if (sel && row) {
     sel.addEventListener('change', function () {
-      row.style.display = (this.value === 'Bestanden') ? 'none' : '';
+      row.style.display = (this.value === 'Erledigt') ? 'none' : '';
     });
   }
 })();

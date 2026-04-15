@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}{{ freigabe.schritt }} – {{ freigabe.status if readonly else 'Bestanden markieren' }}{% endblock %}
+{% block title %}{{ freigabe.schritt }} – {{ freigabe.status if readonly else 'Erledigt markieren' }}{% endblock %}
 {% block page_title %}
 {% if readonly %}
 <i class="bi bi-check-circle-fill text-success me-2"></i>{{ freigabe.schritt }} – {{ freigabe.status }}
 {% else %}
-<i class="bi bi-check-circle-fill text-success me-2"></i>{{ freigabe.schritt }} – Bestanden markieren
+<i class="bi bi-check-circle-fill text-success me-2"></i>{{ freigabe.schritt }} – Erledigt markieren
 {% endif %}
 – {{ idv.bezeichnung }}
 {% endblock %}
@@ -142,7 +142,7 @@
           <i class="bi bi-arrow-left me-1"></i>Abbrechen
         </a>
         <button type="submit" class="btn btn-success">
-          <i class="bi bi-check2-circle me-1"></i>Als Bestanden markieren
+          <i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren
         </button>
       </div>
 
@@ -173,8 +173,8 @@
         <li class="list-group-item px-3 py-2">
           <div class="detail-label">Status</div>
           <span class="badge
-            {% if freigabe.status == 'Bestanden' %}bg-success
-            {% elif freigabe.status == 'Nicht bestanden' %}bg-danger
+            {% if freigabe.status == 'Erledigt' %}bg-success
+            {% elif freigabe.status == 'Nicht erledigt' %}bg-danger
             {% elif freigabe.status == 'Ausstehend' %}bg-warning text-dark
             {% else %}bg-secondary{% endif %}">{{ freigabe.status }}</span>
         </li>

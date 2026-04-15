@@ -269,7 +269,7 @@ _DEFAULTS["freigabe_schritt_body"] = """\
   Diese Nachricht wurde automatisch von idvault gesendet.</p>
 </body></html>"""
 
-# ── 4. IDV freigegeben (alle 4 Schritte bestanden) ───────────────────────
+# ── 4. IDV freigegeben (alle 4 Schritte erledigt) ────────────────────────
 
 _DEFAULTS["freigabe_abgeschlossen_subject"] = "[idvault] IDV freigegeben: {idv_id} – {bezeichnung}"
 _DEFAULTS["freigabe_abgeschlossen_body"] = """\
@@ -283,10 +283,10 @@ _DEFAULTS["freigabe_abgeschlossen_body"] = """\
       <td style="padding:6px;">{bezeichnung}</td></tr>
 </table>
 <ul style="margin-top:12px;">
-  <li>Fachlicher Test – bestanden</li>
-  <li>Technischer Test – bestanden</li>
-  <li>Fachliche Abnahme – bestanden</li>
-  <li>Technische Abnahme – bestanden</li>
+  <li>Fachlicher Test – erledigt</li>
+  <li>Technischer Test – erledigt</li>
+  <li>Fachliche Abnahme – erledigt</li>
+  <li>Technische Abnahme – erledigt</li>
 </ul>
 <p>Die IDV wurde auf Status <strong>Freigegeben</strong> und Dokumentationsstatus
    <strong>Dokumentiert</strong> gesetzt.</p>
@@ -359,7 +359,7 @@ EMAIL_TEMPLATES = {
         "placeholders": ["idv_id", "bezeichnung", "schritt", "versionskommentar"],
     },
     "freigabe_abgeschlossen": {
-        "label": "IDV freigegeben (alle Schritte bestanden)",
+        "label": "IDV freigegeben (alle Schritte erledigt)",
         "placeholders": ["idv_id", "bezeichnung"],
     },
     "bewertung": {
@@ -479,7 +479,7 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
 
 
 def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
-    """Benachrichtigung wenn alle 4 Freigabe-Schritte bestanden wurden."""
+    """Benachrichtigung wenn alle 4 Freigabe-Schritte erledigt wurden."""
     if not _is_notify_enabled(db, "freigabe_abgeschlossen"):
         return False
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)

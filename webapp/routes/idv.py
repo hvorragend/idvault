@@ -425,17 +425,23 @@ def detail_idv(idv_db_id):
     phase1_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_1]
     phase2_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_2]
     phase1_gestartet  = len(phase1_schritte) > 0
-    phase1_bestanden  = (
-        {f["schritt"] for f in phase1_schritte if f["status"] == "Bestanden"} == set(_PHASE_1)
+    phase1_erledigt   = (
+        {f["schritt"] for f in phase1_schritte if f["status"] == "Erledigt"} == set(_PHASE_1)
     )
     phase2_gestartet  = len(phase2_schritte) > 0
-    phase2_bestanden  = (
-        {f["schritt"] for f in phase2_schritte if f["status"] == "Bestanden"} == set(_PHASE_2)
+    phase2_erledigt   = (
+        {f["schritt"] for f in phase2_schritte if f["status"] == "Erledigt"} == set(_PHASE_2)
     )
     hat_offenen_schritt = any(f["status"] == "Ausstehend" for f in freigaben)
 
     fachliche_testfaelle = get_fachliche_testfaelle(db, idv_db_id)
     technischer_test     = get_technischer_test(db, idv_db_id)
+
+    # Flags, ob die eigentlichen Test-Einträge vorhanden sind. Wird für die
+    # Anzeige der "Anlage XYZ-Test"-Buttons verwendet, falls ein Eintrag
+    # manuell gelöscht wurde.
+    fachlich_vorhanden  = bool(fachliche_testfaelle)
+    technisch_vorhanden = technischer_test is not None
 
     return render_template("idv/detail.html",
         idv=idv, file=file, extra_files=extra_files, history=history, massnahmen=massnahmen,
@@ -443,12 +449,14 @@ def detail_idv(idv_db_id):
         vorgaenger=vorgaenger, nachfolger=nachfolger,
         freigaben=freigaben, ist_wesentlich=ist_wesentlich,
         freigabe_persons=freigabe_persons,
-        phase1_gestartet=phase1_gestartet, phase1_bestanden=phase1_bestanden,
-        phase2_gestartet=phase2_gestartet, phase2_bestanden=phase2_bestanden,
+        phase1_gestartet=phase1_gestartet, phase1_erledigt=phase1_erledigt,
+        phase2_gestartet=phase2_gestartet, phase2_erledigt=phase2_erledigt,
         hat_offenen_schritt=hat_offenen_schritt,
         teststatus_werte=_TESTSTATUS_WERTE,
         fachliche_testfaelle=fachliche_testfaelle,
         technischer_test=technischer_test,
+        fachlich_vorhanden=fachlich_vorhanden,
+        technisch_vorhanden=technisch_vorhanden,
         can_create=can_create())
 
 
