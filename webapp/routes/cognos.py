@@ -60,15 +60,88 @@ def _parse_german_number(value: str, as_float: bool = False):
         return None
 
 
-def _parse_tsv(file_bytes: bytes, filename: str) -> tuple:
-    """
-    Parst die Berichtsübersicht-TSV-Datei.
+def _coerce_cell(raw, db_col):
+    """Wandelt einen Rohwert (aus Excel oder TSV) in den passenden Python-Typ um."""
+    if db_col in _INT_COLS:
+        if isinstance(raw, (int, float)):
+            return int(raw)
+        return _parse_german_number(str(raw), as_float=False) if raw else None
+    if db_col in _FLOAT_COLS:
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return _parse_german_number(str(raw), as_float=True) if raw else None
+    # Text-Felder: None oder getrimmter String
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    return s or None
 
-    Rückgabe: (rows: list[dict], fehler: list[str])
-    """
-    rows   = []
+
+def _rows_from_table(header_row, data_rows, offset: int = 2) -> tuple:
+    """Gemeinsame Spaltenzuordnung und Zeilenverarbeitung für Excel und TSV."""
     fehler = []
+    rows   = []
 
+    col_idx = {}
+    for h, db_col in _COLUMN_MAP.items():
+        if h in header_row:
+            col_idx[db_col] = header_row.index(h)
+
+    if "berichtsname" not in col_idx:
+        return [], ["Pflichtfeld 'Berichtsname' nicht gefunden. Bitte Spaltenköpfe prüfen."]
+
+    for lnum, line in enumerate(data_rows, start=offset):
+        if not any(v for v in line if v is not None and str(v).strip()):
+            continue  # Leerzeile
+        row = {
+            db_col: _coerce_cell(
+                line[idx] if idx < len(line) else None, db_col
+            )
+            for db_col, idx in col_idx.items()
+        }
+        if not row.get("berichtsname"):
+            fehler.append(f"Zeile {lnum}: leerer Berichtsname – übersprungen.")
+            continue
+        rows.append(row)
+
+    return rows, fehler
+
+
+def _parse_excel(file_bytes: bytes) -> tuple:
+    """Parst eine Excel-Berichtsübersicht (.xlsx)."""
+    try:
+        import openpyxl
+    except ImportError:
+        return [], ["openpyxl nicht verfügbar – bitte als TSV hochladen."]
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+    except Exception as exc:
+        return [], [f"Excel-Datei konnte nicht geöffnet werden: {exc}"]
+
+    if not all_rows:
+        return [], ["Excel-Datei ist leer."]
+
+    # Titelzeile überspringen falls vorhanden
+    start = 0
+    first = str(all_rows[0][0] or "").strip()
+    if first.startswith("Berichtsübersicht"):
+        start = 1
+
+    if start >= len(all_rows):
+        return [], ["Keine Spaltenköpfe gefunden."]
+
+    headers   = [str(c or "").strip() for c in all_rows[start]]
+    data_rows = [list(r) for r in all_rows[start + 1:]]
+
+    return _rows_from_table(headers, data_rows, offset=start + 3)
+
+
+def _parse_tsv(file_bytes: bytes) -> tuple:
+    """Parst eine tab-separierte Berichtsübersicht (.txt / .tsv)."""
     for encoding in ("utf-8-sig", "utf-8", "latin-1"):
         try:
             text = file_bytes.decode(encoding)
@@ -78,52 +151,30 @@ def _parse_tsv(file_bytes: bytes, filename: str) -> tuple:
     else:
         return [], ["Datei konnte nicht dekodiert werden (kein UTF-8 / Latin-1)."]
 
-    reader = csv.reader(io.StringIO(text), delimiter="\t")
-    lines  = list(reader)
-
+    lines = list(csv.reader(io.StringIO(text), delimiter="\t"))
     if not lines:
         return [], ["Datei ist leer."]
 
-    # Erste Zeile: ggf. Titelzeile überspringen
     start = 0
     first = lines[0][0].strip() if lines[0] else ""
-    if first.startswith("Berichtsübersicht") or first.startswith("Berichts\u00fcbersicht"):
+    if first.startswith("Berichtsübersicht"):
         start = 1
 
     if start >= len(lines):
         return [], ["Keine Spaltenköpfe gefunden."]
 
-    headers = [h.strip() for h in lines[start]]
-    start  += 1  # ab jetzt: Datenzeilen
+    headers   = [h.strip() for h in lines[start]]
+    data_rows = lines[start + 1:]
 
-    # Spalten mappen
-    col_idx = {}
-    for h, db_col in _COLUMN_MAP.items():
-        if h in headers:
-            col_idx[db_col] = headers.index(h)
+    return _rows_from_table(headers, data_rows, offset=start + 3)
 
-    if "berichtsname" not in col_idx:
-        return [], ["Pflichtfeld 'Berichtsname' nicht in der Datei gefunden. "
-                    "Bitte Spaltenköpfe prüfen."]
 
-    for lnum, line in enumerate(lines[start:], start=start + 2):
-        if not any(c.strip() for c in line):
-            continue  # Leerzeile überspringen
-        row = {}
-        for db_col, idx in col_idx.items():
-            raw = line[idx].strip() if idx < len(line) else ""
-            if db_col in _INT_COLS:
-                row[db_col] = _parse_german_number(raw, as_float=False)
-            elif db_col in _FLOAT_COLS:
-                row[db_col] = _parse_german_number(raw, as_float=True)
-            else:
-                row[db_col] = raw or None
-        if not row.get("berichtsname"):
-            fehler.append(f"Zeile {lnum}: leerer Berichtsname – übersprungen.")
-            continue
-        rows.append(row)
-
-    return rows, fehler
+def _parse_file(file_bytes: bytes, filename: str) -> tuple:
+    """Wählt den passenden Parser anhand der Dateiendung."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext in ("xlsx", "xlsm", "xls"):
+        return _parse_excel(file_bytes)
+    return _parse_tsv(file_bytes)
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +296,7 @@ def import_berichte():
     file_bytes = uploaded.read()
     filename   = uploaded.filename
 
-    rows, fehler = _parse_tsv(file_bytes, filename)
+    rows, fehler = _parse_file(file_bytes, filename)
 
     if not rows and fehler:
         for err in fehler:
