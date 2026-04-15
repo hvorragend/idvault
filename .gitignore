@@ -36,9 +36,6 @@ build/
 .DS_Store
 Thumbs.db
 
-# Scanner config (may contain internal paths)
-scanner/config.json
-
 # Patch files
 *.patch
 

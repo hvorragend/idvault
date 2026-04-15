@@ -268,7 +268,7 @@ Administration → Scanner-Einstellungen
 
 **CLI**:
 ```cmd
-idvault.exe --scan --config C:\idvault\scanner\config.json
+idvault.exe --scan --config C:\idvault\config.json
 ```
 
 ### 7.3 Scheduled Task (Windows)
@@ -276,7 +276,7 @@ idvault.exe --scan --config C:\idvault\scanner\config.json
 ```
 Aufgabenplanung → Neue Aufgabe
   Programm:  C:\idvault\idvault.exe
-  Argumente: --scan --config C:\idvault\scanner\config.json
+  Argumente: --scan --config C:\idvault\config.json
   Trigger:   Wöchentlich, Montag 06:00
   Konto:     Dienstkonto mit Leserechten
 ```
@@ -419,7 +419,7 @@ gebündelte Version der EXE.
 | "Nicht vertrauenswürdiges Zertifikat" im Browser | Selbstsigniertes Zertifikat | CA-Zertifikat installieren oder Ausnahme hinzufügen |
 | "Active Directory aktiv" erscheint nicht | LDAP nicht aktiviert oder kein Mapping | Mapping und Aktivierung prüfen |
 | Login schlägt ohne Meldung fehl | Kein Gruppen-Mapping passt | Admin-Log prüfen; Mapping ergänzen |
-| Scanner läuft, aber keine neuen Funde | DB-Pfade unterschiedlich | `scanner/config.json` `db_path` auf `instance/idvault.db` setzen |
+| Scanner läuft, aber keine neuen Funde | DB-Pfade unterschiedlich | In `config.json` unter `scanner.db_path` denselben Pfad wie `IDV_DB_PATH` eintragen |
 | Update-Upload abgelehnt | Datei enthält unzulässige Extensions | Nur erlaubte Extensions verwenden |
 | E-Mail versendet nicht | SMTP falsch konfiguriert | Admin → E-Mail → Einstellungen testen |
 

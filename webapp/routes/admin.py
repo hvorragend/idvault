@@ -31,7 +31,10 @@ def _scanner_dir():
 
 
 def _scanner_config_path():
-    return os.path.join(_scanner_dir(), "config.json")
+    # Zusammengeführte config.json liegt neben der EXE bzw. im Projektverzeichnis
+    if getattr(sys, 'frozen', False):
+        return os.path.join(os.path.dirname(sys.executable), "config.json")
+    return os.path.join(os.path.dirname(current_app.root_path), "config.json")
 
 
 def _scanner_script_path():
@@ -76,7 +79,9 @@ def _load_scanner_config() -> dict:
     cfg = _default_scanner_cfg()
     try:
         with open(_scanner_config_path(), encoding="utf-8") as f:
-            cfg.update(json.load(f))
+            full = json.load(f)
+        # Zusammengeführte config.json: Scanner-Einstellungen unter "scanner"-Schlüssel
+        cfg.update(full.get("scanner", full))
     except Exception:
         pass
     return cfg
@@ -84,9 +89,15 @@ def _load_scanner_config() -> dict:
 
 def _save_scanner_config(cfg: dict):
     path = _scanner_config_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Bestehende config.json einlesen um andere Schlüssel (z.B. SECRET_KEY) zu erhalten
+    try:
+        with open(path, encoding="utf-8") as f:
+            full = json.load(f)
+    except Exception:
+        full = {}
+    full["scanner"] = cfg
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
+        json.dump(full, f, indent=2, ensure_ascii=False)
 
 
 def _scan_is_running() -> bool:
@@ -210,12 +221,14 @@ def scanner_starten():
                 pass
 
         if getattr(sys, 'frozen', False):
-            cmd = [sys.executable, "--scan", "--config", config]
+            cmd = [sys.executable, "--scan", "--config", config,
+                   "--signal-dir", scanner_dir]
         else:
             script = _scanner_script_path()
             if not os.path.isfile(script):
                 return jsonify({"ok": False, "msg": f"Scanner-Skript nicht gefunden: {script}"})
-            cmd = [sys.executable, script, "--config", config]
+            cmd = [sys.executable, script, "--config", config,
+                   "--signal-dir", scanner_dir]
 
         if resume:
             cmd.append("--resume")

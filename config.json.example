@@ -17,5 +17,33 @@
   "IDV_SMTP_PASSWORD": "",
   "IDV_SMTP_FROM": "",
   "IDV_SMTP_TLS": 1,
-  "IDV_APP_BASE_URL": ""
+  "IDV_APP_BASE_URL": "",
+
+  "scanner": {
+    "scan_paths": [],
+    "extensions": [
+      ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
+      ".accdb", ".mdb", ".accde", ".accdr",
+      ".ida", ".idv",
+      ".bas", ".cls", ".frm",
+      ".pbix", ".pbit",
+      ".dotm", ".pptm",
+      ".py", ".r", ".rmd",
+      ".sql"
+    ],
+    "exclude_paths": [
+      "~$",
+      ".tmp",
+      "$RECYCLE.BIN",
+      "System Volume Information",
+      "AppData"
+    ],
+    "db_path": "instance/idvault.db",
+    "log_path": "scanner/idv_scanner.log",
+    "hash_size_limit_mb": 500,
+    "max_workers": 4,
+    "move_detection": "name_and_hash",
+    "scan_since": null,
+    "read_file_owner": true
+  }
 }
