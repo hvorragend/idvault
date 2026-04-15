@@ -13,9 +13,8 @@
       </div>
       <div class="card-body">
         <p class="text-muted small mb-3">
-          Laden Sie hier die Berichtsübersicht aus agree21Analysen hoch. Die Datei muss
-          <strong>tab-separiert (TSV)</strong> sein und folgende Spalten enthalten:
-          <em>Berichtsname, Anwendung, Suchpfad, Package, Eigentümer</em> usw.
+          Laden Sie hier die Berichtsübersicht aus agree21Analysen hoch.
+          Unterstützte Formate: <strong>Excel (.xlsx)</strong> und tab-separiertes Textformat (.txt / .tsv).
         </p>
 
         <div class="alert alert-info small py-2 mb-3">
@@ -34,10 +33,10 @@
                    id="berichtsuebersicht"
                    name="berichtsuebersicht"
                    class="form-control"
-                   accept=".txt,.tsv,.csv,.tab"
+                   accept=".xlsx,.xlsm,.txt,.tsv,.csv"
                    required>
             <div class="form-text text-muted">
-              Erlaubte Formate: .txt, .tsv, .csv — Encoding: UTF-8 oder Latin-1.
+              Excel (.xlsx) oder tab-separiertes Textformat (.txt, .tsv).
             </div>
           </div>
 
@@ -60,16 +59,17 @@
       </div>
       <div class="card-body small">
         <p class="text-muted mb-2">
-          Zeile 1 (optional): <code>Berichtsübersicht  | Anz. Berichte: …</code> — wird übersprungen.
+          Zeile 1 (optional): <code>Berichtsübersicht  | Anz. Berichte: …</code> — wird automatisch übersprungen.
         </p>
         <p class="text-muted mb-2">
-          Zeile 2: Tab-separierte Spaltenköpfe, z.B.:
+          Zeile 2 (Spaltenköpfe), Pflichtfeld: <strong>Berichtsname</strong>. Weitere erwartete Spalten:
         </p>
         <div class="bg-light rounded p-2 mb-2" style="overflow-x:auto">
-          <code class="small">Umfeld&emsp;Bank-ID&emsp;Anwendung&emsp;Berichtsname&emsp;Suchpfad&emsp;Package&emsp;Eigentümer&emsp;Berichtsbeschreibung&emsp;Erstelldatum&emsp;Änderungsdatum&emsp;…</code>
+          <code class="small">Umfeld · Bank-ID · Anwendung · Berichtsname · Suchpfad · Package · Eigentümer · Berichtsbeschreibung · Erstelldatum · Änderungsdatum · Anz. Abfragen · Anz. Datenelemente · Komplexität [0-10] · …</code>
         </div>
         <p class="text-muted mb-0">
-          Zahlen im deutschen Format (Tausender-Punkt): <code>1.057</code> wird als <code>1057</code> interpretiert.<br>
+          <strong>Excel:</strong> Zahlenwerte werden direkt aus den Zellen gelesen.<br>
+          <strong>TSV:</strong> Tausender-Punkt (<code>1.057</code> → <code>1057</code>) wird automatisch konvertiert.<br>
           Datumsfelder werden als Text gespeichert (z.B. <code>11.09.2024</code>).
         </p>
       </div>
