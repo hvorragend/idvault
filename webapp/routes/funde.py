@@ -1,6 +1,6 @@
 """Funde-Blueprint (Scanner-Ergebnisse)"""
 import json
-from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
+from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
 
 bp = Blueprint("funde", __name__, url_prefix="/funde")
@@ -206,10 +206,15 @@ def list_funde():
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
         page = 1
-    try:
-        per_page = int(request.args.get("per_page", 100))
-    except (ValueError, TypeError):
-        per_page = 100
+    if "per_page" in request.args:
+        try:
+            per_page = int(request.args["per_page"])
+        except (ValueError, TypeError):
+            per_page = 100
+        if per_page in _VALID_PER_PAGE:
+            session["pref_per_page_funde_list"] = per_page
+    else:
+        per_page = session.get("pref_per_page_funde_list", 100)
     if per_page not in _VALID_PER_PAGE:
         per_page = 100
     offset = (page - 1) * per_page
@@ -433,10 +438,15 @@ def eingang_funde():
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
         page = 1
-    try:
-        per_page = int(request.args.get("per_page", 100))
-    except (ValueError, TypeError):
-        per_page = 100
+    if "per_page" in request.args:
+        try:
+            per_page = int(request.args["per_page"])
+        except (ValueError, TypeError):
+            per_page = 100
+        if per_page in _VALID_PER_PAGE:
+            session["pref_per_page_funde_eingang"] = per_page
+    else:
+        per_page = session.get("pref_per_page_funde_eingang", 100)
     if per_page not in _VALID_PER_PAGE:
         per_page = 100
     offset = (page - 1) * per_page
@@ -613,10 +623,15 @@ def ignorierte_dateien():
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
         page = 1
-    try:
-        per_page = int(request.args.get("per_page", 100))
-    except (ValueError, TypeError):
-        per_page = 100
+    if "per_page" in request.args:
+        try:
+            per_page = int(request.args["per_page"])
+        except (ValueError, TypeError):
+            per_page = 100
+        if per_page in _VALID_PER_PAGE:
+            session["pref_per_page_funde_ignoriert"] = per_page
+    else:
+        per_page = session.get("pref_per_page_funde_ignoriert", 100)
     if per_page not in _VALID_PER_PAGE:
         per_page = 100
 

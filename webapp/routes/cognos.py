@@ -163,21 +163,30 @@ _SORT_COLS = {
 @login_required
 def list_berichte():
     db = get_db()
+    from flask import session as _session
 
-    package_filt = request.args.get("package", "").strip()
-    status_filt  = request.args.get("status",  "").strip()
-    q            = request.args.get("q",        "").strip()
-    sort         = request.args.get("sort",  "berichtsname").strip()
-    order        = request.args.get("order", "asc").strip()
+    status_filt       = request.args.get("status",       "").strip()
+    komplexitaet_filt = request.args.get("komplexitaet", "").strip()
+    abfragen_filt     = request.args.get("abfragen",     "").strip()
+    q                 = request.args.get("q",             "").strip()
+    sort              = request.args.get("sort",  "berichtsname").strip()
+    order             = request.args.get("order", "asc").strip()
 
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
         page = 1
-    try:
-        per_page = int(request.args.get("per_page", 50))
-    except (ValueError, TypeError):
-        per_page = 50
+
+    # per_page: explicit URL param > session preference > default 50
+    if "per_page" in request.args:
+        try:
+            per_page = int(request.args["per_page"])
+        except (ValueError, TypeError):
+            per_page = 50
+        if per_page in _VALID_PER_PAGE:
+            _session["pref_per_page_cognos"] = per_page
+    else:
+        per_page = _session.get("pref_per_page_cognos", 50)
     if per_page not in _VALID_PER_PAGE:
         per_page = 50
 
@@ -187,12 +196,23 @@ def list_berichte():
     where_parts = []
     params      = []
 
-    if package_filt:
-        where_parts.append("package = ?")
-        params.append(package_filt)
     if status_filt:
         where_parts.append("bearbeitungsstatus = ?")
         params.append(status_filt)
+    if komplexitaet_filt == "niedrig":
+        where_parts.append("komplexitaet IS NOT NULL AND komplexitaet <= 3")
+    elif komplexitaet_filt == "mittel":
+        where_parts.append("komplexitaet IS NOT NULL AND komplexitaet >= 4 AND komplexitaet <= 6")
+    elif komplexitaet_filt == "hoch":
+        where_parts.append("komplexitaet IS NOT NULL AND komplexitaet >= 7")
+    if abfragen_filt == "1-5":
+        where_parts.append("anz_abfragen IS NOT NULL AND anz_abfragen >= 1 AND anz_abfragen <= 5")
+    elif abfragen_filt == "6-10":
+        where_parts.append("anz_abfragen IS NOT NULL AND anz_abfragen >= 6 AND anz_abfragen <= 10")
+    elif abfragen_filt == "11-20":
+        where_parts.append("anz_abfragen IS NOT NULL AND anz_abfragen >= 11 AND anz_abfragen <= 20")
+    elif abfragen_filt == "21+":
+        where_parts.append("anz_abfragen IS NOT NULL AND anz_abfragen > 20")
     if q:
         where_parts.append("(berichtsname LIKE ? OR suchpfad LIKE ? OR eigentuemer LIKE ?)")
         params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
@@ -217,10 +237,6 @@ def list_berichte():
 
     total_pages = max(1, (total + per_page - 1) // per_page)
 
-    packages = [r[0] for r in db.execute(
-        "SELECT DISTINCT package FROM cognos_berichte WHERE package IS NOT NULL ORDER BY package"
-    ).fetchall()]
-
     stats = db.execute("""
         SELECT
             COUNT(*) AS gesamt,
@@ -234,6 +250,23 @@ def list_berichte():
         "SELECT kuerzel, vorname, nachname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
 
+    # Eigentuemer → Person-Lookup (kuerzel, ad_name, user_id, oder "vorname nachname")
+    eigentuemer_vals = {b["eigentuemer"] for b in berichte if b["eigentuemer"]}
+    eigentuemer_map: dict[str, str] = {}
+    for ev in eigentuemer_vals:
+        row = db.execute(
+            """SELECT vorname, nachname, kuerzel FROM persons
+               WHERE aktiv=1 AND (
+                   kuerzel=? OR ad_name=? OR user_id=?
+                   OR (vorname || ' ' || nachname)=?
+                   OR (nachname || ', ' || vorname)=?
+                   OR (nachname || ' ' || vorname)=?
+               ) LIMIT 1""",
+            (ev, ev, ev, ev, ev, ev)
+        ).fetchone()
+        if row:
+            eigentuemer_map[ev] = f"{row['nachname']}, {row['vorname']} ({row['kuerzel']})"
+
     return render_template(
         "cognos/list.html",
         berichte=berichte,
@@ -242,15 +275,16 @@ def list_berichte():
         per_page=per_page,
         total_pages=total_pages,
         valid_per_page=_VALID_PER_PAGE,
-        packages=packages,
-        package_filt=package_filt,
         status_filt=status_filt,
+        komplexitaet_filt=komplexitaet_filt,
+        abfragen_filt=abfragen_filt,
         q=q,
         sort=sort,
         order=order,
         stats=stats,
         can_write=can_write(),
         persons=persons,
+        eigentuemer_map=eigentuemer_map,
     )
 
 

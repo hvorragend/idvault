@@ -64,10 +64,15 @@ def list_idv():
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
         page = 1
-    try:
-        per_page = int(request.args.get("per_page", 100))
-    except (ValueError, TypeError):
-        per_page = 100
+    if "per_page" in request.args:
+        try:
+            per_page = int(request.args["per_page"])
+        except (ValueError, TypeError):
+            per_page = 100
+        if per_page in _VALID_PER_PAGE_IDV:
+            session["pref_per_page_idv"] = per_page
+    else:
+        per_page = session.get("pref_per_page_idv", 100)
     if per_page not in _VALID_PER_PAGE_IDV:
         per_page = 100
 
@@ -144,9 +149,13 @@ def list_idv():
           CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich,
           EXISTS(SELECT 1 FROM idv_register x WHERE x.vorgaenger_idv_id = r.id) AS hat_nachfolger,
           (CASE WHEN r.file_id IS NOT NULL THEN 1 ELSE 0 END
-           + (SELECT COUNT(*) FROM idv_file_links lnk WHERE lnk.idv_db_id = r.id)) AS datei_anzahl
+           + (SELECT COUNT(*) FROM idv_file_links lnk WHERE lnk.idv_db_id = r.id)) AS datei_anzahl,
+          f.formula_count        AS file_formula_count,
+          f.has_macros           AS file_has_macros,
+          f.has_sheet_protection AS file_has_sheet_protection
         FROM v_idv_uebersicht v
         JOIN idv_register r ON r.idv_id = v.idv_id
+        LEFT JOIN idv_files f ON f.id = r.file_id
         {where_sql}
         ORDER BY ist_wesentlich DESC, v.bezeichnung
         LIMIT ? OFFSET ?

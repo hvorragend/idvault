@@ -54,20 +54,11 @@
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
     <form method="get" class="row g-2 align-items-end">
-      <div class="col-sm-4">
+      <div class="col-sm-3">
         <label class="form-label small mb-1">Suche</label>
         <input type="text" name="q" class="form-control form-control-sm"
                placeholder="Berichtsname, Suchpfad, Eigentümer …"
                value="{{ q }}">
-      </div>
-      <div class="col-sm-2">
-        <label class="form-label small mb-1">Package</label>
-        <select name="package" class="form-select form-select-sm">
-          <option value="">Alle</option>
-          {% for p in packages %}
-          <option value="{{ p }}" {% if p == package_filt %}selected{% endif %}>{{ p }}</option>
-          {% endfor %}
-        </select>
       </div>
       <div class="col-sm-2">
         <label class="form-label small mb-1">Status</label>
@@ -76,6 +67,25 @@
           <option value="Neu"          {% if status_filt=='Neu'          %}selected{% endif %}>Neu</option>
           <option value="Registriert"  {% if status_filt=='Registriert'  %}selected{% endif %}>Registriert</option>
           <option value="Ignoriert"    {% if status_filt=='Ignoriert'    %}selected{% endif %}>Ignoriert</option>
+        </select>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label small mb-1">Komplexität</label>
+        <select name="komplexitaet" class="form-select form-select-sm">
+          <option value="">Alle</option>
+          <option value="niedrig"  {% if komplexitaet_filt=='niedrig'  %}selected{% endif %}>0–3 (niedrig)</option>
+          <option value="mittel"   {% if komplexitaet_filt=='mittel'   %}selected{% endif %}>4–6 (mittel)</option>
+          <option value="hoch"     {% if komplexitaet_filt=='hoch'     %}selected{% endif %}>7–10 (hoch)</option>
+        </select>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label small mb-1">Abfragen</label>
+        <select name="abfragen" class="form-select form-select-sm">
+          <option value="">Alle</option>
+          <option value="1-5"   {% if abfragen_filt=='1-5'   %}selected{% endif %}>1–5</option>
+          <option value="6-10"  {% if abfragen_filt=='6-10'  %}selected{% endif %}>6–10</option>
+          <option value="11-20" {% if abfragen_filt=='11-20' %}selected{% endif %}>11–20</option>
+          <option value="21+"   {% if abfragen_filt=='21+'   %}selected{% endif %}}>&gt; 20</option>
         </select>
       </div>
       {# Sortierung und Reihenfolge als hidden fields erhalten #}
@@ -102,7 +112,7 @@
 
 <!-- ── Pagination oben ────────────────────────────────────────────────── -->
 {% set endpoint  = 'cognos.list_berichte' %}
-{% set url_extra = {'q': q, 'package': package_filt, 'status': status_filt, 'sort': sort, 'order': order} %}
+{% set url_extra = {'q': q, 'status': status_filt, 'komplexitaet': komplexitaet_filt, 'abfragen': abfragen_filt, 'sort': sort, 'order': order} %}
 {% include 'funde/_pagination.html' %}
 
 {% if can_write %}
@@ -246,7 +256,16 @@
             </td>
 
             <!-- Eigentümer -->
-            <td class="d-none d-lg-table-cell text-muted">{{ b.eigentuemer or '–' }}</td>
+            <td class="d-none d-lg-table-cell">
+              {% if b.eigentuemer %}
+                {% set resolved = eigentuemer_map.get(b.eigentuemer) %}
+                {% if resolved %}
+                  <span title="{{ b.eigentuemer }}">{{ resolved }}</span>
+                {% else %}
+                  <span class="text-muted" title="Kein Eintrag in Personentabelle gefunden">{{ b.eigentuemer }}</span>
+                {% endif %}
+              {% else %}–{% endif %}
+            </td>
 
             <!-- Anz. Abfragen -->
             <td class="text-end d-none d-xl-table-cell">
@@ -303,45 +322,42 @@
             {% if can_write %}
             <td class="text-end text-nowrap">
               {% if b.bearbeitungsstatus == 'Neu' %}
-                <form method="post"
-                      action="{{ url_for('cognos.als_idv_registrieren', bericht_id=b.id) }}"
-                      class="d-inline">
-                  <button type="submit" class="btn btn-outline-primary btn-xs"
-                          title="Als IDV registrieren">
-                    <i class="bi bi-plus-circle"></i>
-                  </button>
-                </form>
-                <form method="post"
-                      action="{{ url_for('cognos.ignorieren', bericht_id=b.id) }}"
-                      class="d-inline ms-1">
-                  <button type="submit" class="btn btn-outline-secondary btn-xs"
-                          title="Ignorieren">
-                    <i class="bi bi-eye-slash"></i>
-                  </button>
-                </form>
+                <button type="submit"
+                        formaction="{{ url_for('cognos.als_idv_registrieren', bericht_id=b.id) }}"
+                        formmethod="post"
+                        class="btn btn-outline-primary btn-xs"
+                        title="Als IDV registrieren">
+                  <i class="bi bi-plus-circle"></i>
+                </button>
+                <button type="submit"
+                        formaction="{{ url_for('cognos.ignorieren', bericht_id=b.id) }}"
+                        formmethod="post"
+                        class="btn btn-outline-secondary btn-xs ms-1"
+                        title="Ignorieren">
+                  <i class="bi bi-eye-slash"></i>
+                </button>
               {% elif b.bearbeitungsstatus == 'Ignoriert' %}
-                <form method="post"
-                      action="{{ url_for('cognos.reaktivieren', bericht_id=b.id) }}"
-                      class="d-inline">
-                  <button type="submit" class="btn btn-outline-warning btn-xs"
-                          title="Reaktivieren">
-                    <i class="bi bi-arrow-counterclockwise"></i>
-                  </button>
-                </form>
+                <button type="submit"
+                        formaction="{{ url_for('cognos.reaktivieren', bericht_id=b.id) }}"
+                        formmethod="post"
+                        class="btn btn-outline-warning btn-xs"
+                        title="Nicht mehr ignorieren">
+                  <i class="bi bi-eye"></i>
+                </button>
               {% elif b.bearbeitungsstatus == 'Registriert' and b.idv_register_id %}
                 <a href="{{ url_for('idv.detail_idv', idv_db_id=b.idv_register_id) }}"
                    class="btn btn-outline-success btn-xs" title="IDV öffnen">
                   <i class="bi bi-box-arrow-up-right"></i>
                 </a>
               {% endif %}
-              <form method="post"
-                    action="{{ url_for('cognos.loeschen', bericht_id=b.id) }}"
-                    class="d-inline ms-1"
-                    onsubmit="return confirm('Bericht \"{{ b.berichtsname|e }}\" wirklich löschen?')">
-                <button type="submit" class="btn btn-outline-danger btn-xs" title="Löschen">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </form>
+              <button type="submit"
+                      formaction="{{ url_for('cognos.loeschen', bericht_id=b.id) }}"
+                      formmethod="post"
+                      class="btn btn-outline-danger btn-xs ms-1"
+                      title="Löschen"
+                      onclick="return confirm('Bericht \&quot;{{ b.berichtsname|e }}\&quot; wirklich löschen?')">
+                <i class="bi bi-trash"></i>
+              </button>
             </td>
             {% endif %}
           </tr>
