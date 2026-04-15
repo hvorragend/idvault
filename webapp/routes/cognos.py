@@ -144,16 +144,31 @@ def _parse_file(file_bytes: bytes, filename: str) -> tuple:
 _VALID_PER_PAGE = (25, 50, 100, 200, 500)
 
 
+_SORT_COLS = {
+    "berichtsname":         "cb.berichtsname",
+    "suchpfad":             "cb.suchpfad",
+    "package":              "cb.package",
+    "eigentuemer":          "cb.eigentuemer",
+    "anz_abfragen":         "cb.anz_abfragen",
+    "anz_datenelemente":    "cb.anz_datenelemente",
+    "anz_felder_klarnamen": "cb.anz_felder_klarnamen",
+    "anz_filter":           "cb.anz_filter",
+    "summe_ausdruckslaenge":"cb.summe_ausdruckslaenge",
+    "komplexitaet":         "cb.komplexitaet",
+    "status":               "cb.bearbeitungsstatus",
+}
+
+
 @bp.route("/")
 @login_required
 def list_berichte():
     db = get_db()
 
-    anwendung_filt = request.args.get("anwendung", "").strip()
-    package_filt   = request.args.get("package",   "").strip()
-    status_filt    = request.args.get("status",    "").strip()
-    bank_id_filt   = request.args.get("bank_id",   "").strip()
-    q              = request.args.get("q",          "").strip()
+    package_filt = request.args.get("package", "").strip()
+    status_filt  = request.args.get("status",  "").strip()
+    q            = request.args.get("q",        "").strip()
+    sort         = request.args.get("sort",  "berichtsname").strip()
+    order        = request.args.get("order", "asc").strip()
 
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
@@ -166,21 +181,18 @@ def list_berichte():
     if per_page not in _VALID_PER_PAGE:
         per_page = 50
 
+    sort_col = _SORT_COLS.get(sort, "cb.berichtsname")
+    sort_dir = "DESC" if order == "desc" else "ASC"
+
     where_parts = []
     params      = []
 
-    if anwendung_filt:
-        where_parts.append("anwendung = ?")
-        params.append(anwendung_filt)
     if package_filt:
         where_parts.append("package = ?")
         params.append(package_filt)
     if status_filt:
         where_parts.append("bearbeitungsstatus = ?")
         params.append(status_filt)
-    if bank_id_filt:
-        where_parts.append("bank_id = ?")
-        params.append(bank_id_filt)
     if q:
         where_parts.append("(berichtsname LIKE ? OR suchpfad LIKE ? OR eigentuemer LIKE ?)")
         params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
@@ -198,17 +210,13 @@ def list_berichte():
             FROM cognos_berichte cb
             LEFT JOIN idv_register r ON r.id = cb.idv_register_id
             {where_sql}
-            ORDER BY cb.berichtsname
+            ORDER BY {sort_col} {sort_dir}
             LIMIT ? OFFSET ?""",
         params + [per_page, offset]
     ).fetchall()
 
     total_pages = max(1, (total + per_page - 1) // per_page)
 
-    # Filter-Werte für Dropdowns
-    anwendungen = [r[0] for r in db.execute(
-        "SELECT DISTINCT anwendung FROM cognos_berichte WHERE anwendung IS NOT NULL ORDER BY anwendung"
-    ).fetchall()]
     packages = [r[0] for r in db.execute(
         "SELECT DISTINCT package FROM cognos_berichte WHERE package IS NOT NULL ORDER BY package"
     ).fetchall()]
@@ -229,13 +237,13 @@ def list_berichte():
         page=page,
         per_page=per_page,
         total_pages=total_pages,
-        anwendungen=anwendungen,
+        valid_per_page=_VALID_PER_PAGE,
         packages=packages,
-        anwendung_filt=anwendung_filt,
         package_filt=package_filt,
         status_filt=status_filt,
-        bank_id_filt=bank_id_filt,
         q=q,
+        sort=sort,
+        order=order,
         stats=stats,
         can_write=can_write(),
     )
@@ -366,7 +374,7 @@ def als_idv_registrieren(bericht_id: int):
 
     if bericht["idv_register_id"]:
         flash("Dieser Bericht ist bereits als IDV registriert.", "warning")
-        return redirect(url_for("idv.detail_idv", id=bericht["idv_register_id"]))
+        return redirect(url_for("idv.detail_idv", idv_db_id=bericht["idv_register_id"]))
 
     now    = datetime.now(timezone.utc).isoformat()
     idv_id = generate_idv_id(db)
@@ -411,7 +419,7 @@ def als_idv_registrieren(bericht_id: int):
     db.commit()
 
     flash(f"IDV {idv_id} wurde angelegt. Bitte jetzt vervollständigen.", "success")
-    return redirect(url_for("idv.detail_idv", id=new_id))
+    return redirect(url_for("idv.detail_idv", idv_db_id=new_id))
 
 
 @bp.route("/<int:bericht_id>/ignorieren", methods=["POST"])
@@ -440,3 +448,60 @@ def reaktivieren(bericht_id: int):
     db.commit()
     flash("Bericht reaktiviert.", "info")
     return redirect(request.referrer or url_for("cognos.list_berichte"))
+
+
+@bp.route("/<int:bericht_id>/loeschen", methods=["POST"])
+@login_required
+@write_access_required
+def loeschen(bericht_id: int):
+    db = get_db()
+    db.execute("DELETE FROM cognos_berichte WHERE id=?", (bericht_id,))
+    db.commit()
+    flash("Bericht gelöscht.", "info")
+    return redirect(request.referrer or url_for("cognos.list_berichte"))
+
+
+@bp.route("/bulk-aktion", methods=["POST"])
+@login_required
+@write_access_required
+def bulk_aktion():
+    db      = get_db()
+    aktion  = request.form.get("aktion", "")
+    raw_ids = request.form.getlist("bericht_ids")
+
+    try:
+        bericht_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        flash("Ungültige IDs.", "error")
+        return redirect(url_for("cognos.list_berichte"))
+
+    if not bericht_ids:
+        flash("Keine Berichte ausgewählt.", "warning")
+        return redirect(url_for("cognos.list_berichte"))
+
+    placeholders = ",".join("?" * len(bericht_ids))
+
+    if aktion == "ignorieren":
+        db.execute(
+            f"UPDATE cognos_berichte SET bearbeitungsstatus='Ignoriert'"
+            f" WHERE id IN ({placeholders}) AND bearbeitungsstatus='Neu'",
+            bericht_ids,
+        )
+        db.commit()
+        flash(f"{len(bericht_ids)} Bericht(e) ignoriert.", "info")
+    elif aktion == "reaktivieren":
+        db.execute(
+            f"UPDATE cognos_berichte SET bearbeitungsstatus='Neu'"
+            f" WHERE id IN ({placeholders}) AND bearbeitungsstatus='Ignoriert'",
+            bericht_ids,
+        )
+        db.commit()
+        flash(f"{len(bericht_ids)} Bericht(e) reaktiviert.", "info")
+    elif aktion == "loeschen":
+        db.execute(f"DELETE FROM cognos_berichte WHERE id IN ({placeholders})", bericht_ids)
+        db.commit()
+        flash(f"{len(bericht_ids)} Bericht(e) gelöscht.", "success")
+    else:
+        flash("Ungültige Aktion.", "error")
+
+    return redirect(url_for("cognos.list_berichte"))
