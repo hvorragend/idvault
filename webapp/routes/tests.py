@@ -49,6 +49,16 @@ def _get_idv_or_404(db, idv_db_id):
     return idv
 
 
+def _reset_freigabe_schritt(db, idv_db_id: int, schritt: str) -> None:
+    """Setzt einen Freigabe-Schritt auf 'Ausstehend' zurück, wenn der Test gelöscht wird."""
+    db.execute(
+        "UPDATE idv_freigaben SET status='Ausstehend', durchgefuehrt_von_id=NULL, "
+        "durchgefuehrt_am=NULL WHERE idv_id=? AND schritt=? AND status='Bestanden'",
+        (idv_db_id, schritt)
+    )
+    db.commit()
+
+
 # ── Nachweis-Datei herunterladen ──────────────────────────────────────────────
 
 @bp.route("/nachweis/<path:filename>")
@@ -68,7 +78,7 @@ def new_fachlicher_testfall(idv_db_id):
     if not idv:
         return redirect(url_for("idv.list_idv"))
 
-    # Optionaler Freigabe-Kontext: Testfall schließt gleichzeitig den Freigabe-Schritt ab
+    # Optionaler Freigabe-Kontext
     try:
         freigabe_id = int(request.args.get("freigabe_id") or request.form.get("freigabe_id") or 0) or None
     except (ValueError, TypeError):
@@ -87,7 +97,6 @@ def new_fachlicher_testfall(idv_db_id):
         if not data["beschreibung"]:
             flash("Testbeschreibung ist ein Pflichtfeld.", "error")
         else:
-            # Datei-Upload verarbeiten
             upload_file = request.files.get("nachweis_datei")
             pfad, name = _save_test_upload(upload_file)
             if upload_file and upload_file.filename and not pfad:
@@ -97,14 +106,14 @@ def new_fachlicher_testfall(idv_db_id):
 
             create_fachlicher_testfall(db, idv_db_id, data)
 
-            # Freigabe-Schritt automatisch abschließen, wenn aus Freigabe-Kontext aufgerufen
-            if freigabe_id:
+            # Freigabe-Schritt nur abschließen, wenn Bewertung = "Bestanden"
+            if freigabe_id and data["bewertung"] == "Bestanden":
                 from . import current_person_id
                 from .freigaben import complete_freigabe_schritt
                 complete_freigabe_schritt(db, freigabe_id, current_person_id())
-                flash("Testfall gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
             else:
-                flash("Testfall gespeichert.", "success")
+                flash("Test gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
     return render_template("tests/fachlich_form.html",
@@ -137,9 +146,8 @@ def edit_fachlicher_testfall(testfall_id):
     if request.method == "POST":
         data = _fachlich_form_to_dict(request.form)
         if not data["beschreibung"]:
-            flash("Testfallbeschreibung ist ein Pflichtfeld.", "error")
+            flash("Testbeschreibung ist ein Pflichtfeld.", "error")
         else:
-            # Datei-Upload: neue Datei oder vorhandene behalten
             upload_file = request.files.get("nachweis_datei")
             pfad, name = _save_test_upload(upload_file)
             if upload_file and upload_file.filename and not pfad:
@@ -149,13 +157,14 @@ def edit_fachlicher_testfall(testfall_id):
 
             update_fachlicher_testfall(db, testfall_id, data)
 
-            if freigabe_id:
+            # Freigabe-Schritt nur abschließen, wenn Bewertung = "Bestanden"
+            if freigabe_id and data["bewertung"] == "Bestanden":
                 from . import current_person_id
                 from .freigaben import complete_freigabe_schritt
                 complete_freigabe_schritt(db, freigabe_id, current_person_id())
-                flash("Testfall gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
             else:
-                flash("Testfall aktualisiert.", "success")
+                flash("Test gespeichert.", "success")
             return redirect(url_for("idv.detail_idv", idv_db_id=idv["id"]))
 
     return render_template("tests/fachlich_form.html",
@@ -177,9 +186,10 @@ def delete_fachlicher_testfall_route(testfall_id):
         return redirect(url_for("idv.list_idv"))
     idv_db_id = testfall["idv_id"]
     delete_fachlicher_testfall(db, testfall_id)
-    flash("Testfall gelöscht.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
-                            _anchor="testdokumentation"))
+    # Freigabe-Schritt zurücksetzen, damit ein neuer Test angelegt werden kann
+    _reset_freigabe_schritt(db, idv_db_id, "Fachlicher Test")
+    flash("Test gelöscht.", "success")
+    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 
 # ── Technischer Test: Anlegen / Bearbeiten ────────────────────────────────
@@ -194,7 +204,6 @@ def edit_technischer_test(idv_db_id):
 
     tech_test = get_technischer_test(db, idv_db_id)
 
-    # Optionaler Freigabe-Kontext
     try:
         freigabe_id = int(request.args.get("freigabe_id") or request.form.get("freigabe_id") or 0) or None
     except (ValueError, TypeError):
@@ -208,7 +217,6 @@ def edit_technischer_test(idv_db_id):
             "pruefungsdatum":   request.form.get("pruefungsdatum") or None,
         }
 
-        # Datei-Upload: neue Datei oder vorhandene behalten
         upload_file = request.files.get("nachweis_datei")
         pfad, name = _save_test_upload(upload_file)
         if upload_file and upload_file.filename and not pfad:
@@ -218,15 +226,15 @@ def edit_technischer_test(idv_db_id):
 
         save_technischer_test(db, idv_db_id, data)
 
-        if freigabe_id:
+        # Freigabe-Schritt nur abschließen, wenn Ergebnis = "Bestanden"
+        if freigabe_id and data["ergebnis"] == "Bestanden":
             from . import current_person_id
             from .freigaben import complete_freigabe_schritt
             complete_freigabe_schritt(db, freigabe_id, current_person_id())
             flash("Technischer Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
         else:
             flash("Technischer Test gespeichert.", "success")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
-                                _anchor="testdokumentation"))
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
     return render_template("tests/technisch_form.html",
                            idv=idv, tech_test=tech_test,
@@ -245,9 +253,10 @@ def delete_technischer_test_route(idv_db_id):
     if not idv:
         return redirect(url_for("idv.list_idv"))
     delete_technischer_test(db, idv_db_id)
+    # Freigabe-Schritt zurücksetzen, damit ein neuer Test angelegt werden kann
+    _reset_freigabe_schritt(db, idv_db_id, "Technischer Test")
     flash("Technischer Test gelöscht.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id,
-                            _anchor="testdokumentation"))
+    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
 
 # ── Hilfsfunktion ─────────────────────────────────────────────────────────

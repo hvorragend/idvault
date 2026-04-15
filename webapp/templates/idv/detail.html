@@ -688,11 +688,18 @@
                 </div>
                 {% if f %}
                 <div class="d-flex gap-1 mt-2">
-                  {% if f.status == 'Ausstehend' and can_create %}
-                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                     class="btn btn-xs btn-outline-success" title="Bestanden markieren">
-                    <i class="bi bi-check2-circle"></i>
+                  {% if can_create %}
+                  {% if schritt_name == 'Fachlicher Test' %}
+                  <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id, freigabe_id=f.id) }}"
+                     class="btn btn-xs btn-outline-primary" title="Test anlegen/bearbeiten">
+                    <i class="bi bi-pencil"></i>
                   </a>
+                  {% else %}
+                  <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id, freigabe_id=f.id) }}"
+                     class="btn btn-xs btn-outline-primary" title="Test anlegen/bearbeiten">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  {% endif %}
                   {% else %}
                   <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
                      class="btn btn-xs btn-outline-secondary" title="Öffnen">
