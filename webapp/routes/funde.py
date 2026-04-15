@@ -6,6 +6,32 @@ from . import login_required, write_access_required, own_write_required, get_db,
 bp = Blueprint("funde", __name__, url_prefix="/funde")
 
 
+@bp.record_once
+def _bootstrap_extras(state):
+    """Läuft beim app.register_blueprint(funde_bp) – auch mit alter EXE.
+
+    1. Registriert safe_url_for als Jinja2-Global (verhindert BuildError in base.html).
+    2. Registriert das cognos-Blueprint falls cognos.py im Updates-Ordner vorhanden ist.
+    """
+    from werkzeug.routing import BuildError
+
+    def _safe_url_for(endpoint, **values):
+        try:
+            from flask import url_for as _url_for
+            return _url_for(endpoint, **values)
+        except BuildError:
+            return "#"
+
+    state.app.jinja_env.globals.setdefault("safe_url_for", _safe_url_for)
+
+    if "cognos" not in state.app.blueprints:
+        try:
+            from webapp.routes.cognos import bp as cognos_bp
+            state.app.register_blueprint(cognos_bp)
+        except Exception:
+            pass
+
+
 def _scan_btn_ctx() -> dict:
     """Liefert die Variablen für das _scan_button.html-Include."""
     from webapp.routes.admin import (
