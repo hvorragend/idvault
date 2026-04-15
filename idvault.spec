@@ -34,6 +34,9 @@ datas = [
     ('version.json', '.'),
     # Pflicht: alle Jinja2-Templates
     ('webapp/templates', 'webapp/templates'),
+    # Pflicht: lokale Frontend-Assets (Bootstrap, Bootstrap Icons, QuillJS).
+    # Damit läuft die Anwendung vollständig offline, ohne CDN-Zugriff.
+    ('webapp/static',    'webapp/static'),
     # Framework-Daten
     *flask_d,
     *jinja2_d,

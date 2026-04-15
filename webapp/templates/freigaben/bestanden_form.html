@@ -11,7 +11,7 @@
 
 {% block extra_head %}
 {% if not readonly %}
-<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<link href="{{ url_for('static', filename='vendor/quill-1.3.7/quill.snow.css') }}" rel="stylesheet">
 <style>
 .ql-container { font-size: .9rem; }
 .ql-toolbar { border-radius: .375rem .375rem 0 0; }
@@ -193,7 +193,7 @@
 
 {% block extra_js %}
 {% if not readonly %}
-<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/quill-1.3.7/quill.min.js') }}"></script>
 <script>
 (function () {
   var editors = [];

@@ -49,11 +49,35 @@ eigenständig lauffähig und benötigt keine lokale Python-Installation.
 `idvault.spec` steuert den Build-Prozess:
 
 - Einstiegspunkt: `run.py`
-- Zu bündelnde Ressourcen: `schema.sql`, `webapp/templates/`, `version.json`, `scanner/`
+- Zu bündelnde Ressourcen: `schema.sql`, `webapp/templates/`, `webapp/static/`, `version.json`, `scanner/`
 - Zu bündelnde Bibliotheken: `flask`, `openpyxl`, `ldap3`, `cryptography`, `msal`, `requests`, ggf. `pywin32`
 - `debug=False` (keine Debug-Symbole in der EXE)
 
-### 2.4 Signierung (Empfehlung für Produktion)
+### 2.4 Frontend-Assets (offline-fähig)
+
+Bootstrap, Bootstrap Icons und QuillJS werden **nicht** von einem CDN geladen,
+sondern liegen lokal unter `webapp/static/vendor/` und sind im Repository
+eingecheckt. Das ist Voraussetzung für den Betrieb in Netzen ohne
+Internet-Zugang (z. B. segmentierten Bank-Netzen) und für eine restriktive
+Content-Security-Policy (`script-src 'self'`, `style-src 'self'`,
+`font-src 'self'` — keine `cdn.*`-Einträge).
+
+Vor einem Build sollten die Assets mit
+
+```cmd
+python scripts/download_vendor_assets.py --check
+```
+
+verifiziert werden. Fehlende Dateien werden mit
+
+```cmd
+python scripts/download_vendor_assets.py
+```
+
+von den offiziellen Release-Archiven (GitHub, npm) nachgeladen. PyInstaller
+bündelt anschließend das gesamte Verzeichnis `webapp/static/` in die EXE.
+
+### 2.5 Signierung (Empfehlung für Produktion)
 
 Die erzeugte EXE sollte mit einem Code-Signing-Zertifikat der Bank
 signiert werden (zur Vermeidung von SmartScreen-/AppLocker-
@@ -63,7 +87,7 @@ Warnungen):
 signtool sign /f bank-codesign.pfx /p <password> /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist\idvault.exe
 ```
 
-### 2.5 Prüfsummen
+### 2.6 Prüfsummen
 
 Nach jedem Build:
 

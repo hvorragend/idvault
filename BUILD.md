@@ -41,7 +41,29 @@ pip install pywin32
 
 ---
 
-## Schritt 2: Executable bauen
+## Schritt 2: Frontend-Assets prüfen (offline-fähig)
+
+Bootstrap, Bootstrap Icons und QuillJS werden **lokal** unter
+`webapp/static/vendor/` ausgeliefert — es wird **keine** Internetverbindung
+beim Seitenaufbau benötigt. Die Dateien sind im Repository eingecheckt.
+
+Prüfen ob alle Vendor-Assets vorhanden sind:
+
+```cmd
+python scripts/download_vendor_assets.py --check
+```
+
+Sollten Dateien fehlen (z.B. nach einem Version-Upgrade), werden sie mit
+
+```cmd
+python scripts/download_vendor_assets.py
+```
+
+von GitHub und dem npm-Registry nachgeladen.
+
+---
+
+## Schritt 3: Executable bauen
 
 ```cmd
 python -m PyInstaller idvault.spec --clean --noconfirm
@@ -55,7 +77,7 @@ Building EXE from EXE-00.toc completed successfully.
 
 ---
 
-## Schritt 3: Ergebnis
+## Schritt 4: Ergebnis
 
 Die fertige Datei liegt unter:
 
@@ -68,7 +90,7 @@ ausgeführt werden – ohne Python-Installation.
 
 ---
 
-## Schritt 4: Starten
+## Schritt 5: Starten
 
 ```cmd
 dist\idvault.exe

@@ -18,11 +18,12 @@ from .db_flask import get_db, close_db, init_app_db
 _DEFAULT_DEV_SECRET = "dev-change-in-production-!"
 
 # HTTP-Security-Header, die bei jeder Antwort gesetzt werden (VULN-008).
-# Content-Security-Policy bewusst konservativ, kompatibel zu Bootstrap/CDN:
-#   'self' + inline styles (Bootstrap/Toasts verwenden style=)
-#   'unsafe-inline' für Script bleibt zunächst bestehen, weil Templates
-#   inline onclick-Handler und kleine Script-Blöcke nutzen. Eine spätere
-#   Härtung auf nonce-basiertes CSP ist dokumentiert in docs/09.
+# Content-Security-Policy bewusst konservativ und **offline-tauglich**:
+#   - Alle Frontend-Assets (Bootstrap, Bootstrap Icons, QuillJS) werden lokal
+#     unter webapp/static/vendor/ ausgeliefert. Deshalb keine CDN-Freigabe.
+#   - 'unsafe-inline' für style/script bleibt bestehen, weil Templates
+#     inline onclick-Handler und kleine Script-/Style-Blöcke nutzen. Eine
+#     spätere Härtung auf nonce-basiertes CSP ist dokumentiert in docs/09.
 _SECURITY_HEADERS = {
     "X-Content-Type-Options":  "nosniff",
     "X-Frame-Options":         "DENY",
@@ -31,9 +32,9 @@ _SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; "
         "img-src 'self' data:; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "font-src 'self' data: https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "font-src 'self' data:; "
         "frame-ancestors 'none'; "
         "base-uri 'self'"
     ),
@@ -51,13 +52,21 @@ def create_app(db_path: str = None) -> Flask:
 
     if getattr(sys, 'frozen', False):
         _tpl = str(Path(sys._MEIPASS) / 'webapp' / 'templates')
+        _static = str(Path(sys._MEIPASS) / 'webapp' / 'static')
         _instance_default = os.path.join(os.path.dirname(sys.executable), 'instance')
     else:
         # Absoluter Pfad – unabhängig davon, von wo __init__.py geladen wurde
         _tpl = os.path.join(_project_root, 'webapp', 'templates')
+        _static = os.path.join(_project_root, 'webapp', 'static')
         _instance_default = os.path.join(_project_root, 'instance')
 
-    app = Flask(__name__, instance_relative_config=True, template_folder=_tpl)
+    app = Flask(
+        __name__,
+        instance_relative_config=True,
+        template_folder=_tpl,
+        static_folder=_static,
+        static_url_path='/static',
+    )
 
     # Sidecar-Template-Override: templates aus updates/ haben Vorrang
     from jinja2 import ChoiceLoader, FileSystemLoader as _FSL

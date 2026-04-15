@@ -68,8 +68,15 @@ Einstiegspunkt und Inhaltsverzeichnis: [`docs/README.md`](docs/README.md).
 | Verschlüsselung | cryptography (Fernet) |
 | Build | PyInstaller (Single-File-EXE) |
 | Export | openpyxl (XLSX) |
+| Frontend | Bootstrap 5.3.3, Bootstrap Icons 1.11.3, QuillJS 1.3.7 — **lokal ausgeliefert**, keine CDN-/Internet-Verbindung nötig |
 
 Siehe [docs/03-architektur.md](docs/03-architektur.md) für Details.
+
+> **Offline-Betrieb:** Alle Frontend-Assets (CSS, JS, Icon-Fonts) liegen unter
+> `webapp/static/vendor/` und werden von Flask direkt ausgeliefert. Die
+> Anwendung funktioniert vollständig in Netzen ohne Internet-Zugang
+> (z. B. segmentierte Bank-Netze). Bezug/Upgrade der Vendor-Assets:
+> `python scripts/download_vendor_assets.py`.
 
 ## Regulatorische Einordnung
 
