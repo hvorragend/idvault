@@ -23,6 +23,61 @@ from typing import Optional
 log = logging.getLogger("idvault.email")
 
 
+# ---------------------------------------------------------------------------
+# SMTP-Passwort-Speicherung (VULN-007 Remediation)
+# ---------------------------------------------------------------------------
+#
+# Das SMTP-Passwort wurde bislang als Klartext in app_settings.smtp_password
+# abgelegt. Es wird nun analog zum LDAP-Bind-Passwort mit Fernet (AES-128-CBC
+# + HMAC-SHA256) verschlüsselt gespeichert. Verschlüsselte Werte tragen das
+# Präfix "enc:", damit Altbestände (Klartext) automatisch erkannt und beim
+# nächsten Speichervorgang migriert werden.
+#
+# Der Fernet-Schlüssel wird – wie bei ldap_auth – aus SECRET_KEY abgeleitet.
+# Bei einer SECRET_KEY-Rotation muss das SMTP-Passwort neu gesetzt werden.
+
+_ENC_PREFIX = "enc:"
+
+
+def _smtp_fernet():
+    """Lokale Fernet-Instanz auf Basis des aktuellen SECRET_KEY.
+
+    Importiert lazy, damit das E-Mail-Modul auch ohne Anwendungskontext
+    (z. B. in Tests) importierbar bleibt.
+    """
+    from flask import current_app
+    from .ldap_auth import _fernet  # gleiche Ableitung wie LDAP-Bind-Passwort
+    secret_key = current_app.config.get("SECRET_KEY", "")
+    return _fernet(secret_key)
+
+
+def encrypt_smtp_password(plain: str) -> str:
+    """Verschlüsselt ein SMTP-Klartextpasswort (mit "enc:"-Präfix)."""
+    if not plain:
+        return ""
+    token = _smtp_fernet().encrypt(plain.encode()).decode()
+    return _ENC_PREFIX + token
+
+
+def _decrypt_smtp_password(stored: str) -> str:
+    """Entschlüsselt einen gespeicherten SMTP-Passwortwert.
+
+    Erkennt sowohl verschlüsselte Werte (mit "enc:"-Präfix) als auch
+    Altbestände im Klartext und gibt den Klartext zurück.
+    """
+    if not stored:
+        return ""
+    if not stored.startswith(_ENC_PREFIX):
+        # Legacy-Klartext – wird beim nächsten Speichern automatisch migriert.
+        return stored
+    try:
+        token = stored[len(_ENC_PREFIX):]
+        return _smtp_fernet().decrypt(token.encode()).decode()
+    except Exception as exc:
+        log.warning("SMTP-Passwort kann nicht entschlüsselt werden: %s", exc)
+        return ""
+
+
 def _get_smtp_config(db) -> dict:
     """Liest SMTP-Einstellungen aus DB, mit Env-Überschreibung."""
     try:
@@ -31,11 +86,18 @@ def _get_smtp_config(db) -> dict:
     except Exception:
         cfg  = {}
 
+    # Passwort: Umgebungsvariable hat Vorrang (Klartext); DB-Wert wird ggf. entschlüsselt
+    env_pw = os.environ.get("IDV_SMTP_PASSWORD")
+    if env_pw is not None:
+        password = env_pw
+    else:
+        password = _decrypt_smtp_password(cfg.get("smtp_password", ""))
+
     return {
         "host":     os.environ.get("IDV_SMTP_HOST",     cfg.get("smtp_host",     "")),
         "port":     int(os.environ.get("IDV_SMTP_PORT", cfg.get("smtp_port",     587))),
         "user":     os.environ.get("IDV_SMTP_USER",     cfg.get("smtp_user",     "")),
-        "password": os.environ.get("IDV_SMTP_PASSWORD", cfg.get("smtp_password", "")),
+        "password": password,
         "from":     os.environ.get("IDV_SMTP_FROM",     cfg.get("smtp_from",     "")),
         "tls":      os.environ.get("IDV_SMTP_TLS",      cfg.get("smtp_tls",      "1")) == "1",
     }

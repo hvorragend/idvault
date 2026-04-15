@@ -204,6 +204,43 @@ if __name__ == "__main__":
 
     debug = os.environ.get("DEBUG", "0") == "1"
 
+    # ── Sicherheits-Startup-Checks (VULN-004 / VULN-005) ─────────────────────
+    # VULN-004: SECRET_KEY-Enforcement.
+    #   Ohne gesetzte Umgebungsvariable greift der statische Fallback
+    #   "dev-change-in-production-!" aus webapp/__init__.py – im Produktiv-
+    #   betrieb untauglich. Wir brechen in diesem Fall den Start ab, außer
+    #   der Debug-Modus ist aktiv (lokale Entwicklung).
+    if app.config.get("SECRET_KEY_IS_DEFAULT"):
+        msg = (
+            "SICHERHEITS-ABBRUCH: Die Umgebungsvariable SECRET_KEY ist nicht "
+            "gesetzt. In der Produktion muss ein zufälliger Wert (≥ 32 Zeichen) "
+            "via Umgebungsvariable bereitgestellt werden.\n"
+            "Beispiel (PowerShell):  $env:SECRET_KEY = [Guid]::NewGuid().ToString('N')\n"
+            "Beispiel (Bash):        export SECRET_KEY=$(openssl rand -hex 32)\n"
+            "Zum lokalen Entwickeln DEBUG=1 setzen, um diesen Check zu umgehen."
+        )
+        if not debug:
+            print("\n" + "!" * 70)
+            print(msg)
+            print("!" * 70)
+            sys.exit(2)
+        else:
+            print("\n" + "!" * 70)
+            print("  WARNUNG: SECRET_KEY nicht gesetzt – Dev-Fallback aktiv.")
+            print("  Dieser Start ist NUR für die lokale Entwicklung zulässig.")
+            print("!" * 70 + "\n")
+
+    # VULN-005: Debug-Warnung. Der Flask-Debugger aktiviert interaktive
+    # Stack-Traces und (im Werkzeug-Reloader) eine PIN-geschützte Konsole.
+    # In der Produktion niemals einsetzen.
+    if debug:
+        print("\n" + "!" * 70)
+        print("  WARNUNG: DEBUG-Modus aktiv.")
+        print("  Der Flask-Debugger liefert Stacktraces und eine interaktive")
+        print("  Konsole. NIEMALS in Produktionsumgebungen verwenden.")
+        print("!" * 70 + "\n")
+    # ─────────────────────────────────────────────────────────────────────────
+
     # HTTPS optional: Zertifikats-Kontext vorbereiten (ggf. selbstsigniert).
     # Muss vor dem Port-Default ausgewertet werden, damit 5443 greift.
     # IDV_INSTANCE_PATH wurde oben bereits gesetzt (Default: <root>/instance).

@@ -719,7 +719,14 @@ def teams_scan_status():
 
 
 def _hash_pw(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
+    """Wrapper auf den modernen Passwort-Hash (VULN-001 Remediation).
+
+    Leitet an ``webapp.routes.auth._hash_pw`` weiter, das werkzeug-Hashes
+    (pbkdf2:sha256 mit Salt) erzeugt. Siehe dort für Details zur
+    Rehash-on-Login-Migration bestehender SHA-256-Hashes.
+    """
+    from .auth import _hash_pw as _modern_hash
+    return _modern_hash(pw)
 
 
 def _now() -> str:
@@ -796,9 +803,13 @@ def mitarbeiter():
 def mail():
     db = get_db()
     if request.method == "POST":
-        keys = ["smtp_host", "smtp_port", "smtp_user", "smtp_password",
+        # VULN-007: SMTP-Passwort gesondert behandeln (Fernet-Verschlüsselung)
+        from ..email_service import EMAIL_TEMPLATES, encrypt_smtp_password
+        _save_smtp_password(db, request.form.get("smtp_password", ""),
+                            encrypt_smtp_password)
+
+        keys = ["smtp_host", "smtp_port", "smtp_user",
                 "smtp_from", "smtp_tls", "app_base_url"]
-        from ..email_service import EMAIL_TEMPLATES
         for tpl_key in EMAIL_TEMPLATES:
             keys.append(f"notify_enabled_{tpl_key}")
             keys.append(f"email_tpl_{tpl_key}_subject")
@@ -1197,11 +1208,15 @@ def delete_plattform(plid):
 @admin_required
 def save_settings():
     db = get_db()
-    keys = ["smtp_host", "smtp_port", "smtp_user", "smtp_password",
+    # VULN-007: SMTP-Passwort gesondert behandeln (Fernet-Verschlüsselung)
+    from ..email_service import EMAIL_TEMPLATES, encrypt_smtp_password
+    _save_smtp_password(db, request.form.get("smtp_password", ""),
+                        encrypt_smtp_password)
+
+    keys = ["smtp_host", "smtp_port", "smtp_user",
             "smtp_from", "smtp_tls", "local_login_enabled",
             "app_base_url"]
     # Dynamisch alle E-Mail-Template-Keys aufnehmen
-    from ..email_service import EMAIL_TEMPLATES
     for tpl_key in EMAIL_TEMPLATES:
         keys.append(f"notify_enabled_{tpl_key}")
         keys.append(f"email_tpl_{tpl_key}_subject")
@@ -1212,6 +1227,30 @@ def save_settings():
     db.commit()
     flash("Einstellungen gespeichert.", "success")
     return redirect(url_for("admin.mail") + "#email-vorlagen")
+
+
+def _save_smtp_password(db, submitted: str, encrypt_fn) -> None:
+    """Speichert das SMTP-Passwort verschlüsselt.
+
+    - Leerer Wert bedeutet "Passwort beibehalten" (z. B. wenn der Admin nur
+      andere Felder bearbeitet hat). Das Feld im Formular ist bewusst leer,
+      um das Klartext-Passwort nicht ins HTML zu schreiben.
+    - Nicht-leerer Wert wird Fernet-verschlüsselt und mit "enc:"-Präfix
+      abgelegt.
+    """
+    if not submitted:
+        return  # Altbestand nicht überschreiben
+    try:
+        enc = encrypt_fn(submitted)
+    except Exception:
+        # Im Ausnahmefall lieber nicht speichern als Klartext abzulegen
+        flash("SMTP-Passwort konnte nicht verschlüsselt werden – nicht gespeichert.",
+              "error")
+        return
+    db.execute(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+        ("smtp_password", enc),
+    )
 
 
 # ── Login-Log ─────────────────────────────────────────────────────────────
@@ -1723,6 +1762,21 @@ def ldap_config():
               bind_password_enc, user_attr, ssl_verify, updated_at))
         db.commit()
         flash("LDAP-Konfiguration gespeichert.", "success")
+        # VULN-012: TLS-Zertifikatsprüfung abgeschaltet → Audit-Warnung
+        if enabled and not ssl_verify:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "LDAP-Konfiguration gespeichert MIT DEAKTIVIERTER "
+                "Zertifikatsprüfung (ssl_verify=0) – Man-in-the-Middle-Angriffe "
+                "auf LDAPS möglich."
+            )
+            flash(
+                "Hinweis: Die Zertifikatsprüfung (ssl_verify) ist deaktiviert. "
+                "Das macht LDAPS anfällig für Man-in-the-Middle-Angriffe. "
+                "Für den Produktivbetrieb bitte aktivieren und das Server-"
+                "Zertifikat aus der internen CA als vertrauenswürdig hinterlegen.",
+                "warning",
+            )
         return redirect(url_for("admin.ldap_config"))
 
     cfg = get_ldap_config(db)
