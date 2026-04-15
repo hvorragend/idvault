@@ -31,7 +31,10 @@
           <div class="col-md-3">
             <label class="form-label form-label-sm fw-600">Passwort</label>
             <input type="password" name="smtp_password" class="form-control form-control-sm"
-                   value="{{ settings.get('smtp_password','') }}" placeholder="••••••••">
+                   value=""
+                   placeholder="{% if settings.get('smtp_password') %}••• gespeichert – leer lassen zum Beibehalten{% else %}nicht gesetzt{% endif %}"
+                   autocomplete="new-password">
+            <div class="form-text">Wird verschlüsselt in der Datenbank abgelegt.</div>
           </div>
           <div class="col-md-4">
             <label class="form-label form-label-sm fw-600">Absenderadresse</label>

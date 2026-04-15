@@ -198,13 +198,18 @@ Die folgende Checkliste ist vor dem Go-Live zwingend abzuarbeiten.
 
 Die aktuell bekannten Restrisiken sind in
 [09 – Schwachstellenanalyse](09-schwachstellenanalyse.md) ausführlich
-dokumentiert. Zusammenfassend die Punkte mit höchster Priorität:
+dokumentiert. Status der Top-Punkte:
 
-1. **Passwort-Hashing schwach** – SHA-256 ohne Salt; Migration auf Argon2id geplant
-2. **Kein CSRF-Schutz** – Einführung von Flask-WTF + Jinja2-Tokens geplant
-3. **Default `SECRET_KEY`** – Betriebsprüfung zur Sicherstellung der Überschreibung
-4. **Demo-Zugangsdaten** – Deaktivierung vor Produktivstart
-5. **Fehlendes Rate-Limiting** – Flask-Limiter vorgesehen
+1. **Passwort-Hashing** – ✅ auf `pbkdf2:sha256` mit Salt umgestellt; Legacy-SHA-256-Hashes werden beim Login transparent migriert
+2. **Default `SECRET_KEY`** – ✅ Startup-Check erzwingt in Produktion die Umgebungsvariable
+3. **Debug-Modus** – ✅ prominente Warnung im Startbanner
+4. **SMTP-Passwort** – ✅ Fernet-Verschlüsselung analog LDAP-Bind-Passwort
+5. **HTTP-Security-Header** – 🛡 `after_request`-Hook setzt CSP/X-Frame-Options/HSTS; `unsafe-inline` noch in CSP
+6. **LDAP-Zertifikatsprüfung** – ✅ Default aktiv; Warnhinweis bei Deaktivierung
+7. **Session-Timeouts** – ✅ 4 h Idle-Lifetime + HttpOnly/SameSite/Secure
+8. **Kein CSRF-Schutz** – ⏳ offen, Einführung von Flask-WTF geplant (Sprint 1)
+9. **Fehlendes Rate-Limiting** – ⏳ offen, Flask-Limiter vorgesehen (Sprint 2)
+10. **Demo-Zugangsdaten** – 📋 bewusst beibehalten (dokumentiertes Restrisiko, Betriebsauflage)
 
 ## 9 Sicherheits-Tests
 

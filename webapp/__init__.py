@@ -8,9 +8,36 @@ von Eigenentwicklungen (Individuelle Datenverarbeitung).
 import os
 import sys
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from flask import Flask
 from .db_flask import get_db, close_db, init_app_db
+
+
+# Hinweis zu Sicherheits-Remediationen (VULN-004/005/008/013):
+# Die folgenden Konstanten werden in create_app() ausgewertet.
+_DEFAULT_DEV_SECRET = "dev-change-in-production-!"
+
+# HTTP-Security-Header, die bei jeder Antwort gesetzt werden (VULN-008).
+# Content-Security-Policy bewusst konservativ, kompatibel zu Bootstrap/CDN:
+#   'self' + inline styles (Bootstrap/Toasts verwenden style=)
+#   'unsafe-inline' für Script bleibt zunächst bestehen, weil Templates
+#   inline onclick-Handler und kleine Script-Blöcke nutzen. Eine spätere
+#   Härtung auf nonce-basiertes CSP ist dokumentiert in docs/09.
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options":  "nosniff",
+    "X-Frame-Options":         "DENY",
+    "Referrer-Policy":         "strict-origin-when-cross-origin",
+    "Permissions-Policy":      "geolocation=(), microphone=(), camera=()",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "font-src 'self' data:; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'"
+    ),
+}
 
 
 def create_app(db_path: str = None) -> Flask:
@@ -40,8 +67,24 @@ def create_app(db_path: str = None) -> Flask:
 
     _instance_path = os.environ.get("IDV_INSTANCE_PATH", _instance_default)
     upload_folder = os.path.join(_instance_path, "uploads", "freigaben")
+
+    # VULN-004: SECRET_KEY-Enforcement
+    #   - Ist die Umgebungsvariable SECRET_KEY nicht gesetzt, fällt die
+    #     Anwendung auf einen statischen Dev-Key zurück. Im DEBUG-Modus ist
+    #     das tolerierbar, im Produktivbetrieb nicht. Wir markieren diesen
+    #     Zustand im app.config, damit er oben sichtbar wird (Konsole, Banner)
+    #     und prüfen ihn unten per Startup-Check in run.py.
+    _debug_mode = os.environ.get("DEBUG", "0") == "1"
+    _secret_key = os.environ.get("SECRET_KEY")
+    _secret_key_is_default = False
+    if not _secret_key:
+        _secret_key = _DEFAULT_DEV_SECRET
+        _secret_key_is_default = True
+
     app.config.update(
-        SECRET_KEY=os.environ.get("SECRET_KEY", "dev-change-in-production-!"),
+        SECRET_KEY=_secret_key,
+        SECRET_KEY_IS_DEFAULT=_secret_key_is_default,
+        DEBUG_MODE_ACTIVE=_debug_mode,
         DATABASE=db_path or os.environ.get(
             "IDV_DB_PATH",
             os.path.join(_instance_path, "idvault.db")
@@ -51,6 +94,17 @@ def create_app(db_path: str = None) -> Flask:
         APP_NAME="idvault",
         BUNDLED_VERSION=os.environ.get('BUNDLED_VERSION', '0.1.0'),
         APP_VERSION=os.environ.get('IDV_ACTIVE_VERSION') or os.environ.get('BUNDLED_VERSION', '0.1.0'),
+    )
+
+    # VULN-013: Session-Hardening
+    #   - Idle-Timeout von 4 Stunden
+    #   - HttpOnly + SameSite=Lax standardmäßig
+    #   - Secure-Cookie-Flag automatisch, sobald HTTPS aktiv ist
+    app.config.update(
+        PERMANENT_SESSION_LIFETIME=timedelta(hours=4),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=(os.environ.get("IDV_HTTPS", "0") == "1"),
     )
 
     os.makedirs(_instance_path, exist_ok=True)
@@ -106,6 +160,26 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(reports_bp)
     app.register_blueprint(freigaben_bp)
     app.register_blueprint(tests_bp)
+
+    # VULN-008: HTTP-Security-Header bei jeder Antwort setzen
+    @app.after_request
+    def _add_security_headers(response):
+        for name, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        # HSTS nur senden, wenn HTTPS aktiv ist – sonst sperren wir HTTP
+        # unbeabsichtigt aus.
+        if os.environ.get("IDV_HTTPS", "0") == "1":
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+        return response
+
+    # VULN-013: Session als "permanent" kennzeichnen, damit PERMANENT_SESSION_LIFETIME greift
+    @app.before_request
+    def _make_session_permanent():
+        from flask import session
+        session.permanent = True
 
     # Context Processor: Scanner-Eingang Badge-Count für alle Templates
     @app.context_processor

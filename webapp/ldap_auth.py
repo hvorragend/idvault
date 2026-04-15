@@ -210,6 +210,17 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
           f"Server={cfg['server_url']}:{cfg['port']}  SSL-Verify={cfg['ssl_verify']}  "
           f"BindDN={cfg['bind_dn']}  BaseDN={cfg['base_dn']}")
 
+    # VULN-012: Laufzeit-Warnung bei deaktivierter Zertifikatsprüfung
+    if not cfg.get("ssl_verify"):
+        logger.warning(
+            "LDAP-Login: Zertifikatsprüfung ist deaktiviert (ssl_verify=0). "
+            "LDAPS ist damit anfällig für Man-in-the-Middle-Angriffe. "
+            "Bitte ssl_verify aktivieren und internes CA-Zertifikat hinterlegen."
+        )
+        _llog(username, "Konfiguration",
+              "WARNUNG: ssl_verify=0 – TLS-Zertifikatsprüfung deaktiviert",
+              "warning")
+
     try:
         from ldap3.core.exceptions import LDAPBindError, LDAPSocketOpenError
     except ImportError:

@@ -85,16 +85,27 @@ Vollständiges Compliance-Mapping: [docs/07-aufsichtsrecht.md](docs/07-aufsichts
 
 ## Sicherheitshinweise für den Produktivbetrieb
 
-**Vor dem produktiven Einsatz** müssen die in
-[docs/09-schwachstellenanalyse.md](docs/09-schwachstellenanalyse.md) als
-*kritisch* markierten Punkte abgearbeitet sein:
+Bereits umgesetzte Hardening-Maßnahmen (Details: [docs/09-schwachstellenanalyse.md](docs/09-schwachstellenanalyse.md)):
 
-- [ ] `SECRET_KEY` über Umgebungsvariable setzen
-- [ ] Demo-Zugangsdaten (`admin / idvault2025` etc.) deaktivieren
+- ✅ Modernes Passwort-Hashing (`pbkdf2:sha256`) mit automatischer Migration von Legacy-SHA-256-Hashes
+- ✅ `SECRET_KEY`-Enforcement beim Start (bricht ab, wenn nicht gesetzt)
+- ✅ Warnung, wenn Debug-Modus aktiv ist
+- ✅ SMTP-Passwort Fernet-verschlüsselt in der Datenbank
+- ✅ HTTP-Security-Header (CSP, X-Frame-Options, HSTS) per `after_request`
+- ✅ LDAP: Warnung bei deaktivierter Zertifikatsprüfung (UI + Log)
+- ✅ Session-Idle-Timeout 4 h + HttpOnly/SameSite/Secure
+
+Noch offene Punkte vor bzw. kurz nach Produktivstart:
+
+- [ ] CSRF-Schutz (Flask-WTF) einführen
+- [ ] Rate-Limiting am Login (Flask-Limiter)
 - [ ] HTTPS aktivieren (direkt oder per Reverse-Proxy)
-- [ ] LDAP mit Zertifikatsprüfung konfigurieren
-- [ ] Passwort-Hashing-Migration auf Argon2id (Roadmap)
-- [ ] CSRF-Schutz einführen (Roadmap)
+- [ ] `SECRET_KEY` aus KeyVault/HSM
+
+Demo-Zugänge (`admin / idvault2025` u. a.) bleiben auf Wunsch
+des Auftraggebers **aktiv**; das Restrisiko ist in
+[docs/09-schwachstellenanalyse.md Abschnitt 3.3](docs/09-schwachstellenanalyse.md)
+dokumentiert.
 
 Vollständige Pre-Go-Live-Checkliste: [docs/05-sicherheitskonzept.md](docs/05-sicherheitskonzept.md) Abschnitt 7.
 

@@ -70,7 +70,7 @@ Keine MSI, keine Dienste, keine Registry-Einträge.
 
 | Variable | Zweck | Default |
 |---|---|---|
-| `SECRET_KEY` | **Zwingend** zu setzen (≥ 32 Zeichen) | `"dev-change-in-production-!"` |
+| `SECRET_KEY` | **Zwingend** zu setzen (≥ 32 Zeichen). Beim Start ohne Variable bricht die Anwendung mit Exit-Code 2 ab (Ausnahme: `DEBUG=1`). | `"dev-change-in-production-!"` (nur im Debug) |
 | `IDV_HTTPS` | HTTPS aktivieren | `0` |
 | `IDV_SSL_CERT` | Zertifikatspfad | `instance/certs/cert.pem` |
 | `IDV_SSL_KEY` | Privater Schlüssel | `instance/certs/key.pem` |
@@ -383,7 +383,9 @@ python run.py
 ```
 
 Der Debug-Modus zeigt bei Fehlern vollständige Stacktraces im Browser
-und aktiviert automatisches Code-Reloading.
+und aktiviert automatisches Code-Reloading. Die Anwendung gibt in
+diesem Fall eine klare Banner-Warnung beim Start aus und erlaubt als
+einzige Ausnahme den Betrieb ohne gesetzten `SECRET_KEY`.
 
 ## 12 Abschaltung / Deinstallation
 
