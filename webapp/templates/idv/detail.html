@@ -649,7 +649,6 @@
       <div class="card-body p-3">
 
         {# ── Phase 1 ── #}
-        {% if phase1_gestartet %}
         <div class="mb-3">
           <div class="d-flex align-items-center mb-2">
             <span class="fw-600 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
@@ -686,27 +685,27 @@
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
                   {% endif %}
                 </div>
-                {% if f %}
+                {% if can_create or f %}
                 <div class="d-flex gap-1 mt-2">
                   {% if can_create %}
                   {% if schritt_name == 'Fachlicher Test' %}
-                  <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id, freigabe_id=f.id) }}"
+                  <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id)}}{% if f %}&freigabe_id={{ f.id }}{% endif %}"
                      class="btn btn-xs btn-outline-primary" title="Test anlegen/bearbeiten">
                     <i class="bi bi-pencil"></i>
                   </a>
                   {% else %}
-                  <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id, freigabe_id=f.id) }}"
+                  <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}{% if f %}&freigabe_id={{ f.id }}{% endif %}"
                      class="btn btn-xs btn-outline-primary" title="Test anlegen/bearbeiten">
                     <i class="bi bi-pencil"></i>
                   </a>
                   {% endif %}
-                  {% else %}
+                  {% elif f %}
                   <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
                      class="btn btn-xs btn-outline-secondary" title="Öffnen">
                     <i class="bi bi-eye"></i>
                   </a>
                   {% endif %}
-                  {% if session.get('user_role') == 'IDV-Administrator' %}
+                  {% if f and session.get('user_role') == 'IDV-Administrator' %}
                   <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
                         onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
@@ -721,7 +720,6 @@
             {% endfor %}
           </div>
         </div>
-        {% endif %}
 
         {# ── Phase 2 ── #}
         {% if phase2_gestartet %}
@@ -791,13 +789,6 @@
         </div>
         {% endif %}
 
-        {# Placeholder wenn noch nichts gestartet #}
-        {% if not phase1_gestartet %}
-        <div class="text-center text-muted py-3" style="font-size:.84rem">
-          <i class="bi bi-play-circle fs-4 d-block mb-1 opacity-50"></i>
-          Noch kein Freigabeverfahren gestartet.
-        </div>
-        {% endif %}
 
         {# ── Testdokumentation ── #}
 
