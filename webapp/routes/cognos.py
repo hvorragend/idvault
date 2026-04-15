@@ -427,7 +427,7 @@ def import_berichte():
     return redirect(url_for("cognos.list_berichte"))
 
 
-@bp.route("/<int:bericht_id>/als-idv", methods=["POST"])
+@bp.route("/<int:bericht_id>/als-idv", methods=["GET", "POST"])
 @login_required
 @write_access_required
 def als_idv_registrieren(bericht_id: int):
@@ -456,18 +456,36 @@ def als_idv_registrieren(bericht_id: int):
         min(today.day, calendar.monthrange(np_year, np_month)[1])
     ).isoformat()
 
+    # Eigentümer als Entwickler vorbelegen
+    entwickler_id = None
+    eigentuemer = bericht["eigentuemer"] or ""
+    if eigentuemer:
+        dev_row = db.execute(
+            """SELECT id FROM persons WHERE aktiv=1 AND (
+                kuerzel=? OR ad_name=? OR user_id=?
+                OR (vorname || ' ' || nachname)=?
+                OR (nachname || ', ' || vorname)=?
+                OR (nachname || ' ' || vorname)=?
+            ) LIMIT 1""",
+            (eigentuemer,) * 6
+        ).fetchone()
+        if dev_row:
+            entwickler_id = dev_row["id"]
+
     cur = db.execute("""
         INSERT INTO idv_register (
             idv_id, bezeichnung, kurzbeschreibung, idv_typ,
             gda_wert, steuerungsrelevant, rechnungslegungsrelevant,
             dora_kritisch_wichtig, enthaelt_personendaten,
             pruefintervall_monate, naechste_pruefung,
+            idv_entwickler_id,
             status, erstellt_am, aktualisiert_am, teststatus
         ) VALUES (
             ?, ?, ?, 'Cognos-Report',
             1, 0, 0,
             0, 0,
             12, ?,
+            ?,
             'Entwurf', ?, ?, 'Wertung ausstehend'
         )
     """, (
@@ -475,6 +493,7 @@ def als_idv_registrieren(bericht_id: int):
         bericht["berichtsname"],
         bericht["suchpfad"],
         naechste_pruefung,
+        entwickler_id,
         now, now,
     ))
     new_id = cur.lastrowid
@@ -483,6 +502,24 @@ def als_idv_registrieren(bericht_id: int):
         "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert' WHERE id=?",
         (new_id, bericht_id),
     )
+
+    # Extra-Berichte verknüpfen (aus GET-Params oder POST-Form)
+    extra_raw = (request.args.get("extra_bericht_ids") or
+                 request.form.get("extra_bericht_ids") or "")
+    if extra_raw:
+        for part in extra_raw.split(","):
+            try:
+                extra_id = int(part.strip())
+            except ValueError:
+                continue
+            if extra_id == bericht_id:
+                continue
+            db.execute(
+                "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert'"
+                " WHERE id=? AND bearbeitungsstatus != 'Registriert'",
+                (new_id, extra_id)
+            )
+
     db.commit()
 
     flash(f"IDV {idv_id} wurde angelegt. Bitte jetzt vervollständigen.", "success")

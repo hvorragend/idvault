@@ -262,4 +262,37 @@ def create_app(db_path: str = None) -> Flask:
         pos, neg = labels.split(",")
         return pos if value else neg
 
+    @app.template_filter("path_breadcrumbs")
+    def path_breadcrumbs(path: str):
+        """Zerlegt einen Dateisystempfad in Breadcrumb-Segmente.
+
+        Gibt eine Liste von (label, prefix) Tupeln zurück, wobei prefix der
+        kumulative Pfad bis einschließlich dieses Segments ist.
+        Windows-UNC-Pfade (\\\\server\\share\\...) werden korrekt behandelt.
+        """
+        if not path:
+            return []
+        # Trennzeichen erkennen: Windows nutzt \\, Unix /
+        if "\\" in path:
+            sep = "\\"
+        else:
+            sep = "/"
+        parts = path.split(sep)
+        # Leere Segmente (z.B. führende \\ oder /) herausfiltern, aber Position merken
+        segs = []
+        prefix_parts = []
+        is_unc = path.startswith("\\\\") or path.startswith("//")
+        for i, p in enumerate(parts):
+            if not p:
+                prefix_parts.append(p)
+                continue
+            prefix_parts.append(p)
+            prefix = sep.join(prefix_parts)
+            # UNC-Pfade beginnen mit \\server → kein Link für den ersten echten Teil
+            if is_unc and len([x for x in prefix_parts if x]) <= 1:
+                # \\server allein – nicht klickbar (share_root)
+                continue
+            segs.append((p, prefix))
+        return segs
+
     return app

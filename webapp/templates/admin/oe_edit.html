@@ -6,15 +6,11 @@
 <div class="row justify-content-center">
   <div class="col-lg-6">
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-600">{{ oe.kuerzel }} – {{ oe.bezeichnung }}</div>
+      <div class="card-header bg-white fw-600">{{ oe.bezeichnung }}</div>
       <div class="card-body">
         <form method="post">
           <div class="row g-3">
-            <div class="col-md-3">
-              <label class="form-label fw-600">Kürzel <span class="text-danger">*</span></label>
-              <input type="text" name="kuerzel" class="form-control" value="{{ oe.kuerzel }}" required>
-            </div>
-            <div class="col-md-9">
+            <div class="col-md-12">
               <label class="form-label fw-600">Bezeichnung <span class="text-danger">*</span></label>
               <input type="text" name="bezeichnung" class="form-control" value="{{ oe.bezeichnung }}" required>
             </div>
@@ -33,7 +29,7 @@
                 <option value="">– keine –</option>
                 {% for ou in all_oe %}
                 <option value="{{ ou.id }}" {{ 'selected' if oe.parent_id == ou.id else '' }}>
-                  {{ ou.kuerzel }} – {{ ou.bezeichnung }}
+                  {{ ou.bezeichnung }}
                 </option>
                 {% endfor %}
               </select>

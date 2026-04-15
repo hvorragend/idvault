@@ -49,8 +49,15 @@
 {% include 'funde/_pagination.html' %}
 
 {% set is_admin = session.get('user_role') == 'IDV-Administrator' %}
+{% set can_write_access = session.get('user_role') in ['IDV-Administrator', 'IDV-Koordinator'] %}
 
-<form id="ignoriert-form" method="post" action="{{ url_for('funde.ignorierte_loeschen') }}">
+<!-- Reaktivierungs-Formular (Bulk) -->
+<form id="reaktivieren-form" method="post" action="{{ url_for('funde.ignorierte_reaktivieren') }}">
+<!-- Lösch-Formular (Admin, inline versteckt – submit via JS) -->
+</form>
+<form id="loeschen-form" method="post" action="{{ url_for('funde.ignorierte_loeschen') }}">
+</form>
+
 <div class="card border-0 shadow-sm mt-2">
   <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <span class="fw-600">
@@ -60,28 +67,28 @@
         {% if total > per_page %}{{ ignorierte|length }} von {{ total }}{% else %}{{ total }}{% endif %}
       </span>
     </span>
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      {% if can_write_access %}
+      <button type="button" id="btn-reaktivieren" class="btn btn-sm btn-outline-success" disabled
+              onclick="submitBulk('reaktivieren-form')">
+        <i class="bi bi-eye me-1"></i>Auswahl reaktivieren
+      </button>
+      {% endif %}
       {% if is_admin %}
-      <button type="submit" id="btn-loeschen" class="btn btn-sm btn-outline-danger" disabled
-              onclick="return confirm('Ausgewählte Einträge dauerhaft löschen?')">
+      <button type="button" id="btn-loeschen" class="btn btn-sm btn-outline-danger" disabled
+              onclick="if(confirm('Ausgewählte Einträge dauerhaft löschen?')) submitBulk('loeschen-form')">
         <i class="bi bi-trash3 me-1"></i>Auswahl löschen
       </button>
       {% endif %}
-      <a href="{{ url_for('funde.list_funde', filter='ignoriert') }}"
-         class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-box-arrow-up-right me-1"></i>In Scanner-Funde öffnen
-      </a>
     </div>
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
       <thead>
         <tr>
-          {% if is_admin %}
           <th style="width:2rem">
             <input type="checkbox" id="check-all" class="form-check-input" title="Alle markieren">
           </th>
-          {% endif %}
           <th>Dateiname</th>
           <th>Typ</th>
           <th>Eigentümer</th>
@@ -96,12 +103,14 @@
       <tbody>
         {% for f in ignorierte %}
         <tr>
-          {% if is_admin %}
           <td>
             <input type="checkbox" name="file_ids" value="{{ f.id }}"
-                   class="form-check-input row-check">
+                   class="form-check-input row-check"
+                   form="reaktivieren-form">
+            <input type="hidden" name="file_ids" value="{{ f.id }}"
+                   class="loeschen-check"
+                   form="loeschen-form" disabled>
           </td>
-          {% endif %}
           <td>
             <span class="fw-500">{{ f.file_name }}</span>
           </td>
@@ -112,14 +121,24 @@
           <td style="font-size:.80rem">
             {{ f.file_owner or f.office_author or '–' }}
           </td>
-          <td style="font-size:.74rem;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-              title="{{ f.full_path }}">
+          <td style="max-width:280px" title="{{ f.full_path }}">
             {% if f.dir_path %}
-            <span class="badge bg-success font-monospace"
-                  style="font-size:.68rem"
-                  title="{{ f.dir_path }}">
-              <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-55:]) if f.dir_path|length > 58 else f.dir_path }}
+            {% set crumbs = f.dir_path | path_breadcrumbs %}
+            {% if crumbs %}
+            <div class="d-flex flex-wrap align-items-center gap-1" style="row-gap:.2rem">
+              {% for label, prefix in crumbs %}
+              <a href="{{ url_for('funde.ignorierte_dateien', dir_path=prefix) }}"
+                 class="badge text-decoration-none {% if dir_path_filt == prefix %}bg-primary{% else %}bg-success{% endif %}"
+                 style="font-size:.68rem;font-family:monospace;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                 title="{{ prefix }}">{{ label }}</a>
+              {% if not loop.last %}<span class="text-muted" style="font-size:.68rem">\</span>{% endif %}
+              {% endfor %}
+            </div>
+            {% else %}
+            <span class="badge bg-success font-monospace" style="font-size:.68rem">
+              <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-40:]) if f.dir_path|length > 43 else f.dir_path }}
             </span>
+            {% endif %}
             {% endif %}
           </td>
           <td class="text-nowrap" style="font-size:.76rem">
@@ -151,15 +170,15 @@
             {% endif %}
           </td>
           <td>
-            <a href="{{ url_for('funde.list_funde', filter='ignoriert') }}"
-               class="btn btn-xs btn-outline-secondary" title="In Scanner-Funde anzeigen">
+            <a href="{{ url_for('funde.list_funde', filter='ignoriert', dir_path=f.dir_path) if f.dir_path else url_for('funde.list_funde', filter='ignoriert') }}"
+               class="btn btn-xs btn-outline-secondary" title="In Scanner-Funde anzeigen (gefiltert nach Verzeichnis)">
               <i class="bi bi-eye"></i>
             </a>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="{{ 10 if is_admin else 9 }}" class="text-center text-muted py-4">
+          <td colspan="10" class="text-center text-muted py-4">
             <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
             Keine ignorierten Dateien vorhanden.
           </td>
@@ -169,7 +188,6 @@
     </table>
   </div>
 </div>
-</form>
 
 <!-- ── Pagination unten ───────────────────────────────────────────── -->
 {% include 'funde/_pagination.html' %}
@@ -179,30 +197,42 @@
 .fw-600 { font-weight: 600; }
 .fw-500 { font-weight: 500; }
 </style>
-{% if session.get('user_role') == 'IDV-Administrator' %}
 <script>
 (function () {
-  const checkAll = document.getElementById('check-all');
-  const btnDel   = document.getElementById('btn-loeschen');
+  const checkAll    = document.getElementById('check-all');
+  const btnReakt    = document.getElementById('btn-reaktivieren');
+  const btnDel      = document.getElementById('btn-loeschen');
 
-  function updateBtn() {
-    const any = document.querySelectorAll('.row-check:checked').length > 0;
-    btnDel.disabled = !any;
+  function updateBtns() {
+    const checked = document.querySelectorAll('.row-check:checked');
+    const any = checked.length > 0;
+    if (btnReakt) btnReakt.disabled = !any;
+    if (btnDel)   btnDel.disabled   = !any;
+    // Lösch-Checkboxen synchronisieren
+    document.querySelectorAll('.loeschen-check').forEach(h => h.disabled = true);
+    checked.forEach(cb => {
+      const val = cb.value;
+      const hidden = document.querySelector(`.loeschen-check[value="${val}"]`);
+      if (hidden) hidden.disabled = false;
+    });
   }
 
   if (checkAll) {
     checkAll.addEventListener('change', function () {
       document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
-      updateBtn();
+      updateBtns();
     });
   }
   document.querySelectorAll('.row-check').forEach(cb =>
     cb.addEventListener('change', function () {
       if (!this.checked && checkAll) checkAll.checked = false;
-      updateBtn();
+      updateBtns();
     })
   );
+
+  window.submitBulk = function(formId) {
+    document.getElementById(formId).submit();
+  };
 })();
 </script>
-{% endif %}
 {% endblock %}

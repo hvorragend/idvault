@@ -53,9 +53,8 @@
             {% for r in by_oe %}
             <tr>
               <td>
-                {% if r.oe_kuerzel %}
-                <strong>{{ r.oe_kuerzel }}</strong>
-                <span class="text-muted ms-1">{{ r.oe_bezeichnung }}</span>
+                {% if r.oe_bezeichnung %}
+                <strong>{{ r.oe_bezeichnung }}</strong>
                 {% else %}
                 <span class="text-muted fst-italic">Keine OE zugewiesen</span>
                 {% endif %}
@@ -136,7 +135,7 @@
                 <span class="text-muted fst-italic">Nicht zugewiesen</span>
                 {% endif %}
               </td>
-              <td style="font-size:.78rem">{{ r.oe_kuerzel or '–' }}</td>
+              <td style="font-size:.78rem">{{ r.oe_bezeichnung or '–' }}</td>
               <td class="text-end fw-bold">{{ r.anzahl }}</td>
               <td class="text-end">
                 {% if r.wesentlich %}<span class="badge bg-danger">{{ r.wesentlich }}</span>{% else %}–{% endif %}

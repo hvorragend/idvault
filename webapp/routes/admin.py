@@ -988,10 +988,9 @@ def bulk_persons():
 def new_oe():
     db = get_db()
     db.execute("""
-        INSERT INTO org_units (kuerzel, bezeichnung, ebene, parent_id, created_at)
-        VALUES (?,?,?,?,?)
+        INSERT INTO org_units (bezeichnung, ebene, parent_id, created_at)
+        VALUES (?,?,?,?)
     """, (
-        request.form.get("kuerzel", "").strip().upper(),
         request.form.get("bezeichnung", "").strip(),
         request.form.get("ebene") or None,
         request.form.get("parent_id") or None,
@@ -1015,10 +1014,9 @@ def edit_oe(oid):
 
     if request.method == "POST":
         db.execute("""
-            UPDATE org_units SET kuerzel=?, bezeichnung=?, ebene=?, parent_id=?, aktiv=?
+            UPDATE org_units SET bezeichnung=?, ebene=?, parent_id=?, aktiv=?
             WHERE id=?
         """, (
-            request.form.get("kuerzel", "").strip().upper(),
             request.form.get("bezeichnung", "").strip(),
             request.form.get("ebene") or None,
             request.form.get("parent_id") or None,
@@ -1327,7 +1325,7 @@ def login_log():
 @bp.route("/import/personen", methods=["POST"])
 @admin_required
 def import_persons():
-    """CSV-Import: user_id, email (SMTP-Adresse), ad_name, oe_kuerzel,
+    """CSV-Import: user_id, email (SMTP-Adresse), ad_name, oe_bezeichnung,
        nachname, vorname, kuerzel, rolle  (Trennzeichen ; oder ,)"""
     f = request.files.get("csv_file")
     if not f or not f.filename:
@@ -1350,14 +1348,14 @@ def import_persons():
             # Spalten-Aliase normalisieren (case-insensitive)
             r = {k.strip().lower(): (v or "").strip() for k, v in row.items()}
 
-            user_id  = r.get("user_id") or r.get("userid") or r.get("benutzername") or ""
-            email    = r.get("email") or r.get("smtp") or r.get("smtp_adresse") or r.get("mailadresse") or ""
-            ad_name  = r.get("ad_name") or r.get("adname") or r.get("ad") or ""
-            oe_k     = (r.get("oe") or r.get("oe_kuerzel") or r.get("abteilung") or "").upper()
-            nachname = r.get("nachname") or r.get("name") or ""
-            vorname  = r.get("vorname") or ""
-            kuerzel  = (r.get("kuerzel") or user_id[:3]).upper()
-            rolle    = r.get("rolle") or "Fachverantwortlicher"
+            user_id       = r.get("user_id") or r.get("userid") or r.get("benutzername") or ""
+            email         = r.get("email") or r.get("smtp") or r.get("smtp_adresse") or r.get("mailadresse") or ""
+            ad_name       = r.get("ad_name") or r.get("adname") or r.get("ad") or ""
+            oe_bezeichnung = r.get("oe_bezeichnung") or r.get("oe") or r.get("abteilung") or ""
+            nachname      = r.get("nachname") or r.get("name") or ""
+            vorname       = r.get("vorname") or ""
+            kuerzel       = (r.get("kuerzel") or user_id[:3]).upper()
+            rolle         = r.get("rolle") or "Fachverantwortlicher"
 
             if not (nachname or user_id):
                 errors += 1
@@ -1365,8 +1363,10 @@ def import_persons():
 
             # OE auflösen
             org_unit_id = None
-            if oe_k:
-                oe_row = db.execute("SELECT id FROM org_units WHERE kuerzel=?", (oe_k,)).fetchone()
+            if oe_bezeichnung:
+                oe_row = db.execute(
+                    "SELECT id FROM org_units WHERE LOWER(bezeichnung)=LOWER(?)", (oe_bezeichnung,)
+                ).fetchone()
                 if oe_row:
                     org_unit_id = oe_row["id"]
 
@@ -1409,8 +1409,8 @@ def import_persons():
 @login_required
 def import_template():
     """CSV-Vorlage herunterladen."""
-    content = "user_id;email;ad_name;oe_kuerzel;nachname;vorname;kuerzel;rolle\n"
-    content += "mmu;max.mustermann@bank.de;DOMAIN\\mmu;KRE;Mustermann;Max;MMU;Fachverantwortlicher\n"
+    content = "user_id;email;ad_name;oe_bezeichnung;nachname;vorname;kuerzel;rolle\n"
+    content += "mmu;max.mustermann@bank.de;DOMAIN\\mmu;Kreditabteilung;Mustermann;Max;MMU;Fachverantwortlicher\n"
     return Response(
         content,
         mimetype="text/csv",

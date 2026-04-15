@@ -49,7 +49,7 @@
         <option value="">– Alle OEs –</option>
         {% for ou in org_units %}
         <option value="{{ ou.id }}" {{ 'selected' if oe_id == ou.id }}>
-          {{ ou.kuerzel }} – {{ ou.bezeichnung }}
+          {{ ou.bezeichnung }}
         </option>
         {% endfor %}
       </select>

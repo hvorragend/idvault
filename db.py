@@ -174,6 +174,27 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
         if not has_column("idv_files", col):
             conn.execute(f"ALTER TABLE idv_files ADD COLUMN {col} {typedef}")
 
+    # org_units: kuerzel-Spalte entfernen (hatte UNIQUE-Constraint → Tabelle neu aufbauen)
+    if has_column("org_units", "kuerzel"):
+        conn.commit()  # offene Transaktion abschließen
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.executescript("""
+            CREATE TABLE org_units_new (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                bezeichnung TEXT NOT NULL,
+                ebene       TEXT,
+                parent_id   INTEGER REFERENCES org_units_new(id),
+                aktiv       INTEGER NOT NULL DEFAULT 1,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now','utc'))
+            );
+            INSERT INTO org_units_new (id, bezeichnung, ebene, parent_id, aktiv, created_at)
+                SELECT id, bezeichnung, ebene, parent_id, aktiv, created_at FROM org_units;
+            DROP TABLE org_units;
+            ALTER TABLE org_units_new RENAME TO org_units;
+        """)
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.commit()
+
     conn.commit()
 
 
@@ -591,28 +612,28 @@ def insert_demo_data(conn: sqlite3.Connection):
 
     # Org-Einheiten
     conn.executemany(
-        "INSERT OR IGNORE INTO org_units (kuerzel, bezeichnung, ebene) VALUES (?,?,?)",
+        "INSERT OR IGNORE INTO org_units (bezeichnung, ebene) VALUES (?,?)",
         [
-            ("VOR",  "Vorstand",                     "Vorstand"),
-            ("FIL",  "Filialvertrieb",               "Bereich"),
-            ("KRE",  "Kreditabteilung",              "Abteilung"),
-            ("BWK",  "Betriebswirtschaft/Controlling","Abteilung"),
-            ("ITS",  "IT & IT-Sicherheit",           "Abteilung"),
-            ("RIS",  "Risikocontrolling",            "Abteilung"),
-            ("REV",  "Interne Revision",             "Abteilung"),
-            ("BWL",  "Rechnungswesen/Buchhaltung",   "Abteilung"),
-            ("MEL",  "Meldewesen",                   "Abteilung"),
+            ("Vorstand",                      "Vorstand"),
+            ("Filialvertrieb",                "Bereich"),
+            ("Kreditabteilung",               "Abteilung"),
+            ("Betriebswirtschaft/Controlling","Abteilung"),
+            ("IT & IT-Sicherheit",            "Abteilung"),
+            ("Risikocontrolling",             "Abteilung"),
+            ("Interne Revision",              "Abteilung"),
+            ("Rechnungswesen/Buchhaltung",    "Abteilung"),
+            ("Meldewesen",                    "Abteilung"),
         ]
     )
 
     # Personen
     conn.executemany(
         "INSERT OR IGNORE INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id) "
-        "VALUES (?,?,?,?,?, (SELECT id FROM org_units WHERE kuerzel=?))",
+        "VALUES (?,?,?,?,?, (SELECT id FROM org_units WHERE bezeichnung=?))",
         [
-            ("IDV-KO", "Mustermann", "Max", "m.mustermann@volksbank.de", "IDV-Koordinator", "ITS"),
-            ("FV-BWK", "Beispiel",   "Anna","a.beispiel@volksbank.de",   "Fachverantwortlicher","BWK"),
-            ("FV-KRE", "Schmidt",    "Klaus","k.schmidt@volksbank.de",   "Fachverantwortlicher","KRE"),
+            ("IDV-KO", "Mustermann", "Max", "m.mustermann@volksbank.de", "IDV-Koordinator",     "IT & IT-Sicherheit"),
+            ("FV-BWK", "Beispiel",   "Anna","a.beispiel@volksbank.de",   "Fachverantwortlicher","Betriebswirtschaft/Controlling"),
+            ("FV-KRE", "Schmidt",    "Klaus","k.schmidt@volksbank.de",   "Fachverantwortlicher","Kreditabteilung"),
         ]
     )
 
@@ -620,12 +641,12 @@ def insert_demo_data(conn: sqlite3.Connection):
     conn.executemany(
         "INSERT OR IGNORE INTO geschaeftsprozesse "
         "(gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich, org_unit_id) "
-        "VALUES (?,?,?,?,?, (SELECT id FROM org_units WHERE kuerzel=?))",
+        "VALUES (?,?,?,?,?, (SELECT id FROM org_units WHERE bezeichnung=?))",
         [
-            ("GP-BWK-001","Monatliche GuV-Berechnung",      "Steuerung",  1,1,"BWK"),
-            ("GP-KRE-001","Kreditentscheidung Firmenkunden","Marktfolge", 1,1,"KRE"),
-            ("GP-MEL-001","Meldewesen EBA/Bundesbank",      "Steuerung",  1,1,"MEL"),
-            ("GP-RIS-001","Zinsrisiko-Steuerung",           "Steuerung",  1,1,"RIS"),
+            ("GP-BWK-001","Monatliche GuV-Berechnung",      "Steuerung",  1,1,"Betriebswirtschaft/Controlling"),
+            ("GP-KRE-001","Kreditentscheidung Firmenkunden","Marktfolge", 1,1,"Kreditabteilung"),
+            ("GP-MEL-001","Meldewesen EBA/Bundesbank",      "Steuerung",  1,1,"Meldewesen"),
+            ("GP-RIS-001","Zinsrisiko-Steuerung",           "Steuerung",  1,1,"Risikocontrolling"),
         ]
     )
 

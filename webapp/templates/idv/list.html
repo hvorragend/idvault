@@ -57,7 +57,7 @@
         <option value="">– Alle OEs –</option>
         {% for ou in org_units %}
         <option value="{{ ou.id }}" {{ 'selected' if request.args.get('oe_id','') == ou.id|string }}>
-          {{ ou.kuerzel }} – {{ ou.bezeichnung }}
+          {{ ou.bezeichnung }}
         </option>
         {% endfor %}
       </select>
@@ -149,11 +149,11 @@
           <th class="sortable">Bezeichnung</th>
           <th class="sortable">OE</th>
           <th class="sortable">Typ</th>
-          <th>Version / Dateien</th>
+          <th class="sortable">Version / Dateien</th>
           <th class="sortable">Wesentlichkeit</th>
           <th class="sortable">Status</th>
           <th class="sortable">Fachverantwortlicher</th>
-          <th>Geändert</th>
+          <th class="sortable">Geändert</th>
           <th class="sortable">Nächste Prüfung</th>
           <th></th>
         </tr>
@@ -327,43 +327,58 @@ th.sortable.desc::after { content: ' \2193'; opacity: .8; }
 
 <script>
 (function() {
+  const STORE_KEY = 'idv_list_sort';
   const table = document.getElementById('idv-table');
   if (!table) return;
   const tbody = table.querySelector('tbody');
   const headers = [...table.querySelectorAll('thead th.sortable')];
+  const allThs  = [...table.querySelectorAll('thead tr th')];
 
-  // Map each sortable th to its actual cell index in the row
-  const allThs = [...table.querySelectorAll('thead tr th')];
+  function sortBy(th, dir) {
+    const colIdx = allThs.indexOf(th);
+    headers.forEach(h => h.classList.remove('asc', 'desc'));
+    th.classList.toggle('asc',  dir ===  1);
+    th.classList.toggle('desc', dir === -1);
+
+    const rows = [...tbody.querySelectorAll('tr')];
+    rows.sort((a, b) => {
+      const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
+      const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
+      const da = parseDate(ta), db = parseDate(tb);
+      if (da !== null && db !== null) return dir * (da - db);
+      return dir * ta.localeCompare(tb, 'de');
+    });
+    rows.forEach(r => tbody.appendChild(r));
+
+    // Sortierung in sessionStorage merken
+    try {
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({
+        colText: th.innerText.trim(),
+        dir: dir
+      }));
+    } catch(e) {}
+  }
 
   headers.forEach(th => {
-    const colIdx = allThs.indexOf(th);
-    let dir = 0; // 0=none, 1=asc, -1=desc
-
+    let dir = 0;
     th.addEventListener('click', () => {
-      // reset other headers
-      headers.forEach(h => { if (h !== th) { h.classList.remove('asc','desc'); } });
       dir = dir === 1 ? -1 : 1;
-      th.classList.toggle('asc',  dir ===  1);
-      th.classList.toggle('desc', dir === -1);
-
-      const rows = [...tbody.querySelectorAll('tr')];
-      rows.sort((a, b) => {
-        const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
-        const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
-        // date sort: YYYY-MM-DD or DD.MM.YYYY
-        const da = parseDate(ta), db = parseDate(tb);
-        if (da !== null && db !== null) return dir * (da - db);
-        return dir * ta.localeCompare(tb, 'de');
-      });
-      rows.forEach(r => tbody.appendChild(r));
+      sortBy(th, dir);
     });
   });
 
+  // Letzte Sortierung beim Laden wiederherstellen
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+    if (saved) {
+      const th = headers.find(h => h.innerText.trim() === saved.colText);
+      if (th) sortBy(th, saved.dir);
+    }
+  } catch(e) {}
+
   function parseDate(s) {
-    // ISO: 2025-12-31
     let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (m) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
-    // German: 31.12.2025
     m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
     if (m) return new Date(+m[3], +m[2]-1, +m[1]).getTime();
     return null;

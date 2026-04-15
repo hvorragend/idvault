@@ -194,6 +194,16 @@ _DIR_PATH_EXPR_PLAIN = """CASE WHEN file_name IS NOT NULL AND full_path IS NOT N
 _VALID_PER_PAGE = (25, 50, 100, 200, 500)
 
 
+_FUNDE_SORT_COLS = {
+    "dateiname":  "f.file_name",
+    "groesse":    "f.size_bytes",
+    "geaendert":  "f.modified_at",
+    "scan":       "f.last_seen_at",
+    "eigentümer": "f.file_owner",
+    "dir_path":   _DIR_PATH_EXPR,
+}
+
+
 @bp.route("/")
 @login_required
 def list_funde():
@@ -202,6 +212,8 @@ def list_funde():
     share_root  = request.args.get("share_root", "").strip()
     dir_path_filt = request.args.get("dir_path", "").strip()
     scan_run_id = request.args.get("scan_run", "").strip()
+    sort        = request.args.get("sort", "scan").strip()
+    order       = request.args.get("order", "desc").strip()
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
@@ -271,16 +283,24 @@ def list_funde():
         params.append(share_root)
 
     if dir_path_filt:
-        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
-        params.append(dir_path_filt)
+        # Exakter Treffer ODER Unterverzeichnisse (beide Pfadtrennzeichen unterstützen)
+        where_parts.append(
+            f"({_DIR_PATH_EXPR} = ? OR {_DIR_PATH_EXPR} LIKE ? OR {_DIR_PATH_EXPR} LIKE ?)"
+        )
+        params.extend([dir_path_filt,
+                        dir_path_filt + "\\%",
+                        dir_path_filt + "/%"])
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
     # Duplikate nach Hash sortieren, damit Jinja2-groupby funktioniert
-    order_sql = (
-        "ORDER BY f.file_hash, f.last_seen_at DESC"
-        if filt == "duplikate"
-        else "ORDER BY f.last_seen_at DESC, f.modified_at DESC"
-    )
+    if filt == "duplikate":
+        order_sql = "ORDER BY f.file_hash, f.last_seen_at DESC"
+    elif sort in _FUNDE_SORT_COLS:
+        sort_col = _FUNDE_SORT_COLS[sort]
+        sort_dir = "DESC" if order == "desc" else "ASC"
+        order_sql = f"ORDER BY {sort_col} {sort_dir}, f.last_seen_at DESC"
+    else:
+        order_sql = "ORDER BY f.last_seen_at DESC, f.modified_at DESC"
 
     # Gesamtzahl für Pagination (Duplikate: Anzahl der eindeutigen Hashes)
     if filt == "duplikate":
@@ -419,6 +439,7 @@ def list_funde():
         duplicate_hashes=duplicate_hashes,
         is_admin=is_admin,
         persons=persons,
+        sort=sort, order=order,
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
@@ -458,8 +479,12 @@ def eingang_funde():
     where_parts = ["f.status = 'active'", "f.bearbeitungsstatus = 'Neu'", _no_idv]
     params = []
     if dir_path_filt:
-        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
-        params.append(dir_path_filt)
+        where_parts.append(
+            f"({_DIR_PATH_EXPR} = ? OR {_DIR_PATH_EXPR} LIKE ? OR {_DIR_PATH_EXPR} LIKE ?)"
+        )
+        params.extend([dir_path_filt,
+                        dir_path_filt + "\\%",
+                        dir_path_filt + "/%"])
     if share_root:
         where_parts.append("f.share_root = ?")
         params.append(share_root)
@@ -638,8 +663,12 @@ def ignorierte_dateien():
     where_parts = ["f.status = 'active'", "f.bearbeitungsstatus = 'Ignoriert'"]
     params: list = []
     if dir_path_filt:
-        where_parts.append(f"{_DIR_PATH_EXPR} = ?")
-        params.append(dir_path_filt)
+        where_parts.append(
+            f"({_DIR_PATH_EXPR} = ? OR {_DIR_PATH_EXPR} LIKE ? OR {_DIR_PATH_EXPR} LIKE ?)"
+        )
+        params.extend([dir_path_filt,
+                        dir_path_filt + "\\%",
+                        dir_path_filt + "/%"])
     where_sql = "WHERE " + " AND ".join(where_parts)
 
     ignoriert_count = db.execute(
@@ -687,6 +716,33 @@ def ignorierte_dateien():
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )
+
+
+@bp.route("/ignoriert/reaktivieren", methods=["POST"])
+@write_access_required
+def ignorierte_reaktivieren():
+    """Setzt ausgewählte ignorierte Dateien auf 'Neu' zurück (Bulk-Reaktivierung)."""
+    db = get_db()
+    raw_ids = request.form.getlist("file_ids")
+    try:
+        file_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        flash("Ungültige Datei-IDs.", "error")
+        return redirect(url_for("funde.ignorierte_dateien"))
+
+    if not file_ids:
+        flash("Keine Einträge ausgewählt.", "warning")
+        return redirect(url_for("funde.ignorierte_dateien"))
+
+    ph = ",".join("?" * len(file_ids))
+    db.execute(
+        f"UPDATE idv_files SET bearbeitungsstatus='Neu'"
+        f" WHERE id IN ({ph}) AND bearbeitungsstatus='Ignoriert'",
+        file_ids,
+    )
+    db.commit()
+    flash(f"{len(file_ids)} Datei(en) reaktiviert.", "success")
+    return redirect(url_for("funde.ignorierte_dateien"))
 
 
 @bp.route("/ignoriert/loeschen", methods=["POST"])
