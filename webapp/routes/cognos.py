@@ -1,7 +1,6 @@
 """Cognos-Berichte-Blueprint – Berichtsübersicht-Import aus agree21Analysen."""
 
 import calendar
-import csv
 import io
 import os
 import sys
@@ -107,12 +106,18 @@ def _rows_from_table(header_row, data_rows, offset: int = 2) -> tuple:
     return rows, fehler
 
 
-def _parse_excel(file_bytes: bytes) -> tuple:
-    """Parst eine Excel-Berichtsübersicht (.xlsx)."""
+def _parse_file(file_bytes: bytes, filename: str) -> tuple:
+    """Parst die Excel-Berichtsübersicht (.xlsx / .xlsm).
+
+    Festes Layout:
+      Zeile 1–2: Titel / Metadaten  (werden übersprungen)
+      Zeile 3:   Spaltenköpfe
+      Zeile 4+:  Datensätze
+    """
     try:
         import openpyxl
     except ImportError:
-        return [], ["openpyxl nicht verfügbar – bitte als TSV hochladen."]
+        return [], ["openpyxl ist nicht verfügbar."]
 
     try:
         wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
@@ -122,59 +127,14 @@ def _parse_excel(file_bytes: bytes) -> tuple:
     except Exception as exc:
         return [], [f"Excel-Datei konnte nicht geöffnet werden: {exc}"]
 
-    if not all_rows:
-        return [], ["Excel-Datei ist leer."]
+    # Zeile 3 = Index 2 = Spaltenköpfe; Zeile 4+ = Daten
+    if len(all_rows) < 3:
+        return [], ["Excel-Datei hat weniger als 3 Zeilen – Spaltenköpfe nicht gefunden."]
 
-    # Titelzeile überspringen falls vorhanden
-    start = 0
-    first = str(all_rows[0][0] or "").strip()
-    if first.startswith("Berichtsübersicht"):
-        start = 1
+    headers   = [str(c or "").strip() for c in all_rows[2]]   # Zeile 3
+    data_rows = [list(r) for r in all_rows[3:]]               # ab Zeile 4
 
-    if start >= len(all_rows):
-        return [], ["Keine Spaltenköpfe gefunden."]
-
-    headers   = [str(c or "").strip() for c in all_rows[start]]
-    data_rows = [list(r) for r in all_rows[start + 1:]]
-
-    return _rows_from_table(headers, data_rows, offset=start + 3)
-
-
-def _parse_tsv(file_bytes: bytes) -> tuple:
-    """Parst eine tab-separierte Berichtsübersicht (.txt / .tsv)."""
-    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
-        try:
-            text = file_bytes.decode(encoding)
-            break
-        except (UnicodeDecodeError, LookupError):
-            continue
-    else:
-        return [], ["Datei konnte nicht dekodiert werden (kein UTF-8 / Latin-1)."]
-
-    lines = list(csv.reader(io.StringIO(text), delimiter="\t"))
-    if not lines:
-        return [], ["Datei ist leer."]
-
-    start = 0
-    first = lines[0][0].strip() if lines[0] else ""
-    if first.startswith("Berichtsübersicht"):
-        start = 1
-
-    if start >= len(lines):
-        return [], ["Keine Spaltenköpfe gefunden."]
-
-    headers   = [h.strip() for h in lines[start]]
-    data_rows = lines[start + 1:]
-
-    return _rows_from_table(headers, data_rows, offset=start + 3)
-
-
-def _parse_file(file_bytes: bytes, filename: str) -> tuple:
-    """Wählt den passenden Parser anhand der Dateiendung."""
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext in ("xlsx", "xlsm", "xls"):
-        return _parse_excel(file_bytes)
-    return _parse_tsv(file_bytes)
+    return _rows_from_table(headers, data_rows, offset=4)
 
 
 # ---------------------------------------------------------------------------
