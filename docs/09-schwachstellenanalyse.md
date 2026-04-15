@@ -113,7 +113,7 @@ Browser-Session möglich.
 ### 3.3 VULN-003 – Hardcodierte Demo-Zugangsdaten 📋 BEWUSST BEIBEHALTEN
 
 **Beschreibung**: Die Anwendung liefert drei Demo-Zugänge
-(`admin / idvault2025`, `koordinator / demo`, `fachverantwortlicher /
+(`admin / idvault2026`, `koordinator / demo`, `fachverantwortlicher /
 demo`) im Quellcode (`webapp/routes/auth.py`, `run.py:228`).
 
 **Wirkung**: Bei einer Produktivinstallation ohne Deaktivierung bleibt

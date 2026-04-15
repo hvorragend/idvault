@@ -344,7 +344,7 @@ if __name__ == "__main__":
         # HTTPS gewünscht, Kontext aber nicht erstellbar (sollte nicht passieren,
         # build_ssl_context() würde in diesem Fall eine Exception werfen).
         print("  HTTPS angefordert, aber kein SSL-Kontext verfügbar.")
-    print("  Demo-Login: admin / idvault2025")
+    print("  Demo-Login: admin / idvault2026")
     print("=" * 55)
 
     _seed_if_empty(app)

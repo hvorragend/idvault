@@ -138,7 +138,7 @@ Für die Erstinstallation sind folgende Demo-Zugänge hinterlegt. Diese
 
 | Benutzername | Passwort | Rolle |
 |---|---|---|
-| `admin` | `idvault2025` | IDV-Administrator |
+| `admin` | `idvault2026` | IDV-Administrator |
 | `koordinator` | `demo` | IDV-Koordinator |
 | `fachverantwortlicher` | `demo` | Fachverantwortlicher |
 

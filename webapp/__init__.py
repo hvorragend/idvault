@@ -148,6 +148,23 @@ def create_app(db_path: str = None) -> Flask:
     # Datenbank
     init_app_db(app)
 
+    # Sidecar DB-Migration: updates/db_migrate.py wird einmalig beim Start
+    # ausgeführt, wenn die Datei vorhanden ist. ZIP-Updates können damit
+    # Schemaänderungen (ALTER TABLE, neue Tabellen) mitliefern, ohne dass
+    # die EXE ausgetauscht werden muss. Konvention: die Datei muss eine
+    # Funktion run(db_path: str) exportieren.
+    _migrate_script = os.path.join(_project_root, 'updates', 'db_migrate.py')
+    if os.path.isfile(_migrate_script):
+        try:
+            import importlib.util as _ilu
+            _spec = _ilu.spec_from_file_location('db_migrate', _migrate_script)
+            _mmod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mmod)
+            if hasattr(_mmod, 'run'):
+                _mmod.run(app.config['DATABASE'])
+        except Exception as _me:
+            app.logger.warning("updates/db_migrate.py fehlgeschlagen: %s", _me)
+
     # Blueprints registrieren
     from .routes.auth       import bp as auth_bp
     from .routes.dashboard  import bp as dash_bp
@@ -171,11 +188,27 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(reports_bp)
     app.register_blueprint(freigaben_bp)
     app.register_blueprint(tests_bp)
-    # funde_bp registriert cognos_bp bereits via @record_once als Legacy-Pfad
-    # für Sidecar-Updates alter EXEs (webapp/routes/funde.py). In neuen Builds
-    # ist cognos.py Teil des Hauptpakets – dann erst hier registrieren.
-    if "cognos" not in app.blueprints:
-        app.register_blueprint(cognos_bp)
+    app.register_blueprint(cognos_bp)
+
+    # Sidecar-Blueprint-Autodiscovery: neue .py-Dateien in
+    # updates/webapp/routes/ werden automatisch als Blueprint registriert,
+    # wenn sie ein Attribut 'bp' exportieren. Ermöglicht das Einführen neuer
+    # Feature-Module per ZIP-Update ohne EXE-Austausch.
+    _upd_routes = os.path.join(_project_root, 'updates', 'webapp', 'routes')
+    if os.path.isdir(_upd_routes):
+        import importlib as _il
+        for _fname in sorted(os.listdir(_upd_routes)):
+            if not _fname.endswith('.py') or _fname.startswith('_'):
+                continue
+            _bpname = _fname[:-3]
+            if _bpname in app.blueprints:
+                continue
+            try:
+                _mod = _il.import_module(f"webapp.routes.{_bpname}")
+                if hasattr(_mod, 'bp'):
+                    app.register_blueprint(_mod.bp)
+            except Exception as _be:
+                app.logger.warning("Sidecar-Blueprint '%s' nicht geladen: %s", _bpname, _be)
 
     # VULN-008: HTTP-Security-Header bei jeder Antwort setzen
     @app.after_request
