@@ -59,7 +59,7 @@ Container-Infrastruktur) zu ermöglichen.
 | WSGI-Server (Prod) | gunicorn | ≥ 21.0 | UNIX-Produktiv-Modus |
 | Build | PyInstaller | build-req | Single-File-Executable |
 | E-Mail | stdlib `smtplib` + `email` | — | Keine externen Abhängigkeiten |
-| Frontend | Bootstrap 5 (über CDN/local) | — | Responsive UI |
+| Frontend | Bootstrap 5.3.3, Bootstrap Icons 1.11.3, QuillJS 1.3.7 (lokal unter `webapp/static/vendor/`) | — | Responsive UI, offline-fähig |
 
 ## 3 Komponentenübersicht
 
