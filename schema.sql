@@ -709,6 +709,7 @@ CREATE TABLE IF NOT EXISTS idv_freigaben (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     idv_id                  INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
     schritt                 TEXT NOT NULL,
+    -- 'Ausstehend' | 'Erledigt' | 'Nicht erledigt' | 'Abgebrochen'
     status                  TEXT NOT NULL DEFAULT 'Ausstehend',
     -- Wer hat das Verfahren gestartet / diesen Schritt beauftragt
     beauftragt_von_id       INTEGER REFERENCES persons(id),
@@ -814,13 +815,13 @@ CREATE TABLE IF NOT EXISTS fachliche_testfaelle (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     idv_id              INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
     testfall_nr         INTEGER NOT NULL,           -- fortlaufend je IDV (1, 2, 3 …)
-    beschreibung        TEXT NOT NULL,              -- Was wird getestet?
+    beschreibung        TEXT,                       -- Was wird getestet? (nullable: leerer Eintrag beim Phase-1-Start)
     parametrisierung    TEXT,                       -- Einstellungen / Konfigurationen
     testdaten           TEXT,                       -- Eingabedaten
     erwartetes_ergebnis TEXT,
     erzieltes_ergebnis  TEXT,
-    bewertung           TEXT NOT NULL DEFAULT 'Offen',  -- 'Bestanden' | 'Offen'
-    massnahmen          TEXT,                       -- Abgeleitete Maßnahmen (leer wenn bestanden)
+    bewertung           TEXT NOT NULL DEFAULT 'Offen',  -- 'Offen' | 'Erledigt'
+    massnahmen          TEXT,                       -- Abgeleitete Maßnahmen (leer wenn erledigt)
     tester              TEXT,                       -- Name des Testers (Freitext)
     testdatum           TEXT,                       -- ISO 8601 Datum
     nachweis_datei_pfad TEXT,                       -- Relativer Pfad zur Nachweis-Datei
@@ -836,7 +837,7 @@ CREATE INDEX IF NOT EXISTS idx_fachtestf_idv ON fachliche_testfaelle(idv_id);
 CREATE TABLE IF NOT EXISTS technischer_test (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     idv_id              INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
-    ergebnis            TEXT NOT NULL DEFAULT 'Offen',  -- 'Bestanden' | 'Entfällt' | 'Offen'
+    ergebnis            TEXT NOT NULL DEFAULT 'Offen',  -- 'Offen' | 'Erledigt' | 'Entfällt'
     kurzbeschreibung    TEXT,                       -- 1–2 Sätze, was technisch geprüft wurde
     pruefer             TEXT,                       -- Name des Prüfers (Freitext)
     pruefungsdatum      TEXT,                       -- ISO 8601 Datum

@@ -632,10 +632,11 @@
 
     <!-- Test- und Freigabeverfahren -->
     {% if ist_wesentlich %}
+    {% set is_admin = session.get('user_role') == 'IDV-Administrator' %}
     <div class="card border-0 shadow-sm mb-4">
       <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
         <span><i class="bi bi-shield-check me-2"></i>Test & Freigabe</span>
-        {% if phase2_bestanden %}
+        {% if phase2_erledigt %}
         <span class="badge bg-success">Freigegeben</span>
         {% elif hat_offenen_schritt %}
         <span class="badge bg-warning text-dark">Läuft</span>
@@ -654,58 +655,93 @@
             <span class="fw-600 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
               <i class="bi bi-1-circle me-1"></i>Phase 1 – Tests
             </span>
-            {% if phase1_bestanden %}
-            <span class="badge bg-success ms-2" style="font-size:.65rem">Beide Tests bestanden</span>
+            {% if phase1_erledigt %}
+            <span class="badge bg-success ms-2" style="font-size:.65rem">Beide Tests erledigt</span>
             {% endif %}
           </div>
+
+          {% if not phase1_gestartet %}
+          <div class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            Phase 1 ist noch nicht gestartet. Klicken Sie unten auf „Freigabeverfahren starten".
+          </div>
+          {% else %}
           <div class="row g-2">
             {% for schritt_name in ['Fachlicher Test', 'Technischer Test'] %}
             {% set f_rows = freigaben | selectattr('schritt','equalto',schritt_name) | list %}
             {% set f = f_rows[-1] if f_rows else none %}
+            {% set test_data_vorhanden = (schritt_name == 'Fachlicher Test' and fachlich_vorhanden)
+                                         or (schritt_name == 'Technischer Test' and technisch_vorhanden) %}
             <div class="col-md-6">
               <div class="border rounded p-2 h-100
-                {% if f and f.status == 'Bestanden' %}border-success bg-success bg-opacity-10
-                {% elif f and f.status == 'Nicht bestanden' %}border-danger bg-danger bg-opacity-10
+                {% if f and f.status == 'Erledigt' %}border-success bg-success bg-opacity-10
+                {% elif f and f.status == 'Nicht erledigt' %}border-danger bg-danger bg-opacity-10
                 {% elif f and f.status == 'Ausstehend' %}border-warning bg-warning bg-opacity-10
                 {% elif f and f.status == 'Abgebrochen' %}border-secondary bg-light
                 {% else %}bg-light{% endif %}">
                 <div class="d-flex align-items-center gap-2">
-                  {% if not f %}<i class="bi bi-circle text-muted"></i>
-                  {% elif f.status == 'Bestanden' %}<i class="bi bi-check-circle-fill text-success"></i>
-                  {% elif f.status == 'Nicht bestanden' %}<i class="bi bi-x-circle-fill text-danger"></i>
+                  {% if not f %}<i class="bi bi-plus-circle text-primary"></i>
+                  {% elif f.status == 'Erledigt' %}<i class="bi bi-check-circle-fill text-success"></i>
+                  {% elif f.status == 'Nicht erledigt' %}<i class="bi bi-x-circle-fill text-danger"></i>
                   {% elif f.status == 'Ausstehend' %}<i class="bi bi-hourglass-split text-warning"></i>
                   {% else %}<i class="bi bi-slash-circle text-secondary"></i>
                   {% endif %}
                   <span class="fw-500" style="font-size:.82rem">{{ schritt_name }}</span>
                   {% if f %}
                   <span class="badge ms-auto
-                    {% if f.status == 'Bestanden' %}bg-success
-                    {% elif f.status == 'Nicht bestanden' %}bg-danger
+                    {% if f.status == 'Erledigt' %}bg-success
+                    {% elif f.status == 'Nicht erledigt' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
+                  {% else %}
+                  <span class="badge ms-auto bg-light text-muted border" style="font-size:.6rem">gelöscht</span>
                   {% endif %}
                 </div>
-                {% if can_create or f %}
+
                 <div class="d-flex gap-1 mt-2">
-                  {% if can_create %}
-                  {% if schritt_name == 'Fachlicher Test' %}
-                  <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id)}}{% if f %}&freigabe_id={{ f.id }}{% endif %}"
-                     class="btn btn-xs btn-outline-primary" title="Test anlegen/bearbeiten">
-                    <i class="bi bi-pencil"></i>
-                  </a>
-                  {% else %}
-                  <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}{% if f %}&freigabe_id={{ f.id }}{% endif %}"
-                     class="btn btn-xs btn-outline-primary" title="Test anlegen/bearbeiten">
-                    <i class="bi bi-pencil"></i>
-                  </a>
-                  {% endif %}
+                  {% if not f and can_create %}
+                    {# Freigabe-Schritt wurde gelöscht → Anlage anbieten #}
+                    <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline">
+                      <input type="hidden" name="schritt" value="{{ schritt_name }}">
+                      <button type="submit" class="btn btn-xs btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
+                      </button>
+                    </form>
+                  {% elif f and can_create and not test_data_vorhanden %}
+                    {# Freigabe-Schritt aktiv, aber Test-Eintrag wurde manuell gelöscht → Neu-Anlage anbieten #}
+                    {% if schritt_name == 'Fachlicher Test' %}
+                    <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
+                       class="btn btn-xs btn-primary">
+                      <i class="bi bi-plus-circle me-1"></i>Anlage Fachlicher Test
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
+                       class="btn btn-xs btn-primary">
+                      <i class="bi bi-plus-circle me-1"></i>Anlage Technischer Test
+                    </a>
+                    {% endif %}
+                  {% elif f and can_create %}
+                    {# Testdaten vorhanden → Bearbeiten #}
+                    {% if schritt_name == 'Fachlicher Test' %}
+                    <a href="{{ url_for('tests.edit_fachlicher_testfall', testfall_id=fachliche_testfaelle[0].id) }}?freigabe_id={{ f.id }}"
+                       class="btn btn-xs btn-outline-primary" title="Bearbeiten">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
+                       class="btn btn-xs btn-outline-primary" title="Bearbeiten">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    {% endif %}
                   {% elif f %}
-                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                     class="btn btn-xs btn-outline-secondary" title="Öffnen">
-                    <i class="bi bi-eye"></i>
-                  </a>
+                    {# Read-only-Zugriff #}
+                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
+                      <i class="bi bi-eye"></i>
+                    </a>
                   {% endif %}
-                  {% if f and session.get('user_role') == 'IDV-Administrator' %}
+
+                  {% if f and is_admin %}
                   <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
                         onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
@@ -714,11 +750,11 @@
                   </form>
                   {% endif %}
                 </div>
-                {% endif %}
               </div>
             </div>
             {% endfor %}
           </div>
+          {% endif %}
         </div>
 
         {# ── Phase 2 ── #}
@@ -728,8 +764,8 @@
             <span class="fw-600 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
               <i class="bi bi-2-circle me-1"></i>Phase 2 – Abnahmen
             </span>
-            {% if phase2_bestanden %}
-            <span class="badge bg-success ms-2" style="font-size:.65rem">Beide Abnahmen erteilt</span>
+            {% if phase2_erledigt %}
+            <span class="badge bg-success ms-2" style="font-size:.65rem">Beide Abnahmen erledigt</span>
             {% endif %}
           </div>
           <div class="row g-2">
@@ -738,41 +774,52 @@
             {% set f = f_rows[-1] if f_rows else none %}
             <div class="col-md-6">
               <div class="border rounded p-2 h-100
-                {% if f and f.status == 'Bestanden' %}border-success bg-success bg-opacity-10
-                {% elif f and f.status == 'Nicht bestanden' %}border-danger bg-danger bg-opacity-10
+                {% if f and f.status == 'Erledigt' %}border-success bg-success bg-opacity-10
+                {% elif f and f.status == 'Nicht erledigt' %}border-danger bg-danger bg-opacity-10
                 {% elif f and f.status == 'Ausstehend' %}border-warning bg-warning bg-opacity-10
                 {% elif f and f.status == 'Abgebrochen' %}border-secondary bg-light
                 {% else %}bg-light{% endif %}">
                 <div class="d-flex align-items-center gap-2">
-                  {% if not f %}<i class="bi bi-circle text-muted"></i>
-                  {% elif f.status == 'Bestanden' %}<i class="bi bi-check-circle-fill text-success"></i>
-                  {% elif f.status == 'Nicht bestanden' %}<i class="bi bi-x-circle-fill text-danger"></i>
+                  {% if not f %}<i class="bi bi-plus-circle text-primary"></i>
+                  {% elif f.status == 'Erledigt' %}<i class="bi bi-check-circle-fill text-success"></i>
+                  {% elif f.status == 'Nicht erledigt' %}<i class="bi bi-x-circle-fill text-danger"></i>
                   {% elif f.status == 'Ausstehend' %}<i class="bi bi-hourglass-split text-warning"></i>
                   {% else %}<i class="bi bi-slash-circle text-secondary"></i>
                   {% endif %}
                   <span class="fw-500" style="font-size:.82rem">{{ schritt_name }}</span>
                   {% if f %}
                   <span class="badge ms-auto
-                    {% if f.status == 'Bestanden' %}bg-success
-                    {% elif f.status == 'Nicht bestanden' %}bg-danger
+                    {% if f.status == 'Erledigt' %}bg-success
+                    {% elif f.status == 'Nicht erledigt' %}bg-danger
                     {% elif f.status == 'Ausstehend' %}bg-warning text-dark
                     {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
+                  {% else %}
+                  <span class="badge ms-auto bg-light text-muted border" style="font-size:.6rem">gelöscht</span>
                   {% endif %}
                 </div>
-                {% if f %}
+
                 <div class="d-flex gap-1 mt-2">
-                  {% if f.status == 'Ausstehend' and can_create %}
-                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                     class="btn btn-xs btn-outline-success" title="Bestanden markieren">
-                    <i class="bi bi-check2-circle"></i>
-                  </a>
-                  {% else %}
-                  <a href="{{ url_for('freigaben.bestanden_seite', freigabe_id=f.id) }}"
-                     class="btn btn-xs btn-outline-secondary" title="Öffnen">
-                    <i class="bi bi-eye"></i>
-                  </a>
+                  {% if not f and can_create %}
+                    {# Abnahme-Schritt wurde gelöscht → Anlage anbieten #}
+                    <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline">
+                      <input type="hidden" name="schritt" value="{{ schritt_name }}">
+                      <button type="submit" class="btn btn-xs btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
+                      </button>
+                    </form>
+                  {% elif f and f.status == 'Ausstehend' and can_create %}
+                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                       class="btn btn-xs btn-outline-success" title="Als Erledigt markieren">
+                      <i class="bi bi-check2-circle"></i>
+                    </a>
+                  {% elif f %}
+                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
+                      <i class="bi bi-eye"></i>
+                    </a>
                   {% endif %}
-                  {% if session.get('user_role') == 'IDV-Administrator' %}
+
+                  {% if f and is_admin %}
                   <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
                         onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
@@ -781,7 +828,6 @@
                   </form>
                   {% endif %}
                 </div>
-                {% endif %}
               </div>
             </div>
             {% endfor %}
@@ -797,7 +843,7 @@
       <div class="card-footer bg-white d-flex flex-column gap-2">
 
         {# Freigabeverfahren starten (Phase 1) #}
-        {% if not phase1_gestartet and not phase2_bestanden and can_create %}
+        {% if not phase1_gestartet and not phase2_erledigt and can_create %}
         <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal"
           data-bs-target="#modal-starten">
           <i class="bi bi-play-circle me-1"></i>Freigabeverfahren starten
@@ -805,7 +851,7 @@
         {% endif %}
 
         {# Phase 2 starten (nach vollständiger Phase 1) #}
-        {% if phase1_bestanden and not phase2_gestartet and can_create %}
+        {% if phase1_erledigt and not phase2_gestartet and can_create %}
         <button type="button" class="btn btn-sm btn-primary w-100" data-bs-toggle="modal"
           data-bs-target="#modal-abnahme-starten">
           <i class="bi bi-2-circle me-1"></i>Phase 2 starten (Abnahmen beauftragen)
@@ -813,7 +859,7 @@
         {% endif %}
 
         {# Status-Hinweis wenn ein Schritt offen läuft #}
-        {% if hat_offenen_schritt and not (phase1_bestanden and not phase2_gestartet) %}
+        {% if hat_offenen_schritt and not (phase1_erledigt and not phase2_gestartet) %}
         <div class="text-muted text-center" style="font-size:.8rem">
           <i class="bi bi-hourglass-split me-1"></i>Verfahren läuft – Schritte in Bearbeitung
         </div>
