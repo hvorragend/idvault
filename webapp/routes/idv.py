@@ -672,25 +672,66 @@ def link_files(idv_db_id):
         flash(f"{linked} Datei(en) mit IDV {idv['idv_id']} verknüpft.", "success")
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
-    # GET – freie Scanner-Funde laden (nicht mit irgendeinem IDV verknüpft)
-    verfuegbare_dateien = db.execute("""
-        SELECT f.*
+    # GET – nur Gesamtanzahl ermitteln; Datei-Daten kommen per AJAX
+    total_count = db.execute("""
+        SELECT COUNT(*)
         FROM idv_files f
         WHERE f.status = 'active'
-          AND f.id NOT IN (
-              SELECT file_id FROM idv_file_links
+          AND NOT EXISTS (
+              SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id
           )
-          AND (
-              f.id != COALESCE((SELECT file_id FROM idv_register WHERE id = ?), -1)
-          )
-        ORDER BY f.last_seen_at DESC
-    """, (idv_db_id,)).fetchall()
+          AND f.id != COALESCE((SELECT file_id FROM idv_register WHERE id = ?), -1)
+    """, (idv_db_id,)).fetchone()[0]
 
     return render_template(
         "idv/datei_verknuepfen.html",
         idv=idv,
-        verfuegbare_dateien=verfuegbare_dateien,
+        total_count=total_count,
     )
+
+
+@bp.route("/<int:idv_db_id>/dateien-suchen")
+@own_write_required
+def link_files_search(idv_db_id):
+    """AJAX-Endpoint: freie Scanner-Funde suchen und paginiert zurückgeben."""
+    db = get_db()
+    if not db.execute("SELECT 1 FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone():
+        return jsonify({"error": "IDV nicht gefunden"}), 404
+
+    q = request.args.get("q", "").strip()
+    try:
+        limit = min(max(int(request.args.get("limit", 50)), 1), 200)
+        offset = max(int(request.args.get("offset", 0)), 0)
+    except ValueError:
+        limit, offset = 50, 0
+
+    base_where = """
+        FROM idv_files f
+        WHERE f.status = 'active'
+          AND NOT EXISTS (
+              SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id
+          )
+          AND f.id != COALESCE((SELECT file_id FROM idv_register WHERE id = ?), -1)
+    """
+    params: list = [idv_db_id]
+
+    if q:
+        base_where += " AND (f.file_name LIKE ? OR f.full_path LIKE ?)"
+        like = f"%{q}%"
+        params += [like, like]
+
+    total = db.execute(f"SELECT COUNT(*) {base_where}", params).fetchone()[0]
+
+    rows = db.execute(
+        f"""SELECT id, file_name, extension, has_macros, share_root,
+                   relative_path, full_path, size_bytes, modified_at
+            {base_where}
+            ORDER BY f.last_seen_at DESC
+            LIMIT ? OFFSET ?""",
+        params + [limit, offset],
+    ).fetchall()
+
+    return jsonify({"total": total, "files": [dict(r) for r in rows]})
 
 
 # ── Neue Version ───────────────────────────────────────────────────────────
