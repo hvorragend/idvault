@@ -410,7 +410,7 @@
         <select name="org_unit_id" class="form-select" required>
           <option value="">– bitte wählen –</option>
           {% for ou in org_units %}
-          <option value="{{ ou.id }}" {{ 'selected' if idv and idv.org_unit_id==ou.id }}>{{ ou.kuerzel }} – {{
+          <option value="{{ ou.id }}" {{ 'selected' if idv and idv.org_unit_id==ou.id }}>{{
             ou.bezeichnung }}</option>
           {% endfor %}
         </select>
@@ -430,7 +430,7 @@
         <select name="idv_entwickler_id" class="form-select">
           <option value="">–</option>
           {% for p in persons %}
-          <option value="{{ p.id }}" {{ 'selected' if idv and idv.idv_entwickler_id==p.id }}>{{ p.nachname }}, {{
+          <option value="{{ p.id }}" {{ 'selected' if (idv and idv.idv_entwickler_id==p.id) or (not idv and prefill.get('idv_entwickler_id')==p.id) }}>{{ p.nachname }}, {{
             p.vorname }}</option>
           {% endfor %}
         </select>

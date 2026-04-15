@@ -85,7 +85,6 @@ CREATE TABLE IF NOT EXISTS idv_files (
 -- Organisationseinheiten (Fachbereiche / Abteilungen)
 CREATE TABLE IF NOT EXISTS org_units (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    kuerzel     TEXT NOT NULL UNIQUE,               -- z.B. "FIL", "KRE", "VWL"
     bezeichnung TEXT NOT NULL,                      -- z.B. "Filialvertrieb"
     ebene       TEXT,                               -- "Vorstand" | "Bereich" | "Abteilung"
     parent_id   INTEGER REFERENCES org_units(id),  -- Hierarchie
@@ -155,9 +154,9 @@ INSERT OR IGNORE INTO risikoklassen (bezeichnung, farbe_hex, sort_order) VALUES
     ('Mittel',   '#FFA500', 3),
     ('Gering',   '#00B050', 4);
 
--- Standard-Rollen
-INSERT OR IGNORE INTO org_units (kuerzel, bezeichnung) VALUES
-    ('UNBEK', '(unbekannt / nicht zugeordnet)');
+-- Standard-Eintrag für unbekannte / nicht zugeordnete OE
+INSERT OR IGNORE INTO org_units (id, bezeichnung) VALUES
+    (1, '(unbekannt / nicht zugeordnet)');
 
 -- Anwendungs-Einstellungen (SMTP etc.)
 CREATE TABLE IF NOT EXISTS app_settings (

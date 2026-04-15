@@ -60,7 +60,7 @@
                 <option value="">– keine –</option>
                 {% for ou in org_units %}
                 <option value="{{ ou.id }}" {{ 'selected' if person.org_unit_id == ou.id else '' }}>
-                  {{ ou.kuerzel }} – {{ ou.bezeichnung }}
+                  {{ ou.bezeichnung }}
                 </option>
                 {% endfor %}
               </select>

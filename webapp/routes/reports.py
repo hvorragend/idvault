@@ -15,7 +15,6 @@ def index():
     by_oe = db.execute("""
         SELECT
             ou.id                                AS oe_id,
-            ou.kuerzel                           AS oe_kuerzel,
             ou.bezeichnung                       AS oe_bezeichnung,
             COUNT(r.id)                          AS anzahl,
             SUM(CASE WHEN (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1
@@ -30,7 +29,7 @@ def index():
         FROM idv_register r
         LEFT JOIN org_units ou ON r.org_unit_id = ou.id
         WHERE r.status NOT IN ('Archiviert')
-        GROUP BY ou.id, ou.kuerzel, ou.bezeichnung
+        GROUP BY ou.id, ou.bezeichnung
         ORDER BY anzahl DESC, ou.bezeichnung
     """).fetchall()
 
@@ -39,7 +38,7 @@ def index():
         SELECT
             p.id                                 AS person_id,
             p.nachname || ', ' || p.vorname      AS person,
-            ou.kuerzel                           AS oe_kuerzel,
+            ou.bezeichnung                       AS oe_bezeichnung,
             COUNT(r.id)                          AS anzahl,
             SUM(CASE WHEN (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1
                            OR r.dora_kritisch_wichtig=1
@@ -53,7 +52,7 @@ def index():
         LEFT JOIN persons  p  ON r.fachverantwortlicher_id = p.id
         LEFT JOIN org_units ou ON p.org_unit_id = ou.id
         WHERE r.status NOT IN ('Archiviert')
-        GROUP BY p.id, p.nachname, p.vorname, ou.kuerzel
+        GROUP BY p.id, p.nachname, p.vorname, ou.bezeichnung
         ORDER BY anzahl DESC, p.nachname
     """).fetchall()
 

@@ -164,7 +164,7 @@ def list_idv():
 
     # Filter-Optionen für Dropdowns
     org_units = db.execute(
-        "SELECT id, kuerzel, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
+        "SELECT id, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
     ).fetchall()
     persons_fv = db.execute(
         "SELECT id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname"
@@ -200,7 +200,7 @@ def quick_search():
     db = get_db()
     rows = db.execute("""
         SELECT r.id, r.idv_id, r.bezeichnung, r.status,
-               r.idv_typ, ou.kuerzel AS oe_kuerzel
+               r.idv_typ, ou.bezeichnung AS oe_bezeichnung
         FROM idv_register r
         LEFT JOIN org_units ou ON r.org_unit_id = ou.id
         LEFT JOIN geschaeftsprozesse gp ON r.gp_id = gp.id
@@ -220,7 +220,7 @@ def quick_search():
             "name":     row["bezeichnung"],
             "status":   row["status"],
             "typ":      row["idv_typ"] or "",
-            "oe":       row["oe_kuerzel"] or "",
+            "oe":       row["oe_bezeichnung"] or "",
             "url":      url_for("idv.detail_idv", idv_db_id=row["id"]),
         }
         for row in rows
@@ -514,6 +514,20 @@ def new_idv():
                 "file_id":       file_id,
                 "extra_file_ids": extra_file_ids,
             }
+            # Datei-Eigentümer als Entwickler vorbelegen
+            owner_hint = fund["file_owner"] or fund["office_author"] or ""
+            if owner_hint:
+                dev_row = db.execute(
+                    """SELECT id FROM persons WHERE aktiv=1 AND (
+                        kuerzel=? OR ad_name=? OR user_id=?
+                        OR (vorname || ' ' || nachname)=?
+                        OR (nachname || ', ' || vorname)=?
+                        OR (nachname || ' ' || vorname)=?
+                    ) LIMIT 1""",
+                    (owner_hint,) * 6
+                ).fetchone()
+                if dev_row:
+                    prefill["idv_entwickler_id"] = dev_row["id"]
         # Zusätzliche Dateien für Banner laden
         if extra_file_ids:
             extra_ids_parsed = [_int_or_none(x.strip()) for x in extra_file_ids.split(",") if x.strip()]
@@ -997,7 +1011,7 @@ def nicht_wesentliche_idvs():
     """, params + [per_page, (page - 1) * per_page]).fetchall()
 
     org_units = db.execute(
-        "SELECT id, kuerzel, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
+        "SELECT id, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
     ).fetchall()
     persons_fv = db.execute(
         "SELECT id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname"
