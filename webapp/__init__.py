@@ -31,9 +31,9 @@ _SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; "
         "img-src 'self' data:; "
-        "style-src 'self' 'unsafe-inline'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "font-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "font-src 'self' data: https://cdn.jsdelivr.net; "
         "frame-ancestors 'none'; "
         "base-uri 'self'"
     ),
