@@ -103,7 +103,7 @@ Oder per Doppelklick im Explorer. Es öffnet sich ein Konsolenfenster mit:
   idvault – IDV-Register
   http://localhost:5000
   DB: C:\Users\...\AppData\Local\Temp\_MEIxxxxx\...
-  Demo-Login: admin / idvault2025
+  Demo-Login: admin / idvault2026
 =======================================================
 ```
 

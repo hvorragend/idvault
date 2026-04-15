@@ -38,7 +38,7 @@ http://localhost:5000
 ```
 
 Beim ersten Start wird `instance/idvault.db` angelegt, die
-Demo-Zugangsdaten (`admin / idvault2025`) aktiviert und — falls noch
+Demo-Zugangsdaten (`admin / idvault2026`) aktiviert und — falls noch
 keine `config.json` vorhanden ist — automatisch eine `config.json` mit
 einem zufälligen `SECRET_KEY` neben der EXE erzeugt.
 
@@ -60,7 +60,7 @@ Keine MSI, keine Dienste, keine Registry-Einträge.
 
 ### 3.1 Erstschritte
 
-1. Anmeldung als `admin / idvault2025`
+1. Anmeldung als `admin / idvault2026`
 2. Administration → Personen → `admin`-Passwort ändern
 3. Administration → Personen: weitere Personen anlegen (oder LDAP-Import)
 4. Administration → LDAP / Active Directory einrichten (falls AD vorhanden)
@@ -209,7 +209,7 @@ Get-ADGroup -Identity "IDV-Administratoren" | Select DistinguishedName
 Ist der LDAP-Server nicht erreichbar, wechselt idvault automatisch auf
 die lokale Authentifizierung. In diesem Fall greifen:
 - Personen mit gesetztem `password_hash`
-- Der Demo-Account `admin / idvault2025` (solange nicht deaktiviert)
+- Der Demo-Account `admin / idvault2026` (solange nicht deaktiviert)
 
 ### 5.5 Notfall-Zugang (Break-Glass)
 

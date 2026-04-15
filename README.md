@@ -30,7 +30,7 @@ einzelne ausführbare Datei (`idvault.exe`) betrieben werden.
 pip install -r requirements.txt
 python run.py
 # → http://localhost:5000
-# → Erstlogin: admin / idvault2025   (vor Produktiveinsatz deaktivieren!)
+# → Erstlogin: admin / idvault2026   (vor Produktiveinsatz deaktivieren!)
 ```
 
 Für die Standalone-EXE siehe [docs/11-build-deployment.md](docs/11-build-deployment.md).
@@ -109,7 +109,7 @@ Noch offene Punkte vor bzw. kurz nach Produktivstart:
 - [ ] HTTPS aktivieren (direkt oder per Reverse-Proxy)
 - [ ] `SECRET_KEY` aus KeyVault/HSM
 
-Demo-Zugänge (`admin / idvault2025` u. a.) bleiben auf Wunsch
+Demo-Zugänge (`admin / idvault2026` u. a.) bleiben auf Wunsch
 des Auftraggebers **aktiv**; das Restrisiko ist in
 [docs/09-schwachstellenanalyse.md Abschnitt 3.3](docs/09-schwachstellenanalyse.md)
 dokumentiert.
