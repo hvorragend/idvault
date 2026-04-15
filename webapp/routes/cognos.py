@@ -230,6 +230,10 @@ def list_berichte():
         FROM cognos_berichte
     """).fetchone()
 
+    persons = db.execute(
+        "SELECT kuerzel, vorname, nachname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+    ).fetchall()
+
     return render_template(
         "cognos/list.html",
         berichte=berichte,
@@ -246,6 +250,7 @@ def list_berichte():
         order=order,
         stats=stats,
         can_write=can_write(),
+        persons=persons,
     )
 
 
@@ -461,6 +466,96 @@ def loeschen(bericht_id: int):
     return redirect(request.referrer or url_for("cognos.list_berichte"))
 
 
+@bp.route("/zusammenfassen", methods=["GET", "POST"])
+@login_required
+@write_access_required
+def zusammenfassen():
+    """Mehrere Cognos-Berichte zu einem IDV-Projekt zusammenfassen."""
+    db = get_db()
+
+    if request.method == "POST":
+        aktion   = request.form.get("aktion", "")
+        raw_ids  = request.form.getlist("bericht_ids")
+        try:
+            bericht_ids = [int(i) for i in raw_ids if i]
+        except ValueError:
+            flash("Ungültige IDs.", "error")
+            return redirect(url_for("cognos.list_berichte"))
+
+        if not bericht_ids:
+            flash("Keine Berichte ausgewählt.", "warning")
+            return redirect(url_for("cognos.list_berichte"))
+
+        if aktion == "neues_idv":
+            primary_id = request.form.get("primary_bericht_id", "")
+            extra_ids  = [str(i) for i in bericht_ids if str(i) != primary_id]
+            url = url_for("cognos.als_idv_registrieren",
+                          bericht_id=primary_id,
+                          extra_bericht_ids=",".join(extra_ids))
+            return redirect(url)
+
+        elif aktion == "zu_idv":
+            idv_db_id = request.form.get("idv_db_id", "")
+            try:
+                idv_db_id = int(idv_db_id)
+            except (ValueError, TypeError):
+                flash("Ungültige IDV-Auswahl.", "error")
+                return redirect(url_for("cognos.list_berichte"))
+
+            idv_row = db.execute(
+                "SELECT id, idv_id FROM idv_register WHERE id=?", (idv_db_id,)
+            ).fetchone()
+            if not idv_row:
+                flash("IDV nicht gefunden.", "error")
+                return redirect(url_for("cognos.list_berichte"))
+
+            linked = 0
+            for bid in bericht_ids:
+                try:
+                    db.execute(
+                        "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert'"
+                        " WHERE id=? AND bearbeitungsstatus != 'Registriert'",
+                        (idv_db_id, bid)
+                    )
+                    linked += 1
+                except Exception:
+                    pass
+            db.commit()
+            flash(f"{linked} Bericht(e) mit IDV {idv_row['idv_id']} verknüpft.", "success")
+            return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+        flash("Unbekannte Aktion.", "error")
+        return redirect(url_for("cognos.list_berichte"))
+
+    # GET
+    raw_ids = request.args.getlist("bericht_ids")
+    try:
+        bericht_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        bericht_ids = []
+
+    if not bericht_ids:
+        flash("Keine Berichte ausgewählt.", "warning")
+        return redirect(url_for("cognos.list_berichte"))
+
+    ph = ",".join("?" * len(bericht_ids))
+    berichte = db.execute(
+        f"SELECT * FROM cognos_berichte WHERE id IN ({ph}) ORDER BY berichtsname",
+        bericht_ids
+    ).fetchall()
+
+    idvs = db.execute("""
+        SELECT id, idv_id, bezeichnung FROM idv_register
+        WHERE status NOT IN ('Außer Betrieb', 'Abgelöst')
+        ORDER BY idv_id
+    """).fetchall()
+
+    return render_template("cognos/zusammenfassen.html",
+        berichte=berichte,
+        idvs=idvs,
+    )
+
+
 @bp.route("/bulk-aktion", methods=["POST"])
 @login_required
 @write_access_required
@@ -468,6 +563,15 @@ def bulk_aktion():
     db      = get_db()
     aktion  = request.form.get("aktion", "")
     raw_ids = request.form.getlist("bericht_ids")
+
+    if aktion == "zusammenfassen":
+        ids_qs = "&".join(f"bericht_ids={i}" for i in raw_ids if i)
+        return redirect(url_for("cognos.zusammenfassen") + "?" + ids_qs)
+
+    if aktion not in ("ignorieren", "nicht_mehr_ignorieren", "zur_registrierung",
+                      "nicht_wesentlich", "owner_aendern", "bewertung_anfordern"):
+        flash("Ungültige Aktion.", "error")
+        return redirect(url_for("cognos.list_berichte"))
 
     try:
         bericht_ids = [int(i) for i in raw_ids if i]
@@ -484,24 +588,96 @@ def bulk_aktion():
     if aktion == "ignorieren":
         db.execute(
             f"UPDATE cognos_berichte SET bearbeitungsstatus='Ignoriert'"
-            f" WHERE id IN ({placeholders}) AND bearbeitungsstatus='Neu'",
+            f" WHERE id IN ({placeholders}) AND bearbeitungsstatus != 'Registriert'",
             bericht_ids,
         )
         db.commit()
         flash(f"{len(bericht_ids)} Bericht(e) ignoriert.", "info")
-    elif aktion == "reaktivieren":
+
+    elif aktion == "nicht_mehr_ignorieren":
         db.execute(
             f"UPDATE cognos_berichte SET bearbeitungsstatus='Neu'"
             f" WHERE id IN ({placeholders}) AND bearbeitungsstatus='Ignoriert'",
             bericht_ids,
         )
         db.commit()
-        flash(f"{len(bericht_ids)} Bericht(e) reaktiviert.", "info")
-    elif aktion == "loeschen":
-        db.execute(f"DELETE FROM cognos_berichte WHERE id IN ({placeholders})", bericht_ids)
+        flash(f"{len(bericht_ids)} Bericht(e): Ignorierung aufgehoben.", "success")
+
+    elif aktion == "zur_registrierung":
+        db.execute(
+            f"UPDATE cognos_berichte SET bearbeitungsstatus='Zur Registrierung'"
+            f" WHERE id IN ({placeholders})",
+            bericht_ids,
+        )
         db.commit()
-        flash(f"{len(bericht_ids)} Bericht(e) gelöscht.", "success")
-    else:
-        flash("Ungültige Aktion.", "error")
+        flash(f"{len(bericht_ids)} Bericht(e) zur Registrierung vorgemerkt.", "success")
+
+    elif aktion == "nicht_wesentlich":
+        db.execute(
+            f"UPDATE cognos_berichte SET bearbeitungsstatus='Nicht wesentlich'"
+            f" WHERE id IN ({placeholders})",
+            bericht_ids,
+        )
+        db.commit()
+        flash(f"{len(bericht_ids)} Bericht(e) als 'Nicht wesentlich' eingestuft.", "success")
+
+    elif aktion == "owner_aendern":
+        new_owner = request.form.get("new_owner", "").strip()
+        if not new_owner:
+            flash("Kein Eigentümer angegeben.", "warning")
+        else:
+            db.execute(
+                f"UPDATE cognos_berichte SET eigentuemer=? WHERE id IN ({placeholders})",
+                [new_owner] + bericht_ids,
+            )
+            db.commit()
+            flash(f"{len(bericht_ids)} Bericht(e): Eigentümer auf \"{new_owner}\" gesetzt.", "success")
+
+    elif aktion == "bewertung_anfordern":
+        from ..email_service import notify_bericht_bewertung_batch, get_app_base_url
+        berichte = db.execute(
+            f"SELECT * FROM cognos_berichte WHERE id IN ({placeholders})", bericht_ids
+        ).fetchall()
+
+        base_url = get_app_base_url(db)
+
+        grouped: dict[str, list] = {}
+        kein_empfaenger = 0
+        for bericht in berichte:
+            owner = bericht["eigentuemer"] or ""
+            email = None
+            if owner:
+                person = db.execute(
+                    "SELECT email FROM persons WHERE (user_id=? OR kuerzel=? OR ad_name=?) AND aktiv=1 AND email IS NOT NULL",
+                    (owner, owner, owner)
+                ).fetchone()
+                if person:
+                    email = person["email"]
+            if not email:
+                kein_empfaenger += 1
+                continue
+            grouped.setdefault(email, []).append(bericht)
+
+        gesendet = 0
+        fehler = 0
+        for email, berichte_gruppe in grouped.items():
+            try:
+                ok = notify_bericht_bewertung_batch(db, berichte_gruppe, email, base_url)
+                if ok:
+                    gesendet += 1
+                else:
+                    fehler += 1
+            except Exception:
+                fehler += 1
+
+        msg_parts = []
+        if gesendet:
+            n_berichte = sum(len(g) for g in grouped.values())
+            msg_parts.append(f"{n_berichte} Bericht(e) in {gesendet} E-Mail(s) gesendet")
+        if kein_empfaenger:
+            msg_parts.append(f"{kein_empfaenger} ohne zugeordnete E-Mail-Adresse")
+        if fehler:
+            msg_parts.append(f"{fehler} Fehler beim Versand")
+        flash(". ".join(msg_parts) + ".", "success" if gesendet and not fehler else "warning")
 
     return redirect(url_for("cognos.list_berichte"))

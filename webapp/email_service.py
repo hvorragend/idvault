@@ -634,6 +634,85 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
     return send_mail(db, recipient_email, subject, html, text)
 
 
+def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
+                                   base_url: str = "") -> bool:
+    """Sendet eine Bewertungsanforderung für Cognos-Berichte an einen Empfänger."""
+    if not bericht_rows:
+        return False
+    if not _is_notify_enabled(db, "bewertung"):
+        return False
+
+    eigentuemer = "–"
+    for b in bericht_rows:
+        val = (b.get("eigentuemer") or "") if hasattr(b, "__getitem__") else ""
+        if val:
+            eigentuemer = val
+            break
+
+    n = len(bericht_rows)
+    if n == 1:
+        subject = f"[idvault] Bitte um Bewertung: {bericht_rows[0]['berichtsname']}"
+    else:
+        subject = f"[idvault] Bitte um Bewertung: {n} Cognos-Berichte"
+
+    with_links = bool(base_url)
+    link_th = '<th style="padding:8px;text-align:left;">Link</th>' if with_links else ""
+    rows_html = ""
+    for i, b in enumerate(bericht_rows):
+        bg = ' style="background:#f8f9fa"' if i % 2 == 0 else ""
+        bname   = b["berichtsname"] if hasattr(b, "__getitem__") else str(b)
+        suchpfad = b["suchpfad"] if hasattr(b, "__getitem__") else ""
+        bericht_id = b["id"] if hasattr(b, "__getitem__") else ""
+
+        link_td = ""
+        if with_links and bericht_id:
+            link = f"{base_url}/cognos/"
+            link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In idvault öffnen</a></td>'
+
+        rows_html += f"""
+        <tr{bg}>
+          <td style="padding:8px;font-weight:bold;vertical-align:top;">{bname}</td>
+          <td style="padding:8px;font-family:monospace;font-size:11px;vertical-align:top;">{suchpfad or '–'}</td>
+          {link_td}
+        </tr>"""
+
+    cognos_link_html = ""
+    if with_links:
+        cognos_link_html = (
+            f'<p style="margin-top:12px;">'
+            f'<a href="{base_url}/cognos/">Zu den Cognos-Berichten in idvault</a>'
+            f'</p>'
+        )
+
+    html = f"""\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2>
+<p>Sehr geehrte/r {eigentuemer},</p>
+<p>die folgenden Cognos-Berichte sind Ihnen als Eigentümer zugeordnet. Bitte bewerten Sie,
+   ob diese Berichte als <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne
+   von MaRisk AT 7.2 einzustufen sind.</p>
+<table style="border-collapse:collapse;width:100%;border:1px solid #dee2e6;">
+  <thead>
+    <tr style="background:#0d6efd;color:#fff;">
+      <th style="padding:8px;text-align:left;">Berichtsname</th>
+      <th style="padding:8px;text-align:left;">Suchpfad</th>
+      {link_th}
+    </tr>
+  </thead>
+  <tbody>{rows_html}
+  </tbody>
+</table>
+<p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen
+   Sie die Bewertung vor.</p>
+{cognos_link_html}
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+    text = _strip_html_tags(html)
+    return send_mail(db, recipient_email, subject, html, text)
+
+
 def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:
     """Eskalation für überfällige Maßnahme."""
     if not _is_notify_enabled(db, "massnahme_ueberfaellig"):

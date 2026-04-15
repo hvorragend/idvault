@@ -105,11 +105,46 @@
 {% set url_extra = {'q': q, 'package': package_filt, 'status': status_filt, 'sort': sort, 'order': order} %}
 {% include 'funde/_pagination.html' %}
 
+{% if can_write %}
+<!-- Eigentümer-Modal -->
+<div class="modal fade" id="ownerModal" tabindex="-1" aria-labelledby="ownerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="ownerModalLabel">
+          <i class="bi bi-person-gear me-1"></i>Eigentümer setzen
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="text-muted mb-2" style="font-size:.82rem">
+          Neuen Eigentümer für <strong id="owner-modal-count">0</strong> ausgewählte Bericht(e) setzen.
+        </p>
+        <select id="owner-modal-input" class="form-select form-select-sm">
+          <option value="">– Person auswählen –</option>
+          {% for p in persons %}
+          <option value="{{ p.kuerzel }}">{{ p.nachname }}, {{ p.vorname }} ({{ p.kuerzel }})</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Setzt den Eigentümer in der Datenbank (überschreibt bisherigen Wert).</div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="button" class="btn btn-sm btn-warning" id="owner-modal-confirm">
+          <i class="bi bi-check-lg me-1"></i>Setzen
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- ── Bulk-Aktions-Formular + Tabelle ───────────────────────────────── -->
 <form method="post" action="{{ url_for('cognos.bulk_aktion') }}" id="bulk-form" class="mt-2">
+  <input type="hidden" name="new_owner" id="hidden-new-owner" value="">
 
   {% if can_write %}
-  <!-- Bulk-Aktionsleiste (wird eingeblendet sobald Checkboxen aktiv) -->
+  <!-- Aktionsleiste (erscheint sobald etwas ausgewählt ist) -->
   <div id="bulk-bar" class="card border-primary shadow-sm mb-3 p-2 d-none">
     <div class="d-flex align-items-center gap-3 flex-wrap">
       <span class="fw-600 text-primary">
@@ -117,17 +152,38 @@
         <span id="bulk-count">0</span> ausgewählt
       </span>
       <button type="submit" name="aktion" value="ignorieren"
-              class="btn btn-sm btn-outline-secondary" id="btn-bulk-ignorieren">
+              class="btn btn-sm btn-outline-secondary" id="btn-ignorieren"
+              title="Nur für Berichte ohne IDV-Verknüpfung verfügbar">
         <i class="bi bi-eye-slash me-1"></i>Ignorieren
       </button>
-      <button type="submit" name="aktion" value="reaktivieren"
-              class="btn btn-sm btn-outline-warning" id="btn-bulk-reaktivieren">
-        <i class="bi bi-arrow-counterclockwise me-1"></i>Reaktivieren
+      <button type="submit" name="aktion" value="nicht_mehr_ignorieren"
+              class="btn btn-sm btn-outline-secondary" id="btn-nicht-mehr-ignorieren"
+              title="Ignorierung aufheben – Bericht wieder auf 'Neu' setzen">
+        <i class="bi bi-eye me-1"></i>Nicht mehr ignorieren
       </button>
-      <button type="submit" name="aktion" value="loeschen"
-              class="btn btn-sm btn-outline-danger" id="btn-bulk-loeschen"
-              onclick="return confirm('Ausgewählte Berichte wirklich löschen?')">
-        <i class="bi bi-trash me-1"></i>Löschen
+      <button type="submit" name="aktion" value="zur_registrierung"
+              class="btn btn-sm btn-outline-info">
+        <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
+      </button>
+      <button type="submit" name="aktion" value="nicht_wesentlich"
+              class="btn btn-sm btn-outline-secondary"
+              title="Als nicht wesentliche IDV einstufen (kein weiterer Handlungsbedarf)">
+        <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
+      </button>
+      <button type="submit" name="aktion" value="zusammenfassen"
+              class="btn btn-sm btn-outline-primary"
+              title="Ausgewählte Berichte als IDV-Projekt zusammenfassen oder mit bestehendem IDV verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu IDV-Projekt zusammenfassen
+      </button>
+      <button type="submit" name="aktion" value="bewertung_anfordern"
+              class="btn btn-sm btn-outline-primary"
+              title="E-Mail an Berichts-Eigentümer mit Bitte um Bewertung senden">
+        <i class="bi bi-envelope me-1"></i>Bewertung anfordern
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-warning"
+              data-bs-toggle="modal" data-bs-target="#ownerModal"
+              title="Eigentümer für ausgewählte Berichte setzen">
+        <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
       </button>
       <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
         Auswahl aufheben
@@ -155,7 +211,6 @@
             {% if can_write %}<th style="width:32px"></th>{% endif %}
             {{ sort_th('berichtsname', 'Berichtsname') }}
             {{ sort_th('suchpfad', 'Suchpfad') }}
-            {{ sort_th('package', 'Package') }}
             {{ sort_th('eigentuemer', 'Eigentümer', 'd-none d-lg-table-cell') }}
             {{ sort_th('anz_abfragen', 'Abfragen', 'text-end d-none d-xl-table-cell') }}
             {{ sort_th('anz_datenelemente', 'Datenelm.', 'text-end d-none d-xl-table-cell', 'Anz. Datenelemente') }}
@@ -189,9 +244,6 @@
                     title="{{ b.suchpfad }}">{{ b.suchpfad }}</span>
               {% else %}–{% endif %}
             </td>
-
-            <!-- Package -->
-            <td>{{ b.package or '–' }}</td>
 
             <!-- Eigentümer -->
             <td class="d-none d-lg-table-cell text-muted">{{ b.eigentuemer or '–' }}</td>
@@ -295,7 +347,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="14" class="text-center text-muted py-4">
+            <td colspan="13" class="text-center text-muted py-4">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Berichte gefunden.
               {% if can_write %}
@@ -325,27 +377,26 @@
 
 <script>
 (function () {
-  const selectAll  = document.getElementById('select-all');
-  const bulkBar    = document.getElementById('bulk-bar');
-  const bulkCount  = document.getElementById('bulk-count');
+  const selectAll   = document.getElementById('select-all');
+  const bulkBar     = document.getElementById('bulk-bar');
+  const bulkCount   = document.getElementById('bulk-count');
   const btnDeselect = document.getElementById('btn-deselect-all');
 
   function updateBar() {
     const checked = document.querySelectorAll('.row-check:checked');
     const n = checked.length;
-    if (bulkCount)  bulkCount.textContent = n;
-    if (bulkBar)    bulkBar.classList.toggle('d-none', n === 0);
+    if (bulkCount) bulkCount.textContent = n;
+    if (bulkBar)   bulkBar.classList.toggle('d-none', n === 0);
 
-    // Ignorieren nur für "Neu"-Zeilen, Reaktivieren nur für "Ignoriert"-Zeilen
-    const btnIgn  = document.getElementById('btn-bulk-ignorieren');
-    const btnReakt = document.getElementById('btn-bulk-reaktivieren');
+    const btnIgn         = document.getElementById('btn-ignorieren');
+    const btnNichtMehrIgn = document.getElementById('btn-nicht-mehr-ignorieren');
     if (btnIgn) {
-      const anyNeu = [...checked].some(cb => cb.dataset.status === 'Neu');
-      btnIgn.disabled = !anyNeu;
+      const anyIgnorierbar = [...checked].some(cb => cb.dataset.status !== 'Registriert');
+      btnIgn.disabled = !anyIgnorierbar;
     }
-    if (btnReakt) {
-      const anyIgn = [...checked].some(cb => cb.dataset.status === 'Ignoriert');
-      btnReakt.disabled = !anyIgn;
+    if (btnNichtMehrIgn) {
+      const anyIgnoriert = [...checked].some(cb => cb.dataset.status === 'Ignoriert');
+      btnNichtMehrIgn.disabled = !anyIgnoriert;
     }
   }
 
@@ -365,6 +416,29 @@
       document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
       if (selectAll) selectAll.checked = false;
       updateBar();
+    });
+  }
+
+  // Eigentümer-Modal
+  const ownerModal = document.getElementById('ownerModal');
+  if (ownerModal) {
+    ownerModal.addEventListener('show.bs.modal', function () {
+      const n = document.querySelectorAll('.row-check:checked').length;
+      const countEl = document.getElementById('owner-modal-count');
+      if (countEl) countEl.textContent = n;
+    });
+    document.getElementById('owner-modal-confirm')?.addEventListener('click', function () {
+      const val = document.getElementById('owner-modal-input')?.value || '';
+      if (!val) return;
+      document.getElementById('hidden-new-owner').value = val;
+      const form = document.getElementById('bulk-form');
+      const btn  = document.createElement('input');
+      btn.type  = 'hidden';
+      btn.name  = 'aktion';
+      btn.value = 'owner_aendern';
+      form.appendChild(btn);
+      bootstrap.Modal.getInstance(ownerModal).hide();
+      form.submit();
     });
   }
 })();
