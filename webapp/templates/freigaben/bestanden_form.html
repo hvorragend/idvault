@@ -1,11 +1,16 @@
 {% extends "base.html" %}
-{% block title %}{{ freigabe.schritt }} – Bestanden{% endblock %}
+{% block title %}{{ freigabe.schritt }} – {{ freigabe.status if readonly else 'Bestanden markieren' }}{% endblock %}
 {% block page_title %}
-<i class="bi bi-check-circle-fill text-success me-2"></i>{{ freigabe.schritt }} – Bestanden
+{% if readonly %}
+<i class="bi bi-check-circle-fill text-success me-2"></i>{{ freigabe.schritt }} – {{ freigabe.status }}
+{% else %}
+<i class="bi bi-check-circle-fill text-success me-2"></i>{{ freigabe.schritt }} – Bestanden markieren
+{% endif %}
 – {{ idv.bezeichnung }}
 {% endblock %}
 
 {% block extra_head %}
+{% if not readonly %}
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <style>
 .ql-container { font-size: .9rem; }
@@ -13,26 +18,78 @@
 .ql-container.ql-snow { border-radius: 0 0 .375rem .375rem; height: auto; }
 .ql-editor { min-height: 100px; }
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
-<form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=freigabe.id) }}"
-      enctype="multipart/form-data">
-  <div class="row g-4">
-    <div class="col-lg-8">
+<div class="row g-4">
+  <div class="col-lg-8">
 
-      <!-- Speichern-Button oben -->
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
-           class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-arrow-left me-1"></i>Abbrechen
-        </a>
-        <button type="submit" class="btn btn-success btn-sm">
-          <i class="bi bi-check2-circle me-1"></i>Als Bestanden markieren
-        </button>
+    <!-- Aktionszeile oben -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
+         class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Zurück
+      </a>
+    </div>
+
+    {% if readonly %}
+    <!-- ── Lesemodus: gespeicherte Daten anzeigen ── -->
+    <div class="form-section">
+      <div class="form-section-title">
+        <i class="bi bi-card-text me-1"></i>
+        {% if freigabe.schritt in ['Fachlicher Test', 'Technischer Test'] %}Testprotokoll
+        {% else %}Abnahmeprotokoll{% endif %}
       </div>
 
-      <!-- Nachweise / Protokoll -->
+      {% if freigabe.durchgefuehrt_von %}
+      <div class="mb-2" style="font-size:.85rem">
+        <span class="text-muted">Durchgeführt von:</span>
+        <strong class="ms-1">{{ freigabe.durchgefuehrt_von }}</strong>
+        {% if freigabe.durchgefuehrt_am %}
+        <span class="text-muted ms-2">· {{ freigabe.durchgefuehrt_am[:10]|datefmt }}</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if freigabe.befunde %}
+      <div class="alert alert-danger py-2 mb-2" style="font-size:.85rem">
+        <i class="bi bi-exclamation-triangle me-1"></i><strong>Befunde:</strong> {{ freigabe.befunde }}
+      </div>
+      {% endif %}
+
+      {% if freigabe.nachweise_text %}
+      <div class="mb-2">
+        <div class="form-label text-muted" style="font-size:.82rem">Nachweise / Protokoll</div>
+        <div class="border rounded p-2" style="font-size:.9rem">{{ freigabe.nachweise_text|safe }}</div>
+      </div>
+      {% endif %}
+
+      {% if freigabe.kommentar %}
+      <div class="mb-2">
+        <div class="form-label text-muted" style="font-size:.82rem">Kommentar</div>
+        <div class="border rounded p-2" style="font-size:.9rem">{{ freigabe.kommentar }}</div>
+      </div>
+      {% endif %}
+
+      {% if freigabe.nachweis_datei_name %}
+      <div class="mt-2" style="font-size:.85rem">
+        <i class="bi bi-paperclip me-1 text-muted"></i>
+        <a href="{{ url_for('freigaben.nachweis_download', filename=freigabe.nachweis_datei_pfad) }}"
+           class="text-decoration-none">{{ freigabe.nachweis_datei_name }}</a>
+      </div>
+      {% endif %}
+
+      {% if not freigabe.nachweise_text and not freigabe.kommentar and not freigabe.nachweis_datei_name and not freigabe.befunde %}
+      <div class="text-muted" style="font-size:.85rem">Keine Protokolldaten erfasst.</div>
+      {% endif %}
+    </div>
+
+    {% else %}
+    <!-- ── Bearbeitungsmodus ── -->
+    <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=freigabe.id) }}"
+          enctype="multipart/form-data">
+
       <div class="form-section">
         <div class="form-section-title">
           <i class="bi bi-card-text me-1"></i>
@@ -70,16 +127,15 @@
           </div>
 
           <div class="col-12">
-            <label class="form-label fw-500">Nachweis-Datei hochladen <span class="text-muted fw-normal">(optional)</span></label>
+            <label class="form-label fw-500">Nachweis-Datei <span class="text-muted fw-normal">(optional)</span></label>
             <input type="file" name="nachweis_datei" class="form-control"
               accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
-            <div class="form-text">Erlaubte Formate: PNG, JPG, PDF, Excel, Word, ZIP</div>
+            <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
           </div>
 
         </div>
       </div>
 
-      <!-- Aktionsleiste unten -->
       <div class="d-flex justify-content-between align-items-center">
         <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
            class="btn btn-outline-secondary">
@@ -90,87 +146,53 @@
         </button>
       </div>
 
-    </div><!-- /col-lg-8 -->
+    </form>
+    {% endif %}
 
-    <!-- Kontext-Sidebar -->
-    <div class="col-lg-4">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white fw-600">
-          <i class="bi bi-info-circle me-2"></i>IDV-Kontext
-        </div>
-        <ul class="list-group list-group-flush">
-          <li class="list-group-item px-3 py-2">
-            <div class="detail-label">IDV-ID</div>
-            <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
-          </li>
-          <li class="list-group-item px-3 py-2">
-            <div class="detail-label">Bezeichnung</div>
-            <div class="fw-500">{{ idv.bezeichnung }}</div>
-          </li>
-          <li class="list-group-item px-3 py-2">
-            <div class="detail-label">Status</div>
-            <span class="badge status-{{ idv.status|replace(' ', '-') }}">{{ idv.status }}</span>
-          </li>
-          <li class="list-group-item px-3 py-2">
-            <div class="detail-label">Freigabe-Schritt</div>
-            <div class="fw-500">{{ freigabe.schritt }}</div>
-          </li>
-          {% if freigabe.zugewiesen_an %}
-          <li class="list-group-item px-3 py-2">
-            <div class="detail-label">Beauftragt an</div>
-            <div class="fw-500">{{ freigabe.zugewiesen_an }}</div>
-          </li>
-          {% endif %}
-        </ul>
+  </div><!-- /col-lg-8 -->
+
+  <!-- Kontext-Sidebar -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-info-circle me-2"></i>IDV-Kontext
       </div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">IDV-ID</div>
+          <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Bezeichnung</div>
+          <div class="fw-500">{{ idv.bezeichnung }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Freigabe-Schritt</div>
+          <div class="fw-500">{{ freigabe.schritt }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Status</div>
+          <span class="badge
+            {% if freigabe.status == 'Bestanden' %}bg-success
+            {% elif freigabe.status == 'Nicht bestanden' %}bg-danger
+            {% elif freigabe.status == 'Ausstehend' %}bg-warning text-dark
+            {% else %}bg-secondary{% endif %}">{{ freigabe.status }}</span>
+        </li>
+        {% if freigabe.zugewiesen_an %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Beauftragt an</div>
+          <div class="fw-500">{{ freigabe.zugewiesen_an }}</div>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div><!-- /col-lg-4 -->
 
-      <div class="card border-0 shadow-sm mt-3">
-        <div class="card-header bg-white fw-600">
-          <i class="bi bi-lightbulb me-2"></i>Hinweise
-        </div>
-        <div class="card-body py-2" style="font-size:.82rem;color:#555">
-          {% if freigabe.schritt == 'Fachlicher Test' %}
-          <p class="mb-2">
-            <strong>Fachlicher Test:</strong> Prüft die inhaltliche Korrektheit und
-            fachliche Funktionalität der IDV.
-          </p>
-          <p class="mb-0">
-            Dokumentieren Sie das Testprotokoll mit Testergebnissen und Bewertungsgrundlage.
-          </p>
-          {% elif freigabe.schritt == 'Technischer Test' %}
-          <p class="mb-2">
-            <strong>Technischer Test:</strong> Prüft technische Aspekte wie
-            Zugriffsschutz, Makro-Sicherheit und Datenbankanbindung.
-          </p>
-          <p class="mb-0">
-            Dokumentieren Sie die technischen Prüfschritte und deren Ergebnisse.
-          </p>
-          {% elif freigabe.schritt == 'Fachliche Abnahme' %}
-          <p class="mb-2">
-            <strong>Fachliche Abnahme:</strong> Formale Abnahme durch den fachlich
-            Verantwortlichen (Funktionstrennung beachten).
-          </p>
-          <p class="mb-0">
-            Dokumentieren Sie die Abnahmeentscheidung und deren Grundlage.
-          </p>
-          {% elif freigabe.schritt == 'Technische Abnahme' %}
-          <p class="mb-2">
-            <strong>Technische Abnahme:</strong> Formale technische Abnahme
-            durch den IT-Verantwortlichen.
-          </p>
-          <p class="mb-0">
-            Dokumentieren Sie die technische Abnahmeentscheidung.
-          </p>
-          {% endif %}
-        </div>
-      </div>
-    </div><!-- /col-lg-4 -->
-
-  </div><!-- /row -->
-</form>
+</div><!-- /row -->
 {% endblock %}
 
 {% block extra_js %}
+{% if not readonly %}
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 (function () {
@@ -197,4 +219,5 @@
   });
 })();
 </script>
+{% endif %}
 {% endblock %}
