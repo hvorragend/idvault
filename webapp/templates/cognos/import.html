@@ -14,7 +14,7 @@
       <div class="card-body">
         <p class="text-muted small mb-3">
           Laden Sie hier die Berichtsübersicht aus agree21Analysen hoch.
-          Unterstützte Formate: <strong>Excel (.xlsx)</strong> und tab-separiertes Textformat (.txt / .tsv).
+          Unterstütztes Format: <strong>Excel (.xlsx / .xlsm)</strong>.
         </p>
 
         <div class="alert alert-info small py-2 mb-3">
@@ -33,10 +33,10 @@
                    id="berichtsuebersicht"
                    name="berichtsuebersicht"
                    class="form-control"
-                   accept=".xlsx,.xlsm,.txt,.tsv,.csv"
+                   accept=".xlsx,.xlsm"
                    required>
             <div class="form-text text-muted">
-              Excel (.xlsx) oder tab-separiertes Textformat (.txt, .tsv).
+              Excel-Datei (.xlsx oder .xlsm). Spaltenköpfe in Zeile 3, Daten ab Zeile 4.
             </div>
           </div>
 
@@ -59,17 +59,16 @@
       </div>
       <div class="card-body small">
         <p class="text-muted mb-2">
-          Zeile 1 (optional): <code>Berichtsübersicht  | Anz. Berichte: …</code> — wird automatisch übersprungen.
+          Zeilen 1–2: Titel / Metadaten (werden übersprungen).<br>
+          Zeile 3: Spaltenköpfe — Pflichtfeld: <strong>Berichtsname</strong>.<br>
+          Zeile 4+: Datensätze.
         </p>
-        <p class="text-muted mb-2">
-          Zeile 2 (Spaltenköpfe), Pflichtfeld: <strong>Berichtsname</strong>. Weitere erwartete Spalten:
-        </p>
+        <p class="text-muted mb-2">Erwartete Spalten:</p>
         <div class="bg-light rounded p-2 mb-2" style="overflow-x:auto">
           <code class="small">Umfeld · Bank-ID · Anwendung · Berichtsname · Suchpfad · Package · Eigentümer · Berichtsbeschreibung · Erstelldatum · Änderungsdatum · Anz. Abfragen · Anz. Datenelemente · Komplexität [0-10] · …</code>
         </div>
         <p class="text-muted mb-0">
-          <strong>Excel:</strong> Zahlenwerte werden direkt aus den Zellen gelesen.<br>
-          <strong>TSV:</strong> Tausender-Punkt (<code>1.057</code> → <code>1057</code>) wird automatisch konvertiert.<br>
+          Zahlenwerte werden direkt aus den Zellen gelesen.<br>
           Datumsfelder werden als Text gespeichert (z.B. <code>11.09.2024</code>).
         </p>
       </div>
