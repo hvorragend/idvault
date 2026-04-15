@@ -1,5 +1,9 @@
 # idvault – Standalone-Executable erstellen
 
+> **Hinweis:** Für die vollständige Build- und Deployment-Dokumentation
+> siehe [docs/11-build-deployment.md](docs/11-build-deployment.md). Diese
+> Datei dient als Schnell-Anleitung für Entwickler.
+
 Diese Anleitung beschreibt, wie aus dem idvault-Quellcode eine eigenständige
 `.exe` erstellt wird, die ohne Python-Installation auf anderen Rechnern läuft.
 
