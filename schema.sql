@@ -198,16 +198,18 @@ CREATE TABLE IF NOT EXISTS klassifizierungen (
 );
 
 INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
-    ('idv_typ', 'unklassifiziert',  0),
-    ('idv_typ', 'Excel-Tabelle',    1),
-    ('idv_typ', 'Excel-Makro',      2),
-    ('idv_typ', 'Excel-Modell',     3),
-    ('idv_typ', 'Access-Datenbank', 4),
-    ('idv_typ', 'Python-Skript',    5),
-    ('idv_typ', 'SQL-Skript',       6),
-    ('idv_typ', 'Power-BI-Bericht', 7),
-    ('idv_typ', 'Sonstige',         8),
-    ('idv_typ', 'Cognos-Report',   9);
+    ('idv_typ', 'unklassifiziert',   0),
+    ('idv_typ', 'Excel-Tabelle',     1),
+    ('idv_typ', 'Excel-Makro',       2),
+    ('idv_typ', 'Excel-Modell',      3),
+    ('idv_typ', 'Access-Datenbank',  4),
+    ('idv_typ', 'Python-Skript',     5),
+    ('idv_typ', 'SQL-Skript',        6),
+    ('idv_typ', 'Power-BI-Bericht',  7),
+    ('idv_typ', 'Cognos-Report',     8);
+    ('idv_typ', 'Shell-Skript',      9);
+    ('idv_typ', 'Gruppenrichtlinie', 10);
+    ('idv_typ', 'Sonstige',          11),
 
 INSERT OR IGNORE INTO klassifizierungen (bereich, wert, bezeichnung, sort_order) VALUES
     ('pruefintervall_monate', '3',  '3 Monate (quartalsweise)', 1),

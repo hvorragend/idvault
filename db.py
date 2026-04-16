@@ -522,8 +522,12 @@ def insert_demo_data(conn: sqlite3.Connection):
     conn.executemany(
         "INSERT OR IGNORE INTO plattformen (bezeichnung, typ, hersteller) VALUES (?,?,?)",
         [
-            ("Microsoft Excel 2021",    "Desktop", "Microsoft"),
-            ("Microsoft Access 2021",   "Desktop", "Microsoft"),
+            ("Microsoft Excel",    "Desktop", "Microsoft"),
+            ("Microsoft Access",   "Desktop", "Microsoft"),
+            ("HCL Notes",   "Desktop", "HCL"),
+            ("agree21Analysen",        "Desktop", "IBM"),
+            ("Shell-Skripte",        "Konsole", "Bank"),
+            ("UiPath Studio",        "IDE", "UiPath"),
             ("Power BI Desktop",        "Desktop", "Microsoft"),
             ("Python 3.11",             "Server",  "PSF"),
         ]
