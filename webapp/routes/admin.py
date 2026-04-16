@@ -83,14 +83,18 @@ def _instance_logs_dir() -> str:
 
 
 def _default_scanner_cfg() -> dict:
-    """Erstellt die Standardkonfiguration mit dem tatsächlichen DB-Pfad der Webapp."""
-    from flask import current_app
+    """Erstellt die Standardkonfiguration mit relativen Default-Pfaden.
+
+    Die Pfade werden bewusst relativ zur config.json gespeichert (gut
+    lesbar, portable Installation). Der Scanner löst sie beim Start gegen
+    das Verzeichnis der config.json auf.
+    """
     return {
         "scan_paths": [],
         "extensions": _DEFAULT_SCANNER_EXTENSIONS,
         "exclude_paths": _DEFAULT_SCANNER_EXCLUDE,
-        "db_path": current_app.config['DATABASE'],
-        "log_path": os.path.join(_instance_logs_dir(), 'idv_scanner.log'),
+        "db_path": "instance/idvault.db",
+        "log_path": "instance/logs/idv_scanner.log",
         "hash_size_limit_mb": 500,
         "max_workers": 4,
         "move_detection": "name_and_hash",
