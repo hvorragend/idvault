@@ -193,7 +193,10 @@ Windows Task Scheduler (wöchentlich)
 ### 5.3 SMTP (ausgehend)
 
 - Standardports: 587 (STARTTLS) oder 465 (SMTPS)
-- Konfiguration: Datenbank (`app_settings`) oder Umgebungsvariablen (`IDV_SMTP_*`)
+- Konfiguration: SQLite-Tabelle `app_settings` (verwaltet unter
+  `Administration → E-Mail-Einstellungen`). SMTP-Passwort Fernet-
+  verschlüsselt. Frühere `IDV_SMTP_*`-Umgebungsvariablen werden nicht
+  mehr ausgewertet.
 - Formatierung: HTML-E-Mails mit Plaintext-Fallback
 
 ### 5.4 Microsoft Graph API (ausgehend, optional)

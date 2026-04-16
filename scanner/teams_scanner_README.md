@@ -51,7 +51,24 @@ pip install -r requirements.txt
 
 ---
 
-## Schnellstart
+## Konfigurationsort
+
+Der Teams-Scanner akzeptiert zwei Quell-Formate:
+
+1. **Empfohlen: Haupt-`config.json`** neben `run.py` / der EXE, Abschnitt
+   `"teams"`. Wird von der Admin-Web-UI unter
+   `Administration → Teams-Einstellungen` geschrieben und von dort auch
+   als Subprocess gestartet. Die Einstellungen liegen gemeinsam mit
+   `scanner`- und `ldap`-Block in einer Datei; der `db_path` wird
+   automatisch aus dem `scanner`-Abschnitt geerbt.
+
+2. **Legacy-`teams_config.json`** (flaches Dict ohne `"teams"`-Sektion)
+   wird für Standalone-Aufrufe per Kommandozeile weiterhin akzeptiert.
+   Früher in `scanner/teams_config.json` abgelegt; wird beim nächsten
+   Start von `idvault` automatisch nach `config.json["teams"]` migriert
+   und zu `teams_config.json.migrated` umbenannt.
+
+## Schnellstart (Standalone / Legacy-Modus)
 
 ```cmd
 REM 1. Beispielkonfiguration erzeugen
@@ -71,7 +88,7 @@ python teams_scanner.py --config teams_config.json
 
 ---
 
-## Konfiguration (`teams_config.json`)
+## Konfiguration (`config.json["teams"]` bzw. Legacy-`teams_config.json`)
 
 ```json
 {
