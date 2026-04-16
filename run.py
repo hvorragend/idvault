@@ -315,11 +315,14 @@ if __name__ == "__main__":
     #   der Debug-Modus ist aktiv (lokale Entwicklung).
     if app.config.get("SECRET_KEY_IS_DEFAULT"):
         msg = (
-            "SICHERHEITS-ABBRUCH: Die Umgebungsvariable SECRET_KEY ist nicht "
-            "gesetzt. In der Produktion muss ein zufälliger Wert (≥ 32 Zeichen) "
-            "via Umgebungsvariable bereitgestellt werden.\n"
+            "SICHERHEITS-ABBRUCH: SECRET_KEY ist nicht gesetzt. In der Produktion "
+            "muss ein zufälliger Wert (≥ 32 Zeichen) bereitgestellt werden – "
+            "entweder als Umgebungsvariable SECRET_KEY oder als Eintrag "
+            "\"SECRET_KEY\" in der config.json neben run.py/der EXE. "
+            "Die Umgebungsvariable hat Vorrang vor der config.json.\n"
             "Beispiel (PowerShell):  $env:SECRET_KEY = [Guid]::NewGuid().ToString('N')\n"
             "Beispiel (Bash):        export SECRET_KEY=$(openssl rand -hex 32)\n"
+            "Beispiel (config.json): {\"SECRET_KEY\": \"<32+ zufällige Zeichen>\", ...}\n"
             "Zum lokalen Entwickeln DEBUG=1 setzen, um diesen Check zu umgehen."
         )
         if not debug:

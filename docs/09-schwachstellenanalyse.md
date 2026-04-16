@@ -265,17 +265,26 @@ Wird die Umgebungsvariable nicht gesetzt, greift dieser Wert.
 **Umgesetzte Remediation**:
 - `webapp/__init__.py`: Das Config-Attribut
   `SECRET_KEY_IS_DEFAULT` wird beim App-Bau auf `True` gesetzt,
-  wenn die Umgebungsvariable fehlt.
+  wenn weder die Umgebungsvariable noch ein Eintrag aus der
+  `config.json` (die `run.py` beim Start in die Prozess-Umgebung
+  spiegelt) einen `SECRET_KEY` liefert.
 - `run.py`: Beim Start wird dieses Flag geprüft. Ist es gesetzt und
   `DEBUG != 1`, bricht der Prozess mit einer klaren Fehlermeldung und
-  Exit-Code 2 ab (`!!! SICHERHEITS-ABBRUCH: Die Umgebungsvariable
-  SECRET_KEY ist nicht gesetzt !!!`). Die Meldung enthält
-  Beispielbefehle zur korrekten Generierung (openssl/PowerShell).
+  Exit-Code 2 ab (`!!! SICHERHEITS-ABBRUCH: SECRET_KEY ist nicht
+  gesetzt !!!`). Die Meldung weist beide zulässigen Quellen aus
+  (Umgebungsvariable **oder** `"SECRET_KEY"`-Eintrag in `config.json`,
+  Umgebungsvariable hat Vorrang) und enthält Beispielbefehle zur
+  korrekten Generierung (openssl/PowerShell/config.json).
 - Im Debug-Modus wird nur eine auffällige Warnung ausgegeben, damit
   lokale Entwicklung weiterhin funktioniert.
+- Ergänzend: Startet idvault erstmalig ohne `config.json` und ohne
+  Umgebungsvariable, wird die Datei automatisch mit einem zufälligen
+  32-Byte-`SECRET_KEY` (`secrets.token_hex(32)`) angelegt, sodass der
+  Default-Fallback gar nicht erst greift.
 
 **Verifikation**: Test mit `SECRET_KEY=test-key` und ohne Variable
-zeigt unterschiedliches Verhalten (Start vs. Abbruch).
+zeigt unterschiedliches Verhalten (Start vs. Abbruch); analog mit
+`"SECRET_KEY"` gesetzt/leer in `config.json`.
 
 ## 4 Detailbeschreibung der Schwachstellen hoher Priorität
 
