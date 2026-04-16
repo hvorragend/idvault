@@ -78,6 +78,16 @@ def _decrypt_smtp_password(stored: str) -> str:
         return ""
 
 
+def _parse_tls_mode(value: str) -> str:
+    """Normalisiert smtp_tls-Werte zu 'starttls', 'ssl' oder 'none'.
+
+    Alte Werte: '1' → starttls, '0'/'' → ssl (Rückwärtskompatibilität).
+    """
+    if value in ("starttls", "ssl", "none"):
+        return value
+    return "starttls" if value == "1" else "ssl"
+
+
 def _get_smtp_config(db) -> dict:
     """Liest SMTP-Einstellungen aus DB, mit Env-Überschreibung."""
     try:
@@ -94,12 +104,14 @@ def _get_smtp_config(db) -> dict:
         password = _decrypt_smtp_password(cfg.get("smtp_password", ""))
 
     return {
-        "host":     os.environ.get("IDV_SMTP_HOST",     cfg.get("smtp_host",     "")),
-        "port":     int(os.environ.get("IDV_SMTP_PORT", cfg.get("smtp_port",     587))),
-        "user":     os.environ.get("IDV_SMTP_USER",     cfg.get("smtp_user",     "")),
+        "host":     os.environ.get("IDV_SMTP_HOST",     cfg.get("smtp_host",  "")),
+        "port":     int(os.environ.get("IDV_SMTP_PORT", cfg.get("smtp_port",  587))),
+        "user":     os.environ.get("IDV_SMTP_USER",     cfg.get("smtp_user",  "")),
         "password": password,
-        "from":     os.environ.get("IDV_SMTP_FROM",     cfg.get("smtp_from",     "")),
-        "tls":      os.environ.get("IDV_SMTP_TLS",      cfg.get("smtp_tls",      "1")) == "1",
+        "from":     os.environ.get("IDV_SMTP_FROM",     cfg.get("smtp_from",  "")),
+        "tls_mode": _parse_tls_mode(
+            os.environ.get("IDV_SMTP_TLS", cfg.get("smtp_tls", "starttls"))
+        ),
     }
 
 
@@ -122,6 +134,22 @@ def _smtp_log(db, recipients: list, subject: str, success: bool,
         db.commit()
     except Exception as exc:
         log.warning("smtp_log konnte nicht geschrieben werden: %s", exc)
+
+
+def _open_smtp(cfg: dict) -> smtplib.SMTP:
+    """Öffnet eine SMTP-Verbindung gemäß tls_mode.
+
+    tls_mode 'starttls' : SMTP + STARTTLS (typisch Port 587)
+    tls_mode 'ssl'      : SMTP_SSL        (typisch Port 465)
+    tls_mode 'none'     : Plain SMTP      (typisch Port 25, Relay ohne TLS)
+    """
+    mode = cfg.get("tls_mode", "starttls")
+    if mode == "ssl":
+        return smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=10)
+    smtp = smtplib.SMTP(cfg["host"], cfg["port"], timeout=10)
+    if mode == "starttls":
+        smtp.starttls()
+    return smtp
 
 
 def send_mail(db, to: str | list[str], subject: str,
@@ -148,15 +176,9 @@ def send_mail(db, to: str | list[str], subject: str,
     msg.attach(MIMEText(body_html, "html", "utf-8"))
 
     try:
-        if cfg["tls"]:
-            smtp = smtplib.SMTP(cfg["host"], cfg["port"], timeout=10)
-            smtp.starttls()
-        else:
-            smtp = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=10)
-
+        smtp = _open_smtp(cfg)
         if cfg["user"] and cfg["password"]:
             smtp.login(cfg["user"], cfg["password"])
-
         smtp.sendmail(cfg["from"], recipients, msg.as_string())
         smtp.quit()
         log.info("E-Mail gesendet an %s: %s", recipients, subject)
@@ -172,22 +194,20 @@ def send_mail(db, to: str | list[str], subject: str,
 def send_smtp_test(db, to_email: str, *,
                    host: str = None, port: int = None,
                    user: str = None, password: str = None,
-                   smtp_from: str = None, tls: bool = None) -> tuple[bool, str]:
+                   smtp_from: str = None, tls_mode: str = None) -> tuple[bool, str]:
     """Sendet eine Test-E-Mail und gibt (Erfolg, Meldung) zurück.
 
-    Optionale Keyword-Argumente überschreiben die gespeicherten DB/Env-Werte,
-    sodass der Test immer mit den aktuell im Formular eingetragenen Werten
-    arbeitet – auch bevor diese gespeichert wurden.
-    Ist ``password`` None (kein neues Passwort eingegeben), wird das
-    gespeicherte Passwort aus der DB verwendet.
+    Optionale Keyword-Argumente überschreiben die gespeicherten DB/Env-Werte.
+    Ist ``password`` None, wird das gespeicherte DB-Passwort verwendet.
+    ``tls_mode`` akzeptiert 'starttls', 'ssl' oder 'none'.
     """
     cfg = _get_smtp_config(db)
-    if host       is not None: cfg["host"]     = host
-    if port       is not None: cfg["port"]     = port
-    if user       is not None: cfg["user"]     = user
-    if password   is not None: cfg["password"] = password
-    if smtp_from  is not None: cfg["from"]     = smtp_from
-    if tls        is not None: cfg["tls"]      = tls
+    if host      is not None: cfg["host"]     = host
+    if port      is not None: cfg["port"]     = port
+    if user      is not None: cfg["user"]     = user
+    if password  is not None: cfg["password"] = password
+    if smtp_from is not None: cfg["from"]     = smtp_from
+    if tls_mode  is not None: cfg["tls_mode"] = tls_mode
 
     if not cfg["host"]:
         return False, "SMTP-Host ist nicht konfiguriert."
@@ -215,15 +235,9 @@ def send_smtp_test(db, to_email: str, *,
     msg.attach(MIMEText(body_html, "html", "utf-8"))
 
     try:
-        if cfg["tls"]:
-            smtp = smtplib.SMTP(cfg["host"], cfg["port"], timeout=10)
-            smtp.starttls()
-        else:
-            smtp = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=10)
-
+        smtp = _open_smtp(cfg)
         if cfg["user"] and cfg["password"]:
             smtp.login(cfg["user"], cfg["password"])
-
         smtp.sendmail(cfg["from"], recipients, msg.as_string())
         smtp.quit()
         log.info("SMTP-Test-E-Mail gesendet an %s", to_email)
