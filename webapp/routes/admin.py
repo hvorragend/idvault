@@ -1595,11 +1595,32 @@ def mail():
 @bp.route("/mail/test", methods=["POST"])
 @admin_required
 def mail_test():
-    """AJAX-Endpunkt: Sendet eine Test-E-Mail und gibt JSON zurück."""
+    """AJAX-Endpunkt: Sendet eine Test-E-Mail und gibt JSON zurück.
+
+    Liest die SMTP-Felder aus dem POST-Body (aktuelle Formularwerte),
+    sodass der Test auch mit noch nicht gespeicherten Einstellungen funktioniert.
+    Leeres Passwort-Feld bedeutet: gespeichertes DB-Passwort verwenden.
+    """
     from ..email_service import send_smtp_test
     db       = get_db()
     to_email = request.form.get("to_email", "").strip()
-    ok, msg  = send_smtp_test(db, to_email)
+
+    f_host  = request.form.get("smtp_host", "").strip() or None
+    f_port  = request.form.get("smtp_port", "").strip()
+    f_user  = request.form.get("smtp_user", "").strip()  # leer = kein Auth
+    f_pw    = request.form.get("smtp_password", "")      # leer = DB-Wert behalten
+    f_from  = request.form.get("smtp_from", "").strip() or None
+    f_tls_s = request.form.get("smtp_tls", None)
+
+    ok, msg = send_smtp_test(
+        db, to_email,
+        host      = f_host,
+        port      = int(f_port) if f_port else None,
+        user      = f_user,          # "" = kein Benutzer, None = unverändert
+        password  = f_pw if f_pw else None,  # leer → DB-Passwort nutzen
+        smtp_from = f_from,
+        tls       = (f_tls_s == "1") if f_tls_s is not None else None,
+    )
     return jsonify({"success": ok, "message": msg})
 
 
