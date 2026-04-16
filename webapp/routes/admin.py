@@ -82,6 +82,12 @@ def _instance_logs_dir() -> str:
     return os.path.join(os.path.dirname(current_app.config['DATABASE']), 'logs')
 
 
+_SCANNER_CFG_KEYS = frozenset({
+    "scan_paths", "extensions", "exclude_paths", "db_path", "log_path",
+    "hash_size_limit_mb", "max_workers", "move_detection", "scan_since", "read_file_owner",
+})
+
+
 def _default_scanner_cfg() -> dict:
     """Erstellt die Standardkonfiguration mit dem tatsächlichen DB-Pfad der Webapp."""
     from flask import current_app
@@ -104,8 +110,11 @@ def _load_scanner_config() -> dict:
     try:
         with open(_scanner_config_path(), encoding="utf-8") as f:
             full = json.load(f)
-        # Zusammengeführte config.json: Scanner-Einstellungen unter "scanner"-Schlüssel
-        cfg.update(full.get("scanner", full))
+        # Zusammengeführte config.json: Scanner-Einstellungen unter "scanner"-Schlüssel.
+        # Nur bekannte Scanner-Keys übernehmen, damit Top-Level-Keys (SECRET_KEY, PORT …)
+        # nicht in den Scanner-Abschnitt eingeschleppt werden.
+        scanner_data = full.get("scanner", full)
+        cfg.update({k: v for k, v in scanner_data.items() if k in _SCANNER_CFG_KEYS})
     except Exception:
         pass
     return cfg
@@ -119,7 +128,8 @@ def _save_scanner_config(cfg: dict):
             full = json.load(f)
     except Exception:
         full = {}
-    full["scanner"] = cfg
+    # Nur bekannte Scanner-Keys speichern – keine Top-Level-Keys duplizieren
+    full["scanner"] = {k: v for k, v in cfg.items() if k in _SCANNER_CFG_KEYS}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(full, f, indent=2, ensure_ascii=False)
 
