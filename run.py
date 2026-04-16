@@ -163,10 +163,9 @@ if not os.path.isfile(_config_file):
             # überschreiben) – kann durch Setzen auf 0 komplett deaktiviert werden.
             "IDV_ALLOW_SIDECAR_UPDATES": 1,
             # VULN-F: Lokale Benutzer. Leere Liste = kein lokaler Login möglich
-            # (nur LDAP). Passwort-Hashes werden mit werkzeug erzeugt:
-            #   from werkzeug.security import generate_password_hash
-            #   generate_password_hash("mein-passwort", method="pbkdf2:sha256")
-            # Beispiel-Eintrag siehe config.json.example.
+            # (nur LDAP). Pro Eintrag entweder 'password_hash' (empfohlen,
+            # werkzeug-Format) oder 'password' (Klartext, optional – wird beim
+            # Start automatisch gehasht). Beispiel siehe config.json.example.
             "IDV_LOCAL_USERS": [],
             # VULN-J: Login-Rate-Limit (Flask-Limiter-Syntax).
             "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",

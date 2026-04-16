@@ -161,11 +161,19 @@ Login-Audit zwar erkennbar, aber erst nach erfolgter Kompromittierung.
 - Lokale Benutzer werden nun ausschließlich deklarativ über
   `config.json → "IDV_LOCAL_USERS"` angelegt. Die Liste wird beim
   Start in `app.config["IDV_LOCAL_USERS"]` eingelesen und von
-  `_check_config_user()` geprüft. Akzeptiert werden nur
-  **werkzeug-Hashes** (`pbkdf2:sha256:…`); Klartextpasswörter werden
-  verworfen.
-- `config.json.example` enthält einen deutlich kommentierten
-  Beispiel-Eintrag samt Generierungsbefehl:
+  `_check_config_user()` geprüft. Pro Eintrag ist **eines** der beiden
+  Passwort-Felder zu setzen:
+  - `password_hash` (empfohlen): Werkzeug-Format `pbkdf2:sha256:…`.
+    Wird unverändert gespeichert.
+  - `password` (optional, bequemer für Erstinstallationen): Klartext.
+    Wird beim Start von `_load_local_users_from_env()` über
+    `werkzeug.security.generate_password_hash(..., method="pbkdf2:sha256")`
+    gehasht; das Ergebnis-Dict in `app.config` enthält **nur** den Hash,
+    der Klartext verlässt die Config-Parsing-Funktion nicht.
+  Liegt beides vor, gewinnt der Hash. Einträge ohne Passwort werden
+  ignoriert.
+- `config.json.example` zeigt beide Varianten kommentiert. Hash-
+  Generierung:
   ```
   python -c "from werkzeug.security import generate_password_hash; \
              print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))"
@@ -180,14 +188,21 @@ Login-Audit zwar erkennbar, aber erst nach erfolgter Kompromittierung.
 - Die Methode `"Demo"` im Login-Audit-Log entfällt; lokale Logins werden
   nur noch als `"lokal"` protokolliert.
 
-**Verifikation**: Integrationstest „Login mit Config-User + Token → 302"
-und „Login mit altem Demo-Passwort nach Deaktivierung → 400/Fehler"
-erfolgreich.
+**Verifikation**: Integrationstest deckt beide Varianten ab:
+- Login mit `password_hash`-Eintrag + Token → HTTP 302.
+- Login mit `password`-Eintrag (Klartext) + Token → HTTP 302; der
+  nachgeladene `password_hash` beginnt mit `pbkdf2:sha256`.
+- Einträge mit ungültigem Hash (`:` fehlt) oder ohne Passwort werden
+  nicht akzeptiert (kein Login möglich).
 
-**Restrisiko**: Betreiber müssen sicherstellen, dass `config.json`
-ausschließlich für den Service-User lesbar ist (NTFS-ACL bzw. Unix
-0640). Dieser Punkt ist in [docs/06 – Betriebshandbuch](06-betriebshandbuch.md)
-festgehalten.
+**Restrisiko**:
+- Betreiber müssen sicherstellen, dass `config.json` ausschließlich für
+  den Service-User lesbar ist (NTFS-ACL bzw. Unix `0640`). Das gilt
+  insbesondere bei Verwendung der `password`-Klartext-Variante.
+  Festgehalten in [docs/06 – Betriebshandbuch](06-betriebshandbuch.md).
+- Die Klartext-Variante ist bewusst als Komfortfunktion zugelassen
+  (auf Auftraggeberwunsch für Erstinstallationen), aber im Produktivbetrieb
+  ist die Hash-Variante vorzuziehen.
 
 ### 3.4 VULN-004 – Standard-`SECRET_KEY` ✅ BEHOBEN
 

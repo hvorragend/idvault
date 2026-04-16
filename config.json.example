@@ -26,15 +26,23 @@
 
   "IDV_LOCAL_USERS": [
     {
-      "_hinweis": "Beispiel-Eintrag (auskommentieren oder entfernen). Passwort-Hash erzeugen mit: python -c \"from werkzeug.security import generate_password_hash; print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))\"",
+      "_hinweis": "Variante A (empfohlen) – Passwort-Hash. Erzeugen mit: python -c \"from werkzeug.security import generate_password_hash; print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))\"",
       "username": "admin",
       "password_hash": "pbkdf2:sha256:600000$REPLACE$REPLACE",
       "name": "Administrator",
       "role": "IDV-Administrator",
       "person_id": null
+    },
+    {
+      "_hinweis": "Variante B (bequem) – Klartext-Passwort. Wird beim Start automatisch gehasht, das Klartext-Feld wird NICHT für den Login wiederverwendet. Schütze config.json mit Dateisystemrechten (NTFS-ACL bzw. Unix 0640).",
+      "username": "koordinator",
+      "password": "bitte-aendern",
+      "name": "Koordinator",
+      "role": "IDV-Koordinator",
+      "person_id": null
     }
   ],
-  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Wenn LDAP aktiv ist, bleibt diese Liste als Fallback bestehen (z.B. für Break-Glass-Admin). Leere Liste = kein lokaler Login.",
+  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. Wenn LDAP aktiv ist, bleibt diese Liste als Fallback bestehen (z.B. für Break-Glass-Admin). Leere Liste = kein lokaler Login.",
 
   "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",
   "_kommentar_ratelimit": "Flask-Limiter-Syntax. Gilt pro Client-IP am POST /login.",

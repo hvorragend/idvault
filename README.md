@@ -35,17 +35,35 @@ python run.py
 Beim ersten Start wird `config.json` mit einem zufälligen `SECRET_KEY`
 automatisch angelegt. Es gibt **keine Demo-/Default-Benutzer** mehr —
 lokale Benutzer werden ausschließlich in `config.json` unter
-`IDV_LOCAL_USERS` deklariert (oder kommen über LDAP). Beispiel-Eintrag:
+`IDV_LOCAL_USERS` deklariert (oder kommen über LDAP). Zwei Varianten:
 
+```jsonc
+"IDV_LOCAL_USERS": [
+  // Variante A (empfohlen): werkzeug-Hash
+  { "username": "admin",
+    "password_hash": "pbkdf2:sha256:600000$…$…",
+    "role": "IDV-Administrator" },
+
+  // Variante B (bequem, z.B. Erstinstallation):
+  // Klartext-Passwort – wird beim Start automatisch gehasht
+  { "username": "koordinator",
+    "password": "bitte-aendern",
+    "role": "IDV-Koordinator" }
+]
+```
+
+Hash erzeugen mit:
 ```bash
 python -c "from werkzeug.security import generate_password_hash; \
            print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))"
-# → Ausgabe in config.json → IDV_LOCAL_USERS einfügen
 ```
 
 Vollständiges Beispiel: [`config.json.example`](config.json.example).
 Ohne lokalen Benutzer und ohne LDAP ist nach dem Start kein Login
 möglich — bewusst, um Default-Credentials auszuschließen.
+Klartext-Passwörter in `config.json` sind optional zulässig; in diesem
+Fall muss die Datei per NTFS-ACL bzw. Unix-Berechtigung (`0640`) auf
+den Service-User eingeschränkt werden.
 
 Für die Standalone-EXE siehe [docs/11-build-deployment.md](docs/11-build-deployment.md).
 
@@ -113,7 +131,7 @@ Bereits umgesetzte Hardening-Maßnahmen (Details: [docs/09-schwachstellenanalyse
 **Authentifizierung & Session**
 
 - ✅ Modernes Passwort-Hashing (`pbkdf2:sha256`) mit automatischer Migration von Legacy-SHA-256-Hashes
-- ✅ Keine Demo-/Default-Benutzer im Quellcode — lokale Benutzer ausschließlich über `IDV_LOCAL_USERS` in `config.json` (mit werkzeug-Hashes)
+- ✅ Keine Demo-/Default-Benutzer im Quellcode — lokale Benutzer ausschließlich über `IDV_LOCAL_USERS` in `config.json` (werkzeug-Hash empfohlen, Klartext-Passwort optional und wird beim Start automatisch gehasht)
 - ✅ Rate-Limiting am Login (Flask-Limiter, konfigurierbar via `IDV_LOGIN_RATE_LIMIT`, Default 5/min, 30/h)
 - ✅ Logout nur per POST + CSRF-Token
 - ✅ Session-Idle-Timeout 4 h + `HttpOnly` / `SameSite=Lax` / `Secure` (automatisch bei HTTPS)
