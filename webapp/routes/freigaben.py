@@ -69,6 +69,29 @@ def _archiv_upload_folder(idv_db_id: int) -> str:
     return folder
 
 
+def _verfuegbare_scanner_dateien(db, idv_db_id: int) -> list:
+    """Liefert die mit der IDV verknüpften Scanner-Dateien (Haupt- + Zusatz-Links).
+
+    Wird im Archivierungs-Formular angeboten, damit die Originaldatei
+    direkt aus dem gescannten Pfad in das Archiv übernommen werden kann
+    (statt sie manuell hochzuladen).
+    """
+    rows = db.execute("""
+        SELECT f.id, f.full_path, f.file_name, f.size_bytes,
+               f.modified_at, f.file_hash
+          FROM idv_files f
+         WHERE f.id = (SELECT file_id FROM idv_register WHERE id = ?)
+        UNION
+        SELECT f.id, f.full_path, f.file_name, f.size_bytes,
+               f.modified_at, f.file_hash
+          FROM idv_files f
+          JOIN idv_file_links lnk ON lnk.file_id = f.id
+         WHERE lnk.idv_db_id = ?
+        ORDER BY file_name
+    """, (idv_db_id, idv_db_id)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def _save_upload(file):
     """Speichert eine hochgeladene Datei. Gibt (relativer_pfad, originaldateiname) zurück.
 
@@ -449,8 +472,10 @@ def erledigt_seite(freigabe_id):
     # Phase 3: Archivierungs-Schritt → spezialisierte Maske
     if freigabe["schritt"] in _PHASE_3:
         readonly = freigabe["status"] != "Ausstehend"
+        scanner_dateien = _verfuegbare_scanner_dateien(db, idv["id"]) if not readonly else []
         return render_template("freigaben/archiv_form.html",
-                               freigabe=freigabe, idv=idv, readonly=readonly)
+                               freigabe=freigabe, idv=idv, readonly=readonly,
+                               scanner_dateien=scanner_dateien)
 
     # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend, sonst Lesemodus
     readonly = freigabe["status"] != "Ausstehend"
@@ -744,13 +769,14 @@ def loeschen(freigabe_id):
 def archivieren(freigabe_id):
     """Schließt den Archivierungs-Schritt (Phase 3) ab.
 
-    Zwei Abschlusspfade:
-    - ``datei_verfuegbar=1`` (Standard): Originaldatei wird hochgeladen,
-      im Archiv-Ordner schreibgeschützt abgelegt und mit einem SHA-256-Hash
-      versehen (Revisionssicherheit gem. MaRisk AT 7.2 / HGB § 239).
-    - ``datei_verfuegbar=0``: Die Originaldatei ist nicht verfügbar
-      (z.B. Cognos-/agree21Analysen-Berichte, reine Server-Skripte ohne
-      Sicherung). In diesem Fall ist eine Begründung zwingend erforderlich;
+    Drei Abschlusspfade über das Formularfeld ``archiv_quelle``:
+    - ``upload`` (Standard): Originaldatei wird hochgeladen, im Archiv
+      schreibgeschützt abgelegt und mit SHA-256-Hash versehen.
+    - ``scanner``: Eine bereits vom Scanner gefundene Datei (verknüpft
+      über ``idv_register.file_id`` oder ``idv_file_links``) wird vom
+      Quellpfad in das Archiv kopiert; SHA-256 wird neu berechnet.
+    - ``nicht_verfuegbar``: Die Datei selbst ist nicht verfügbar
+      (z.B. Cognos-/agree21Analysen-Berichte). Begründung ist Pflicht;
       der Statusschritt wird trotzdem revisionssicher festgehalten.
     """
     db        = get_db()
@@ -776,19 +802,26 @@ def archivieren(freigabe_id):
         )
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
-    datei_verfuegbar = 1 if request.form.get("datei_verfuegbar", "1") == "1" else 0
+    quelle = (request.form.get("archiv_quelle") or "upload").strip().lower()
+    if quelle not in ("upload", "scanner", "nicht_verfuegbar"):
+        quelle = "upload"
+    # Rückwärtskompatibilität: ältere Formulare schicken nur datei_verfuegbar
+    if "archiv_quelle" not in request.form:
+        quelle = "upload" if request.form.get("datei_verfuegbar", "1") == "1" else "nicht_verfuegbar"
+
     kommentar    = request.form.get("kommentar", "").strip() or None
     begruendung  = request.form.get("archiv_begruendung", "").strip() or None
 
     archiv_pfad = archiv_name = archiv_sha256 = None
-    befunde     = None
+    befunde          = None
+    datei_verfuegbar = 1 if quelle in ("upload", "scanner") else 0
 
-    if datei_verfuegbar:
+    if quelle == "upload":
         upload_file = request.files.get("archiv_datei")
         if not upload_file or not upload_file.filename:
             flash(
                 "Bitte die Originaldatei zum Archivieren hochladen oder "
-                "'Datei nicht verfügbar' auswählen.", "error"
+                "eine andere Quelle auswählen.", "error"
             )
             return redirect(url_for("freigaben.erledigt_seite",
                                     freigabe_id=freigabe_id))
@@ -847,9 +880,6 @@ def archivieren(freigabe_id):
         archiv_pfad   = save_name
         archiv_name   = original_name
 
-        # Revisionssicher: archivierte Datei nur lesbar setzen. Auf Windows
-        # greift 0o444 nur eingeschränkt; dort sichert die ACL des Service-
-        # Users die Unveränderlichkeit. Fehler werden toleriert.
         try:
             os.chmod(dest, 0o444)
         except OSError:
@@ -857,9 +887,113 @@ def archivieren(freigabe_id):
 
         befunde = (
             begruendung
-            or f"Originaldatei archiviert (SHA-256: {archiv_sha256})"
+            or f"Originaldatei (Upload) archiviert (SHA-256: {archiv_sha256})"
         )
-    else:
+
+    elif quelle == "scanner":
+        try:
+            scanner_file_id = int(request.form.get("scanner_file_id") or 0)
+        except (TypeError, ValueError):
+            scanner_file_id = 0
+        if not scanner_file_id:
+            flash("Bitte eine Scanner-Datei zur Übernahme auswählen.", "error")
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+
+        # Sicherstellen, dass die Datei tatsächlich mit dieser IDV verknüpft
+        # ist – sonst dürfte ein Nutzer beliebige Scanner-Funde kopieren.
+        verfuegbar = {f["id"] for f in _verfuegbare_scanner_dateien(db, idv_db_id)}
+        if scanner_file_id not in verfuegbar:
+            flash("Die ausgewählte Datei ist nicht mit dieser IDV verknüpft.", "error")
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+
+        scanner_row = db.execute(
+            "SELECT full_path, file_name FROM idv_files WHERE id=?",
+            (scanner_file_id,),
+        ).fetchone()
+        if not scanner_row or not scanner_row["full_path"]:
+            flash("Scanner-Datei nicht mehr im Register vorhanden.", "error")
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+
+        src_path = scanner_row["full_path"]
+        if not os.path.isfile(src_path):
+            flash(
+                "Die gescannte Datei ist am hinterlegten Pfad nicht mehr "
+                f"erreichbar:\n{src_path}", "error",
+            )
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+
+        try:
+            src_size = os.path.getsize(src_path)
+        except OSError as exc:
+            current_app.logger.warning(
+                "Scanner-Archivierung: Größe nicht lesbar (%s): %s", src_path, exc
+            )
+            flash("Scanner-Datei kann nicht gelesen werden.", "error")
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+        if src_size > _MAX_ARCHIV_UPLOAD:
+            flash(
+                "Scanner-Datei ist größer als "
+                f"{_MAX_ARCHIV_UPLOAD // (1024 * 1024)} MB und kann nicht "
+                "archiviert werden.", "error",
+            )
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+
+        original_name = scanner_row["file_name"] or os.path.basename(src_path) \
+                        or "original.bin"
+        safe_name = secure_filename(original_name) or "original.bin"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_")
+        save_name = timestamp + safe_name
+        folder = _archiv_upload_folder(idv_db_id)
+        dest = os.path.join(folder, save_name)
+
+        h = hashlib.sha256()
+        try:
+            with open(src_path, "rb") as src, open(dest, "wb") as out:
+                while True:
+                    chunk = src.read(65536)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+                    h.update(chunk)
+        except OSError as exc:
+            current_app.logger.warning(
+                "Scanner-Archivierung fehlgeschlagen (IDV %s, file_id %s): %s",
+                idv_db_id, scanner_file_id, exc,
+            )
+            try:
+                if os.path.exists(dest):
+                    os.remove(dest)
+            except OSError:
+                pass
+            flash(
+                "Übernahme der Scanner-Datei fehlgeschlagen (Lese-/Schreib"
+                "fehler – Netzlaufwerk verfügbar?).", "error",
+            )
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+
+        archiv_sha256 = h.hexdigest()
+        archiv_pfad   = save_name
+        archiv_name   = original_name
+
+        try:
+            os.chmod(dest, 0o444)
+        except OSError:
+            pass
+
+        befunde = (
+            begruendung
+            or f"Originaldatei aus Scanner-Pfad übernommen ({src_path}); "
+               f"SHA-256: {archiv_sha256}"
+        )
+
+    else:  # quelle == "nicht_verfuegbar"
         if not begruendung:
             flash(
                 "Wenn die Originaldatei nicht verfügbar ist, ist eine "
@@ -883,9 +1017,13 @@ def archivieren(freigabe_id):
 
     if datei_verfuegbar:
         aktion = "originaldatei_archiviert"
+        quelle_text = (
+            "vom Scanner-Pfad übernommen" if quelle == "scanner"
+            else "manuell hochgeladen"
+        )
         hist_kom = (
             f"Originaldatei '{archiv_name}' revisionssicher archiviert "
-            f"(SHA-256: {archiv_sha256})"
+            f"({quelle_text}; SHA-256: {archiv_sha256})"
         )
     else:
         aktion = "originaldatei_nicht_verfuegbar"

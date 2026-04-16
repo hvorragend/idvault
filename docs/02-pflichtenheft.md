@@ -112,8 +112,9 @@ Anforderungen sind durchnummeriert und referenzierbar. Prioritäten:
 | FA-043 | Nachweise (PDF, XLSX, DOCX etc.) müssen pro Schritt als Datei-Upload hinterlegbar sein. | M |
 | FA-044 | Die Freigabe muss als 4-Augen-Genehmigung mit zwei unterscheidbaren Genehmigern erfolgen. | M |
 | FA-045 | Bei GDA = 4 oder DORA-kritisch/wichtig ist zusätzlich eine zweite Genehmigungsstufe (IT-Sicherheit/Revision) erforderlich. | M |
-| FA-046 | Für wesentliche Eigenentwicklungen muss die Originaldatei revisionssicher archiviert werden (Upload + SHA-256-Prüfsumme, schreibgeschützte Ablage). | M |
+| FA-046 | Für wesentliche Eigenentwicklungen muss die Originaldatei revisionssicher archiviert werden (Upload + SHA-256-Prüfsumme, schreibgeschützte Ablage unter `instance/uploads/archiv/<idv_db_id>/`). | M |
 | FA-047 | Wenn die Originaldatei nicht verfügbar ist (z.B. Cognos-Bericht in agree21Analysen, serverseitiges Skript ohne Sicherung), muss dies als eigener Statusschritt mit Pflicht-Begründung festgehalten werden. | M |
+| FA-048 | Bereits vom Scanner gefundene Dateien müssen direkt aus dem Quellpfad als Originalversion in das Archiv übernommen werden können (ohne erneuten manuellen Download/Upload). | M |
 
 ### 3.6 Scanner-Integration
 
