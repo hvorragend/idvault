@@ -169,14 +169,26 @@ def send_mail(db, to: str | list[str], subject: str,
         return False
 
 
-def send_smtp_test(db, to_email: str) -> tuple[bool, str]:
+def send_smtp_test(db, to_email: str, *,
+                   host: str = None, port: int = None,
+                   user: str = None, password: str = None,
+                   smtp_from: str = None, tls: bool = None) -> tuple[bool, str]:
     """Sendet eine Test-E-Mail und gibt (Erfolg, Meldung) zurück.
 
-    Kann auch ohne konfigurierte Vorlagen aufgerufen werden.
-    Gibt bei fehlender Konfiguration sofort einen Fehler zurück,
-    ohne einen SMTP-Verbindungsversuch zu starten.
+    Optionale Keyword-Argumente überschreiben die gespeicherten DB/Env-Werte,
+    sodass der Test immer mit den aktuell im Formular eingetragenen Werten
+    arbeitet – auch bevor diese gespeichert wurden.
+    Ist ``password`` None (kein neues Passwort eingegeben), wird das
+    gespeicherte Passwort aus der DB verwendet.
     """
     cfg = _get_smtp_config(db)
+    if host       is not None: cfg["host"]     = host
+    if port       is not None: cfg["port"]     = port
+    if user       is not None: cfg["user"]     = user
+    if password   is not None: cfg["password"] = password
+    if smtp_from  is not None: cfg["from"]     = smtp_from
+    if tls        is not None: cfg["tls"]      = tls
+
     if not cfg["host"]:
         return False, "SMTP-Host ist nicht konfiguriert."
     if not cfg["from"]:

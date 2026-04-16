@@ -162,8 +162,9 @@
       <div class="card-header bg-white fw-600"><i class="bi bi-send-check me-2"></i>SMTP-Verbindungstest</div>
       <div class="card-body">
         <p class="text-muted mb-3" style="font-size:.85rem">
-          Sendet eine Test-E-Mail mit den aktuell <strong>gespeicherten</strong> Einstellungen.
-          Änderungen müssen zuerst gespeichert werden, bevor sie hier wirksam sind.
+          Sendet eine Test-E-Mail mit den aktuell <strong>im Formular eingetragenen</strong>
+          Einstellungen (auch ohne vorheriges Speichern). Ein leeres Passwort-Feld nutzt das
+          gespeicherte Passwort aus der Datenbank.
         </p>
         <div class="d-flex gap-2 align-items-end flex-wrap">
           <div>
@@ -261,9 +262,19 @@ document.getElementById('smtp-test-btn').addEventListener('click', function () {
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sende…';
   result.style.display = 'none';
 
+  // Aktuelle Formularwerte mitsenden – Test funktioniert auch ohne vorheriges Speichern
+  var smtpForm = document.querySelector('form[action="{{ url_for("admin.mail") }}"]');
   var form = new FormData();
   form.append('csrf_token', '{{ csrf_token() }}');
   form.append('to_email', email);
+  if (smtpForm) {
+    ['smtp_host','smtp_port','smtp_user','smtp_password','smtp_from'].forEach(function(n) {
+      var el = smtpForm.querySelector('[name="' + n + '"]');
+      if (el) form.append(n, el.value);
+    });
+    var tlsEl = smtpForm.querySelector('[name="smtp_tls"]');
+    form.append('smtp_tls', tlsEl && tlsEl.checked ? '1' : '0');
+  }
 
   fetch('{{ url_for("admin.mail_test") }}', {method: 'POST', body: form})
     .then(function (r) { return r.json(); })
