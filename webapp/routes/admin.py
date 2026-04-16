@@ -181,23 +181,90 @@ def _load_scanner_runas() -> dict:
                 "password_enc": "", "decrypt_error": ""}
 
 
+def _enable_privilege(privilege_name: str) -> bool:
+    """Aktiviert ein Windows-Privileg im eigenen Prozess-Token.
+
+    CreateProcessAsUser benötigt SE_INCREASE_QUOTA_NAME und
+    SE_ASSIGNPRIMARYTOKEN_NAME. Unter LOCAL SYSTEM sind beide vorhanden,
+    aber nicht immer im Default aktiviert. AdjustTokenPrivileges schaltet
+    sie frei. Liefert False zurück, wenn das Privileg nicht verfügbar
+    ist (z. B. weil der Dienst als LOCAL SERVICE läuft).
+    """
+    import win32security
+    import win32api
+    import ntsecuritycon
+    try:
+        h_token = win32security.OpenProcessToken(
+            win32api.GetCurrentProcess(),
+            win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
+        )
+        luid = win32security.LookupPrivilegeValue(None, privilege_name)
+        win32security.AdjustTokenPrivileges(
+            h_token, False,
+            [(luid, ntsecuritycon.SE_PRIVILEGE_ENABLED)],
+        )
+        # AdjustTokenPrivileges signalisiert Teilerfolg via GetLastError.
+        # Zur Sicherheit prüfen, ob das Privileg jetzt tatsächlich aktiv ist.
+        privs = win32security.GetTokenInformation(
+            h_token, win32security.TokenPrivileges
+        )
+        for (p_luid, attrs) in privs:
+            if p_luid == luid:
+                return bool(attrs & ntsecuritycon.SE_PRIVILEGE_ENABLED)
+        return False
+    except Exception:
+        return False
+
+
 def _start_proc_with_logon(
     cmd: list, cwd: str, log_path: str, creationflags: int,
     domain: str, username: str, password: str,
 ):
-    """Startet einen Prozess als AD-Benutzer via CreateProcessWithLogonW (Windows only).
+    """Startet den Scanner-Subprocess als AD-Benutzer (Windows only).
 
-    Gibt (pid, wait_fn) zurück. wait_fn() blockiert bis der Prozess beendet ist.
-    Setzt pywin32 voraus.
+    Verwendet ``LogonUser`` + ``CreateProcessAsUser``, nicht
+    ``CreateProcessWithLogonW``. Gründe:
+
+    - ``CreateProcessWithLogonW`` funktioniert laut MSDN nur in
+      interaktiven Sessions. Aus einem Dienst (Session 0) heraus
+      scheitert es mit ``ERROR_NOT_SUPPORTED`` bzw. ist in manchen
+      pywin32-Builds gar nicht exponiert (AttributeError).
+    - ``CreateProcessAsUser`` ist der kanonische Weg für Dienste und
+      in jedem pywin32-Release vorhanden. Voraussetzung sind die
+      Privilegien ``SeIncreaseQuotaPrivilege`` und
+      ``SeAssignPrimaryTokenPrivilege``, die LOCAL SYSTEM standardmäßig
+      besitzt (nur nicht immer aktiviert – wir aktivieren sie unten).
+
+    Gibt (pid, wait_fn) zurück. wait_fn() blockiert bis der Prozess
+    beendet ist und räumt die Win32-Handles auf.
     """
     import win32process, win32security, win32con, win32file, win32api, win32event  # noqa: F401
 
+    # Benötigte Privilegien im Service-Token aktivieren (best effort –
+    # unter LOCAL SYSTEM immer erfolgreich, unter LOCAL SERVICE / andere
+    # unprivilegierte Konten schlägt das fehl und CreateProcessAsUser
+    # wirft anschließend eine aussagekräftige WinError 1314).
+    _enable_privilege("SeIncreaseQuotaPrivilege")
+    _enable_privilege("SeAssignPrimaryTokenPrivilege")
+
+    # ── LogonUser: Primary-Token für den Ziel-Benutzer besorgen ────────
+    # LOGON32_LOGON_BATCH ist für Dienst-Subprocesse der richtige Typ:
+    # nicht-interaktiv, kein geladenes Profil, kein Desktop. Der
+    # Ziel-Benutzer braucht auf dem idvault-Server das Recht
+    # "Anmelden als Stapelverarbeitung" (SeBatchLogonRight).
+    token = win32security.LogonUser(
+        username,
+        domain,
+        password,
+        win32security.LOGON32_LOGON_BATCH,
+        win32security.LOGON32_PROVIDER_DEFAULT,
+    )
+
     # Inheritable HANDLE für die Log-Datei (stdout + stderr).
-    # OPEN_ALWAYS statt CREATE_ALWAYS: Datei wird nicht trunkiert –
-    # die von _write_scanner_notice() vorab geschriebenen
-    # [IDVAULT-START]-Zeilen bleiben erhalten. Anschließend an das
-    # Dateiende positionieren, damit der Scanner-Output sauber
-    # angehängt wird (sonst würde er ab Offset 0 schreiben).
+    # OPEN_ALWAYS (nicht CREATE_ALWAYS), damit die von
+    # _write_scanner_notice() vorab geschriebenen [IDVAULT-START]-Zeilen
+    # erhalten bleiben. Anschließend an das Dateiende positionieren,
+    # damit der Scanner-Output sauber angehängt wird.
     sa = win32security.SECURITY_ATTRIBUTES()
     sa.bInheritHandle = True
     log_handle = win32file.CreateFile(
@@ -234,25 +301,28 @@ def _start_proc_with_logon(
 
     # Environment explizit setzen, damit PYTHONIOENCODING/PYTHONUTF8
     # im Scanner-Subprocess wirksam werden (UTF-8-Output statt CP1252).
-    # pywin32 konvertiert das dict selbst in den Unicode-Environment-Block.
     env_dict = _scanner_subprocess_env()
 
-    proc_handle, _thread_handle, pid, _tid = win32process.CreateProcessWithLogonW(
-        username,
-        domain,
-        password,
-        win32process.LOGON_WITH_PROFILE,
-        None,         # lpApplicationName (None → aus cmd_str ableiten)
-        cmd_str,
-        creationflags,
-        env_dict,
-        cwd,
-        si,
-    )
-
-    # Parent-seitige Handles schließen (Kind hat sie geerbt)
-    nul_handle.Close()
-    log_handle.Close()
+    try:
+        proc_handle, _thread_handle, pid, _tid = win32process.CreateProcessAsUser(
+            token,
+            None,          # lpApplicationName (None → aus cmd_str ableiten)
+            cmd_str,
+            None,          # Prozess-Security-Attributes
+            None,          # Thread-Security-Attributes
+            True,          # bInheritHandles (Log-/NUL-Handle erben)
+            creationflags,
+            env_dict,
+            cwd,
+            si,
+        )
+    finally:
+        # Log- und NUL-Handle wurden vom Kind geerbt; unsere Referenzen
+        # schließen wir nach dem Start. Token kann ebenfalls freigegeben
+        # werden – der Subprocess hat eine eigene Kopie bekommen.
+        nul_handle.Close()
+        log_handle.Close()
+        token.Close()
 
     def _wait():
         win32event.WaitForSingleObject(proc_handle, win32event.INFINITE)
@@ -428,13 +498,17 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
                 return pid, wait_fn
             except Exception as exc:
                 msg = (
-                    f"CreateProcessWithLogonW fehlgeschlagen "
+                    f"LogonUser/CreateProcessAsUser fehlgeschlagen "
                     f"({type(exc).__name__}: {exc}) – Fallback auf aktuellen "
                     f"Benutzerkontext. Mögliche Ursachen: Passwort falsch/"
-                    f"abgelaufen, Benutzer ohne 'Anmelden als Stapelverarbeitung' "
-                    f"oder 'Lokal anmelden' auf dem idvault-Server, idvault-Dienst "
-                    f"läuft als LOCAL SERVICE (ohne Rechte zum Starten anderer "
-                    f"Konten – dann bitte als LOCAL SYSTEM oder Scan-User betreiben)."
+                    f"abgelaufen; Scan-User ohne 'Anmelden als "
+                    f"Stapelverarbeitung' (SeBatchLogonRight) auf dem "
+                    f"idvault-Server (secpol.msc → Lokale Richtlinien → "
+                    f"Zuweisen von Benutzerrechten); idvault-Dienst läuft als "
+                    f"LOCAL SERVICE statt LOCAL SYSTEM (ohne die Privilegien "
+                    f"SeAssignPrimaryTokenPrivilege/SeIncreaseQuotaPrivilege – "
+                    f"dann bitte auf LOCAL SYSTEM oder direkt den Scan-User "
+                    f"umstellen)."
                 )
                 current_app.logger.error(msg)
                 _write_scanner_notice(log_path, [msg])

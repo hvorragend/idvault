@@ -336,26 +336,37 @@ Prüfpunkte in dieser Reihenfolge:
    Endet der Name auf `$` (z. B. `DOMAIN\HOST$`), handelt es sich um das
    **Computer-Account** des Servers – der Dienst läuft als `LOCAL SYSTEM`
    (oder `NETWORK SERVICE`) und die hinterlegte `Run-As`-Konfiguration
-   wurde **stumm übergangen**. Mögliche Ursachen:
-   - **pywin32 im EXE-Build unvollständig:** Für `CreateProcessWithLogonW`
-     müssen `pywintypes`, `win32api`, `win32con`, `win32event`, `win32file`,
-     `win32process`, `win32security` als Hidden-Imports eingebettet sein.
-     Im Admin-Bereich (Scanner-Einstellungen → Run-As → „Anmeldung testen")
-     wird ein entsprechender Warnbanner angezeigt, sobald Module fehlen.
-     **Abhilfe:**
-     a) EXE mit der aktuellen `idvault.spec` neu bauen und ausrollen; oder
-     b) den idvault-Windows-Dienst *direkt* als Scan-User betreiben
-        (`services.msc` → Eigenschaften → Tab „Anmelden" → „Dieses Konto"
-        → `DOMAIN\scanuser` + Passwort eintragen → Dienst neu starten).
-        Der Scanner erbt dann den Kontext automatisch;
-        `CreateProcessWithLogonW` wird nicht mehr benötigt.
-   - **Passwort falsch/abgelaufen:** Der Fallback-Eintrag im Scan-Log
-     (stdout/stderr-Mitschnitt) nennt in diesem Fall
-     `CreateProcessWithLogonW fehlgeschlagen (… LogonUser …)`.
-   - **Scan-User darf sich nicht anmelden:** Auf dem idvault-Server muss
-     der Scan-User mindestens das Recht „Anmelden als Stapelverarbeitung"
-     (oder „Lokal anmelden") besitzen; sonst verweigert Windows den
-     Token-Aufbau.
+   wurde nicht angewandt. Im *stdout/stderr-Mitschnitt* findest du in
+   dem Fall eine `[IDVAULT-START]`-Zeile mit dem exakten Grund.
+2. **`[IDVAULT-START]`-Zeilen auswerten:**
+   - `Run-As-Passwort … konnte nicht entschlüsselt werden` – der
+     `SECRET_KEY` hat sich seit dem Speichern der Konfiguration geändert.
+     Passwort in Administration → Scanner-Einstellungen → Run-As erneut
+     eintragen und speichern.
+   - `Run-As-Benutzer … gespeichert, aber kein Passwort hinterlegt` –
+     Password-Feld war beim letzten Speichern leer; erneut eintragen.
+   - `pywin32-Module fehlen im EXE-Build: …` – der Build enthält nicht
+     alle benötigten Hidden-Imports. EXE mit der aktuellen `idvault.spec`
+     (`pywintypes`, `win32api`, `win32con`, `win32event`, `win32file`,
+     `win32process`, `win32security`, `ntsecuritycon`) neu bauen. Oder
+     den Dienst direkt als Scan-User betreiben – siehe 7.6.
+   - `LogonUser/CreateProcessAsUser fehlgeschlagen` – pywin32 ist
+     vollständig, aber der eigentliche Logon schlug fehl. Detail-
+     Ursachen im Klammertext (siehe Unterpunkte):
+     - `LogonUser failed: … 0x52E` / WinError 1326: Passwort falsch oder
+       abgelaufen.
+     - `LogonUser failed: … 0x569` / WinError 1385 („Der Benutzer hat
+       nicht die Berechtigung, sich in dieser Art anzumelden"): Der
+       Scan-User benötigt auf dem idvault-Server das User-Right
+       **„Anmelden als Stapelverarbeitung" (SeBatchLogonRight)**.
+       Einstellen über `secpol.msc` → Lokale Richtlinien → Zuweisen von
+       Benutzerrechten → „Anmelden als Stapelverarbeitung" → Scan-User
+       hinzufügen.
+     - `CreateProcessAsUser: … 0x522` / WinError 1314 („Ein erforderliches
+       Recht steht dem Client nicht zur Verfügung"): Der idvault-Dienst
+       läuft unter einem Konto ohne `SeAssignPrimaryTokenPrivilege` /
+       `SeIncreaseQuotaPrivilege` (typisch: LOCAL SERVICE). Dienst auf
+       LOCAL SYSTEM umstellen oder direkt als Scan-User anmelden.
 2. **WinError 5 (Zugriff verweigert)** – Der Scan-User darf das Share nicht
    lesen. NTFS- und Freigabe-Berechtigungen prüfen, ggf. Gruppenmitgliedschaft
    durch `gpupdate /force` + neuerliches Anmelden aktualisieren.
