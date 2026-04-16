@@ -103,6 +103,27 @@ def _get_smtp_config(db) -> dict:
     }
 
 
+def _smtp_log(db, recipients: list, subject: str, success: bool,
+              error_msg: str = "") -> None:
+    """Schreibt einen Eintrag in smtp_log und begrenzt die Tabelle auf 200 Zeilen."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    try:
+        db.execute(
+            "INSERT INTO smtp_log (sent_at, recipients, subject, success, error_msg) "
+            "VALUES (?,?,?,?,?)",
+            (now, ", ".join(recipients), subject, 1 if success else 0, error_msg or ""),
+        )
+        # Älteste Einträge löschen, damit die Tabelle überschaubar bleibt
+        db.execute(
+            "DELETE FROM smtp_log WHERE id NOT IN "
+            "(SELECT id FROM smtp_log ORDER BY id DESC LIMIT 200)"
+        )
+        db.commit()
+    except Exception as exc:
+        log.warning("smtp_log konnte nicht geschrieben werden: %s", exc)
+
+
 def send_mail(db, to: str | list[str], subject: str,
               body_html: str, body_text: str = "") -> bool:
     """Sendet eine E-Mail. Gibt True bei Erfolg zurück."""
@@ -139,10 +160,68 @@ def send_mail(db, to: str | list[str], subject: str,
         smtp.sendmail(cfg["from"], recipients, msg.as_string())
         smtp.quit()
         log.info("E-Mail gesendet an %s: %s", recipients, subject)
+        _smtp_log(db, recipients, subject, True)
         return True
     except Exception as exc:
-        log.error("E-Mail-Fehler: %s", exc)
+        err = str(exc)
+        log.error("E-Mail-Fehler: %s", err)
+        _smtp_log(db, recipients, subject, False, err)
         return False
+
+
+def send_smtp_test(db, to_email: str) -> tuple[bool, str]:
+    """Sendet eine Test-E-Mail und gibt (Erfolg, Meldung) zurück.
+
+    Kann auch ohne konfigurierte Vorlagen aufgerufen werden.
+    Gibt bei fehlender Konfiguration sofort einen Fehler zurück,
+    ohne einen SMTP-Verbindungsversuch zu starten.
+    """
+    cfg = _get_smtp_config(db)
+    if not cfg["host"]:
+        return False, "SMTP-Host ist nicht konfiguriert."
+    if not cfg["from"]:
+        return False, "Absenderadresse (smtp_from) ist nicht konfiguriert."
+    if not to_email or "@" not in to_email:
+        return False, "Ungültige Empfänger-Adresse."
+
+    subject = "[idvault] SMTP-Verbindungstest"
+    body_html = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#198754;">idvault – SMTP-Test erfolgreich</h2>
+<p>Diese E-Mail wurde automatisch als Verbindungstest gesendet.</p>
+<p>Die SMTP-Konfiguration funktioniert korrekt.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+    recipients = [to_email]
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = formataddr(("idvault", cfg["from"]))
+    msg["To"]      = to_email
+    msg.attach(MIMEText("idvault – SMTP-Test erfolgreich.\n\nDiese E-Mail wurde automatisch als Verbindungstest gesendet.", "plain", "utf-8"))
+    msg.attach(MIMEText(body_html, "html", "utf-8"))
+
+    try:
+        if cfg["tls"]:
+            smtp = smtplib.SMTP(cfg["host"], cfg["port"], timeout=10)
+            smtp.starttls()
+        else:
+            smtp = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=10)
+
+        if cfg["user"] and cfg["password"]:
+            smtp.login(cfg["user"], cfg["password"])
+
+        smtp.sendmail(cfg["from"], recipients, msg.as_string())
+        smtp.quit()
+        log.info("SMTP-Test-E-Mail gesendet an %s", to_email)
+        _smtp_log(db, recipients, subject, True)
+        return True, f"Test-E-Mail erfolgreich gesendet an {to_email}."
+    except Exception as exc:
+        err = str(exc)
+        log.error("SMTP-Test-Fehler: %s", err)
+        _smtp_log(db, recipients, subject, False, err)
+        return False, f"Fehler: {err}"
 
 
 # ---------------------------------------------------------------------------

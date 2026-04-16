@@ -1481,11 +1481,27 @@ def mail():
         return redirect(url_for("admin.mail") + "#email-vorlagen")
 
     settings = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM app_settings").fetchall()}
+    smtp_log  = db.execute(
+        "SELECT sent_at, recipients, subject, success, error_msg "
+        "FROM smtp_log ORDER BY id DESC LIMIT 50"
+    ).fetchall()
     from ..email_service import EMAIL_TEMPLATES as _email_tpls, _DEFAULTS as _email_defaults
     return render_template("admin/mail.html",
         settings=settings,
         email_templates=_email_tpls,
-        email_defaults=_email_defaults)
+        email_defaults=_email_defaults,
+        smtp_log=smtp_log)
+
+
+@bp.route("/mail/test", methods=["POST"])
+@admin_required
+def mail_test():
+    """AJAX-Endpunkt: Sendet eine Test-E-Mail und gibt JSON zurück."""
+    from ..email_service import send_smtp_test
+    db       = get_db()
+    to_email = request.form.get("to_email", "").strip()
+    ok, msg  = send_smtp_test(db, to_email)
+    return jsonify({"success": ok, "message": msg})
 
 
 # ── Personen ───────────────────────────────────────────────────────────────

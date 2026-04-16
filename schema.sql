@@ -185,6 +185,16 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('notify_enabled_massnahme_ueberfaellig', '1'),
     ('auto_ignore_no_formula', '0');
 
+-- SMTP-Versandlog (letzte Sendevorgänge, max. 200 Einträge)
+CREATE TABLE IF NOT EXISTS smtp_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    sent_at    TEXT    NOT NULL,
+    recipients TEXT    NOT NULL,
+    subject    TEXT    NOT NULL,
+    success    INTEGER NOT NULL DEFAULT 0,
+    error_msg  TEXT
+);
+
 -- Konfigurierbare Klassifizierungskriterien
 CREATE TABLE IF NOT EXISTS klassifizierungen (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
