@@ -97,7 +97,7 @@
           </tbody>
         </table>
 
-        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addTeamRow()">
+        <button type="button" class="btn btn-sm btn-outline-primary" data-action="addTeamRow">
           <i class="bi bi-plus-circle me-1"></i>Zeile hinzufügen
         </button>
       </div>
@@ -246,29 +246,31 @@
       const type  = t.team_id  !== undefined ? "team_id"  : "site_url";
       const value = t.team_id  !== undefined ? t.team_id  : (t.site_url || "");
       const name  = t.display_name || "";
+      // VULN-M: keine inline onclick/onchange/oninput mehr – Event-Delegation
+      // nimmt den Index aus dem Zeilen-data-Attribut ``data-idx``.
       tbody.insertAdjacentHTML("beforeend", `
         <tr data-idx="${i}">
           <td>
-            <select class="form-select form-select-sm" onchange="updateType(${i}, this.value)">
+            <select class="form-select form-select-sm" data-row-field="type">
               <option value="team_id"  ${type === "team_id"  ? "selected" : ""}>Team-ID</option>
               <option value="site_url" ${type === "site_url" ? "selected" : ""}>Site-URL</option>
             </select>
           </td>
           <td>
             <input type="text" class="form-control form-control-sm font-monospace"
+                   data-row-field="value"
                    value="${escHtml(value)}"
-                   placeholder="${type === "team_id" ? "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" : "https://contoso.sharepoint.com/sites/..."}"
-                   oninput="updateValue(${i}, this.value)">
+                   placeholder="${type === "team_id" ? "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" : "https://contoso.sharepoint.com/sites/..."}">
           </td>
           <td>
             <input type="text" class="form-control form-control-sm"
+                   data-row-field="name"
                    value="${escHtml(name)}"
-                   placeholder="Bezeichnung"
-                   oninput="updateName(${i}, this.value)">
+                   placeholder="Bezeichnung">
           </td>
           <td class="text-end">
             <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"
-                    onclick="removeRow(${i})" title="Entfernen">
+                    data-row-action="remove" title="Entfernen">
               <i class="bi bi-trash3"></i>
             </button>
           </td>
@@ -309,6 +311,30 @@
   window.updateName = function (i, val) {
     teams[i].display_name = val;
   };
+
+  // VULN-M: Event-Delegation für die dynamisch erzeugten Zeilen.
+  // Liest Index aus <tr data-idx="…"> und leitet an die bestehenden
+  // updateType/updateValue/updateName/removeRow-Funktionen weiter.
+  const tbody = document.getElementById("teams-tbody");
+  function rowIndex(el) {
+    const tr = el.closest("tr[data-idx]");
+    return tr ? parseInt(tr.dataset.idx, 10) : -1;
+  }
+  tbody.addEventListener("change", function (ev) {
+    const el = ev.target;
+    if (el.dataset.rowField === "type") window.updateType(rowIndex(el), el.value);
+  });
+  tbody.addEventListener("input", function (ev) {
+    const el = ev.target;
+    const i = rowIndex(el);
+    if (i < 0) return;
+    if (el.dataset.rowField === "value") window.updateValue(i, el.value);
+    if (el.dataset.rowField === "name")  window.updateName(i, el.value);
+  });
+  tbody.addEventListener("click", function (ev) {
+    const btn = ev.target.closest("[data-row-action='remove']");
+    if (btn) window.removeRow(rowIndex(btn));
+  });
 
   // JSON in hidden field schreiben bevor Formular abgesendet wird
   document.getElementById("teams-form").addEventListener("submit", function () {

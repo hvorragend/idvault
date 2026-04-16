@@ -313,7 +313,7 @@
 </head>
 
 <body>
-  <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+  <div id="sidebar-overlay" data-action="toggleSidebar"></div>
 
   <!-- ═══ Sidebar ════════════════════════════════════════════════════════ -->
   {% set _role = session.get('user_role', '') %}
@@ -420,14 +420,14 @@
     <!-- Topbar -->
     <div id="topbar">
       <div class="d-flex align-items-center gap-2">
-        <button id="hamburger" onclick="toggleSidebar()" title="Menü">
+        <button id="hamburger" data-action="toggleSidebar" title="Menü">
           <i class="bi bi-list"></i>
         </button>
         <span class="page-title">{% block page_title %}{% endblock %}</span>
       </div>
       <div class="d-flex align-items-center gap-3">
         {% if session.user_id %}
-        <button id="quick-search-btn" onclick="openSearch()"
+        <button id="quick-search-btn" data-action="openSearch"
                 title="Schnellsuche (Strg+K)"
                 style="background:none;border:1px solid var(--idv-border);border-radius:6px;
                        padding:.3rem .7rem;cursor:pointer;color:#6b7280;font-size:.8rem;
@@ -492,10 +492,83 @@
       };
     })();
 
+    // VULN-M: Globale Event-Delegation für data-confirm / data-action.
+    // Ermöglicht CSP ohne `script-src-attr 'unsafe-inline'` – keine
+    // inline onclick/onsubmit-Handler mehr nötig.
+    //   <form data-confirm="Wirklich löschen?">               → confirm() vor submit
+    //   <button data-confirm="…" data-confirm-form="selector"> → confirm() vor submit eines Formulars
+    //   <button data-action="toggleSidebar">                   → ruft window.toggleSidebar()
+    //   <select data-action-change="foo">                      → ruft window.foo() bei change
+    (function () {
+      document.addEventListener('submit', function (ev) {
+        var form = ev.target.closest('form[data-confirm]');
+        if (form && !window.confirm(form.getAttribute('data-confirm'))) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+        // data-form-validate: ruft eine globale Validierungsfunktion auf,
+        // die bei Rückgabewert false den Submit abbricht.
+        var fv = ev.target.closest('form[data-form-validate]');
+        if (fv) {
+          var vFn = window[fv.getAttribute('data-form-validate')];
+          if (typeof vFn === 'function' && vFn.call(fv, ev) === false) {
+            ev.preventDefault();
+            ev.stopPropagation();
+          }
+        }
+      }, true);
+      document.addEventListener('click', function (ev) {
+        var el = ev.target.closest('[data-confirm]');
+        if (el && el.tagName === 'BUTTON' && el.form) {
+          if (!window.confirm(el.getAttribute('data-confirm'))) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }
+        }
+        // data-submit-validate: ruft eine Funktion auf, die bei false den
+        // Submit abbricht. Äquivalent zum alten ``onclick="return fn()"``.
+        var validator = ev.target.closest('[data-submit-validate]');
+        if (validator) {
+          var vFn = window[validator.getAttribute('data-submit-validate')];
+          if (typeof vFn === 'function' && vFn.call(validator, ev) === false) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }
+        }
+        var action = ev.target.closest('[data-action]');
+        if (action) {
+          var fnName = action.getAttribute('data-action');
+          var fn = window[fnName];
+          if (typeof fn === 'function') {
+            ev.preventDefault();
+            fn.call(action, ev);
+          }
+        }
+      });
+      document.addEventListener('change', function (ev) {
+        var el = ev.target.closest('[data-action-change]');
+        if (!el) return;
+        var fn = window[el.getAttribute('data-action-change')];
+        if (typeof fn === 'function') fn.call(el, ev);
+      });
+      document.addEventListener('input', function (ev) {
+        var el = ev.target.closest('[data-action-input]');
+        if (!el) return;
+        var fn = window[el.getAttribute('data-action-input')];
+        if (typeof fn === 'function') fn.call(el, ev);
+      });
+    })();
+
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('open');
       document.getElementById('sidebar-overlay').classList.toggle('visible');
     }
+    // Helper: wird von <select data-action-change="submitOwnForm"> benutzt.
+    function submitOwnForm() { if (this.form) this.form.submit(); }
+    window.submitOwnForm = submitOwnForm;
     // Close sidebar when navigating (mobile)
     document.querySelectorAll('#sidebar .nav-link').forEach(function (el) {
       el.addEventListener('click', function () {
@@ -507,7 +580,7 @@
 
   {% if session.user_id %}
   <!-- ═══ Globale Schnellsuche ════════════════════════════════════════════ -->
-  <div id="qs-backdrop" onclick="closeSearch()"
+  <div id="qs-backdrop" data-action="closeSearch"
        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1050;"></div>
   <div id="qs-modal"
        style="display:none;position:fixed;top:12vh;left:50%;transform:translateX(-50%);
@@ -518,7 +591,7 @@
       <input id="qs-input" type="text" autocomplete="off" spellcheck="false"
              placeholder="IDV-ID, Bezeichnung, Beschreibung …"
              style="flex:1;border:none;outline:none;font-size:1rem;background:transparent;">
-      <kbd onclick="closeSearch()"
+      <kbd data-action="closeSearch"
            style="cursor:pointer;font-size:.72rem;background:#f1f5f9;border:1px solid #cbd5e1;
                   border-radius:3px;padding:.1rem .35rem;color:#64748b;">Esc</kbd>
     </div>

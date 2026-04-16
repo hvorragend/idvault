@@ -421,8 +421,7 @@
               '' }}</span>
           </div>
           {% if can_create %}
-          <form method="post" action="{{ url_for('idv.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}"
-            onsubmit="return confirm('Verknüpfung mit {{ ef.file_name }} aufheben?')">
+          <form method="post" action="{{ url_for('idv.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}" data-confirm="Verknüpfung mit {{ ef.file_name }} aufheben?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-xs btn-outline-danger" title="Verknüpfung aufheben">
               <i class="bi bi-x-lg"></i>
@@ -747,8 +746,7 @@
                   {% endif %}
 
                   {% if f and is_admin %}
-                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
-                        onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
+                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}" data-confirm="{{ schritt_name }} löschen?" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
                       <i class="bi bi-trash"></i>
@@ -827,8 +825,7 @@
                   {% endif %}
 
                   {% if f and is_admin %}
-                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
-                        onsubmit="return confirm('{{ schritt_name }} löschen?')" class="d-inline">
+                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}" data-confirm="{{ schritt_name }} löschen?" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
                       <i class="bi bi-trash"></i>

@@ -238,8 +238,7 @@
           werden <strong>nicht</strong> gelöscht — auch wenn sie älter als N Tage sind.
         </div>
 
-        <form method="post" action="{{ url_for('admin.scanner_bereinigen') }}"
-              onsubmit="return confirm('Alte Scan-Daten wirklich löschen?')">
+        <form method="post" action="{{ url_for('admin.scanner_bereinigen') }}" data-confirm="Alte Scan-Daten wirklich löschen?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="d-flex align-items-center gap-3">
             <div>

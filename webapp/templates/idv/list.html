@@ -119,7 +119,7 @@
       <button type="submit" id="btn-bulk-status"
               class="btn btn-sm btn-outline-primary d-none"
               formaction="{{ url_for('idv.bulk_status') }}"
-              onclick="return confirmBulkStatus()">
+              data-submit-validate="confirmBulkStatus">
         <i class="bi bi-arrow-repeat me-1"></i>Status ändern
       </button>
       {% endif %}
@@ -127,7 +127,7 @@
       <button type="submit" id="btn-bulk-delete"
               class="btn btn-sm btn-danger d-none"
               formaction="{{ url_for('idv.bulk_loeschen') }}"
-              onclick="return confirmBulkDelete()">
+              data-submit-validate="confirmBulkDelete">
         <i class="bi bi-trash me-1"></i>Löschen
       </button>
       {% endif %}

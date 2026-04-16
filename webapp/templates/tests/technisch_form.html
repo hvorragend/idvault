@@ -30,8 +30,7 @@
           </a>
           {% if tech_test %}
           <form method="post"
-                action="{{ url_for('tests.delete_technischer_test_route', idv_db_id=idv.id) }}"
-                onsubmit="return confirm('Technischen Test löschen?')">
+                action="{{ url_for('tests.delete_technischer_test_route', idv_db_id=idv.id) }}" data-confirm="Technischen Test löschen?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger btn-sm">
               <i class="bi bi-trash me-1"></i>Löschen
@@ -113,8 +112,7 @@
           </a>
           {% if tech_test %}
           <form method="post"
-                action="{{ url_for('tests.delete_technischer_test_route', idv_db_id=idv.id) }}"
-                onsubmit="return confirm('Technischen Test löschen?')">
+                action="{{ url_for('tests.delete_technischer_test_route', idv_db_id=idv.id) }}" data-confirm="Technischen Test löschen?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger">
               <i class="bi bi-trash me-1"></i>Löschen

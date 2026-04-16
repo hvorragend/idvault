@@ -50,10 +50,15 @@ _SECURITY_HEADERS_STATIC = {
 
 
 def _build_csp(nonce: str) -> str:
+    # VULN-M: Vollständige CSP ohne ``unsafe-inline`` für Scripts.
+    # Alle Inline-<script>/<style>-Blöcke erhalten den Request-Nonce
+    # serverseitig (``_inject_nonces``) – Inline-Event-Handler wurden aus
+    # den Templates entfernt und laufen über globale Event-Delegation in
+    # base.html. ``style-src-attr 'unsafe-inline'`` bleibt, weil Bootstrap-
+    # Utility-Klassen weiterhin einige ``style="…"``-Attribute nutzen.
     return (
         "default-src 'self'; "
         f"script-src 'self' 'nonce-{nonce}'; "
-        "script-src-attr 'unsafe-inline'; "
         f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline'; "
         "style-src-attr 'unsafe-inline'; "
         "img-src 'self' data:; "
@@ -229,6 +234,10 @@ def create_app(db_path: str = None) -> Flask:
         IDV_LOGIN_RATE_LIMIT=os.environ.get(
             "IDV_LOGIN_RATE_LIMIT", "5 per minute;30 per hour"
         ),
+        # VULN-009: Rate-Limit für Admin-Uploads (ZIP, CSV-Importe).
+        IDV_UPLOAD_RATE_LIMIT=os.environ.get(
+            "IDV_UPLOAD_RATE_LIMIT", "10 per minute;60 per hour"
+        ),
     )
 
     # VULN-013: Session-Hardening
@@ -279,6 +288,19 @@ def create_app(db_path: str = None) -> Flask:
     @app.before_request
     def _set_csp_nonce():
         g.csp_nonce = secrets.token_urlsafe(16)
+
+    # VULN-010: Eingabelängen-/Format-Validierung für POST-Formulare.
+    # Greift vor der Route-Logik und weist zu lange oder steuerzeichen-
+    # behaftete Eingaben mit HTTP 400 ab. Multipart-Uploads (Dateien!) und
+    # JSON-APIs bleiben unberührt.
+    @app.before_request
+    def _validate_post_lengths():
+        if request.method != "POST":
+            return
+        ct = (request.content_type or "").lower()
+        if ct.startswith("application/x-www-form-urlencoded") or ct.startswith("multipart/form-data"):
+            from .security import validate_form_lengths
+            validate_form_lengths(request.form)
 
     @app.context_processor
     def _csp_nonce_ctx():

@@ -170,6 +170,8 @@ if not os.path.isfile(_config_file):
             "IDV_LOCAL_USERS": [],
             # VULN-J: Login-Rate-Limit (Flask-Limiter-Syntax).
             "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",
+            # VULN-009: Rate-Limit für Admin-Uploads (ZIP, CSV).
+            "IDV_UPLOAD_RATE_LIMIT": "10 per minute;60 per hour",
             "scanner": {
                 "scan_paths": [],
                 "extensions": [

@@ -2,6 +2,7 @@
 import json
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
+from ..security import in_clause
 
 bp = Blueprint("funde", __name__, url_prefix="/funde")
 
@@ -632,11 +633,11 @@ def ignorierte_reaktivieren():
         flash("Keine Einträge ausgewählt.", "warning")
         return redirect(url_for("funde.ignorierte_dateien"))
 
-    ph = ",".join("?" * len(file_ids))
+    ph, ph_params = in_clause(file_ids)
     db.execute(
         f"UPDATE idv_files SET bearbeitungsstatus='Neu'"
         f" WHERE id IN ({ph}) AND bearbeitungsstatus='Ignoriert'",
-        file_ids,
+        ph_params,
     )
     db.commit()
     flash(f"{len(file_ids)} Datei(en) reaktiviert.", "success")
@@ -793,10 +794,10 @@ def zusammenfassen():
         flash("Keine Dateien ausgewählt.", "warning")
         return redirect(url_for("funde.list_funde"))
 
-    ph = ",".join("?" * len(file_ids))
+    ph, ph_params = in_clause(file_ids)
     dateien = db.execute(
         f"SELECT * FROM idv_files WHERE id IN ({ph}) ORDER BY last_seen_at DESC",
-        file_ids
+        ph_params
     ).fetchall()
 
     # Bestehende IDVs für Dropdown
@@ -847,29 +848,29 @@ def bulk_aktion():
         from . import ROLE_ADMIN
         ist_admin = (_session.get("user_role") == ROLE_ADMIN)
 
-        placeholders = ",".join("?" * len(file_ids))
+        ph, ph_params = in_clause(file_ids)
         if ist_admin:
             # Admins dürfen alle Dateien ignorieren – keine Einschränkungen
             erlaubte_ids = [r["id"] for r in db.execute(
-                f"SELECT id FROM idv_files WHERE id IN ({placeholders})", file_ids
+                f"SELECT id FROM idv_files WHERE id IN ({ph})", ph_params
             ).fetchall()]
             abgelehnt = 0
         else:
             # Nur Dateien ohne Formeln und ohne IDV-Verknüpfung
             kandidaten = db.execute(f"""
                 SELECT f.id FROM idv_files f
-                WHERE f.id IN ({placeholders})
+                WHERE f.id IN ({ph})
                   AND (f.formula_count IS NULL OR f.formula_count = 0)
                   AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
-            """, file_ids).fetchall()
+            """, ph_params).fetchall()
             erlaubte_ids = [r["id"] for r in kandidaten]
             abgelehnt = len(file_ids) - len(erlaubte_ids)
 
         if erlaubte_ids:
-            ph2 = ",".join("?" * len(erlaubte_ids))
+            ph2, ph2_params = in_clause(erlaubte_ids)
             db.execute(
                 f"UPDATE idv_files SET bearbeitungsstatus = 'Ignoriert' WHERE id IN ({ph2})",
-                erlaubte_ids
+                ph2_params
             )
             db.commit()
             msg = f"{len(erlaubte_ids)} Datei(en) als 'Ignoriert' markiert."
@@ -884,29 +885,29 @@ def bulk_aktion():
             )
 
     elif aktion == "nicht_mehr_ignorieren":
-        placeholders = ",".join("?" * len(file_ids))
+        ph, ph_params = in_clause(file_ids)
         db.execute(
             f"UPDATE idv_files SET bearbeitungsstatus = 'Neu'"
-            f" WHERE id IN ({placeholders}) AND bearbeitungsstatus = 'Ignoriert'",
-            file_ids
+            f" WHERE id IN ({ph}) AND bearbeitungsstatus = 'Ignoriert'",
+            ph_params
         )
         db.commit()
         flash(f"{len(file_ids)} Datei(en): Ignorierung aufgehoben.", "success")
 
     elif aktion == "zur_registrierung":
-        placeholders = ",".join("?" * len(file_ids))
+        ph, ph_params = in_clause(file_ids)
         db.execute(
-            f"UPDATE idv_files SET bearbeitungsstatus = 'Zur Registrierung' WHERE id IN ({placeholders})",
-            file_ids
+            f"UPDATE idv_files SET bearbeitungsstatus = 'Zur Registrierung' WHERE id IN ({ph})",
+            ph_params
         )
         db.commit()
         flash(f"{len(file_ids)} Datei(en) zur Registrierung vorgemerkt.", "success")
 
     elif aktion == "nicht_wesentlich":
-        placeholders = ",".join("?" * len(file_ids))
+        ph, ph_params = in_clause(file_ids)
         db.execute(
-            f"UPDATE idv_files SET bearbeitungsstatus = 'Nicht wesentlich' WHERE id IN ({placeholders})",
-            file_ids
+            f"UPDATE idv_files SET bearbeitungsstatus = 'Nicht wesentlich' WHERE id IN ({ph})",
+            ph_params
         )
         db.commit()
         flash(f"{len(file_ids)} Datei(en) als 'Nicht wesentlich' eingestuft.", "success")
@@ -916,10 +917,10 @@ def bulk_aktion():
         if not new_owner:
             flash("Kein Dateieigentümer angegeben.", "warning")
         else:
-            placeholders = ",".join("?" * len(file_ids))
+            ph, ph_params = in_clause(file_ids)
             db.execute(
-                f"UPDATE idv_files SET file_owner = ? WHERE id IN ({placeholders})",
-                [new_owner] + file_ids
+                f"UPDATE idv_files SET file_owner = ? WHERE id IN ({ph})",
+                [new_owner] + ph_params
             )
             db.commit()
             flash(
@@ -929,9 +930,9 @@ def bulk_aktion():
 
     elif aktion == "bewertung_anfordern":
         from ..email_service import notify_file_bewertung_batch, get_app_base_url
-        placeholders = ",".join("?" * len(file_ids))
+        ph, ph_params = in_clause(file_ids)
         dateien = db.execute(
-            f"SELECT * FROM idv_files WHERE id IN ({placeholders})", file_ids
+            f"SELECT * FROM idv_files WHERE id IN ({ph})", ph_params
         ).fetchall()
 
         base_url = get_app_base_url(db)

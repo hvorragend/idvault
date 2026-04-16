@@ -39,6 +39,9 @@
   "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",
   "_kommentar_ratelimit": "Flask-Limiter-Syntax. Gilt pro Client-IP am POST /login.",
 
+  "IDV_UPLOAD_RATE_LIMIT": "10 per minute;60 per hour",
+  "_kommentar_uploadlimit": "Rate-Limit für Admin-Uploads (Update-ZIP, CSV-Importe). Pro Client-IP.",
+
   "scanner": {
     "scan_paths": [],
     "extensions": [

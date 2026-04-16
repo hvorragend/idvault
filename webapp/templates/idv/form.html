@@ -121,7 +121,7 @@
       <label class="form-label fw-500">Geschäftsprozess</label>
       <input type="text" id="gp_search" class="form-control form-control-sm mb-1"
              placeholder="Suchen (Prozess-ID oder Titel)…" autocomplete="off"
-             oninput="filterGPOptions(this.value)">
+             data-action-input="filterGPOptionsFromInput">
       <select name="gp_id" id="gp_id_select" class="form-select">
         <option value="">– aus Katalog wählen –</option>
         {% for gp in geschaeftsprozesse %}
@@ -168,6 +168,8 @@
         opt.hidden = q.length > 0 && opt.text.toLowerCase().indexOf(q) === -1;
       });
     }
+    // VULN-M: Adapter für data-action-input (erwartet this=Input-Element).
+    window.filterGPOptionsFromInput = function () { filterGPOptions(this.value); };
     </script>
 
     <!-- Wesentlichkeitskriterien -->

@@ -32,8 +32,7 @@
           </a>
           {% if testfall %}
           <form method="post"
-                action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}"
-                onsubmit="return confirm('Fachlichen Test löschen?')">
+                action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}" data-confirm="Fachlichen Test löschen?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger btn-sm">
               <i class="bi bi-trash me-1"></i>Löschen
@@ -171,8 +170,7 @@
           </a>
           {% if testfall %}
           <form method="post"
-                action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}"
-                onsubmit="return confirm('Fachlichen Test löschen?')">
+                action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}" data-confirm="Fachlichen Test löschen?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger">
               <i class="bi bi-trash me-1"></i>Löschen

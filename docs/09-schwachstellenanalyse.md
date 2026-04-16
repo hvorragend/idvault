@@ -50,10 +50,10 @@ Legende Status:
 | VULN-005 | Aktivierbarer Debug-Modus | **Hoch** | A05:2021 | CWE-489 | ✅ Behoben (prominente Start-Warnung) |
 | VULN-006 | Fehlendes Rate-Limiting am Login | **Hoch** | A07:2021 | CWE-307 | ✅ Behoben (Flask-Limiter, konfigurierbar per `IDV_LOGIN_RATE_LIMIT`) |
 | VULN-007 | SMTP-Passwort im Klartext in DB | **Mittel** | A02:2021 | CWE-312 | ✅ Behoben (Fernet mit "enc:"-Präfix) |
-| VULN-008 | Fehlende HTTP-Security-Header | **Mittel** | A05:2021 | CWE-693 | ✅ Behoben (Security-Header + nonce-basiertes CSP; `unsafe-inline` nur noch via `script-src-attr` für Legacy-`onclick`) |
-| VULN-009 | Upload-Größe 32 MB ohne Rate-Limiting | **Mittel** | A05:2021 | CWE-770 | ⏳ Offen – adressiert zusammen mit weiteren Rate-Limits (Sprint 2) |
-| VULN-010 | Unvalidierte Eingaben (Längen/Format) | **Mittel** | A03:2021 | CWE-20 | ⏳ Offen – Roadmap Sprint 3 |
-| VULN-011 | Generisches Exception-Handling | **Mittel** | A09:2021 | CWE-391 | ⏳ Offen – Roadmap Sprint 3 |
+| VULN-008 | Fehlende HTTP-Security-Header | **Mittel** | A05:2021 | CWE-693 | ✅ Behoben (Security-Header + nonce-basiertes CSP; `script-src-attr 'unsafe-inline'` vollständig entfernt, alle inline Event-Handler auf Event-Delegation umgestellt) |
+| VULN-009 | Upload-Größe 32 MB ohne Rate-Limiting | **Mittel** | A05:2021 | CWE-770 | ✅ Behoben (Flask-Limiter auf Update/CSV/Teams/Cognos-Upload via `IDV_UPLOAD_RATE_LIMIT`) |
+| VULN-010 | Unvalidierte Eingaben (Längen/Format) | **Mittel** | A03:2021 | CWE-20 | ✅ Behoben (zentrale Längen-/Steuerzeichen-Prüfung vor jedem POST) |
+| VULN-011 | Generisches Exception-Handling | **Mittel** | A09:2021 | CWE-391 | 🛡 Teilweise (kritische Pfade: Auth, Bulk-Deletes, Verschlüsselung, E-Mail – mit Logging und spezifischen Exception-Typen) |
 | VULN-012 | LDAP-Zertifikatsprüfung deaktivierbar | **Mittel** | A02:2021 | CWE-295 | ✅ Behoben (Default=1, Warnungen im Log + UI) |
 | VULN-013 | Keine Session-Idle-Timeouts | **Niedrig** | A07:2021 | CWE-613 | ✅ Behoben (4 h Lifetime + Cookie-Flags) |
 | VULN-014 | Keine automatisierten Tests / Security-Tests | **Niedrig** | A08:2021 | CWE-1173 | ⏳ Offen – Roadmap Sprint 4 |
@@ -331,7 +331,6 @@ neu eingegeben werden (analog LDAP-Bind-Passwort). Dokumentiert in
   ```
   default-src 'self';
   script-src 'self' 'nonce-{n}';
-  script-src-attr 'unsafe-inline';
   style-src 'self' 'nonce-{n}' 'unsafe-inline';
   style-src-attr 'unsafe-inline';
   img-src 'self' data:;
@@ -346,46 +345,100 @@ neu eingegeben werden (analog LDAP-Bind-Passwort). Dokumentiert in
   ```
 - **Wirkung**: Injizierte `<script>`-Tags aus Datenbankinhalten oder
   Reflexions-Parametern laufen nicht mehr, weil ihnen der Nonce fehlt.
-  Ältere Legacy-Handler (`onclick="…"`) bleiben vorerst erlaubt über
-  `script-src-attr 'unsafe-inline'` (CSP Level 3) – kein Regressions-
-  risiko für bestehende Templates. Der übrige Härtungs-Stack
-  (`object-src 'none'`, `frame-src 'none'`, `form-action 'self'`,
-  `base-uri 'self'`) schließt gängige XSS-Nebenpfade.
+  `script-src-attr` wurde aus der CSP entfernt, nachdem **alle 50
+  inline Event-Handler** (`onclick`, `onchange`, `onsubmit`, `oninput`)
+  auf Event-Delegation mit `data-action`/`data-confirm`/
+  `data-submit-validate`/`data-form-validate`/`data-action-change`/
+  `data-action-input`/`data-ldap-action`/`data-bulk-form` umgestellt
+  wurden (siehe `webapp/templates/base.html`). Der globale Delegate
+  übernimmt Confirm-Dialoge, Validatoren, Named-Function-Aufrufe,
+  Form-Submits und dynamisch gerenderte Zeilen (z.B. Teams-Tabelle).
+- **Wirkung auch gegen Inline-`style=`**: `style-src-attr 'unsafe-inline'`
+  bleibt aus Kompatibilitätsgründen mit Bootstrap-Utility-Klassen
+  bestehen. Das Risiko ist minimal (kein JS-Eval).
 
-**Verifikation**: Der Test-Client liefert bei `GET /login` einen CSP-
-Header mit `nonce-…`; inline `<script>` und `<style>` im gerenderten
-HTML tragen `nonce="…"`. Manuelle Prüfung mit `curl -I` zeigt alle
-Header.
+**Verifikation**:
+- `curl -I` zeigt neue CSP ohne `script-src-attr`.
+- `grep -E "on(click|change|submit|input|load|focus|blur)="` auf
+  `webapp/templates/` liefert **keine Treffer** mehr.
+- Flask-Test-Client: `Login-HTML` enthält 0 inline Handler.
 
-**Restrisiko**: Inline-`onclick`-Handler sind zwar durch
-`script-src-attr 'unsafe-inline'` noch erlaubt; ein vollständiges
-Handler-free-Refactoring (Event-Delegation in allen Templates) ist in
-Sprint 4 geplant. Die Angriffsoberfläche ist durch VULN-019
-(Jinja-Interpolation in `onclick` entfernt) bereits signifikant
-reduziert.
-
-### 5.3 VULN-009 – Upload-Größe ohne Rate-Limiting
+### 5.3 VULN-009 – Upload-Rate-Limiting ✅ BEHOBEN
 
 **Beschreibung**: 32 MB Upload-Größe pro Request × viele Requests
-ermöglichen Resource-Exhaustion-Angriffe.
+ermöglichten Resource-Exhaustion-Angriffe gegen Admin-Upload-Endpunkte
+(ZIP-Update, CSV-Imports, Teams-/Cognos-Import).
 
-**Remediation**: Zusätzlich zu Größenlimit auch Rate-Limiting auf
-Upload-Endpunkte (VULN-006).
+**Umgesetzte Remediation**:
+- Neuer Config-Schalter `IDV_UPLOAD_RATE_LIMIT`
+  (Default `"10 per minute;60 per hour"`).
+- Dekorator `@limiter.limit(_upload_rate_limit, methods=["POST"])` auf:
+  - `admin.update_upload` (Sidecar-ZIP)
+  - `admin.import_persons` (CSV)
+  - `admin.import_geschaeftsprozesse` (CSV)
+  - `cognos.import_berichte` (XLSX/CSV)
+- `_upload_rate_limit()` liest den Wert zur Request-Zeit aus
+  `app.config`, damit config.json-Änderungen ohne Neustart greifen.
+- Kombinierbar mit VULN-B (komplette Deaktivierung des Sidecar-Uploads).
 
-### 5.4 VULN-010 – Unvalidierte Eingaben
+**Verifikation**: Flask-Test-Client-Test mit wiederholten POSTs >
+Schwellwert liefert HTTP 429.
 
-**Beschreibung**: Eingabewerte werden teilweise ohne Längen-/Format-
-Prüfung in die Datenbank übernommen.
+### 5.4 VULN-010 – Eingabelängen-/Format-Validierung ✅ BEHOBEN
 
-**Remediation**: Einführung eines Validierungslayers (WTForms
-zusammen mit Flask-WTF aus VULN-002; oder `pydantic`).
+**Beschreibung**: Eingabewerte wurden bisher ohne zentrale Längen- oder
+Format-Prüfung an SQL-Parameter und Templates weitergereicht. Große
+Texte (mehrere MB) hätten die SQLite-Performance degradiert, eingebettete
+Steuerzeichen (CR/LF) hätten Log-Injection-Angriffe ermöglicht.
 
-### 5.5 VULN-011 – Generisches Exception-Handling
+**Umgesetzte Remediation**:
+- `webapp/security.py :: MAX_LENGTHS` definiert zentrale Obergrenzen
+  für Felder wie `bezeichnung` (200), `kommentar` (5.000), `nachweise_text`
+  (50.000 vor bleach-Sanitizing), `username` (128), `email` (254) etc.
+- `validate_form_lengths()` prüft Längen, wirft HTTP 400 bei
+  Überschreitung (`abort(400, description=…)`) und blockt zusätzlich
+  Steuerzeichen sowie CR/LF in Single-Line-Feldern (`username`,
+  `email`, `bezeichnung`, `kuerzel`, `q`, …).
+- `webapp/__init__.py`: `@before_request`-Hook ruft die Validierung für
+  jeden POST mit `application/x-www-form-urlencoded` oder
+  `multipart/form-data` auf. JSON-APIs und Datei-Streams bleiben
+  unberührt.
 
-**Beschreibung**: `except Exception: pass` führt zu stillen
-Fehlschlägen, die im Log nicht sichtbar werden.
+**Verifikation**:
+- `POST /login` mit 200-Zeichen-`username` → HTTP 400.
+- `POST /login` mit CR/LF im `username` → HTTP 400.
+- `POST /login` mit normaler Eingabe → unverändert HTTP 200.
 
-**Remediation**: Konkrete Exception-Typen; Logging statt `pass`.
+**Restrisiko**: Felder, die nicht in `MAX_LENGTHS` stehen, werden nicht
+individuell begrenzt – sie unterliegen aber dem globalen
+`MAX_CONTENT_LENGTH` (32 MB). Bei neuen Feldern muss der Entwickler die
+Grenze dort eintragen.
+
+### 5.5 VULN-011 – Generisches Exception-Handling 🛡 TEILWEISE BEHOBEN
+
+**Beschreibung**: `except Exception: pass` führte zu stillen
+Fehlschlägen, die im Log nicht sichtbar wurden.
+
+**Umgesetzte Remediation – kritische Pfade**:
+- `webapp/routes/auth.py`:
+  - `_verify_password()`: fängt nur noch `ValueError`/`TypeError`
+    (unbekanntes Hash-Format); Info-Log-Eintrag bei Ablehnung.
+  - `_do_local_login()`: fängt nur noch `sqlite3.DatabaseError`, loggt
+    Warnung; andere Exceptions propagieren zur Root-Error-Handler-Kette.
+- `webapp/routes/admin.py`:
+  - `_save_smtp_password()`: ``current_app.logger.error(…)`` + Flash
+    statt `pass`.
+  - Bulk-Delete Personen: `sqlite3.IntegrityError` (erwartet) vs.
+    `DatabaseError` (Warning-Log).
+  - Bulk-Delete Geschäftsprozesse: `DatabaseError` mit Log.
+- `webapp/routes/freigaben.py`: E-Mail-Benachrichtigungsfehler werden
+  als `Warning` ins App-Log geschrieben (`_notify_schritte`,
+  `_notify_freigabe_erteilt`), blockieren aber den Workflow nicht.
+- `webapp/routes/idv.py`: Bulk-Statusänderung loggt Einzel-Fehler.
+
+**Restrisiko**: Es existieren weitere ~20 `except Exception:`-Blöcke in
+unkritischen Pfaden (Read-only-Queries mit Defaults, JSON-Parsing von
+Config-Werten). Diese werden in Sprint 3 Folge-Arbeit adressiert.
 
 ### 5.6 VULN-012 – LDAP-Zertifikatsprüfung ✅ BEHOBEN
 
@@ -588,9 +641,15 @@ fehler) und wirkt wie SQL-Injection auf einen Reviewer.
 **Umgesetzte Remediation**:
 - `webapp/security.py :: in_clause(values)` liefert für leere Listen
   `("NULL", [])` (always-false-Prädikat) und für nicht-leere Listen
-  das passende Platzhalterfragment. In `idv.list_idv` (Filter
-  "unvollstaendig") bereits eingesetzt; Ausrollung auf weitere
-  Aufrufstellen in Sprint 3 geplant.
+  das passende Platzhalterfragment.
+- **Flächendeckend** ausgerollt in
+  - `idv.list_idv` (Filter "unvollstaendig") und `idv.new_idv`
+    (Extra-Datei-IDs);
+  - `freigaben._phase1_komplett_erledigt` / `_phase2_komplett_erledigt`;
+  - `funde.*` (Reaktivierung, Bulk-Aktionen, Zusammenfassen);
+  - `cognos.*` (Zusammenfassen + Bulk-Aktionen);
+  - `admin.bulk_persons` und `admin.bulk_gps`.
+- Verifizierender Grep `",".join("?" * len` → 0 Treffer.
 
 ### 6a.7 VULN-021 – Logout via GET ✅ BEHOBEN
 
@@ -647,7 +706,7 @@ signierte EXE-Builds eingespielt werden.
 | A06 Vulnerable Components | ✅ Geprüft | Aktuelle Paketversionen; monatlicher `pip-audit` |
 | A07 Identification/Authentication | ✅ Geschützt | Hashing (VULN-001), Rate-Limiting (VULN-006), Session-Timeout (VULN-013), keine Demo-User (VULN-003) |
 | A08 Software/Data Integrity | 🛡 Teilweise | Signierte Sessions; Sidecar-Whitelist + Opt-out (VULN-022); Signatur-Pinning offen |
-| A09 Logging/Monitoring | ⚠️ Teilweise | Logs + Login-Audit vorhanden; SIEM-Integration empfohlen |
+| A09 Logging/Monitoring | 🛡 Teilweise | Logs + Login-Audit vorhanden; VULN-011 Exception-Logging in kritischen Pfaden behoben; SIEM-Integration empfohlen |
 | A10 SSRF | ✅ Nicht anwendbar | Keine URL-Fetches aus Nutzereingaben |
 
 ## 8 Abhängigkeiten – bekannte CVEs
@@ -692,22 +751,23 @@ aufzunehmen.
 
 - [x] **VULN-007** SMTP-Passwort Fernet-verschlüsselt
 - [x] **VULN-008** HTTP-Security-Header inkl. nonce-basiertem CSP
+- [x] **VULN-009** Upload-Rate-Limit (Flask-Limiter) auf Admin-Upload-Routen
+- [x] **VULN-010** Eingabelängen-/Steuerzeichen-Validierung (globaler `before_request`-Hook)
+- [x] **VULN-011** Exception-Handling in kritischen Pfaden konkretisiert + Logging
 - [x] **VULN-019** Jinja-Interpolation aus inline-`onclick` entfernt
-- [x] **VULN-020** Sicherer `in_clause()`-Helper eingeführt
-- [ ] VULN-009 Upload-Rate-Limiting (zusammen mit Flask-Limiter auf Upload-Routen)
-- [ ] VULN-010 Validierungslayer (WTForms/Pydantic)
-- [ ] VULN-011 Konkretes Exception-Handling in Admin-Routen
-- [ ] `in_clause()` auf alle verbleibenden f-String-Platzhalter (admin.py, funde.py) ausrollen
+- [x] **VULN-020** `in_clause()`-Helper flächendeckend ausgerollt
+- [x] Alle inline Event-Handler auf Event-Delegation umgestellt; `script-src-attr 'unsafe-inline'` aus CSP entfernt
 
 ### Sprint 4 (bis nächster Major-Release)
 
+- [ ] VULN-011 (Rest) Exception-Handling in Read-only-/Config-Pfaden konkretisieren
 - [ ] VULN-014 Test-Suite pytest mit ≥ 70 % Abdeckung der Kernlogik
 - [ ] Statische Analyse in CI (ruff, bandit, mypy)
 - [ ] `admin.py`-Refaktorierung nach Fachdomänen
-- [ ] Inline-`onclick`-Handler vollständig auf Event-Delegation umstellen; danach `script-src-attr 'unsafe-inline'` aus CSP entfernen
 - [ ] Argon2id anstelle pbkdf2:sha256 (Zukunftsfähigkeit)
 - [ ] Externer Penetrationstest beauftragt
 - [ ] Flask-Limiter-Storage auf Redis umstellen (Mehrfach-Worker)
+- [ ] WTForms/Pydantic-Validatoren je Route für **semantische** Validierung (Typen, Wertebereiche) – die reine Längenprüfung aus VULN-010 läuft bereits global
 
 ## 10 Restrisiken
 
