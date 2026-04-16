@@ -197,6 +197,21 @@
           </div>
           {% endif %}
 
+          <div id="runas-module-warning" class="alert alert-danger py-2 mb-3"
+               style="display:none; font-size:.84rem">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>Run-As unwirksam:</strong>
+            Im aktuellen EXE-Build fehlen pywin32-Module für
+            <code>CreateProcessWithLogonW</code>
+            (<span id="runas-missing-modules"></span>).
+            Der Scanner startet deshalb im Kontext des idvault-Dienstes und
+            ignoriert den oben konfigurierten Benutzer.<br>
+            <strong>Abhilfe:</strong> EXE mit aktualisiertem
+            <code>idvault.spec</code> neu bauen <em>oder</em> den
+            idvault-Windows-Dienst direkt als Scan-User anmelden
+            (services.msc → Eigenschaften → Tab „Anmelden").
+          </div>
+
           <div class="row g-3">
             <div class="col-md-3">
               <label class="form-label fw-600">Domain</label>
@@ -251,6 +266,22 @@
   (function () {
     const btnTest   = document.getElementById('btnRunasTest');
     const btnRemove = document.getElementById('btnRunasRemove');
+
+    // Beim Laden Run-As-Status abfragen; Warnbanner zeigen wenn
+    // pywin32-Module im EXE-Build fehlen.
+    fetch({{ url_for('admin.scanner_runas_status') | tojson }})
+      .then(r => r.json())
+      .then(data => {
+        if (data.configured && data.platform_ok && !data.modules_ok) {
+          const warn = document.getElementById('runas-module-warning');
+          const list = document.getElementById('runas-missing-modules');
+          if (warn && list) {
+            list.textContent = (data.missing || []).join(', ');
+            warn.style.display = '';
+          }
+        }
+      })
+      .catch(() => { /* still */ });
 
     if (btnTest) {
       btnTest.addEventListener('click', function () {

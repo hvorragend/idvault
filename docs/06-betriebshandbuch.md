@@ -311,15 +311,29 @@ Prüfpunkte in dieser Reihenfolge:
 
 1. **Scanner-Identität** – Die erste Log-Zeile nach `Scan-Run #N gestartet`
    zeigt, unter welcher Identität der Scanner-Subprocess tatsächlich läuft.
-   Steht dort der Dienst-Account (z. B. `LOCAL SERVICE`,
-   `NT AUTHORITY\SYSTEM`, `NETWORK SERVICE`) anstelle des konfigurierten
-   AD-Scan-Users, greift die `Run-As`-Konfiguration nicht:
-   - Scan-User in Administration → Scanner-Einstellungen → Run-As
-     hinterlegen (Domäne, Benutzer, Passwort).
-   - Passwort neu speichern, falls es zwischenzeitlich geändert wurde.
-   - Sicherstellen, dass `pywin32` in der idvault.exe enthalten ist
-     (Log-Eintrag „pywin32 nicht verfügbar – Scanner läuft im aktuellen
-     Benutzerkontext" in `idvault.log` deutet auf einen fehlenden Build hin).
+   Endet der Name auf `$` (z. B. `DOMAIN\HOST$`), handelt es sich um das
+   **Computer-Account** des Servers – der Dienst läuft als `LOCAL SYSTEM`
+   (oder `NETWORK SERVICE`) und die hinterlegte `Run-As`-Konfiguration
+   wurde **stumm übergangen**. Mögliche Ursachen:
+   - **pywin32 im EXE-Build unvollständig:** Für `CreateProcessWithLogonW`
+     müssen `pywintypes`, `win32api`, `win32con`, `win32event`, `win32file`,
+     `win32process`, `win32security` als Hidden-Imports eingebettet sein.
+     Im Admin-Bereich (Scanner-Einstellungen → Run-As → „Anmeldung testen")
+     wird ein entsprechender Warnbanner angezeigt, sobald Module fehlen.
+     **Abhilfe:**
+     a) EXE mit der aktuellen `idvault.spec` neu bauen und ausrollen; oder
+     b) den idvault-Windows-Dienst *direkt* als Scan-User betreiben
+        (`services.msc` → Eigenschaften → Tab „Anmelden" → „Dieses Konto"
+        → `DOMAIN\scanuser` + Passwort eintragen → Dienst neu starten).
+        Der Scanner erbt dann den Kontext automatisch;
+        `CreateProcessWithLogonW` wird nicht mehr benötigt.
+   - **Passwort falsch/abgelaufen:** Der Fallback-Eintrag im Scan-Log
+     (stdout/stderr-Mitschnitt) nennt in diesem Fall
+     `CreateProcessWithLogonW fehlgeschlagen (… LogonUser …)`.
+   - **Scan-User darf sich nicht anmelden:** Auf dem idvault-Server muss
+     der Scan-User mindestens das Recht „Anmelden als Stapelverarbeitung"
+     (oder „Lokal anmelden") besitzen; sonst verweigert Windows den
+     Token-Aufbau.
 2. **WinError 5 (Zugriff verweigert)** – Der Scan-User darf das Share nicht
    lesen. NTFS- und Freigabe-Berechtigungen prüfen, ggf. Gruppenmitgliedschaft
    durch `gpupdate /force` + neuerliches Anmelden aktualisieren.
