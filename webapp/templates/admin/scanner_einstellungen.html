@@ -172,6 +172,83 @@
     </div>
   </div>
 
+  <!-- ── Zeitgesteuerter Scan ──────────────────────────────────── -->
+  <div class="col-12" id="zeitplan">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-clock me-2"></i>Zeitgesteuerter Scan
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     name="scan_schedule_enabled" id="scan_schedule_enabled" value="1"
+                     {{ 'checked' if schedule.scan_schedule_enabled == '1' }}>
+              <label class="form-check-label fw-600" for="scan_schedule_enabled">
+                Automatischen Scan aktivieren
+              </label>
+            </div>
+            <div class="form-text">
+              Der Scanner wird automatisch zur konfigurierten Zeit gestartet –
+              sofern kein Scan bereits läuft und die Scan-Pfade konfiguriert sind.
+            </div>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label fw-600">Intervall</label>
+            <select name="scan_schedule_type" id="scan_schedule_type" class="form-select">
+              <option value="daily"  {{ 'selected' if schedule.scan_schedule_type == 'daily' }}>Täglich</option>
+              <option value="weekly" {{ 'selected' if schedule.scan_schedule_type == 'weekly' }}>Wöchentlich</option>
+            </select>
+          </div>
+
+          <div class="col-md-3" id="schedule_weekday_col"
+               style="{{ '' if schedule.scan_schedule_type == 'weekly' else 'display:none' }}">
+            <label class="form-label fw-600">Wochentag</label>
+            <select name="scan_schedule_weekday" class="form-select">
+              {% for wd_idx in range(7) %}
+              <option value="{{ wd_idx }}"
+                      {{ 'selected' if schedule.scan_schedule_weekday == wd_idx|string }}>
+                {{ weekday_names[wd_idx] }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label fw-600">Uhrzeit (Ortszeit)</label>
+            <input type="time" name="scan_schedule_time" class="form-control"
+                   value="{{ schedule.scan_schedule_time }}">
+          </div>
+
+          {% if schedule_next %}
+          <div class="col-12">
+            <div class="alert alert-info py-2 mb-0" style="font-size:.84rem">
+              <i class="bi bi-calendar-check me-1"></i>
+              Nächster geplanter Scan: <strong>{{ schedule_next }}</strong>
+            </div>
+          </div>
+          {% endif %}
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    const typeSelect   = document.getElementById("scan_schedule_type");
+    const weekdayCol   = document.getElementById("schedule_weekday_col");
+    if (typeSelect && weekdayCol) {
+      typeSelect.addEventListener("change", function () {
+        weekdayCol.style.display = this.value === "weekly" ? "" : "none";
+      });
+    }
+  })();
+  </script>
+
   <!-- ── Scan-Lauf auslösen ──────────────────────────────────────── -->
   <div class="col-12">
     <div class="card border-0 shadow-sm">

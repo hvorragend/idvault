@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 import zipfile
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app
 from . import login_required, admin_required, write_access_required, get_db
@@ -34,6 +35,11 @@ def _upload_rate_limit():
 
 _scan_lock  = threading.Lock()
 _scan_state = {"pid": None, "started": None}   # veränderlich, kein global nötig
+
+# ── Zeitplan-Scheduler ────────────────────────────────────────────────────────
+_scheduler_thread_obj: threading.Thread = None
+# Verhindert Doppelauslösung: letztes Auslösedatum "YYYY-MM-DD" (in-memory)
+_schedule_last_triggered: str = None
 
 
 def _scanner_dir():
@@ -151,6 +157,217 @@ def _has_checkpoint() -> bool:
     return os.path.exists(_checkpoint_path())
 
 
+# ── Zeitplan-Scheduler-Hilfsfunktionen ───────────────────────────────────────
+
+_WEEKDAY_NAMES = ["Montag", "Dienstag", "Mittwoch", "Donnerstag",
+                  "Freitag", "Samstag", "Sonntag"]
+
+
+def _load_schedule_settings(db) -> dict:
+    """Liest Zeitplan-Einstellungen aus app_settings. Fehlende Schlüssel → Defaults."""
+    defaults = {
+        "scan_schedule_enabled": "0",
+        "scan_schedule_type":    "daily",
+        "scan_schedule_time":    "02:00",
+        "scan_schedule_weekday": "0",   # 0 = Montag (Python weekday())
+    }
+    for key in defaults:
+        row = db.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+        if row:
+            defaults[key] = row["value"]
+    return defaults
+
+
+def _next_scheduled_scan(schedule: dict) -> str:
+    """Berechnet den nächsten geplanten Scan-Zeitpunkt als lesbaren String.
+    Gibt None zurück wenn kein Zeitplan aktiv oder Konfiguration ungültig."""
+    if schedule.get("scan_schedule_enabled") != "1":
+        return None
+    try:
+        h, m = map(int, schedule["scan_schedule_time"].split(":"))
+    except Exception:
+        return None
+
+    now = datetime.now()
+    scheduled_today = now.replace(hour=h, minute=m, second=0, microsecond=0)
+
+    if schedule["scan_schedule_type"] == "daily":
+        next_dt = scheduled_today if now < scheduled_today else scheduled_today + timedelta(days=1)
+    elif schedule["scan_schedule_type"] == "weekly":
+        try:
+            target_wd = int(schedule["scan_schedule_weekday"])
+        except Exception:
+            return None
+        days_ahead = target_wd - now.weekday()
+        if days_ahead < 0:
+            days_ahead += 7
+        elif days_ahead == 0 and now >= scheduled_today:
+            days_ahead = 7
+        next_dt = scheduled_today + timedelta(days=days_ahead)
+    else:
+        return None
+
+    return next_dt.strftime("%d.%m.%Y um %H:%M Uhr")
+
+
+def _trigger_scheduled_scan() -> bool:
+    """Startet einen Scan im Hintergrund (Zeitplan-Auslösung).
+
+    Muss innerhalb eines Flask-App-Kontexts aufgerufen werden.
+    Gibt True zurück wenn der Scan erfolgreich gestartet wurde.
+    """
+    with _scan_lock:
+        if _scan_is_running():
+            return False
+
+        config_path = _scanner_config_path()
+        if not os.path.isfile(config_path):
+            return False
+
+        scanner_dir = _scanner_dir()
+        os.makedirs(scanner_dir, exist_ok=True)
+
+        for sig_name in ("scanner_pause.signal", "scanner_cancel.signal"):
+            try:
+                os.remove(os.path.join(scanner_dir, sig_name))
+            except FileNotFoundError:
+                pass
+
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, "--scan", "--config", config_path,
+                   "--signal-dir", scanner_dir]
+        else:
+            script = _scanner_script_path()
+            if not os.path.isfile(script):
+                current_app.logger.error(
+                    "Zeitplan-Scan: Scanner-Skript nicht gefunden: %s", script
+                )
+                return False
+            cmd = [sys.executable, script, "--config", config_path,
+                   "--signal-dir", scanner_dir]
+
+        logs_dir = _instance_logs_dir()
+        os.makedirs(logs_dir, exist_ok=True)
+        output_log = os.path.join(logs_dir, "scanner_output.log")
+
+        try:
+            log_fh = open(output_log, "w", encoding="utf-8")
+            _creationflags = 0
+            if os.name == "nt":
+                _creationflags = (
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                    | subprocess.CREATE_NO_WINDOW
+                )
+            proc = subprocess.Popen(
+                cmd,
+                stdout=log_fh,
+                stderr=log_fh,
+                cwd=scanner_dir,
+                creationflags=_creationflags,
+            )
+            _scan_state["pid"]     = proc.pid
+            _scan_state["started"] = datetime.now(timezone.utc).isoformat()
+
+            def _watch():
+                proc.wait()
+                log_fh.close()
+                with _scan_lock:
+                    if _scan_state.get("pid") == proc.pid:
+                        _scan_state["pid"]     = None
+                        _scan_state["started"] = None
+
+            threading.Thread(target=_watch, daemon=True).start()
+            current_app.logger.info("Zeitplan-Scan gestartet (PID %d).", proc.pid)
+            return True
+        except Exception as exc:
+            current_app.logger.error("Zeitplan-Scan konnte nicht gestartet werden: %s", exc)
+            try:
+                log_fh.close()
+            except Exception:
+                pass
+            return False
+
+
+def _scheduler_loop(app) -> None:
+    """Daemon-Thread: prüft jede Minute ob ein geplanter Scan fällig ist."""
+    global _schedule_last_triggered
+
+    # Kurze Wartezeit beim Start – App soll vollständig hochgefahren sein
+    time.sleep(30)
+
+    while True:
+        try:
+            with app.app_context():
+                db = get_db()
+                cfg = _load_schedule_settings(db)
+
+                if cfg["scan_schedule_enabled"] != "1":
+                    pass  # Weiter schlafen
+                else:
+                    now      = datetime.now()
+                    today_str = now.strftime("%Y-%m-%d")
+
+                    # Heute bereits ausgelöst (in-memory Check)?
+                    if _schedule_last_triggered != today_str:
+                        # Auch DB-seitig prüfen (überlebt Neustart)
+                        db_row = db.execute(
+                            "SELECT value FROM app_settings "
+                            "WHERE key='scan_schedule_last_triggered_date'"
+                        ).fetchone()
+                        db_last = db_row["value"] if db_row else None
+
+                        if db_last != today_str:
+                            # Uhrzeit auswerten
+                            try:
+                                h, m = map(int, cfg["scan_schedule_time"].split(":"))
+                            except Exception:
+                                h, m = 2, 0
+
+                            if now.hour > h or (now.hour == h and now.minute >= m):
+                                # Wochentag prüfen (bei wöchentlichem Zeitplan)
+                                should_run = True
+                                if cfg["scan_schedule_type"] == "weekly":
+                                    try:
+                                        target_wd = int(cfg["scan_schedule_weekday"])
+                                    except Exception:
+                                        target_wd = -1
+                                    should_run = (now.weekday() == target_wd)
+
+                                if should_run:
+                                    started = _trigger_scheduled_scan()
+                                    if started:
+                                        _schedule_last_triggered = today_str
+                                        db.execute(
+                                            "INSERT OR REPLACE INTO app_settings "
+                                            "(key, value) VALUES "
+                                            "('scan_schedule_last_triggered_date', ?)",
+                                            (today_str,)
+                                        )
+                                        db.commit()
+        except Exception:
+            try:
+                app.logger.exception("Fehler im Scan-Scheduler")
+            except Exception:
+                pass
+
+        time.sleep(60)
+
+
+def start_scheduler(app) -> None:
+    """Startet den Scheduler-Daemon-Thread (einmalig; idempotent)."""
+    global _scheduler_thread_obj
+    if _scheduler_thread_obj is not None and _scheduler_thread_obj.is_alive():
+        return
+    t = threading.Thread(
+        target=_scheduler_loop,
+        args=(app,),
+        daemon=True,
+        name="idvault-scan-scheduler",
+    )
+    _scheduler_thread_obj = t
+    t.start()
+
+
 @bp.route("/scanner-einstellungen", methods=["GET", "POST"])
 @admin_required
 def scanner_einstellungen():
@@ -184,16 +401,44 @@ def scanner_einstellungen():
             "scan_since":        scan_since,
             "read_file_owner":   read_file_owner,
         })
+        # Zeitplan-Einstellungen validieren
+        sched_enabled = "1" if request.form.get("scan_schedule_enabled") == "1" else "0"
+        sched_type    = request.form.get("scan_schedule_type", "daily")
+        if sched_type not in ("daily", "weekly"):
+            sched_type = "daily"
+        sched_time = request.form.get("scan_schedule_time", "02:00").strip()
+        try:
+            _sh, _sm = map(int, sched_time.split(":"))
+            if not (0 <= _sh <= 23 and 0 <= _sm <= 59):
+                raise ValueError
+            sched_time = f"{_sh:02d}:{_sm:02d}"
+        except Exception:
+            sched_time = "02:00"
+        sched_weekday = request.form.get("scan_schedule_weekday", "0")
+        try:
+            _wd = int(sched_weekday)
+            if not (0 <= _wd <= 6):
+                raise ValueError
+            sched_weekday = str(_wd)
+        except Exception:
+            sched_weekday = "0"
+
         try:
             _save_scanner_config(cfg)
-            # App-Settings für Auto-Ignorieren und Verwerfen speichern
+            # App-Settings für Auto-Ignorieren, Verwerfen und Zeitplan speichern
             db = get_db()
             val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
             val_dc = "1" if request.form.get("discard_no_formula") == "1" else "0"
-            db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
-                       ("auto_ignore_no_formula", val_ai))
-            db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
-                       ("discard_no_formula", val_dc))
+            for _key, _val in [
+                ("auto_ignore_no_formula",  val_ai),
+                ("discard_no_formula",      val_dc),
+                ("scan_schedule_enabled",   sched_enabled),
+                ("scan_schedule_type",      sched_type),
+                ("scan_schedule_time",      sched_time),
+                ("scan_schedule_weekday",   sched_weekday),
+            ]:
+                db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
+                           (_key, _val))
             db.commit()
             flash("Scanner-Konfiguration gespeichert.", "success")
         except Exception as exc:
@@ -207,10 +452,14 @@ def scanner_einstellungen():
     discard_nf = db.execute(
         "SELECT value FROM app_settings WHERE key='discard_no_formula'"
     ).fetchone()
+    schedule = _load_schedule_settings(db)
     return render_template("admin/scanner_einstellungen.html",
                            cfg=cfg, scan_running=_scan_is_running(),
                            auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"),
-                           discard_no_formula=(discard_nf["value"] if discard_nf else "0"))
+                           discard_no_formula=(discard_nf["value"] if discard_nf else "0"),
+                           schedule=schedule,
+                           schedule_next=_next_scheduled_scan(schedule),
+                           weekday_names=_WEEKDAY_NAMES)
 
 
 @bp.route("/scanner/starten", methods=["POST"])
