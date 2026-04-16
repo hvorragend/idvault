@@ -206,10 +206,10 @@ INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
     ('idv_typ', 'Python-Skript',     5),
     ('idv_typ', 'SQL-Skript',        6),
     ('idv_typ', 'Power-BI-Bericht',  7),
-    ('idv_typ', 'Cognos-Report',     8);
-    ('idv_typ', 'Shell-Skript',      9);
-    ('idv_typ', 'Gruppenrichtlinie', 10);
-    ('idv_typ', 'Sonstige',          11),
+    ('idv_typ', 'Cognos-Report',     8),
+    ('idv_typ', 'Shell-Skript',      9),
+    ('idv_typ', 'Gruppenrichtlinie', 10),
+    ('idv_typ', 'Sonstige',          11);
 
 INSERT OR IGNORE INTO klassifizierungen (bereich, wert, bezeichnung, sort_order) VALUES
     ('pruefintervall_monate', '3',  '3 Monate (quartalsweise)', 1),
