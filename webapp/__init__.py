@@ -215,9 +215,18 @@ def create_app(db_path: str = None) -> Flask:
         _static = os.path.join(_project_root, 'webapp', 'static')
         _instance_default = os.path.join(_project_root, 'instance')
 
+    # Instance-Pfad vor der App-Erzeugung bestimmen und Flask explizit
+    # übergeben. Sonst leitet Flask ``app.instance_path`` selbst her (z.B.
+    # aus dem Package-Verzeichnis) und unsere Upload-Routen, die über
+    # ``current_app.instance_path`` speichern, landen nicht im erwarteten
+    # Projekt-``instance/``-Ordner – besonders fatal bei PyInstaller-Builds,
+    # wo Flasks Default im (temporären) _MEIPASS-Verzeichnis liegen kann.
+    _instance_path = os.environ.get("IDV_INSTANCE_PATH", _instance_default)
+
     app = Flask(
         __name__,
         instance_relative_config=True,
+        instance_path=_instance_path,
         template_folder=_tpl,
         static_folder=_static,
         static_url_path='/static',
@@ -229,7 +238,6 @@ def create_app(db_path: str = None) -> Flask:
     if os.path.isdir(_ovr_tpl):
         app.jinja_loader = ChoiceLoader([_FSL(_ovr_tpl), app.jinja_loader])
 
-    _instance_path = os.environ.get("IDV_INSTANCE_PATH", _instance_default)
     upload_folder = os.path.join(_instance_path, "uploads", "freigaben")
 
     # VULN-004: SECRET_KEY-Enforcement

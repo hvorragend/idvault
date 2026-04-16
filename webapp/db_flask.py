@@ -26,5 +26,21 @@ def close_db(e=None):
 def init_app_db(app):
     app.teardown_appcontext(close_db)
 
+    # Upload-Zielverzeichnisse schon beim App-Start anlegen, damit Betriebs-
+    # und Sicherungsseite (NTFS-ACL, Backup, WORM) von Anfang an vorhanden
+    # sind – auch bevor die erste Datei tatsächlich abgelegt wird.
+    # - freigaben/  : Nachweis-Uploads (Phase 1/2)
+    # - tests/      : Test-Nachweise (Fachlicher / Technischer Test)
+    # - archiv/     : revisionssichere Archivierung der Originaldatei (Phase 3)
+    for sub in ("freigaben", "tests", "archiv"):
+        try:
+            os.makedirs(os.path.join(app.instance_path, "uploads", sub),
+                        exist_ok=True)
+        except OSError as exc:
+            app.logger.warning(
+                "Upload-Verzeichnis '%s' konnte nicht angelegt werden: %s",
+                sub, exc,
+            )
+
     with app.app_context():
         init_register_db(app.config["DATABASE"])
