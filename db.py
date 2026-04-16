@@ -63,6 +63,9 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
     for col, stmt in migrations:
         if col not in existing_cols:
             conn.execute(stmt)
+    # Daten-Migration: Status "Genehmigt" → "Freigegeben" (idempotent)
+    conn.execute("UPDATE idv_register SET status = 'Freigegeben' WHERE status = 'Genehmigt'")
+    conn.execute("UPDATE idv_register SET status = 'Freigegeben mit Auflagen' WHERE status = 'Genehmigt mit Auflagen'")
     conn.commit()
 
 
@@ -357,7 +360,7 @@ def change_status(conn: sqlite3.Connection, idv_db_id: int,
         SET status = ?, status_geaendert_am = ?, status_geaendert_von_id = ?, aktualisiert_am = ?
         WHERE id = ?
     """, (new_status, now, geaendert_von_id, now, idv_db_id))
-    if new_status == "Genehmigt":
+    if new_status == "Freigegeben":
         row = conn.execute(
             "SELECT f.file_hash FROM idv_register r "
             "LEFT JOIN idv_files f ON r.file_id = f.id WHERE r.id = ?",
@@ -401,7 +404,7 @@ def get_dashboard_stats(conn: sqlite3.Connection, person_id: Optional[int] = Non
 
     return {
         "gesamt_aktiv":         scalar("SELECT COUNT(*) FROM idv_register WHERE status NOT IN ('Archiviert')"),
-        "genehmigt":            scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Genehmigt'"),
+        "genehmigt":            scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Freigegeben'"),
         "entwurf":              scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Entwurf'"),
         "in_pruefung":          scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'In Prüfung'"),
         "wesentlich":           scalar("""

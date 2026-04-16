@@ -50,17 +50,6 @@
 
         <div class="row g-3">
 
-          <div class="col-md-4">
-            <label class="form-label fw-500">Ergebnis <span class="required-star">*</span></label>
-            <select name="ergebnis" class="form-select" required>
-              {% for e in ergebnisse %}
-              <option value="{{ e }}"
-                {% if tech_test and tech_test.ergebnis == e %}selected
-                {% elif not tech_test and e == 'Offen' %}selected{% endif %}>{{ e }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
           <div class="col-12">
             <label class="form-label fw-500">Kurzbeschreibung</label>
             <div data-quill="kurzbeschreibung"></div>
@@ -98,6 +87,17 @@
             <input type="file" name="nachweis_datei" class="form-control"
               accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
             <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-500">Ergebnis <span class="required-star">*</span></label>
+            <select name="ergebnis" class="form-select" required>
+              {% for e in ergebnisse %}
+              <option value="{{ e }}"
+                {% if tech_test and tech_test.ergebnis == e %}selected
+                {% elif not tech_test and e == 'Offen' %}selected{% endif %}>{{ e }}</option>
+              {% endfor %}
+            </select>
           </div>
 
         </div>
@@ -158,13 +158,9 @@
             <strong>Erledigt:</strong> Technische Prüfung abgeschlossen, keine
             Beanstandungen.
           </p>
-          <p class="mb-2">
+          <p class="mb-0">
             <strong>Offen:</strong> Prüfung noch nicht abgeschlossen oder Ergebnis
             noch ausstehend.
-          </p>
-          <p class="mb-0">
-            <strong>Entfällt:</strong> Technische Prüfung ist für diese IDV nicht
-            relevant oder nicht anwendbar.
           </p>
         </div>
       </div>

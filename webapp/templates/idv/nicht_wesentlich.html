@@ -24,7 +24,7 @@
       <label class="form-label form-label-sm">Status</label>
       <select name="status" class="form-select form-select-sm">
         <option value="">Alle</option>
-        {% for s in ['Entwurf','In Prüfung','Genehmigt','Genehmigt mit Auflagen','Abgelehnt','Abgekündigt'] %}
+        {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt'] %}
         <option {{ 'selected' if status == s }}>{{ s }}</option>
         {% endfor %}
       </select>

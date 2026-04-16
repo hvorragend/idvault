@@ -118,20 +118,34 @@
 
     <!-- Geschäftsprozess -->
     <div class="mb-3">
-      <label class="form-label fw-500">Geschäftsprozess</label>
-      <input type="text" id="gp_search" class="form-control form-control-sm mb-1"
-             placeholder="Suchen (Prozess-ID oder Titel)…" autocomplete="off"
-             data-action-input="filterGPOptionsFromInput">
-      <select name="gp_id" id="gp_id_select" class="form-select">
-        <option value="">– aus Katalog wählen –</option>
-        {% for gp in geschaeftsprozesse %}
-        <option value="{{ gp.id }}" {{ 'selected' if idv and idv.gp_id==gp.id }}>
-          {{- gp.gp_nummer }} – {{ gp.bezeichnung -}}
-          {%- if gp.ist_kritisch %} ⚠ kritisch{% endif %}
-          {%- if gp.ist_wesentlich %} · wesentlich{% endif -%}
-        </option>
-        {% endfor %}
-      </select>
+      <label class="form-label fw-500" for="gp_search">Geschäftsprozess</label>
+      <!-- Hidden field stores the selected gp_id for form submission -->
+      <input type="hidden" name="gp_id" id="gp_id_val"
+             value="{{ idv.gp_id if idv and idv.gp_id else '' }}">
+      <!-- Combobox -->
+      <div class="position-relative" id="gp_combobox">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text text-muted" style="font-size:.8rem">
+            <i class="bi bi-search"></i>
+          </span>
+          <input type="text" id="gp_search" class="form-control"
+                 placeholder="Prozess-ID oder Bezeichnung suchen…"
+                 autocomplete="off" spellcheck="false"
+                 role="combobox" aria-haspopup="listbox" aria-expanded="false"
+                 aria-controls="gp_listbox" aria-autocomplete="list">
+          <button type="button" class="btn btn-outline-secondary" id="gp_clear_btn"
+                  title="Auswahl zurücksetzen" style="display:none" tabindex="-1">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <!-- Dropdown list -->
+        <div id="gp_listbox" role="listbox"
+             style="display:none; position:absolute; z-index:1050; left:0; right:0; top:100%;
+                    max-height:260px; overflow-y:auto; background:#fff;
+                    border:1px solid #ced4da; border-top:none; border-radius:0 0 .375rem .375rem;
+                    box-shadow:0 4px 12px rgba(0,0,0,.1);">
+        </div>
+      </div>
       <div class="form-text">Zuordnung zum Geschäftsprozess (relevant für DORA-Ableitung).</div>
       <!-- Schutzbedarf aus Prozess (lesend) -->
       <div id="gp_schutzbedarf" class="mt-1 text-muted" style="font-size:.78rem; display:none">
@@ -143,33 +157,195 @@
       </div>
     </div>
     <script>
-    var _gpSchutz = { {% for gp in geschaeftsprozesse %}{{ gp.id }}:{a:"{{ gp.schutzbedarf_a or '' }}",c:"{{ gp.schutzbedarf_c or '' }}",i:"{{ gp.schutzbedarf_i or '' }}",n:"{{ gp.schutzbedarf_n or '' }}"},{% endfor %} };
-    function updateGPSchutzbedarf() {
-      var sel = document.getElementById('gp_id_select');
-      var box = document.getElementById('gp_schutzbedarf');
-      var d = _gpSchutz[sel.value];
-      if (d && (d.a || d.c || d.i || d.n)) {
-        document.getElementById('gp_sb_a').textContent = d.a || '–';
-        document.getElementById('gp_sb_c').textContent = d.c || '–';
-        document.getElementById('gp_sb_i').textContent = d.i || '–';
-        document.getElementById('gp_sb_n').textContent = d.n || '–';
-        box.style.display = '';
-      } else {
-        box.style.display = 'none';
+    (function () {
+      // ── Data ───────────────────────────────────────────────────────
+      var _gpList = [
+        {% for gp in geschaeftsprozesse %}
+        { id: {{ gp.id }},
+          nr: "{{ gp.gp_nummer | e }}",
+          bez: "{{ gp.bezeichnung | e }}",
+          kritisch: {{ 1 if gp.ist_kritisch else 0 }},
+          wesentlich: {{ 1 if gp.ist_wesentlich else 0 }} },
+        {% endfor %}
+      ];
+      var _gpSchutz = {
+        {% for gp in geschaeftsprozesse %}
+        {{ gp.id }}:{a:"{{ gp.schutzbedarf_a or '' }}",c:"{{ gp.schutzbedarf_c or '' }}",i:"{{ gp.schutzbedarf_i or '' }}",n:"{{ gp.schutzbedarf_n or '' }}"},
+        {% endfor %}
+      };
+
+      // ── Elements ───────────────────────────────────────────────────
+      var input    = document.getElementById('gp_search');
+      var listbox  = document.getElementById('gp_listbox');
+      var hiddenId = document.getElementById('gp_id_val');
+      var clearBtn = document.getElementById('gp_clear_btn');
+
+      var activeIdx = -1;   // keyboard-highlighted row index within visible items
+
+      // ── Schutzbedarf display ───────────────────────────────────────
+      function updateSchutzbedarf(id) {
+        var box = document.getElementById('gp_schutzbedarf');
+        var d = _gpSchutz[id];
+        if (d && (d.a || d.c || d.i || d.n)) {
+          document.getElementById('gp_sb_a').textContent = d.a || '–';
+          document.getElementById('gp_sb_c').textContent = d.c || '–';
+          document.getElementById('gp_sb_i').textContent = d.i || '–';
+          document.getElementById('gp_sb_n').textContent = d.n || '–';
+          box.style.display = '';
+        } else {
+          box.style.display = 'none';
+        }
       }
-    }
-    document.getElementById('gp_id_select').addEventListener('change', updateGPSchutzbedarf);
-    document.addEventListener('DOMContentLoaded', updateGPSchutzbedarf);
-    function filterGPOptions(q) {
-      q = q.trim().toLowerCase();
-      var sel = document.getElementById('gp_id_select');
-      Array.from(sel.options).forEach(function(opt) {
-        if (!opt.value) return;
-        opt.hidden = q.length > 0 && opt.text.toLowerCase().indexOf(q) === -1;
+
+      // ── Render dropdown ────────────────────────────────────────────
+      function renderList(items) {
+        listbox.innerHTML = '';
+        activeIdx = -1;
+        if (items.length === 0) {
+          listbox.innerHTML =
+            '<div style="padding:.5rem .75rem; color:#6c757d; font-size:.85rem;">Keine Treffer</div>';
+          listbox.style.display = 'block';
+          input.setAttribute('aria-expanded', 'true');
+          return;
+        }
+        items.forEach(function (gp, i) {
+          var row = document.createElement('div');
+          row.setAttribute('role', 'option');
+          row.setAttribute('data-gp-id', gp.id);
+          row.setAttribute('data-idx', i);
+          row.style.cssText =
+            'padding:.4rem .75rem; cursor:pointer; font-size:.875rem; line-height:1.4;' +
+            'border-bottom:1px solid #f0f0f0;';
+          var badges = '';
+          if (gp.kritisch)   badges += ' <span class="badge bg-danger" style="font-size:.65rem">DORA kritisch</span>';
+          if (gp.wesentlich) badges += ' <span class="badge bg-warning text-dark" style="font-size:.65rem">wesentlich</span>';
+          row.innerHTML =
+            '<span style="font-weight:500; color:#212529">' + escHtml(gp.nr) + '</span>' +
+            ' <span style="color:#6c757d">–</span> ' +
+            '<span>' + escHtml(gp.bez) + '</span>' + badges;
+          row.addEventListener('mousedown', function (e) {
+            e.preventDefault();   // keep input focused
+            selectGP(gp);
+          });
+          row.addEventListener('mouseover', function () { highlightRow(i); });
+          listbox.appendChild(row);
+        });
+        listbox.style.display = 'block';
+        input.setAttribute('aria-expanded', 'true');
+      }
+
+      function closeList() {
+        listbox.style.display = 'none';
+        listbox.innerHTML = '';
+        input.setAttribute('aria-expanded', 'false');
+        activeIdx = -1;
+      }
+
+      // ── Highlight row (keyboard) ───────────────────────────────────
+      function highlightRow(idx) {
+        var rows = listbox.querySelectorAll('[role=option]');
+        rows.forEach(function (r) { r.style.background = ''; });
+        activeIdx = idx;
+        if (idx >= 0 && idx < rows.length) {
+          rows[idx].style.background = '#e9ecef';
+          rows[idx].scrollIntoView({ block: 'nearest' });
+        }
+      }
+
+      // ── Select a GP ───────────────────────────────────────────────
+      function selectGP(gp) {
+        hiddenId.value = gp.id;
+        input.value    = gp.nr + ' – ' + gp.bez;
+        clearBtn.style.display = '';
+        closeList();
+        updateSchutzbedarf(gp.id);
+      }
+
+      function clearSelection() {
+        hiddenId.value = '';
+        input.value    = '';
+        clearBtn.style.display = 'none';
+        closeList();
+        updateSchutzbedarf(null);
+        input.focus();
+      }
+
+      // ── Filter logic ───────────────────────────────────────────────
+      function getFiltered(q) {
+        if (!q) return _gpList.slice(0, 50);   // show first 50 when empty
+        q = q.toLowerCase();
+        return _gpList.filter(function (gp) {
+          return gp.nr.toLowerCase().indexOf(q) !== -1 ||
+                 gp.bez.toLowerCase().indexOf(q) !== -1;
+        });
+      }
+
+      // ── HTML escape ───────────────────────────────────────────────
+      function escHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      // ── Event listeners ────────────────────────────────────────────
+      input.addEventListener('input', function () {
+        // If user edits text manually, clear the hidden id
+        hiddenId.value = '';
+        clearBtn.style.display = this.value ? '' : 'none';
+        renderList(getFiltered(this.value));
       });
-    }
-    // VULN-M: Adapter für data-action-input (erwartet this=Input-Element).
-    window.filterGPOptionsFromInput = function () { filterGPOptions(this.value); };
+
+      input.addEventListener('focus', function () {
+        if (listbox.style.display === 'none') {
+          renderList(getFiltered(this.value));
+        }
+      });
+
+      input.addEventListener('keydown', function (e) {
+        var rows = listbox.querySelectorAll('[role=option][data-gp-id]');
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          highlightRow(Math.min(activeIdx + 1, rows.length - 1));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          highlightRow(Math.max(activeIdx - 1, 0));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (activeIdx >= 0 && rows[activeIdx]) {
+            var id = parseInt(rows[activeIdx].getAttribute('data-gp-id'), 10);
+            var gp = _gpList.find(function (g) { return g.id === id; });
+            if (gp) selectGP(gp);
+          }
+        } else if (e.key === 'Escape') {
+          closeList();
+        }
+      });
+
+      input.addEventListener('blur', function () {
+        // Short delay so mousedown on option fires first
+        setTimeout(closeList, 150);
+        // If nothing was selected, clear the text so there's no orphaned label
+        if (!hiddenId.value) {
+          input.value = '';
+          clearBtn.style.display = 'none';
+        }
+      });
+
+      clearBtn.addEventListener('click', clearSelection);
+
+      // ── Init: pre-fill when editing an existing IDV ────────────────
+      document.addEventListener('DOMContentLoaded', function () {
+        var existingId = parseInt(hiddenId.value, 10);
+        if (existingId) {
+          var gp = _gpList.find(function (g) { return g.id === existingId; });
+          if (gp) {
+            input.value = gp.nr + ' – ' + gp.bez;
+            clearBtn.style.display = '';
+          }
+          updateSchutzbedarf(existingId);
+        }
+      });
+    })();
     </script>
 
     <!-- Wesentlichkeitskriterien -->
