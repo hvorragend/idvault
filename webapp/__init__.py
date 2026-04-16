@@ -221,7 +221,19 @@ def create_app(db_path: str = None) -> Flask:
     # ``current_app.instance_path`` speichern, landen nicht im erwarteten
     # Projekt-``instance/``-Ordner – besonders fatal bei PyInstaller-Builds,
     # wo Flasks Default im (temporären) _MEIPASS-Verzeichnis liegen kann.
-    _instance_path = os.environ.get("IDV_INSTANCE_PATH", _instance_default)
+    #
+    # Flask verlangt einen absoluten Pfad. ``IDV_INSTANCE_PATH`` darf trotzdem
+    # relativ angegeben werden – wir lösen relative Werte zum EXE-Verzeichnis
+    # (frozen) bzw. zur Projektwurzel (Dev) auf, NICHT zur CWD. Das ist
+    # wichtig, weil ``idvault.exe`` als Dienst oder per Doppelklick häufig
+    # mit einer fremden CWD (z.B. ``C:\Windows\System32``) gestartet wird.
+    _anchor = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) \
+              else _project_root
+    _raw_instance = os.environ.get("IDV_INSTANCE_PATH", _instance_default)
+    _instance_path = (
+        _raw_instance if os.path.isabs(_raw_instance)
+        else os.path.normpath(os.path.join(_anchor, _raw_instance))
+    )
 
     app = Flask(
         __name__,
