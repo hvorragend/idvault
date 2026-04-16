@@ -248,17 +248,29 @@ def _start_proc_with_logon(
     _enable_privilege("SeAssignPrimaryTokenPrivilege")
 
     # ── LogonUser: Primary-Token für den Ziel-Benutzer besorgen ────────
-    # LOGON32_LOGON_BATCH ist für Dienst-Subprocesse der richtige Typ:
-    # nicht-interaktiv, kein geladenes Profil, kein Desktop. Der
-    # Ziel-Benutzer braucht auf dem idvault-Server das Recht
-    # "Anmelden als Stapelverarbeitung" (SeBatchLogonRight).
-    token = win32security.LogonUser(
-        username,
-        domain,
-        password,
-        win32security.LOGON32_LOGON_BATCH,
-        win32security.LOGON32_PROVIDER_DEFAULT,
-    )
+    # LOGON32_LOGON_NETWORK_CLEARTEXT (8) statt LOGON32_LOGON_BATCH (4):
+    #   • BATCH erfordert SeBatchLogonRight ("Anmelden als Stapelverarbeitung")
+    #     auf dem idvault-Server – ein selten vergebenes Recht; fehlt es,
+    #     scheitert LogonUser still und der Scanner fällt auf den
+    #     Dienstkontext zurück.
+    #   • NETWORK_CLEARTEXT benötigt kein Sonderrecht, nur den normalen
+    #     Netzwerk-Logon (Standardrecht aller Domänenkonten).
+    #   • Speichert Klartext-Credentials im Token → NTLM-Auth auf UNC-Shares
+    #     funktioniert auch wenn kein Kerberos-Ticket vorliegt.
+    #   • Liefert ein Primary-Token → direkt mit CreateProcessAsUser nutzbar.
+    try:
+        token = win32security.LogonUser(
+            username,
+            domain,
+            password,
+            win32security.LOGON32_LOGON_NETWORK_CLEARTEXT,
+            win32security.LOGON32_PROVIDER_DEFAULT,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"LogonUser({domain or '.'}\\{username}, NETWORK_CLEARTEXT) "
+            f"fehlgeschlagen: {type(exc).__name__}: {exc}"
+        ) from exc
 
     # Inheritable HANDLE für die Log-Datei (stdout + stderr).
     # OPEN_ALWAYS (nicht CREATE_ALWAYS), damit die von
@@ -316,6 +328,12 @@ def _start_proc_with_logon(
             cwd,
             si,
         )
+    except Exception as exc:
+        raise RuntimeError(
+            f"CreateProcessAsUser fehlgeschlagen: {type(exc).__name__}: {exc}. "
+            f"Häufige Ursache: idvault-Dienst läuft nicht als LOCAL SYSTEM "
+            f"(SeAssignPrimaryTokenPrivilege fehlt)."
+        ) from exc
     finally:
         # Log- und NUL-Handle wurden vom Kind geerbt; unsere Referenzen
         # schließen wir nach dem Start. Token kann ebenfalls freigegeben
@@ -1079,7 +1097,7 @@ def scanner_runas_testen():
             ok=False,
             msg=(f"Anmeldung als \"{display}\" war erfolgreich, aber der "
                  f"Scanner kann den Benutzer NICHT verwenden: Im EXE-Build "
-                 f"fehlen pywin32-Module für CreateProcessWithLogonW "
+                 f"fehlen pywin32-Module für CreateProcessAsUser "
                  f"({', '.join(missing)}). Abhilfe: EXE neu bauen ODER den "
                  f"idvault-Dienst direkt als Scan-User betreiben.")
         )
@@ -1087,7 +1105,7 @@ def scanner_runas_testen():
     return jsonify(
         ok=True,
         msg=(f"Anmeldung als \"{display}\" erfolgreich. "
-             f"Alle pywin32-Module für CreateProcessWithLogonW sind vorhanden.")
+             f"Alle pywin32-Module für CreateProcessAsUser sind vorhanden.")
     )
 
 
