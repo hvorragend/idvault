@@ -1,6 +1,34 @@
 {% extends "base.html" %}
+{% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
 {% block title %}Scanner-Eingang{% endblock %}
 {% block page_title %}<i class="bi bi-arrow-down-circle me-2"></i>Scanner-Eingang{% endblock %}
+
+{# Sortierung vor dem Rendern aus sessionStorage wiederherstellen. #}
+{% block extra_head %}
+<script>
+(function () {
+  var STORE_KEY = 'funde_eingang_sort';
+  var params    = new URLSearchParams(window.location.search);
+  if (params.has('sort')) {
+    try {
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({
+        sort:     params.get('sort'),
+        per_page: params.get('per_page') || ''
+      }));
+    } catch (e) { /* ignore */ }
+    return;
+  }
+  try {
+    var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+    if (saved && saved.sort) {
+      params.set('sort', saved.sort);
+      if (saved.per_page) params.set('per_page', saved.per_page);
+      window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+    }
+  } catch (e) { /* ignore */ }
+})();
+</script>
+{% endblock %}
 
 {% block content %}
 
@@ -422,19 +450,12 @@
               {% if f.dir_path %}
               {% set crumbs = f.dir_path | path_breadcrumbs %}
               {% if crumbs %}
-              <div class="d-flex flex-wrap align-items-center gap-1" style="row-gap:.2rem">
-                {% for label, prefix in crumbs %}
-                <a href="{{ url_for('funde.eingang_funde', dir_path=prefix, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
-                   class="badge text-decoration-none {% if dir_path_filt == prefix %}bg-primary{% else %}bg-success{% endif %}"
-                   style="font-size:.68rem;font-family:monospace;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                   title="{{ prefix }}">{{ label }}</a>
-                {% if not loop.last %}<span class="text-muted" style="font-size:.68rem">\</span>{% endif %}
-                {% endfor %}
-              </div>
+                {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.eingang_funde',
+                                   extra={'sort': sort, 'per_page': per_page,
+                                          'share_root': share_root_filt,
+                                          'scan_run': scan_run_id_filt}) }}
               {% else %}
-              <span class="badge bg-success font-monospace" style="font-size:.68rem">
-                <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-40:]) if f.dir_path|length > 43 else f.dir_path }}
-              </span>
+                {{ dir_fallback(f.dir_path) }}
               {% endif %}
               {% endif %}
             </td>

@@ -1,6 +1,37 @@
 {% extends "base.html" %}
+{% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
 {% block title %}Scanner-Funde{% endblock %}
 {% block page_title %}<i class="bi bi-radar me-2"></i>Scanner-Funde{% endblock %}
+
+{# Sortierung vor dem Rendern aus sessionStorage wiederherstellen – so
+   bleibt die zuletzt aktive Sortierung auch nach Navigation über die
+   Sidebar oder externe Links erhalten, ohne dass der Nutzer kurz die
+   Standardsortierung zu sehen bekommt. #}
+{% block extra_head %}
+<script>
+(function () {
+  var STORE_KEY = 'funde_list_sort';
+  var params    = new URLSearchParams(window.location.search);
+  if (params.has('sort')) {
+    try {
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({
+        sort:  params.get('sort'),
+        order: params.get('order') || ''
+      }));
+    } catch (e) { /* ignore */ }
+    return;
+  }
+  try {
+    var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+    if (saved && saved.sort) {
+      params.set('sort', saved.sort);
+      if (saved.order) params.set('order', saved.order);
+      window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+    }
+  } catch (e) { /* ignore */ }
+})();
+</script>
+{% endblock %}
 
 {% block content %}
 
@@ -119,7 +150,7 @@
     </div>
     <div class="col-md-3 d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
-      <a href="{{ url_for('funde.list_funde', filter=filt) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+      <a href="{{ url_for('funde.list_funde', filter=filt, sort=sort, order=order) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
   </div>
   {% if dir_path_filt or share_root_filt or scan_run_id_filt %}
@@ -138,41 +169,44 @@
 </form>
 
 <!-- ── Typ-Filter-Buttons ──────────────────────────────────────────── -->
+{# Sortierung wird über alle Filter-Buttons hinweg erhalten, damit
+   die aktuelle Spalten-Sortierung beim Wechsel des Filter-Typs nicht
+   verloren geht. #}
 <div class="d-flex gap-2 mb-3 flex-wrap">
-  <a href="{{ url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
     Alle ({{ gesamt }})
   </a>
-  <a href="{{ url_for('funde.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-secondary' if filt == 'ignoriert' else 'btn-outline-secondary' }}">
     <i class="bi bi-eye-slash me-1"></i>Ignoriert ({{ ignoriert }})
   </a>
-  <a href="{{ url_for('funde.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
     <i class="bi bi-exclamation-circle me-1"></i>Noch nicht registriert ({{ ohne_idv }})
   </a>
-  <a href="{{ url_for('funde.list_funde', filter='makros', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='makros', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
     <i class="bi bi-lightning-fill me-1"></i>Mit Makros ({{ mit_makro }})
   </a>
-  <a href="{{ url_for('funde.list_funde', filter='blattschutz', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='blattschutz', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
     <i class="bi bi-lock-fill me-1"></i>Mit Blattschutz ({{ mit_schutz }})
   </a>
-  <a href="{{ url_for('funde.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
     <i class="bi bi-check-circle me-1"></i>Bereits registriert
   </a>
-  <a href="{{ url_for('funde.list_funde', filter='zur_registrierung', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='zur_registrierung', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-info' if filt == 'zur_registrierung' else 'btn-outline-info' }}">
     <i class="bi bi-pencil-square me-1"></i>Zur Registrierung ({{ zur_registrierung }})
   </a>
-  <a href="{{ url_for('funde.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
     <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
   </a>
   {% if duplikate_anzahl %}
-  <a href="{{ url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt) }}"
+  <a href="{{ url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt, sort=sort, order=order) }}"
      class="btn btn-sm {{ 'btn-danger' if filt == 'duplikate' else 'btn-outline-danger' }}">
     <i class="bi bi-copy me-1"></i>Duplikate ({{ duplikate_anzahl }} Gruppen)
   </a>
@@ -397,19 +431,12 @@
                   {% if f.dir_path %}
                   {% set crumbs = f.dir_path | path_breadcrumbs %}
                   {% if crumbs %}
-                  <div class="d-flex flex-wrap align-items-center gap-1" style="row-gap:.2rem">
-                    {% for label, prefix in crumbs %}
-                    <a href="{{ url_for('funde.list_funde', dir_path=prefix, filter=filt, share_root=share_root_filt) }}"
-                       class="badge bg-success text-decoration-none"
-                       style="font-size:.68rem;font-family:monospace;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                       title="{{ prefix }}">{{ label }}</a>
-                    {% if not loop.last %}<span class="text-muted" style="font-size:.68rem">\</span>{% endif %}
-                    {% endfor %}
-                  </div>
+                    {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.list_funde',
+                                       extra={'filter': filt, 'share_root': share_root_filt,
+                                              'scan_run': scan_run_id_filt,
+                                              'sort': sort, 'order': order}) }}
                   {% else %}
-                  <span class="badge bg-success font-monospace" style="font-size:.68rem">
-                    <i class="bi bi-folder2-open me-1"></i>{{ f.dir_path }}
-                  </span>
+                    {{ dir_fallback(f.dir_path) }}
                   {% endif %}
                   {% endif %}
                 </td>
@@ -532,21 +559,12 @@
               {% if f.dir_path %}
               {% set crumbs = f.dir_path | path_breadcrumbs %}
               {% if crumbs %}
-              <div class="d-flex flex-wrap align-items-center gap-1" style="row-gap:.2rem">
-                {% for label, prefix in crumbs %}
-                <a href="{{ url_for('funde.list_funde', dir_path=prefix, filter=filt, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
-                   class="badge text-decoration-none {% if dir_path_filt == prefix %}bg-primary{% else %}bg-success{% endif %}"
-                   style="font-size:.68rem;font-family:monospace;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                   title="{{ prefix }}">{{ label }}</a>
-                {% if not loop.last %}
-                  <span class="text-muted" style="font-size:.68rem;line-height:1">\</span>
-                {% endif %}
-                {% endfor %}
-              </div>
+                {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.list_funde',
+                                   extra={'filter': filt, 'share_root': share_root_filt,
+                                          'scan_run': scan_run_id_filt,
+                                          'sort': sort, 'order': order}) }}
               {% else %}
-              <span class="badge bg-success font-monospace" style="font-size:.68rem">
-                <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-40:]) if f.dir_path|length > 43 else f.dir_path }}
-              </span>
+                {{ dir_fallback(f.dir_path) }}
               {% endif %}
               {% endif %}
             </td>
@@ -554,7 +572,7 @@
             <!-- Scan-Lauf -->
             <td class="text-nowrap" style="font-size:.76rem">
               {% if f.sr_id %}
-              <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id, filter=filt) }}"
+              <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id, filter=filt, sort=sort, order=order) }}"
                  class="text-decoration-none text-muted"
                  title="#{{ f.sr_id }} – Nach diesem Scan-Lauf filtern">
                 {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
@@ -846,19 +864,7 @@ window.deleteScannerfund = deleteScannerfund;
   }
 })();
 
-// ── Spaltensortierung im sessionStorage merken ──────────────────────
-(function () {
-  const STORE_KEY = 'funde_list_sort';
-  const currentSort  = '{{ sort }}';
-  const currentOrder = '{{ order }}';
-
-  // Aktuelle Sortierung speichern
-  try {
-    sessionStorage.setItem(STORE_KEY, JSON.stringify({ sort: currentSort, order: currentOrder }));
-  } catch(e) {}
-
-  // Sortier-Links: bestehende sort/order-Parameter ersetzen, Rest beibehalten
-  // (bereits serverseitig korrekt gesetzt – kein JS-Eingriff nötig)
-})();
+// ── Spaltensortierung wird zentral im extra_head-Block aus dem
+// sessionStorage wiederhergestellt – siehe oben. ─────────────────────
 </script>
 {% endblock %}

@@ -1,0 +1,49 @@
+{#
+  Gemeinsames Makro für Verzeichnis-Breadcrumbs.
+  Stellt den Pfad als anklickbare Badge-Segmente dar. Die visuelle
+  Darstellung ist über die Klassen ``dir-breadcrumbs`` / ``dir-crumb``
+  / ``dir-sep`` in ``base.html`` definiert.
+
+  Parameter:
+    crumbs        – Liste von (label, prefix)-Tupeln (aus dem
+                    ``path_breadcrumbs``-Template-Filter)
+    active_prefix – aktuell gefilterter Pfad (wird als ``bg-primary``
+                    hervorgehoben)
+    endpoint      – Flask-Endpoint für die Segment-Links
+                    (z.B. ``funde.list_funde`` oder
+                    ``cognos.list_berichte``)
+    extra         – dict mit zusätzlichen URL-Parametern, die bei jedem
+                    Klick erhalten bleiben sollen (z.B. Filter, Sort)
+    dir_key       – Name des Pfad-Parameters im Endpoint
+                    (default ``dir_path``; bei Cognos ``pfad_prefix``)
+    separator     – Trennzeichen zwischen Segmenten (default ``\``)
+
+  Verwendung:
+    {% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
+    {{ dir_breadcrumbs(crumbs, dir_path_filt,
+                       'funde.list_funde',
+                       extra={'filter': filt, 'sort': sort, 'order': order}) }}
+#}
+{% macro dir_breadcrumbs(crumbs, active_prefix, endpoint, extra={}, dir_key='dir_path', separator='\\') -%}
+<div class="dir-breadcrumbs">
+  {%- for label, prefix in crumbs %}
+    {%- set params = {} -%}
+    {%- set _ = params.update(extra) -%}
+    {%- set _ = params.update({dir_key: prefix}) -%}
+    <a href="{{ url_for(endpoint, **params) }}"
+       class="badge dir-crumb {% if active_prefix == prefix %}bg-primary{% else %}bg-light text-dark border{% endif %}"
+       title="{{ prefix }}">{{ label }}</a>
+    {%- if not loop.last %}<span class="dir-sep">{{ separator }}</span>{% endif -%}
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{#
+  Fallback-Anzeige für Pfade, die vom ``path_breadcrumbs``-Filter nicht
+  segmentiert werden können (z.B. sehr kurze oder untypische Pfade).
+#}
+{% macro dir_fallback(path, max_length=43, tail_length=40) -%}
+<span class="badge bg-light text-dark border dir-crumb-fallback">
+  <i class="bi bi-folder2-open me-1"></i>{{ ('…' + path[-tail_length:]) if path|length > max_length else path }}
+</span>
+{%- endmacro %}

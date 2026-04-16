@@ -1,6 +1,34 @@
 {% extends "base.html" %}
+{% from '_dir_breadcrumbs.html' import dir_breadcrumbs %}
 {% block title %}Cognos-Berichte{% endblock %}
 {% block page_title %}<i class="bi bi-filetype-xml me-2"></i>Cognos-Berichte{% endblock %}
+
+{# Sortierung vor dem Rendern aus sessionStorage wiederherstellen. #}
+{% block extra_head %}
+<script>
+(function () {
+  var STORE_KEY = 'cognos_list_sort';
+  var params    = new URLSearchParams(window.location.search);
+  if (params.has('sort')) {
+    try {
+      sessionStorage.setItem(STORE_KEY, JSON.stringify({
+        sort:  params.get('sort'),
+        order: params.get('order') || ''
+      }));
+    } catch (e) { /* ignore */ }
+    return;
+  }
+  try {
+    var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+    if (saved && saved.sort) {
+      params.set('sort', saved.sort);
+      if (saved.order) params.set('order', saved.order);
+      window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+    }
+  } catch (e) { /* ignore */ }
+})();
+</script>
+{% endblock %}
 
 {% block content %}
 
@@ -284,24 +312,20 @@
                 {# Anzeigesegmente = alles nach dem gemeinsamen Prefix #}
                 {% set disp_segs = orig_segs[cp_depth:] %}
                 {% if disp_segs %}
-                  <div class="d-flex flex-wrap align-items-center gap-1" style="row-gap:.2rem">
+                  {# (seg, vollständiger Filterpfad)-Tupel für das gemeinsame
+                     Breadcrumb-Makro zusammensetzen. #}
+                  {% set cognos_crumbs = [] %}
                   {% for seg in disp_segs %}
-                    {# Vollständiger Filterpfad bis einschließlich dieses Segments #}
                     {% set filter_path = orig_segs[:cp_depth + loop.index] | join(' / ') %}
-                    <a href="{{ url_for('cognos.list_berichte',
-                                       pfad_prefix=filter_path,
-                                       q=q, status=status_filt,
-                                       komplexitaet=komplexitaet_filt,
-                                       abfragen=abfragen_filt,
-                                       sort=sort, order=order) }}"
-                       class="badge text-decoration-none {% if pfad_prefix == filter_path %}bg-primary{% else %}bg-light text-dark border{% endif %}"
-                       style="font-size:.7rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                       title="{{ filter_path }}">{{ seg }}</a>
-                    {% if not loop.last %}
-                      <span class="text-muted" style="font-size:.7rem;line-height:1">/</span>
-                    {% endif %}
+                    {% set _ = cognos_crumbs.append((seg, filter_path)) %}
                   {% endfor %}
-                  </div>
+                  {{ dir_breadcrumbs(cognos_crumbs, pfad_prefix,
+                                     'cognos.list_berichte',
+                                     extra={'q': q, 'status': status_filt,
+                                            'komplexitaet': komplexitaet_filt,
+                                            'abfragen': abfragen_filt,
+                                            'sort': sort, 'order': order},
+                                     dir_key='pfad_prefix', separator='/') }}
                 {% else %}
                   {# Pfad endet genau beim gemeinsamen Prefix #}
                   <span class="text-muted" style="font-size:.72rem">{{ b.suchpfad }}</span>

@@ -237,6 +237,37 @@
       font-weight: 500;
     }
 
+    /* ── Directory-Breadcrumbs (einheitlich in allen Listen-Views) ─────── */
+    .dir-breadcrumbs {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .25rem;
+      row-gap: .2rem;
+    }
+
+    .dir-breadcrumbs .dir-crumb {
+      font-size: .7rem;
+      font-family: monospace;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .dir-breadcrumbs .dir-sep {
+      color: #6c757d;
+      font-size: .7rem;
+      line-height: 1;
+      user-select: none;
+    }
+
+    .dir-crumb-fallback {
+      font-size: .7rem;
+      font-family: monospace;
+    }
+
     /* ── Misc ─────────────────────────────────────────── */
     .content-wrapper {
       padding: 1.5rem;
