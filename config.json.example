@@ -20,6 +20,9 @@
   "IDV_ALLOW_SIDECAR_UPDATES": 1,
   "_kommentar_sidecar": "Auf 0 setzen, um das Hochladen von Sidecar-Updates (Admin → Update) komplett zu deaktivieren. Empfohlen in regulierten Umgebungen oder wenn Updates ausschließlich über neue EXE-Builds erfolgen sollen.",
 
+  "IDV_SERVICE_NAME": "",
+  "_kommentar_service": "Windows-Dienstname (interner Name, wie bei 'sc create' angegeben, z. B. 'idvault'). Wenn gesetzt, löst 'App neu starten' in der Web-UI einen sauberen Dienst-Neustart via 'sc start <name>' aus, statt eine neue EXE-Instanz direkt zu spawnen. Das Dienstkonto benötigt das Recht SERVICE_START für den eigenen Dienst (bei LOCAL SYSTEM standardmäßig vorhanden). Leer lassen = Direktmodus (EXE wird als neues Konsolenfenster gestartet).",
+
   "IDV_LOCAL_USERS": [
     {
       "_hinweis": "Variante A (empfohlen) – Passwort-Hash. Erzeugen mit: python -c \"from werkzeug.security import generate_password_hash; print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))\"",

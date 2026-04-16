@@ -51,10 +51,58 @@ pip install -r requirements.txt
 python run.py
 ```
 
-### 2.3 Unbeaufsichtigte Installation
+### 2.3 Variante C – Windows-Dienst (empfohlen für Produktivbetrieb)
+
+idvault.exe bringt ein natives Windows-Service-Framework mit und kann
+direkt beim Service Control Manager (SCM) registriert werden –
+ohne externen Wrapper wie NSSM oder winsw.
+
+**Voraussetzungen**
+
+- `idvault.exe` liegt im Zielverzeichnis (z. B. `C:\idvault\`)
+- `config.json` mit `SECRET_KEY` vorhanden (siehe Abschnitt 3)
+- PowerShell / CMD **als Administrator**
+
+**Dienst einrichten**
+
+```powershell
+# 1. Dienstnamen in config.json festlegen (empfohlen)
+#    "IDV_SERVICE_NAME": "idvault"
+
+# 2. Dienst registrieren (Dienstname aus IDV_SERVICE_NAME oder Default "idvault")
+C:\idvault\idvault.exe install
+
+# 3. Dienstkonto auf LOCAL SYSTEM belassen (Standard) – kein AD-User nötig
+#    Der Scan-User wird separat in der Web-UI konfiguriert (Abschnitt 7.6)
+
+# 4. Dienst starten
+C:\idvault\idvault.exe start
+```
+
+Weitere Verwaltungsbefehle:
+
+| Befehl | Wirkung |
+|---|---|
+| `idvault.exe install` | Dienst registrieren |
+| `idvault.exe start` | Dienst starten |
+| `idvault.exe stop` | Dienst stoppen |
+| `idvault.exe restart` | Dienst neu starten |
+| `idvault.exe remove` | Dienst entfernen |
+
+**Neustart aus der Web-UI**
+
+Administration → Software-Update → „App neu starten" erkennt automatisch,
+ob idvault als Dienst läuft, und führt dann `sc start <name>` aus statt
+eine neue EXE-Instanz zu spawnen. Der Dienstname wird per PID-Abgleich
+selbständig ermittelt (funktioniert ohne `IDV_SERVICE_NAME` bei nativer
+Registrierung); bei NSSM/winsw-Wrappern `IDV_SERVICE_NAME` in
+`config.json` eintragen.
+
+### 2.4 Unbeaufsichtigte Installation
 
 Die Anwendung besteht aus einer einzigen Datei (EXE) bzw. dem Projektordner.
-Keine MSI, keine Dienste, keine Registry-Einträge.
+Keine MSI, keine Registry-Einträge außer dem SCM-Eintrag bei
+`idvault.exe install`.
 
 ## 3 Erstkonfiguration
 
@@ -144,6 +192,7 @@ Skripten.
 | `PORT` | Netzwerk-Port | 5000 HTTP / 5443 HTTPS |
 | `IDV_DB_PATH` | Datenbankpfad | `instance/idvault.db` |
 | `IDV_INSTANCE_PATH` | Instanzverzeichnis | `instance/` |
+| `IDV_SERVICE_NAME` | Windows-Dienstname für Neustart aus Web-UI und `idvault.exe install`. Wird bei nativer SCM-Registrierung automatisch erkannt; bei NSSM/winsw manuell setzen. | `""` (auto) |
 | `DEBUG` | **Niemals produktiv** | 0 |
 
 SMTP-Zugangsdaten werden nicht mehr über Umgebungsvariablen gesteuert.
@@ -350,23 +399,22 @@ Prüfpunkte in dieser Reihenfolge:
      (`pywintypes`, `win32api`, `win32con`, `win32event`, `win32file`,
      `win32process`, `win32security`, `ntsecuritycon`) neu bauen. Oder
      den Dienst direkt als Scan-User betreiben – siehe 7.6.
-   - `LogonUser/CreateProcessAsUser fehlgeschlagen` – pywin32 ist
-     vollständig, aber der eigentliche Logon schlug fehl. Detail-
-     Ursachen im Klammertext (siehe Unterpunkte):
-     - `LogonUser failed: … 0x52E` / WinError 1326: Passwort falsch oder
-       abgelaufen.
-     - `LogonUser failed: … 0x569` / WinError 1385 („Der Benutzer hat
-       nicht die Berechtigung, sich in dieser Art anzumelden"): Der
-       Scan-User benötigt auf dem idvault-Server das User-Right
-       **„Anmelden als Stapelverarbeitung" (SeBatchLogonRight)**.
-       Einstellen über `secpol.msc` → Lokale Richtlinien → Zuweisen von
-       Benutzerrechten → „Anmelden als Stapelverarbeitung" → Scan-User
-       hinzufügen.
-     - `CreateProcessAsUser: … 0x522` / WinError 1314 („Ein erforderliches
-       Recht steht dem Client nicht zur Verfügung"): Der idvault-Dienst
-       läuft unter einem Konto ohne `SeAssignPrimaryTokenPrivilege` /
-       `SeIncreaseQuotaPrivilege` (typisch: LOCAL SERVICE). Dienst auf
-       LOCAL SYSTEM umstellen oder direkt als Scan-User anmelden.
+   - `LogonUser(…, NETWORK_CLEARTEXT) fehlgeschlagen` – pywin32 ist
+     vollständig, aber der Logon schlug fehl. Detail-Ursachen im
+     Klammertext:
+     - `WinError 1326` (0x52E): Passwort des Scan-Users falsch oder
+       abgelaufen. Passwort in Administration → Scanner-Einstellungen →
+       Run-As erneut eintragen.
+     - `WinError 1385` (0x569, „nicht die Berechtigung, sich in dieser
+       Art anzumelden"): Sollte mit `LOGON_NETWORK_CLEARTEXT` nicht mehr
+       auftreten (kein `SeBatchLogonRight` erforderlich). Falls doch:
+       Konto in `secpol.msc` → „Auf diesen Computer vom Netzwerk aus
+       zugreifen" eintragen.
+   - `CreateProcessAsUser fehlgeschlagen … WinError 1314` (0x522,
+     „Ein erforderliches Recht steht dem Client nicht zur Verfügung"):
+     Der idvault-Dienst läuft nicht als LOCAL SYSTEM (fehlendes
+     `SeAssignPrimaryTokenPrivilege`). Dienstkonto auf LOCAL SYSTEM
+     umstellen (services.msc → Eigenschaften → Anmelden).
 2. **WinError 5 (Zugriff verweigert)** – Der Scan-User darf das Share nicht
    lesen. NTFS- und Freigabe-Berechtigungen prüfen, ggf. Gruppenmitgliedschaft
    durch `gpupdate /force` + neuerliches Anmelden aktualisieren.
@@ -386,7 +434,7 @@ Filter nach Log-Level (ERROR/WARNING/INFO/DEBUG) und Volltextsuche stehen zur
 Verfügung. Über das Auswahlfeld „stdout/stderr-Mitschnitt" lässt sich
 zusätzlich der ungefilterte Subprocess-Output (`scanner_output.log`)
 einsehen – dort landen Crash-Meldungen, die *vor* dem Initialisieren des
-Loggers auftreten (z. B. Probleme mit `CreateProcessWithLogonW`).
+Loggers auftreten.
 
 ## 8 Backup und Wiederherstellung
 

@@ -22,7 +22,8 @@ aufsichtsrechtlich konformen Erfassung, Klassifizierung, Prüfung und
 - **Export** nach Excel für Revision und Aufsicht
 
 Die Anwendung benötigt keine zusätzliche Serverinfrastruktur und kann als
-einzelne ausführbare Datei (`idvault.exe`) betrieben werden.
+einzelne ausführbare Datei (`idvault.exe`) betrieben werden – direkt oder
+als nativer Windows-Dienst (`idvault.exe install`).
 
 ## Schnellstart
 

@@ -248,17 +248,29 @@ def _start_proc_with_logon(
     _enable_privilege("SeAssignPrimaryTokenPrivilege")
 
     # ── LogonUser: Primary-Token für den Ziel-Benutzer besorgen ────────
-    # LOGON32_LOGON_BATCH ist für Dienst-Subprocesse der richtige Typ:
-    # nicht-interaktiv, kein geladenes Profil, kein Desktop. Der
-    # Ziel-Benutzer braucht auf dem idvault-Server das Recht
-    # "Anmelden als Stapelverarbeitung" (SeBatchLogonRight).
-    token = win32security.LogonUser(
-        username,
-        domain,
-        password,
-        win32security.LOGON32_LOGON_BATCH,
-        win32security.LOGON32_PROVIDER_DEFAULT,
-    )
+    # LOGON32_LOGON_NETWORK_CLEARTEXT (8) statt LOGON32_LOGON_BATCH (4):
+    #   • BATCH erfordert SeBatchLogonRight ("Anmelden als Stapelverarbeitung")
+    #     auf dem idvault-Server – ein selten vergebenes Recht; fehlt es,
+    #     scheitert LogonUser still und der Scanner fällt auf den
+    #     Dienstkontext zurück.
+    #   • NETWORK_CLEARTEXT benötigt kein Sonderrecht, nur den normalen
+    #     Netzwerk-Logon (Standardrecht aller Domänenkonten).
+    #   • Speichert Klartext-Credentials im Token → NTLM-Auth auf UNC-Shares
+    #     funktioniert auch wenn kein Kerberos-Ticket vorliegt.
+    #   • Liefert ein Primary-Token → direkt mit CreateProcessAsUser nutzbar.
+    try:
+        token = win32security.LogonUser(
+            username,
+            domain,
+            password,
+            win32security.LOGON32_LOGON_NETWORK_CLEARTEXT,
+            win32security.LOGON32_PROVIDER_DEFAULT,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"LogonUser({domain or '.'}\\{username}, NETWORK_CLEARTEXT) "
+            f"fehlgeschlagen: {type(exc).__name__}: {exc}"
+        ) from exc
 
     # Inheritable HANDLE für die Log-Datei (stdout + stderr).
     # OPEN_ALWAYS (nicht CREATE_ALWAYS), damit die von
@@ -316,6 +328,12 @@ def _start_proc_with_logon(
             cwd,
             si,
         )
+    except Exception as exc:
+        raise RuntimeError(
+            f"CreateProcessAsUser fehlgeschlagen: {type(exc).__name__}: {exc}. "
+            f"Häufige Ursache: idvault-Dienst läuft nicht als LOCAL SYSTEM "
+            f"(SeAssignPrimaryTokenPrivilege fehlt)."
+        ) from exc
     finally:
         # Log- und NUL-Handle wurden vom Kind geerbt; unsere Referenzen
         # schließen wir nach dem Start. Token kann ebenfalls freigegeben
@@ -338,7 +356,7 @@ _RUNAS_REQUIRED_MODULES = (
 
 
 def _check_runas_modules() -> tuple:
-    """Prüft, ob alle pywin32-Module für CreateProcessWithLogonW vorhanden sind.
+    """Prüft, ob alle pywin32-Module für LogonUser + CreateProcessAsUser vorhanden sind.
 
     Gibt ``(ok, missing)`` zurück. ``missing`` listet die fehlenden Modul-
     namen, falls ein Import scheitert – typischerweise weil der EXE-Build
@@ -482,7 +500,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
             _write_scanner_notice(log_path, [
                 f"Starte Scanner als Run-As-Benutzer "
                 f"{runas['domain'] or '.'}\\{runas['username']} "
-                f"(CreateProcessWithLogonW)…"
+                f"(LogonUser + CreateProcessAsUser)…"
             ])
             try:
                 pid, wait_fn = _start_proc_with_logon(
@@ -1079,7 +1097,7 @@ def scanner_runas_testen():
             ok=False,
             msg=(f"Anmeldung als \"{display}\" war erfolgreich, aber der "
                  f"Scanner kann den Benutzer NICHT verwenden: Im EXE-Build "
-                 f"fehlen pywin32-Module für CreateProcessWithLogonW "
+                 f"fehlen pywin32-Module für CreateProcessAsUser "
                  f"({', '.join(missing)}). Abhilfe: EXE neu bauen ODER den "
                  f"idvault-Dienst direkt als Scan-User betreiben.")
         )
@@ -1087,7 +1105,7 @@ def scanner_runas_testen():
     return jsonify(
         ok=True,
         msg=(f"Anmeldung als \"{display}\" erfolgreich. "
-             f"Alle pywin32-Module für CreateProcessWithLogonW sind vorhanden.")
+             f"Alle pywin32-Module für CreateProcessAsUser sind vorhanden.")
     )
 
 
@@ -3059,6 +3077,7 @@ def update_index():
     active_version = (version_info or {}).get('version', bundled_version)
     update_active = os.path.isdir(upd_dir)
 
+    service_name, service_auto_detected = _effective_service_name()
     return render_template(
         "admin/update.html",
         bundled_version=bundled_version,
@@ -3067,6 +3086,8 @@ def update_index():
         changelog=changelog,
         upd_dir=upd_dir,
         sidecar_updates_enabled=_sidecar_updates_enabled(),
+        service_name=service_name,
+        service_auto_detected=service_auto_detected,
     )
 
 
@@ -3219,34 +3240,110 @@ def update_upload():
     return redirect(url_for("admin.update_index"))
 
 
+_detected_svc_name: str | None = None  # None = noch nicht geprüft
+
+
+def _detect_windows_service_name() -> str:
+    """Ermittelt den Windows-Dienstnamen des laufenden Prozesses via PID-Abgleich.
+
+    Durchsucht alle aktiven Win32-Dienste nach einem Eintrag, dessen ProcessId
+    mit os.getpid() übereinstimmt. Funktioniert zuverlässig bei nativer
+    Dienst-Registrierung (``sc create binPath=idvault.exe``).
+
+    Bei Service-Wrappern wie NSSM oder winsw meldet der SCM die PID des
+    Wrappers, nicht die von idvault.exe – in diesem Fall liefert die Funktion
+    '' zurück; IDV_SERVICE_NAME muss dann manuell gesetzt werden.
+
+    Returns: Dienstname (interner Name) oder '' wenn nicht erkannt.
+    """
+    global _detected_svc_name
+    if _detected_svc_name is not None:
+        return _detected_svc_name
+    result = ''
+    if os.name == 'nt' and getattr(sys, 'frozen', False):
+        try:
+            import win32service
+            scm = win32service.OpenSCManager(
+                None, None, win32service.SC_MANAGER_ENUMERATE_SERVICE
+            )
+            try:
+                pid = os.getpid()
+                for svc in win32service.EnumServicesStatusEx(
+                    scm,
+                    win32service.SERVICE_WIN32,
+                    win32service.SERVICE_STATE_ALL,
+                ):
+                    if svc.get('ProcessId') == pid:
+                        result = svc['ServiceName']
+                        break
+            finally:
+                win32service.CloseServiceHandle(scm)
+        except Exception:
+            pass
+    _detected_svc_name = result
+    return result
+
+
+def _effective_service_name() -> tuple[str, bool]:
+    """Gibt (Dienstname, auto_detected) zurück.
+
+    Priorität:
+      1. IDV_SERVICE_NAME aus config.json / Umgebungsvariable (explizit)
+      2. Automatische Erkennung via EnumServicesStatusEx (nativ registriert)
+    """
+    explicit = os.environ.get('IDV_SERVICE_NAME', '').strip()
+    if explicit:
+        return explicit, False
+    auto = _detect_windows_service_name()
+    return auto, bool(auto)
+
+
 def _trigger_restart():
     """Startet die EXE sauber neu (gemeinsame Logik für Update & Rollback).
 
-    Schreibt eine Batch-Datei neben die EXE, die:
-      1. PyInstaller-Umgebungsvariablen löscht (_MEIPASS2 etc.)
-      2. PATH auf Windows-Systemstandard zurücksetzt
-      3. ~3 Sekunden wartet, bis Port 5000 freigegeben ist
-      4. Die EXE über "start" in einem neuen Konsolenfenster startet
-      5. Sich selbst löscht
-    cmd.exe läuft unsichtbar (CREATE_NO_WINDOW), die neue EXE-Instanz
-    bekommt ein eigenes, sichtbares Konsolenfenster.
+    Direktmodus (kein Dienstname ermittelbar):
+      Schreibt eine Batch-Datei neben die EXE, die:
+        1. PyInstaller-Umgebungsvariablen löscht (_MEIPASS2 etc.)
+        2. PATH auf Windows-Systemstandard zurücksetzt
+        3. ~3 Sekunden wartet, bis der Port freigegeben ist
+        4. Die EXE über "start" in einem neuen Konsolenfenster startet
+        5. Sich selbst löscht
+
+    Dienstmodus (IDV_SERVICE_NAME gesetzt oder automatisch erkannt):
+      Schreibt eine Batch-Datei, die nach dem Prozessende ``sc start
+      <servicename>`` ausführt. Der Windows-Dienst-Manager startet den
+      Dienst dann sauber über den SCM neu – kein loses EXE-Fenster.
+      Voraussetzung: Das Dienstkonto (z. B. LOCAL SYSTEM) muss das Recht
+      SERVICE_START für den eigenen Dienst besitzen (bei LOCAL SYSTEM
+      standardmäßig vorhanden).
     """
     def _do():
         import time
         time.sleep(1.5)
         if getattr(sys, 'frozen', False):
             exe = sys.executable
+            service_name, _ = _effective_service_name()
             bat_path = os.path.join(os.path.dirname(exe), '_idvault_restart.bat')
-            bat = (
-                '@echo off\r\n'
-                'set _MEIPASS2=\r\n'
-                'set _PYI_ARCHIVE_FILE=\r\n'
-                'set PATH=%SystemRoot%\\system32;%SystemRoot%;'
-                '%SystemRoot%\\System32\\Wbem\r\n'
-                'ping -n 4 127.0.0.1 > nul\r\n'
-                'start "" "{exe}"\r\n'
-                'del "%~f0"\r\n'
-            ).format(exe=exe)
+            if service_name:
+                # Dienstmodus: nach dem Exit des Prozesses den Dienst über
+                # sc.exe neu starten. ping dient als portabler sleep-Ersatz.
+                bat = (
+                    '@echo off\r\n'
+                    'ping -n 4 127.0.0.1 > nul\r\n'
+                    'sc start "{svc}"\r\n'
+                    'del "%~f0"\r\n'
+                ).format(svc=service_name)
+            else:
+                bat = (
+                    '@echo off\r\n'
+                    'set _MEIPASS2=\r\n'
+                    'set _PYI_ARCHIVE_FILE=\r\n'
+                    'set PATH=%SystemRoot%\\system32;%SystemRoot%;'
+                    '%SystemRoot%\\System32\\Wbem\r\n'
+                    'ping -n 4 127.0.0.1 > nul\r\n'
+                    'start "" "{exe}"\r\n'
+                    'del "%~f0"\r\n'
+                ).format(exe=exe)
             with open(bat_path, 'w', encoding='ascii') as _f:
                 _f.write(bat)
             subprocess.Popen(
