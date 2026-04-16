@@ -391,6 +391,11 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(tests_bp)
     app.register_blueprint(cognos_bp)
 
+    # Zeitplan-Scheduler starten (Daemon-Thread – nicht in Testläufen)
+    if not app.testing:
+        from .routes.admin import start_scheduler
+        start_scheduler(app)
+
     # Sidecar-Blueprint-Autodiscovery: neue .py-Dateien in
     # updates/webapp/routes/ werden automatisch als Blueprint registriert,
     # wenn sie ein Attribut 'bp' exportieren. Ermöglicht das Einführen neuer
