@@ -586,13 +586,15 @@ def scanner_einstellungen():
             db = get_db()
             val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
             val_dc = "1" if request.form.get("discard_no_formula") == "1" else "0"
+            val_cf = "1" if request.form.get("auto_classify_by_filename") == "1" else "0"
             for _key, _val in [
-                ("auto_ignore_no_formula",  val_ai),
-                ("discard_no_formula",      val_dc),
-                ("scan_schedule_enabled",   sched_enabled),
-                ("scan_schedule_type",      sched_type),
-                ("scan_schedule_time",      sched_time),
-                ("scan_schedule_weekday",   sched_weekday),
+                ("auto_ignore_no_formula",    val_ai),
+                ("discard_no_formula",        val_dc),
+                ("auto_classify_by_filename", val_cf),
+                ("scan_schedule_enabled",     sched_enabled),
+                ("scan_schedule_type",        sched_type),
+                ("scan_schedule_time",        sched_time),
+                ("scan_schedule_weekday",     sched_weekday),
             ]:
                 db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
                            (_key, _val))
@@ -609,12 +611,16 @@ def scanner_einstellungen():
     discard_nf = db.execute(
         "SELECT value FROM app_settings WHERE key='discard_no_formula'"
     ).fetchone()
+    classify_fn = db.execute(
+        "SELECT value FROM app_settings WHERE key='auto_classify_by_filename'"
+    ).fetchone()
     schedule = _load_schedule_settings(db)
     runas = _load_scanner_runas()
     return render_template("admin/scanner_einstellungen.html",
                            cfg=cfg, scan_running=_scan_is_running(),
                            auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"),
                            discard_no_formula=(discard_nf["value"] if discard_nf else "0"),
+                           auto_classify_by_filename=(classify_fn["value"] if classify_fn else "1"),
                            schedule=schedule,
                            schedule_next=_next_scheduled_scan(schedule),
                            weekday_names=_WEEKDAY_NAMES,
