@@ -25,17 +25,18 @@
                    value="{{ settings.get('smtp_port','587') }}">
           </div>
           <div class="col-md-3">
-            <label class="form-label form-label-sm fw-600">SMTP-Benutzer</label>
+            <label class="form-label form-label-sm fw-600">SMTP-Benutzer <span class="text-muted fw-normal">(optional)</span></label>
             <input type="text" name="smtp_user" class="form-control form-control-sm"
                    value="{{ settings.get('smtp_user','') }}" placeholder="idvault@bank.de">
+            <div class="form-text">Leer lassen wenn keine Authentifizierung nötig (z.&nbsp;B. Relay via Hostname).</div>
           </div>
           <div class="col-md-3">
-            <label class="form-label form-label-sm fw-600">Passwort</label>
+            <label class="form-label form-label-sm fw-600">Passwort <span class="text-muted fw-normal">(optional)</span></label>
             <input type="password" name="smtp_password" class="form-control form-control-sm"
                    value=""
                    placeholder="{% if settings.get('smtp_password') %}••• gespeichert – leer lassen zum Beibehalten{% else %}nicht gesetzt{% endif %}"
                    autocomplete="new-password">
-            <div class="form-text">Wird verschlüsselt in der Datenbank abgelegt.</div>
+            <div class="form-text">Wird verschlüsselt gespeichert. Leer = kein Passwort / beibehalten.</div>
           </div>
           <div class="col-md-4">
             <label class="form-label form-label-sm fw-600">Absenderadresse</label>
@@ -155,6 +156,78 @@
     </div>
   </div>
 
+  <!-- ── SMTP-Test ──────────────────────────────────────────────── -->
+  <div class="col-12" id="smtp-test">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-send-check me-2"></i>SMTP-Verbindungstest</div>
+      <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.85rem">
+          Sendet eine Test-E-Mail mit den aktuell <strong>gespeicherten</strong> Einstellungen.
+          Änderungen müssen zuerst gespeichert werden, bevor sie hier wirksam sind.
+        </p>
+        <div class="d-flex gap-2 align-items-end flex-wrap">
+          <div>
+            <label class="form-label form-label-sm fw-600">Empfänger-Adresse</label>
+            <input type="email" id="smtp-test-email" class="form-control form-control-sm"
+                   placeholder="admin@bank.de" style="min-width:260px">
+          </div>
+          <button type="button" id="smtp-test-btn" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-send me-1"></i>Test-E-Mail senden
+          </button>
+        </div>
+        <div id="smtp-test-result" class="mt-2" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SMTP-Versandlog ────────────────────────────────────────── -->
+  <div class="col-12" id="smtp-log">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600 d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-journal-text me-2"></i>SMTP-Versandlog</span>
+        <span class="badge bg-secondary" style="font-size:.72rem">letzte 50 Einträge</span>
+      </div>
+      <div class="card-body p-0">
+        {% if smtp_log %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+            <thead class="table-light">
+              <tr>
+                <th style="width:155px">Zeitpunkt</th>
+                <th style="width:70px">Status</th>
+                <th>Empfänger</th>
+                <th>Betreff</th>
+                <th>Fehler</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in smtp_log %}
+              <tr>
+                <td class="text-muted">{{ entry.sent_at[:19].replace('T', ' ') }}</td>
+                <td>
+                  {% if entry.success %}
+                  <span class="badge bg-success">OK</span>
+                  {% else %}
+                  <span class="badge bg-danger">Fehler</span>
+                  {% endif %}
+                </td>
+                <td>{{ entry.recipients }}</td>
+                <td>{{ entry.subject }}</td>
+                <td class="text-danger" style="font-size:.75rem">{{ entry.error_msg or '' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-muted p-3" style="font-size:.85rem">
+          <i class="bi bi-info-circle me-1"></i>Noch keine Versandversuche protokolliert.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -171,6 +244,50 @@ document.addEventListener('click', function (ev) {
   if (bodyEl) bodyEl.value = '';
   btn.remove();
 });
+
+// SMTP-Test
+document.getElementById('smtp-test-btn').addEventListener('click', function () {
+  var email  = document.getElementById('smtp-test-email').value.trim();
+  var result = document.getElementById('smtp-test-result');
+  var btn    = this;
+
+  if (!email) {
+    result.innerHTML = '<div class="alert alert-warning py-2 mb-0" style="font-size:.85rem"><i class="bi bi-exclamation-triangle me-1"></i>Bitte eine Empfänger-Adresse eingeben.</div>';
+    result.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sende…';
+  result.style.display = 'none';
+
+  var form = new FormData();
+  form.append('csrf_token', '{{ csrf_token() }}');
+  form.append('to_email', email);
+
+  fetch('{{ url_for("admin.mail_test") }}', {method: 'POST', body: form})
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.success) {
+        result.innerHTML = '<div class="alert alert-success py-2 mb-0" style="font-size:.85rem"><i class="bi bi-check-circle me-1"></i>' + _esc(data.message) + '</div>';
+      } else {
+        result.innerHTML = '<div class="alert alert-danger py-2 mb-0" style="font-size:.85rem"><i class="bi bi-x-circle me-1"></i>' + _esc(data.message) + '</div>';
+      }
+      result.style.display = 'block';
+    })
+    .catch(function (err) {
+      result.innerHTML = '<div class="alert alert-danger py-2 mb-0" style="font-size:.85rem"><i class="bi bi-x-circle me-1"></i>Netzwerkfehler: ' + _esc(String(err)) + '</div>';
+      result.style.display = 'block';
+    })
+    .finally(function () {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send me-1"></i>Test-E-Mail senden';
+    });
+});
+
+function _esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 </script>
 
 <style>

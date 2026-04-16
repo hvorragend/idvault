@@ -80,6 +80,18 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
         if col not in existing_freigaben_cols:
             conn.execute(stmt)
 
+    # SMTP-Versandlog: neue Tabelle für bestehende Installationen anlegen
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS smtp_log (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            sent_at    TEXT    NOT NULL,
+            recipients TEXT    NOT NULL,
+            subject    TEXT    NOT NULL,
+            success    INTEGER NOT NULL DEFAULT 0,
+            error_msg  TEXT
+        )
+    """)
+
     # Daten-Migration: Status "Genehmigt" → "Freigegeben" (idempotent)
     conn.execute("UPDATE idv_register SET status = 'Freigegeben' WHERE status = 'Genehmigt'")
     conn.execute("UPDATE idv_register SET status = 'Freigegeben mit Auflagen' WHERE status = 'Genehmigt mit Auflagen'")
