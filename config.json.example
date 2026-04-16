@@ -1,4 +1,6 @@
 {
+  "_kommentar_praezedenz": "Präzedenz der Konfigurationsquellen (höchste zuerst): Umgebungsvariable > config.json > SQLite (app_settings / ldap_config) > Hardcoded-Default. Die Web-UI speichert in die SQLite-DB. Ein Eintrag hier überschreibt den DB-Wert und macht das entsprechende Feld in der Web-UI read-only.",
+
   "SECRET_KEY": "BITTE_ERSETZEN_mindestens_32_Zeichen",
 
   "PORT": 5000,
@@ -11,13 +13,7 @@
   "IDV_DB_PATH": "instance/idvault.db",
   "IDV_INSTANCE_PATH": "instance",
 
-  "IDV_SMTP_HOST": "",
-  "IDV_SMTP_PORT": 587,
-  "IDV_SMTP_USER": "",
-  "IDV_SMTP_PASSWORD": "",
-  "IDV_SMTP_FROM": "",
-  "IDV_SMTP_TLS": 1,
-  "IDV_APP_BASE_URL": "",
+  "_kommentar_smtp": "SMTP-Zugangsdaten werden über die Web-UI unter /admin/mail in der SQLite-Tabelle app_settings gespeichert. Daher sind hier keine SMTP-Keys mehr vorbelegt. Frühere Einträge wie IDV_SMTP_HOST wurden von der Anwendung nie gelesen und dienen nur als Umgebungsvariable.",
 
   "_kommentar_sicherheit": "Folgende Schalter steuern Sicherheitsfunktionen – vor Produktivbetrieb unbedingt anpassen.",
 
@@ -76,5 +72,38 @@
     "move_detection": "name_and_hash",
     "scan_since": null,
     "read_file_owner": true
+  },
+
+  "_kommentar_teams": "Teams-Scanner (SharePoint/Graph-API). Ersetzt die frühere scanner/teams_config.json – die wird beim nächsten Start automatisch nach config.json['teams'] migriert und zu teams_config.json.migrated umbenannt. Die Web-UI unter /admin/teams-einstellungen schreibt direkt hier hinein.",
+
+  "teams": {
+    "tenant_id": "",
+    "client_id": "",
+    "client_secret": "",
+    "extensions": [
+      ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
+      ".accdb", ".mdb", ".accde", ".accdr",
+      ".ida", ".idv",
+      ".pbix", ".pbit",
+      ".dotm", ".pptm",
+      ".py", ".r", ".rmd", ".sql"
+    ],
+    "hash_size_limit_mb": 100,
+    "download_for_ooxml": true,
+    "move_detection": "name_and_hash",
+    "teams": []
+  },
+
+  "_kommentar_ldap": "OPTIONAL. Der 'ldap'-Block überschreibt pro Feld die SQLite-Tabelle ldap_config. Fehlt er (oder einzelne Keys), gelten die in /admin/ldap-config gepflegten DB-Werte. Überschriebene Felder sind in der Web-UI read-only. bind_password darf Klartext sein oder 'ENV:VARNAME' referenzieren – so managen Ops-Teams das Secret extern, ohne die Fernet-Verschlüsselung der DB zu benötigen.",
+
+  "_ldap_beispiel": {
+    "enabled": true,
+    "server_url": "ldaps://ad.example.com",
+    "port": 636,
+    "base_dn": "DC=example,DC=com",
+    "bind_dn": "CN=svc-idvault,OU=ServiceAccounts,DC=example,DC=com",
+    "bind_password": "ENV:IDV_LDAP_BIND_PASSWORD",
+    "user_attr": "sAMAccountName",
+    "ssl_verify": true
   }
 }

@@ -1179,9 +1179,14 @@ _DEFAULT_TEAMS_EXTENSIONS = [
     ".py", ".r", ".rmd", ".sql",
 ]
 
-
-def _teams_config_path() -> str:
-    return os.path.join(_scanner_dir(), "teams_config.json")
+# Persistente Teams-Keys in config.json["teams"]. Pfad-Defaults (db_path, log_path)
+# werden bewusst NICHT mitgespeichert – sie hängen vom Instance-Pfad ab und werden
+# zur Laufzeit aus der App-Config abgeleitet.
+_TEAMS_CFG_PERSIST_KEYS = frozenset({
+    "tenant_id", "client_id", "client_secret",
+    "hash_size_limit_mb", "download_for_ooxml", "move_detection",
+    "extensions", "teams",
+})
 
 
 def _teams_script_path() -> str:
@@ -1189,6 +1194,9 @@ def _teams_script_path() -> str:
 
 
 def _default_teams_cfg() -> dict:
+    """Laufzeit-Defaults inkl. abgeleiteter Pfade. Werden nur zur Anzeige und
+    an den Teams-Scanner-Subprocess übergeben – NICHT in config.json persistiert.
+    """
     return {
         "tenant_id":          "",
         "client_id":          "",
@@ -1204,20 +1212,30 @@ def _default_teams_cfg() -> dict:
 
 
 def _load_teams_config() -> dict:
+    """Lädt Teams-Konfiguration aus config.json["teams"] (Haupt-config.json).
+
+    Die früher separate ``scanner/teams_config.json`` wurde in die Haupt-
+    ``config.json`` konsolidiert (siehe run.py für die einmalige Migration).
+    """
+    from .. import config_store
     cfg = _default_teams_cfg()
-    try:
-        with open(_teams_config_path(), encoding="utf-8") as f:
-            cfg.update(json.load(f))
-    except Exception:
-        pass
+    section = config_store.get_section("teams") or {}
+    # Nur bekannte Keys übernehmen, damit Pfad-Defaults (db_path, log_path)
+    # aus _default_teams_cfg() die Runtime-Werte behalten.
+    for key in _TEAMS_CFG_PERSIST_KEYS:
+        if key in section:
+            cfg[key] = section[key]
     return cfg
 
 
 def _save_teams_config(cfg: dict) -> None:
-    path = _teams_config_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
+    """Speichert Teams-Konfiguration nach config.json["teams"].
+
+    Nur persistente Keys werden geschrieben (keine Laufzeit-Pfade).
+    """
+    from .. import config_store
+    to_persist = {k: v for k, v in cfg.items() if k in _TEAMS_CFG_PERSIST_KEYS}
+    config_store.write_section("teams", to_persist)
 
 
 def _teams_scan_is_running() -> bool:
@@ -1291,9 +1309,10 @@ def teams_scan_starten():
         if _teams_scan_is_running():
             return jsonify({"ok": False, "msg": "Ein Teams-Scan läuft bereits."})
 
-        config_path = _teams_config_path()
+        # Haupt-config.json – der Teams-Scanner liest die "teams"-Sektion daraus.
+        config_path = _scanner_config_path()
         if not os.path.isfile(config_path):
-            return jsonify({"ok": False, "msg": "Teams-Konfiguration nicht gefunden. Bitte zuerst speichern."})
+            return jsonify({"ok": False, "msg": "config.json nicht gefunden. Bitte zuerst speichern."})
 
         cfg = _load_teams_config()
         if not cfg.get("teams"):
@@ -2503,22 +2522,63 @@ def ldap_config():
     db = get_db()
 
     if request.method == "POST":
-        enabled     = 1 if request.form.get("enabled") else 0
-        server_url  = request.form.get("server_url", "").strip()
-        port        = int(request.form.get("port") or 636)
-        base_dn     = request.form.get("base_dn", "").strip()
-        bind_dn     = request.form.get("bind_dn", "").strip()
-        bind_password_plain = request.form.get("bind_password", "").strip()
-        user_attr   = request.form.get("user_attr", "sAMAccountName")
-        ssl_verify  = 1 if request.form.get("ssl_verify") else 0
+        # Vor dem Schreiben die DB-Rohwerte lesen – überschriebene Felder
+        # aus config.json dürfen NICHT in die DB propagiert werden, damit
+        # die DB-Werte intakt bleiben, falls der Override später entfernt
+        # wird. Siehe Plan: "Web-UI schreibt DB; config.json überschreibt".
+        db_row = db.execute("SELECT * FROM ldap_config WHERE id = 1").fetchone()
+        db_cfg = dict(db_row) if db_row else {}
 
-        # Bestehendes Passwort beibehalten wenn Feld leer
-        existing = get_ldap_config(db)
-        if bind_password_plain:
-            secret_key = current_app.config["SECRET_KEY"]
-            bind_password_enc = encrypt_password(bind_password_plain, secret_key)
+        # Merged Config (inkl. _override_keys) für UI-konforme Logik
+        effective = get_ldap_config(db) or {}
+        overridden = set(effective.get("_override_keys") or [])
+
+        def _field(name, form_val, coerce=lambda x: x, default=None):
+            """Liefert den DB-seitig zu schreibenden Wert.
+
+            Ist das Feld via config.json überschrieben, bleibt der bestehende
+            DB-Wert unverändert; ansonsten wird der Formularwert genommen.
+            """
+            if name in overridden:
+                return db_cfg.get(name, default)
+            return coerce(form_val)
+
+        enabled = _field("enabled",
+                         1 if request.form.get("enabled") else 0,
+                         default=0)
+        server_url = _field("server_url",
+                            request.form.get("server_url", "").strip(),
+                            default="")
+        try:
+            port_form = int(request.form.get("port") or 636)
+        except (TypeError, ValueError):
+            port_form = 636
+        port = _field("port", port_form, default=636)
+        base_dn = _field("base_dn",
+                         request.form.get("base_dn", "").strip(),
+                         default="")
+        bind_dn = _field("bind_dn",
+                         request.form.get("bind_dn", "").strip(),
+                         default="")
+        user_attr = _field("user_attr",
+                           request.form.get("user_attr", "sAMAccountName"),
+                           default="sAMAccountName")
+        ssl_verify = _field("ssl_verify",
+                            1 if request.form.get("ssl_verify") else 0,
+                            default=1)
+
+        # Bind-Passwort: Override im config.json hat Vorrang. DB-Wert nur
+        # ändern, wenn das Feld NICHT überschrieben ist und ein neues
+        # Passwort eingegeben wurde.
+        if "bind_password" in overridden:
+            bind_password_enc = db_cfg.get("bind_password", "")
         else:
-            bind_password_enc = existing["bind_password"] if existing else ""
+            bind_password_plain = request.form.get("bind_password", "").strip()
+            if bind_password_plain:
+                secret_key = current_app.config["SECRET_KEY"]
+                bind_password_enc = encrypt_password(bind_password_plain, secret_key)
+            else:
+                bind_password_enc = db_cfg.get("bind_password", "")
 
         updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         db.execute("""
@@ -2539,7 +2599,15 @@ def ldap_config():
         """, (enabled, server_url, port, base_dn, bind_dn,
               bind_password_enc, user_attr, ssl_verify, updated_at))
         db.commit()
-        flash("LDAP-Konfiguration gespeichert.", "success")
+        if overridden:
+            flash(
+                "LDAP-Konfiguration gespeichert. Hinweis: "
+                f"{', '.join(sorted(overridden))} werden aktuell durch "
+                "config.json überschrieben und wurden nicht verändert.",
+                "success",
+            )
+        else:
+            flash("LDAP-Konfiguration gespeichert.", "success")
         # VULN-012: TLS-Zertifikatsprüfung abgeschaltet → Audit-Warnung
         if enabled and not ssl_verify:
             import logging as _logging
@@ -2558,7 +2626,9 @@ def ldap_config():
         return redirect(url_for("admin.ldap_config"))
 
     cfg = get_ldap_config(db)
-    return render_template("admin/ldap_config.html", cfg=cfg)
+    override_keys = list((cfg or {}).get("_override_keys") or [])
+    return render_template("admin/ldap_config.html",
+                           cfg=cfg, override_keys=override_keys)
 
 
 @bp.route("/ldap-test", methods=["POST"])
