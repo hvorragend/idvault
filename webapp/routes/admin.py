@@ -523,7 +523,7 @@ def scanner_starten():
                 cmd,
                 stdout=log_fh,
                 stderr=log_fh,
-                cwd=scanner_dir,
+                cwd=os.path.dirname(scanner_dir),
                 creationflags=_creationflags,
             )
             _scan_state["pid"]     = proc.pid
@@ -972,7 +972,7 @@ def teams_scan_starten():
                 cmd,
                 stdout=log_fh,
                 stderr=log_fh,
-                cwd=scanner_dir,
+                cwd=os.path.dirname(scanner_dir),
                 creationflags=_creationflags,
             )
             _teams_scan_state["pid"]     = proc.pid
