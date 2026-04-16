@@ -106,33 +106,67 @@
         </div>
 
         <div class="mb-3">
+          {% set has_scanner = scanner_dateien and scanner_dateien|length > 0 %}
+          {% if has_scanner %}
           <div class="form-check">
-            <input class="form-check-input" type="radio" name="datei_verfuegbar"
-                   id="opt_verfuegbar" value="1" checked>
-            <label class="form-check-label" for="opt_verfuegbar">
-              <strong>Originaldatei liegt vor</strong> – Datei hochladen und revisionssicher archivieren
+            <input class="form-check-input" type="radio" name="archiv_quelle"
+                   id="opt_scanner" value="scanner" checked>
+            <label class="form-check-label" for="opt_scanner">
+              <strong>Gescannte Datei als Originalversion übernehmen</strong>
+              <span class="text-muted">– Datei wird vom Quellpfad ins Archiv kopiert,
+              SHA-256 wird neu berechnet</span>
+            </label>
+          </div>
+          {% endif %}
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="archiv_quelle"
+                   id="opt_upload" value="upload" {% if not has_scanner %}checked{% endif %}>
+            <label class="form-check-label" for="opt_upload">
+              <strong>Originaldatei manuell hochladen</strong>
+              <span class="text-muted">– Datei aus dem Browser auswählen</span>
             </label>
           </div>
           <div class="form-check">
-            <input class="form-check-input" type="radio" name="datei_verfuegbar"
-                   id="opt_nicht_verfuegbar" value="0">
+            <input class="form-check-input" type="radio" name="archiv_quelle"
+                   id="opt_nicht_verfuegbar" value="nicht_verfuegbar">
             <label class="form-check-label" for="opt_nicht_verfuegbar">
-              <strong>Originaldatei nicht verfügbar</strong> – z.B. Cognos-Bericht,
-              serverseitiges Skript ohne Sicherung, …
+              <strong>Originaldatei nicht verfügbar</strong>
+              <span class="text-muted">– z.B. Cognos-Bericht, serverseitiges
+              Skript ohne Sicherung</span>
             </label>
           </div>
         </div>
 
-        <!-- Upload-Bereich (sichtbar wenn Datei vorhanden) -->
-        <div id="block-upload">
-          <div class="mb-3">
-            <label class="form-label fw-500">Originaldatei</label>
-            <input type="file" name="archiv_datei" id="archiv_datei" class="form-control">
-            <div class="form-text">
-              Die Datei wird schreibgeschützt abgelegt und mit einem SHA-256-Hash
-              versehen. Maximalgröße 256 MB. Zugelassen sind alle Dateiformate
-              (Excel, Access, Python, SQL, PBIX, ZIP, …).
-            </div>
+        <!-- Scanner-Datei-Auswahl (sichtbar wenn 'scanner' gewählt) -->
+        {% if has_scanner %}
+        <div id="block-scanner" class="mb-3">
+          <label class="form-label fw-500">Verknüpfte Scanner-Datei</label>
+          <select name="scanner_file_id" id="scanner_file_id" class="form-select">
+            {% for sf in scanner_dateien %}
+            <option value="{{ sf.id }}"
+                    {% if loop.first %}selected{% endif %}>
+              {{ sf.file_name }}{% if sf.size_bytes %}
+              ({{ (sf.size_bytes / 1024)|round(1) }} KB){% endif %}
+              – {{ sf.full_path }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            Die ausgewählte Datei wird vom Scanner-Pfad in das Archiv kopiert
+            (max. 256 MB). Achtung: Es muss zum Zeitpunkt der Archivierung
+            Lesezugriff auf den Originalpfad bestehen.
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Upload-Bereich (sichtbar wenn 'upload' gewählt) -->
+        <div id="block-upload" class="mb-3 {% if has_scanner %}d-none{% endif %}">
+          <label class="form-label fw-500">Originaldatei</label>
+          <input type="file" name="archiv_datei" id="archiv_datei" class="form-control">
+          <div class="form-text">
+            Die Datei wird schreibgeschützt abgelegt und mit einem SHA-256-Hash
+            versehen. Maximalgröße 256 MB. Zugelassen sind alle Dateiformate
+            (Excel, Access, Python, SQL, PBIX, ZIP, …).
           </div>
         </div>
 
@@ -222,39 +256,48 @@
 {% if not readonly %}
 <script>
 (function () {
-  var blockUpload  = document.getElementById('block-upload');
-  var fileInput    = document.getElementById('archiv_datei');
-  var begrInput    = document.getElementById('archiv_begruendung');
-  var reqMark      = document.getElementById('begr-required');
-  var optMark      = document.getElementById('begr-optional');
-  var helpDefault  = document.getElementById('begr-help-default');
-  var helpRequired = document.getElementById('begr-help-required');
+  var blockScanner  = document.getElementById('block-scanner');
+  var blockUpload   = document.getElementById('block-upload');
+  var scannerSelect = document.getElementById('scanner_file_id');
+  var fileInput     = document.getElementById('archiv_datei');
+  var begrInput     = document.getElementById('archiv_begruendung');
+  var reqMark       = document.getElementById('begr-required');
+  var optMark       = document.getElementById('begr-optional');
+  var helpDefault   = document.getElementById('begr-help-default');
+  var helpRequired  = document.getElementById('begr-help-required');
+
+  function show(el)  { if (el) el.classList.remove('d-none'); }
+  function hide(el)  { if (el) el.classList.add('d-none'); }
 
   function update() {
-    var verfuegbar = document.querySelector('input[name="datei_verfuegbar"]:checked');
-    var v = verfuegbar ? verfuegbar.value : '1';
-    if (v === '1') {
-      blockUpload.classList.remove('d-none');
+    var sel = document.querySelector('input[name="archiv_quelle"]:checked');
+    var v = sel ? sel.value : 'upload';
+
+    // Standardzustand: alles deaktivieren / verstecken
+    hide(blockScanner);
+    hide(blockUpload);
+    if (scannerSelect) scannerSelect.required = false;
+    if (fileInput)     fileInput.required     = false;
+    if (begrInput)     begrInput.required     = false;
+
+    if (v === 'scanner') {
+      show(blockScanner);
+      if (scannerSelect) scannerSelect.required = true;
+      hide(reqMark); show(optMark);
+      show(helpDefault); hide(helpRequired);
+    } else if (v === 'upload') {
+      show(blockUpload);
       if (fileInput) fileInput.required = true;
-      if (begrInput) begrInput.required = false;
-      reqMark.classList.add('d-none');
-      optMark.classList.remove('d-none');
-      helpDefault.classList.remove('d-none');
-      helpRequired.classList.add('d-none');
-    } else {
-      blockUpload.classList.add('d-none');
-      if (fileInput) {
-        fileInput.required = false;
-        fileInput.value = '';
-      }
+      hide(reqMark); show(optMark);
+      show(helpDefault); hide(helpRequired);
+    } else { // nicht_verfuegbar
+      if (fileInput) fileInput.value = '';
       if (begrInput) begrInput.required = true;
-      reqMark.classList.remove('d-none');
-      optMark.classList.add('d-none');
-      helpDefault.classList.add('d-none');
-      helpRequired.classList.remove('d-none');
+      show(reqMark); hide(optMark);
+      hide(helpDefault); show(helpRequired);
     }
   }
-  document.querySelectorAll('input[name="datei_verfuegbar"]').forEach(function (el) {
+  document.querySelectorAll('input[name="archiv_quelle"]').forEach(function (el) {
     el.addEventListener('change', update);
   });
   update();
