@@ -387,17 +387,17 @@ def _seed_if_empty(app):
             insert_demo_data(db)
 
 
-if __name__ == "__main__":
+def _run_server(service_mode: bool = False):
+    """Startet den Flask-WSGI-Server.
+
+    service_mode=True: Kein Konsolenoutput; os._exit statt sys.exit, damit
+    der Prozess auch aus einem Daemon-Thread heraus zuverlässig beendet wird.
+    """
     from ssl_utils import build_ssl_context, https_enabled
 
     debug = os.environ.get("DEBUG", "0") == "1"
 
     # ── Sicherheits-Startup-Checks (VULN-004 / VULN-005) ─────────────────────
-    # VULN-004: SECRET_KEY-Enforcement.
-    #   Ohne gesetzte Umgebungsvariable greift der statische Fallback
-    #   "dev-change-in-production-!" aus webapp/__init__.py – im Produktiv-
-    #   betrieb untauglich. Wir brechen in diesem Fall den Start ab, außer
-    #   der Debug-Modus ist aktiv (lokale Entwicklung).
     if app.config.get("SECRET_KEY_IS_DEFAULT"):
         msg = (
             "SICHERHEITS-ABBRUCH: SECRET_KEY ist nicht gesetzt. In der Produktion "
@@ -411,20 +411,18 @@ if __name__ == "__main__":
             "Zum lokalen Entwickeln DEBUG=1 setzen, um diesen Check zu umgehen."
         )
         if not debug:
-            print("\n" + "!" * 70)
-            print(msg)
-            print("!" * 70)
-            sys.exit(2)
-        else:
+            if not service_mode:
+                print("\n" + "!" * 70)
+                print(msg)
+                print("!" * 70)
+            os._exit(2)
+        elif not service_mode:
             print("\n" + "!" * 70)
             print("  WARNUNG: SECRET_KEY nicht gesetzt – Dev-Fallback aktiv.")
             print("  Dieser Start ist NUR für die lokale Entwicklung zulässig.")
             print("!" * 70 + "\n")
 
-    # VULN-005: Debug-Warnung. Der Flask-Debugger aktiviert interaktive
-    # Stack-Traces und (im Werkzeug-Reloader) eine PIN-geschützte Konsole.
-    # In der Produktion niemals einsetzen.
-    if debug:
+    if debug and not service_mode:
         print("\n" + "!" * 70)
         print("  WARNUNG: DEBUG-Modus aktiv.")
         print("  Der Flask-Debugger liefert Stacktraces und eine interaktive")
@@ -432,9 +430,6 @@ if __name__ == "__main__":
         print("!" * 70 + "\n")
     # ─────────────────────────────────────────────────────────────────────────
 
-    # HTTPS optional: Zertifikats-Kontext vorbereiten (ggf. selbstsigniert).
-    # Muss vor dem Port-Default ausgewertet werden, damit 5443 greift.
-    # IDV_INSTANCE_PATH wurde oben bereits gesetzt (Default: <root>/instance).
     _instance_path = os.environ.get(
         'IDV_INSTANCE_PATH', os.path.join(_PROJECT_ROOT, 'instance')
     )
@@ -443,23 +438,127 @@ if __name__ == "__main__":
     default_port = 5443 if ssl_context is not None else 5000
     port = int(os.environ.get("PORT", default_port))
 
-    print("=" * 55)
-    print("  idvault – IDV-Register")
-    print(f"  {scheme}://localhost:{port}")
-    print(f"  DB: {app.config['DATABASE']}")
-    if ssl_context is not None:
-        print("  HTTPS aktiv – Zertifikat aus instance/certs/")
-    elif https_enabled():
-        # HTTPS gewünscht, Kontext aber nicht erstellbar (sollte nicht passieren,
-        # build_ssl_context() würde in diesem Fall eine Exception werfen).
-        print("  HTTPS angefordert, aber kein SSL-Kontext verfügbar.")
-    _local_users = app.config.get("IDV_LOCAL_USERS") or {}
-    if _local_users:
-        print(f"  Lokale Benutzer (config.json): {', '.join(sorted(_local_users))}")
-    else:
-        print("  Keine lokalen Benutzer konfiguriert – nur DB-Konten/LDAP.")
-    print("=" * 55)
+    if not service_mode:
+        print("=" * 55)
+        print("  idvault – IDV-Register")
+        print(f"  {scheme}://localhost:{port}")
+        print(f"  DB: {app.config['DATABASE']}")
+        if ssl_context is not None:
+            print("  HTTPS aktiv – Zertifikat aus instance/certs/")
+        elif https_enabled():
+            print("  HTTPS angefordert, aber kein SSL-Kontext verfügbar.")
+        _local_users = app.config.get("IDV_LOCAL_USERS") or {}
+        if _local_users:
+            print(f"  Lokale Benutzer (config.json): {', '.join(sorted(_local_users))}")
+        else:
+            print("  Keine lokalen Benutzer konfiguriert – nur DB-Konten/LDAP.")
+        print("=" * 55)
 
     _seed_if_empty(app)
+    # use_reloader=False: Im EXE-Bundle gibt es keine .py-Dateien zum Beobachten;
+    # der Reloader würde nutzlos einen zweiten Prozess spawnen.
+    app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context,
+            use_reloader=not getattr(sys, 'frozen', False))
 
-    app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context)
+
+# ── Windows-Dienst-Framework (nur als EXE auf Windows) ──────────────────────
+# Voraussetzung: pywin32 (bereits in requirements.txt).
+#
+# Befehle (als Administrator ausführen):
+#   idvault.exe install    → Dienst registrieren (Name aus IDV_SERVICE_NAME
+#                            oder Standard "idvault")
+#   idvault.exe start      → Dienst starten
+#   idvault.exe stop       → Dienst stoppen
+#   idvault.exe restart    → Dienst neu starten
+#   idvault.exe remove     → Dienst entfernen
+#
+# Nach "install" startet der SCM die EXE automatisch mit "--service-run".
+# Dienstkonto für Netzlaufwerk-Scans:
+#   - LOCAL SYSTEM: einfachste Option; Scanner-Benutzer separat in der
+#     Web-UI unter Administration → Scanner-Einstellungen konfigurieren.
+#   - Domain-Konto: Hat der Dienst direkten Zugriff auf die Scan-Pfade,
+#     ist kein separater Scanner-Benutzer nötig. Für einen abweichenden
+#     Run-As-Benutzer muss dem Dienstkonto SeAssignPrimaryTokenPrivilege
+#     erteilt werden (secpol.msc → Lokale Richtlinien → Zuweisen von
+#     Benutzerrechten → "Token auf Prozessebene ersetzen").
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _make_service_class():
+    """Erzeugt die ServiceFramework-Klasse mit dem konfigurierten Dienstnamen.
+
+    Wird innerhalb einer Funktion definiert, damit _svc_name_ erst nach dem
+    Laden der config.json (Modul-Ebene) aus der Umgebungsvariablen gelesen
+    werden kann.
+    """
+    import win32service    # noqa – nur auf Windows verfügbar
+    import win32event      # noqa
+    import servicemanager  # noqa
+    import win32serviceutil
+
+    svc_name = os.environ.get('IDV_SERVICE_NAME', 'idvault').strip() or 'idvault'
+
+    class _IdvaultService(win32serviceutil.ServiceFramework):
+        _svc_name_         = svc_name
+        _svc_display_name_ = 'idvault IDV-Register'
+        _svc_description_  = 'IDV-Register Web-Anwendung'
+        # Argument, das der SCM beim Start an die EXE übergibt:
+        _exe_args_         = '--service-run'
+
+        def __init__(self, args):
+            win32serviceutil.ServiceFramework.__init__(self, args)
+            self._stop_evt = win32event.CreateEvent(None, 0, 0, None)
+
+        def SvcStop(self):
+            self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+            win32event.SetEvent(self._stop_evt)
+
+        def SvcDoRun(self):
+            servicemanager.LogMsg(
+                servicemanager.EVENTLOG_INFORMATION_TYPE,
+                servicemanager.PYS_SERVICE_STARTED,
+                (self._svc_name_, ''),
+            )
+            import threading as _t
+            _t.Thread(target=_run_server, kwargs={'service_mode': True},
+                      daemon=True).start()
+            win32event.WaitForSingleObject(self._stop_evt, win32event.INFINITE)
+            servicemanager.LogMsg(
+                servicemanager.EVENTLOG_INFORMATION_TYPE,
+                servicemanager.PYS_SERVICE_STOPPED,
+                (self._svc_name_, ''),
+            )
+            os._exit(0)
+
+    return _IdvaultService
+
+
+if __name__ == "__main__":
+    # ── Windows-Dienst-Modus (nur als EXE) ───────────────────────────────────
+    if os.name == 'nt' and getattr(sys, 'frozen', False):
+        _first_arg = sys.argv[1].lower() if len(sys.argv) > 1 else ''
+
+        if '--service-run' in sys.argv:
+            # SCM hat die EXE mit --service-run gestartet → Dienst-Dispatcher
+            try:
+                import servicemanager as _sm
+                _Svc = _make_service_class()
+                _sm.Initialize()
+                _sm.PrepareToHostSingle(_Svc)
+                _sm.StartServiceCtrlDispatcher()
+            except ImportError:
+                print("pywin32 nicht verfügbar – Dienst-Modus nicht möglich.")
+            sys.exit(0)
+
+        if _first_arg in ('install', 'remove', 'start', 'stop', 'restart',
+                          'debug', 'update'):
+            # Dienst-Verwaltung: install/remove/start/stop/restart
+            try:
+                import win32serviceutil as _wsu
+                _Svc = _make_service_class()
+                _wsu.HandleCommandLine(_Svc)
+            except ImportError:
+                print("pywin32 nicht verfügbar – Dienst-Modus nicht möglich.")
+            sys.exit(0)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    _run_server()
