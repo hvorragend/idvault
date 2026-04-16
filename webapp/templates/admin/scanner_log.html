@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Scanner-Log{% endblock %}
+{% block page_title %}<i class="bi bi-journal-code me-2"></i>Scanner-Log{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ 'success' if cat=='success' else 'danger' }} alert-dismissible fade show">
+    {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="text-muted" style="font-size:.88rem">
+    Live-Anzeige der Scanner-Log-Datei
+    {% if scan_running %}
+      <span class="badge bg-success ms-2">
+        <span class="spinner-border spinner-border-sm me-1" role="status" style="width:.7rem;height:.7rem"></span>
+        Scan läuft – Auto-Refresh aktiv
+      </span>
+    {% endif %}
+  </span>
+  <a href="{{ url_for('admin.scanner_einstellungen') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Zurück zu Scanner-Einstellungen
+  </a>
+</div>
+
+<div class="row g-4">
+
+  <!-- ── Scanner-Log ────────────────────────────────────────────────── -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-600">
+          <i class="bi bi-list-ul me-2"></i>
+          Letzte Scanner-Einträge
+          <span class="badge bg-secondary ms-2" id="lineCountBadge">{{ lines|length }}</span>
+        </span>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <input type="text" id="logSearch" class="form-control form-control-sm"
+                 placeholder="Suche …" style="max-width:200px">
+          <select id="logFilter" class="form-select form-select-sm" style="max-width:160px">
+            <option value="">alle Level</option>
+            <option value="ERROR">nur ERROR/CRITICAL</option>
+            <option value="WARNING">nur WARNING</option>
+            <option value="INFO">nur INFO</option>
+            <option value="DEBUG">nur DEBUG</option>
+          </select>
+          <select id="logSource" class="form-select form-select-sm" style="max-width:200px">
+            <option value="scanner">Scanner-Log</option>
+            {% if output_exists %}
+            <option value="output">stdout/stderr-Mitschnitt</option>
+            {% endif %}
+          </select>
+          <div class="form-check form-switch ms-1 mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="autoRefresh"
+                   {{ 'checked' if scan_running else '' }}>
+            <label class="form-check-label" for="autoRefresh" style="font-size:.82rem">
+              Auto-Refresh
+            </label>
+          </div>
+          <button type="button" id="btnReload" class="btn btn-sm btn-outline-secondary" title="Jetzt neu laden">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+      </div>
+
+      <div id="logContainer"
+           style="max-height:640px;overflow-y:auto;font-family:monospace;font-size:.78rem;background:#fbfbfb">
+        {% if not lines %}
+        <div class="p-3 text-muted">
+          Noch keine Einträge in <code>{{ log_path }}</code> –
+          die Datei wird beim ersten Scan-Start angelegt.
+        </div>
+        {% else %}
+        <table class="table table-sm table-hover mb-0" id="logTable">
+          <tbody id="logTbody">
+            {% for line in lines %}
+            {% set stripped = line.rstrip('\n').rstrip('\r') %}
+            {% if stripped %}
+            <tr class="log-row
+              {%- if '[CRITICAL]' in stripped or '[ERROR]' in stripped %} table-danger
+              {%- elif '[WARNING]' in stripped %} table-warning
+              {%- elif '[DEBUG]' in stripped %} text-muted
+              {%- endif %}">
+              <td style="white-space:pre-wrap;word-break:break-all">{{ stripped }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+
+      <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2"
+           style="font-size:.78rem">
+        <div class="text-muted">
+          <span id="logSourceLabel">Datei: <code>{{ log_path }}</code></span>
+          <span class="d-block d-md-inline">
+            &nbsp;·&nbsp; Neueste Einträge zuerst (max. 1 000 Zeilen)
+          </span>
+        </div>
+        <div class="text-muted">
+          Letzte Aktualisierung: <span id="lastUpdate">–</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.fw-600 { font-weight: 600; }
+#logTbody tr td { padding: .15rem .5rem; }
+</style>
+
+<script>
+(function () {
+  const container       = document.getElementById('logContainer');
+  const tbody           = document.getElementById('logTbody');
+  const search          = document.getElementById('logSearch');
+  const filter          = document.getElementById('logFilter');
+  const sourceSelect    = document.getElementById('logSource');
+  const autoRefresh     = document.getElementById('autoRefresh');
+  const btnReload       = document.getElementById('btnReload');
+  const lineCountBadge  = document.getElementById('lineCountBadge');
+  const lastUpdate      = document.getElementById('lastUpdate');
+  const sourceLabel     = document.getElementById('logSourceLabel');
+
+  const SCANNER_PATH = {{ log_path | tojson }};
+  const OUTPUT_PATH  = {{ output_log_path | tojson }};
+  const LOG_URL      = {{ url_for('admin.scanner_log_raw') | tojson }};
+  const STATUS_URL   = {{ url_for('admin.scanner_status') | tojson }};
+
+  const REFRESH_RUNNING_MS = 3000;   // Bei aktivem Scan
+  const REFRESH_IDLE_MS    = 15000;  // Sonst (Datei kann sich noch ändern)
+
+  let refreshTimer = null;
+  let scanRunning  = {{ 'true' if scan_running else 'false' }};
+
+  function escapeHtml(s) {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function rowClass(line) {
+    if (line.indexOf('[CRITICAL]') !== -1 || line.indexOf('[ERROR]') !== -1) return 'table-danger';
+    if (line.indexOf('[WARNING]')  !== -1) return 'table-warning';
+    if (line.indexOf('[DEBUG]')    !== -1) return 'text-muted';
+    return '';
+  }
+
+  function renderLines(text) {
+    if (!tbody) {
+      // Erstes Laden hatte keinen Inhalt → Container neu aufbauen.
+      container.innerHTML =
+        '<table class="table table-sm table-hover mb-0" id="logTable">' +
+          '<tbody id="logTbody"></tbody>' +
+        '</table>';
+    }
+    const body = document.getElementById('logTbody');
+    body.innerHTML = '';
+
+    const rawLines = text.split(/\r?\n/).filter(l => l.length > 0);
+    // Reihenfolge: neueste oben.
+    rawLines.reverse();
+    rawLines.forEach(line => {
+      const tr = document.createElement('tr');
+      tr.className = 'log-row ' + rowClass(line);
+      const td = document.createElement('td');
+      td.style.whiteSpace = 'pre-wrap';
+      td.style.wordBreak  = 'break-all';
+      td.textContent = line;
+      tr.appendChild(td);
+      body.appendChild(tr);
+    });
+    lineCountBadge.textContent = rawLines.length;
+    applyFilter();
+    lastUpdate.textContent = new Date().toLocaleTimeString();
+  }
+
+  function applyFilter() {
+    const q = search.value.toLowerCase();
+    const f = filter.value;
+    const rows = document.querySelectorAll('#logTbody .log-row');
+    rows.forEach(row => {
+      const txt  = row.textContent;
+      const lower = txt.toLowerCase();
+      let okF = !f;
+      if (f === 'ERROR')   okF = txt.indexOf('[ERROR]')   !== -1 || txt.indexOf('[CRITICAL]') !== -1;
+      if (f === 'WARNING') okF = txt.indexOf('[WARNING]') !== -1;
+      if (f === 'INFO')    okF = txt.indexOf('[INFO]')    !== -1;
+      if (f === 'DEBUG')   okF = txt.indexOf('[DEBUG]')   !== -1;
+      const okQ = !q || lower.indexOf(q) !== -1;
+      row.style.display = (okF && okQ) ? '' : 'none';
+    });
+  }
+
+  function reload() {
+    const which = sourceSelect.value;
+    const url   = LOG_URL + '?which=' + encodeURIComponent(which) + '&lines=1000&_=' + Date.now();
+    fetch(url, { headers: { 'Accept': 'text/plain' } })
+      .then(r => r.ok ? r.text() : Promise.reject(r.status))
+      .then(text => {
+        renderLines(text);
+        sourceLabel.innerHTML = 'Datei: <code>' + escapeHtml(which === 'output' ? OUTPUT_PATH : SCANNER_PATH) + '</code>';
+      })
+      .catch(err => {
+        lastUpdate.textContent = 'Fehler beim Laden (' + err + ')';
+      });
+  }
+
+  function pollStatus() {
+    fetch(STATUS_URL, { headers: { 'Accept': 'application/json' } })
+      .then(r => r.json())
+      .then(data => {
+        scanRunning = !!data.running;
+        scheduleRefresh();
+      })
+      .catch(() => { /* still */ });
+  }
+
+  function scheduleRefresh() {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    if (!autoRefresh.checked) return;
+    const ms = scanRunning ? REFRESH_RUNNING_MS : REFRESH_IDLE_MS;
+    refreshTimer = setTimeout(() => {
+      reload();
+      pollStatus();
+    }, ms);
+  }
+
+  search.addEventListener('input', applyFilter);
+  filter.addEventListener('change', applyFilter);
+  sourceSelect.addEventListener('change', reload);
+  autoRefresh.addEventListener('change', scheduleRefresh);
+  btnReload.addEventListener('click', reload);
+
+  // Erste Aktualisierung sofort, danach geplant.
+  reload();
+  scheduleRefresh();
+})();
+</script>
+{% endblock %}

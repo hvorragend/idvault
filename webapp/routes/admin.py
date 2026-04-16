@@ -1798,6 +1798,120 @@ def _save_smtp_password(db, submitted: str, encrypt_fn) -> None:
     )
 
 
+# ── Scanner-Log ───────────────────────────────────────────────────────────
+
+def _resolve_scanner_log_path() -> str:
+    """Liefert den absoluten Pfad zur Scanner-Log-Datei.
+
+    Liest ``log_path`` aus der Scanner-Konfiguration (config.json).
+    Relative Pfade werden – analog zur Logik im Scanner-Skript – gegen
+    das Verzeichnis der ``config.json`` aufgelöst, sodass die Webapp
+    dieselbe Datei findet wie der Scanner-Subprocess.
+    """
+    cfg = _load_scanner_config()
+    log_path = cfg.get("log_path") or "instance/logs/idv_scanner.log"
+    if not os.path.isabs(log_path):
+        config_dir = os.path.dirname(os.path.abspath(_scanner_config_path()))
+        log_path = os.path.normpath(os.path.join(config_dir, log_path))
+    return log_path
+
+
+def _resolve_scanner_output_log_path() -> str:
+    """Liefert den Pfad zum stdout/stderr-Mitschnitt des Scanner-Subprocess.
+
+    Diese Datei enthält Crash-Meldungen, die *vor* dem Initialisieren
+    des Loggers auftreten (z. B. Fehler beim Starten via
+    CreateProcessWithLogonW oder Tracebacks aus ``main()``).
+    """
+    return os.path.join(_instance_logs_dir(), "scanner_output.log")
+
+
+def _read_log_tail(path: str, max_lines: int = 1000) -> tuple:
+    """Liest die letzten ``max_lines`` Zeilen einer Log-Datei.
+
+    Gibt ``(lines, error_msg, mtime, size)`` zurück. ``lines`` ist eine
+    Liste in Datei-Reihenfolge (älteste zuerst). Bei fehlender Datei wird
+    ``([], "", None, 0)`` geliefert; bei Lesefehlern enthält ``error_msg``
+    die Fehlermeldung.
+    """
+    if not path or not os.path.isfile(path):
+        return [], "", None, 0
+    try:
+        st = os.stat(path)
+        with open(path, encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        if max_lines and len(lines) > max_lines:
+            lines = lines[-max_lines:]
+        return lines, "", st.st_mtime, st.st_size
+    except Exception as exc:
+        return [], str(exc), None, 0
+
+
+@bp.route("/scanner/log")
+@admin_required
+def scanner_log():
+    """Zeigt die letzten Einträge der Scanner-Log-Datei."""
+    log_path        = _resolve_scanner_log_path()
+    output_log_path = _resolve_scanner_output_log_path()
+
+    lines, err, mtime, _size = _read_log_tail(log_path, max_lines=1000)
+    if err:
+        flash(f"Scan-Log konnte nicht gelesen werden: {err}", "error")
+
+    # Neueste Einträge oben anzeigen.
+    lines.reverse()
+
+    output_exists = os.path.isfile(output_log_path)
+    return render_template("admin/scanner_log.html",
+                           lines=lines,
+                           log_path=log_path,
+                           output_log_path=output_log_path,
+                           output_exists=output_exists,
+                           scan_running=_scan_is_running(),
+                           log_mtime=mtime)
+
+
+@bp.route("/scanner/log.txt")
+@admin_required
+def scanner_log_raw():
+    """Liefert die letzten N Zeilen der Scanner-Log-Datei als Plaintext.
+
+    Wird vom Log-Viewer per AJAX abgefragt, um die Anzeige live zu
+    aktualisieren, während ein Scan läuft.
+
+    Query-Parameter:
+        lines  – Anzahl Zeilen (Standard: 500, Maximum: 5000)
+        which  – ``scanner`` (Standard) oder ``output`` (stdout/stderr-
+                 Mitschnitt des Subprocess)
+    """
+    try:
+        max_lines = max(1, min(5000, int(request.args.get("lines", 500))))
+    except ValueError:
+        max_lines = 500
+
+    which = request.args.get("which", "scanner")
+    path = (
+        _resolve_scanner_output_log_path()
+        if which == "output"
+        else _resolve_scanner_log_path()
+    )
+
+    lines, err, _mtime, _size = _read_log_tail(path, max_lines=max_lines)
+    if err:
+        return Response(
+            f"Fehler beim Lesen von {path}: {err}",
+            status=500,
+            mimetype="text/plain; charset=utf-8",
+        )
+    if not lines and not os.path.isfile(path):
+        return Response(
+            f"Log-Datei existiert noch nicht: {path}\n"
+            f"(Wird beim ersten Scan-Start angelegt.)",
+            mimetype="text/plain; charset=utf-8",
+        )
+    return Response("".join(lines), mimetype="text/plain; charset=utf-8")
+
+
 # ── Login-Log ─────────────────────────────────────────────────────────────
 
 @bp.route("/login-log")

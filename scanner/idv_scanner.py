@@ -12,6 +12,7 @@ Lizenz: intern
 import os
 import sys
 import time
+import getpass
 import hashlib
 import sqlite3
 import zipfile
@@ -22,7 +23,7 @@ import traceback
 import ctypes
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from xml.etree import ElementTree as ET
 
 # Windows-spezifische Imports (optional, graceful fallback)
@@ -1126,6 +1127,95 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
 
 
 # ---------------------------------------------------------------------------
+# Identitäts- und Pfad-Diagnostik
+# ---------------------------------------------------------------------------
+
+def _log_scanner_identity(logger: logging.Logger) -> None:
+    """Loggt, unter welcher Identität der Scanner läuft.
+
+    Hintergrund: Wird der Scanner aus einem Windows-Dienst heraus über
+    CreateProcessWithLogonW als technischer AD-Benutzer gestartet, ist es
+    wichtig zu prüfen, ob der Subprocess tatsächlich unter diesem Benutzer
+    läuft. Schlägt der Zugriff auf Netzwerkfreigaben fehl, hilft diese
+    Information bei der Fehlersuche (z. B. läuft der Scanner versehentlich
+    als LOCAL SYSTEM oder NETWORK SERVICE statt als Scan-User).
+    """
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = "?"
+
+    domain_user = user
+    session_id = None
+    if HAS_WIN32:
+        try:
+            # Voll qualifizierter Name (DOMAIN\user) bzw. UPN
+            # NameSamCompatible = 2
+            domain_user = win32api.GetUserNameEx(2)
+        except Exception:
+            try:
+                domain_user = win32api.GetUserName()
+            except Exception:
+                pass
+        try:
+            # Session 0 → Service-Session ohne Desktop;
+            # Session > 0 → interaktive Anmeldung.
+            session_id = ctypes.windll.kernel32.WTSGetActiveConsoleSessionId()
+        except Exception:
+            session_id = None
+
+    msg = f"Scanner-Identität: {domain_user}"
+    if session_id is not None:
+        msg += f" (Konsolen-Session-ID: {session_id})"
+    logger.info(msg)
+
+
+def _check_path_accessible(path: str, logger: logging.Logger,
+                           retries: int = 2,
+                           retry_delay: float = 2.0) -> Tuple[bool, str]:
+    """Prüft, ob ein (Netzwerk-)Pfad erreichbar und lesbar ist.
+
+    Im Gegensatz zu ``os.path.exists()`` (das jede Art von Fehler still
+    in ``False`` umwandelt) versucht diese Funktion tatsächlich, das
+    Verzeichnis zu öffnen, und liefert die zugrundeliegende Fehlermeldung
+    samt Windows-Fehlercode zurück. Bei transienten Netzwerkfehlern wird
+    bis zu ``retries`` Mal mit Wartezeit erneut versucht.
+
+    Gibt ``(True, "")`` bei Erfolg zurück oder ``(False, error_msg)``.
+    """
+    last_err = ""
+    for attempt in range(retries + 1):
+        try:
+            with os.scandir(path) as it:
+                # Mindestens einen Eintrag anfordern, um sicherzustellen,
+                # dass die SMB-Verbindung tatsächlich aufgebaut wird.
+                next(iter(it), None)
+            return True, ""
+        except FileNotFoundError as e:
+            last_err = f"FileNotFoundError [WinError {getattr(e, 'winerror', '?')}]: {e.strerror or e}"
+        except PermissionError as e:
+            last_err = f"PermissionError [WinError {getattr(e, 'winerror', '?')}]: {e.strerror or e}"
+            # Bei Permission Denied bringt ein Retry nichts.
+            break
+        except OSError as e:
+            last_err = (
+                f"{type(e).__name__} [errno {e.errno} / WinError "
+                f"{getattr(e, 'winerror', '?')}]: {e.strerror or e}"
+            )
+        except BaseException as e:
+            last_err = f"{type(e).__name__}: {e}"
+
+        if attempt < retries:
+            logger.info(
+                f"  Pfad-Prüfung fehlgeschlagen (Versuch {attempt + 1}/{retries + 1}) "
+                f"für {path}: {last_err} – erneuter Versuch in {retry_delay}s …"
+            )
+            time.sleep(retry_delay)
+
+    return False, last_err
+
+
+# ---------------------------------------------------------------------------
 # Hauptprogramm
 # ---------------------------------------------------------------------------
 
@@ -1144,6 +1234,11 @@ def run_scan(config: dict, logger: logging.Logger,
 
     conn = init_db(config["db_path"])
     now  = datetime.now(timezone.utc).isoformat()
+
+    # Identität des Scanner-Prozesses loggen – wichtig für die Fehlersuche bei
+    # Zugriffsproblemen auf Netzwerkfreigaben (z. B. wenn der Scanner aus einem
+    # Windows-Dienst heraus als technischer AD-Benutzer gestartet wird).
+    _log_scanner_identity(logger)
 
     move_mode = config.get("move_detection", "hash_only")
     logger.info(f"Move-Detection-Modus: {move_mode}")
@@ -1248,8 +1343,17 @@ def run_scan(config: dict, logger: logging.Logger,
         excludes = config["exclude_paths"]
 
         for scan_path in scan_paths:
-            if not os.path.exists(scan_path):
-                logger.warning(f"Pfad nicht erreichbar: {scan_path}")
+            accessible, err_msg = _check_path_accessible(scan_path, logger)
+            if not accessible:
+                logger.warning(
+                    f"Pfad nicht erreichbar: {scan_path} – {err_msg}"
+                )
+                logger.warning(
+                    "  Hinweis: Bitte prüfen, ob der oben geloggte Scanner-"
+                    "Benutzer Lesezugriff auf den UNC-Pfad besitzt und ob die "
+                    "Freigabe vom Server aus aufgelöst werden kann (DNS, "
+                    "Firewall, SMB-Version)."
+                )
                 stats["errors"] += 1
                 continue
 
