@@ -81,7 +81,37 @@ def _check_config_user(username: str, password: str):
 
 
 def _do_local_login(db, username: str, password: str):
-    """Versucht lokalen Login: zuerst Personen-DB, dann config.json-User."""
+    """Versucht lokalen Login.
+
+    Reihenfolge:
+      1. ``config.json``-Sektion ``IDV_LOCAL_USERS`` (deklarative, versionier-
+         bare Betriebs­konfiguration). Ein dort gepflegter Eintrag gewinnt
+         bewusst gegen einen gleichnamigen ``persons``-Datensatz – sonst
+         überschattet eine (ggf. veraltete) DB-Zeile still die im
+         Deployment festgelegte Rolle. Das Shadowing wird geloggt.
+      2. ``persons``-Tabelle (LDAP-provisionierte oder manuell angelegte
+         Benutzer) als Fallback.
+    """
+    cfg_result = _check_config_user(username, password)
+    if cfg_result is not None:
+        if db is not None:
+            try:
+                shadow = db.execute(
+                    "SELECT id, rolle FROM persons WHERE user_id = ? AND aktiv = 1",
+                    (username,),
+                ).fetchone()
+                if shadow:
+                    logging.getLogger(__name__).info(
+                        "Lokaler Login '%s': config.json-Eintrag hat Vorrang "
+                        "vor persons-Zeile (DB-Rolle: %s, config-Rolle: %s)",
+                        username,
+                        shadow["rolle"],
+                        cfg_result.get("user_role"),
+                    )
+            except sqlite3.DatabaseError:
+                pass  # nur informative Warnung, kein Abbruchgrund
+        return cfg_result
+
     if db is not None:
         try:
             row = _check_person_login(db, username, password)
@@ -94,11 +124,11 @@ def _do_local_login(db, username: str, password: str):
                 }
         except sqlite3.DatabaseError as e:
             # VULN-011: DB-Fehler nicht schlucken – Admin muss Defekte im
-            # persons-Schema bemerken. Fallback auf config.json-User bleibt.
+            # persons-Schema bemerken.
             logging.getLogger(__name__).warning(
                 "Lokaler DB-Login für '%s' fehlgeschlagen: %s", username, e
             )
-    return _check_config_user(username, password)
+    return None
 
 
 def _login_rate_limit():

@@ -236,6 +236,16 @@ Login-Audit zwar erkennbar, aber erst nach erfolgter Kompromittierung.
   Benutzernamen, damit Betreiber den Stand verifizieren können.
 - Die Methode `"Demo"` im Login-Audit-Log entfällt; lokale Logins werden
   nur noch als `"lokal"` protokolliert.
+- **Login-Reihenfolge / Vorrang-Regel** (`webapp/routes/auth.py ::
+  _do_local_login`): Der lokale Login prüft **zuerst** die
+  `config.json`-Liste und **erst danach** die `persons`-Tabelle. Damit
+  schlägt ein deklarativer Break-Glass-Eintrag einen gleichnamigen
+  (möglicherweise veralteten) DB-Datensatz – sonst würde ein
+  Alt-Person-Record (z.B. aus einem früheren LDAP-Sync mit anderer
+  Rolle) die in `config.json` konfigurierte Rolle stillschweigend
+  überschreiben. Tritt ein solcher Konflikt auf, erscheint ein
+  Info-Eintrag im `idvault.log` („config.json-Eintrag hat Vorrang vor
+  persons-Zeile"), damit Betreiber den Zustand bereinigen können.
 
 **Verifikation**: Integrationstest deckt beide Varianten ab:
 - Login mit `password_hash`-Eintrag + Token → HTTP 302.
