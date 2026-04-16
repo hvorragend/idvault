@@ -35,14 +35,14 @@
     },
     {
       "_hinweis": "Variante B (bequem) – Klartext-Passwort. Wird beim Start automatisch gehasht, das Klartext-Feld wird NICHT für den Login wiederverwendet. Schütze config.json mit Dateisystemrechten (NTFS-ACL bzw. Unix 0640).",
-      "username": "koordinator",
+      "username": "notfall-admin",
       "password": "bitte-aendern",
-      "name": "Koordinator",
-      "role": "IDV-Koordinator",
+      "name": "Notfall-Administrator",
+      "role": "IDV-Administrator",
       "person_id": null
     }
   ],
-  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. Wenn LDAP aktiv ist, bleibt diese Liste als Fallback bestehen (z.B. für Break-Glass-Admin). Leere Liste = kein lokaler Login.",
+  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. Reihenfolge beim lokalen Login: LDAP (falls aktiv) → config.json → persons-Tabelle. Ein hier gepflegter Eintrag überschreibt damit bewusst einen gleichnamigen DB-Benutzer (z.B. für Break-Glass-Admin trotz vorhandener persons-Zeile); der Konflikt wird in idvault.log protokolliert. Leere Liste = kein lokaler Login.",
 
   "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",
   "_kommentar_ratelimit": "Flask-Limiter-Syntax. Gilt pro Client-IP am POST /login.",
