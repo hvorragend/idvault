@@ -22,7 +22,7 @@ def index():
                            OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
                                      WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
                      THEN 1 ELSE 0 END)          AS wesentlich,
-            SUM(CASE WHEN r.status = 'Genehmigt' THEN 1 ELSE 0 END)      AS genehmigt,
+            SUM(CASE WHEN r.status = 'Freigegeben' THEN 1 ELSE 0 END)      AS genehmigt,
             SUM(CASE WHEN r.status = 'Entwurf' THEN 1 ELSE 0 END)        AS entwurf,
             SUM(CASE WHEN r.naechste_pruefung < date('now')
                       AND r.status NOT IN ('Archiviert','Abgekündigt') THEN 1 ELSE 0 END) AS ueberfaellig
@@ -45,7 +45,7 @@ def index():
                            OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
                                      WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
                      THEN 1 ELSE 0 END)          AS wesentlich,
-            SUM(CASE WHEN r.status = 'Genehmigt' THEN 1 ELSE 0 END)      AS genehmigt,
+            SUM(CASE WHEN r.status = 'Freigegeben' THEN 1 ELSE 0 END)      AS genehmigt,
             SUM(CASE WHEN r.naechste_pruefung < date('now')
                       AND r.status NOT IN ('Archiviert','Abgekündigt') THEN 1 ELSE 0 END) AS ueberfaellig
         FROM idv_register r

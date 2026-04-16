@@ -276,7 +276,7 @@ def bulk_loeschen():
 # ── Bulk-Statusänderung (Admin + Koordinator) ─────────────────────────────
 
 _BULK_STATUS_ERLAUBT = [
-    "Entwurf", "In Prüfung", "Genehmigt", "Genehmigt mit Auflagen",
+    "Entwurf", "In Prüfung", "Freigegeben", "Freigegeben mit Auflagen",
     "Abgelehnt", "Abgekündigt", "Archiviert",
 ]
 

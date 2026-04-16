@@ -17,7 +17,7 @@ from ..security import validate_upload_mime, ensure_can_read_idv, ensure_can_wri
 bp = Blueprint("tests", __name__, url_prefix="/tests")
 
 _BEWERTUNGEN     = ["Offen", "Erledigt"]
-_TECH_ERGEBNISSE = ["Offen", "Erledigt", "Entfällt"]
+_TECH_ERGEBNISSE = ["Offen", "Erledigt"]
 
 _ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf", "xlsx", "xls",
                        "docx", "doc", "txt", "csv", "zip"}

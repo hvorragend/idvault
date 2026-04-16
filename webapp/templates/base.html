@@ -155,11 +155,14 @@
       color: #1e40af;
     }
 
+    .status-Freigegeben,
     .status-Genehmigt {
       background: #dcfce7;
       color: #166534;
     }
 
+    .status-Freigegeben\ mit\ Auflagen,
+    .status-Freigegeben-mit-Auflagen,
     .status-Genehmigt\ mit\ Auflagen,
     .status-Genehmigt-mit-Auflagen {
       background: #fef9c3;
@@ -180,6 +183,22 @@
       background: #f1f5f9;
       color: #475569;
     }
+
+    /* ── Sortable tables ──────────────────────────────── */
+    table th[data-col-sort] {
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    table th[data-col-sort]::after {
+      content: ' \2195';
+      opacity: .3;
+      font-size: .72em;
+      font-style: normal;
+    }
+    table th[data-col-sort="asc"]::after  { content: ' \2191'; opacity: .9; }
+    table th[data-col-sort="desc"]::after { content: ' \2193'; opacity: .9; }
+    table th[data-col-sort]:hover { filter: brightness(1.08); }
 
     /* ── Table ────────────────────────────────────────── */
     .table-idv thead th {
@@ -501,6 +520,45 @@
   </div>
 
   <script src="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.bundle.min.js') }}"></script>
+  <script>
+    // ── Tabellen-Sortierer ──────────────────────────────────────────────────
+    (function () {
+      document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('table').forEach(function (table) {
+          var thead = table.querySelector('thead');
+          if (!thead) return;
+          var ths = thead.querySelectorAll('th');
+          ths.forEach(function (th, colIdx) {
+            if (th.hasAttribute('data-no-sort')) return;
+            th.setAttribute('data-col-sort', 'none');
+            th.title = 'Sortieren';
+            th.addEventListener('click', function () {
+              var tbody = table.querySelector('tbody');
+              if (!tbody) return;
+              var dir = th.getAttribute('data-col-sort') === 'asc' ? 'desc' : 'asc';
+              ths.forEach(function (h) {
+                if (h.hasAttribute('data-col-sort')) h.setAttribute('data-col-sort', 'none');
+              });
+              th.setAttribute('data-col-sort', dir);
+              var rows = Array.from(tbody.querySelectorAll('tr'));
+              rows.sort(function (a, b) {
+                var ac = a.cells[colIdx], bc = b.cells[colIdx];
+                var av = ac ? ac.textContent.trim() : '';
+                var bv = bc ? bc.textContent.trim() : '';
+                var an = parseFloat(av.replace(/[^\d.\-]/g, ''));
+                var bn = parseFloat(bv.replace(/[^\d.\-]/g, ''));
+                var cmp = (!isNaN(an) && !isNaN(bn))
+                  ? an - bn
+                  : av.localeCompare(bv, 'de', { sensitivity: 'base' });
+                return dir === 'asc' ? cmp : -cmp;
+              });
+              rows.forEach(function (r) { tbody.appendChild(r); });
+            });
+          });
+        });
+      });
+    })();
+  </script>
   <script>
     // VULN-A: Alle fetch()-Aufrufe mit mutierender Methode bekommen automatisch
     // den CSRF-Token als X-CSRFToken-Header mitgeliefert. Flask-WTF akzeptiert
