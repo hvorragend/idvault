@@ -10,6 +10,19 @@ from flask import (
     Blueprint, render_template, request, flash, redirect, url_for, current_app
 )
 from . import login_required, write_access_required, get_db, can_write, current_person_id
+from ..security import in_clause
+from .. import limiter
+
+
+def _upload_rate_limit():
+    """VULN-009: Rate-Limit für Cognos-Import (XLSX/CSV)."""
+    from flask import current_app
+    try:
+        return current_app.config.get(
+            "IDV_UPLOAD_RATE_LIMIT", "10 per minute;60 per hour"
+        )
+    except RuntimeError:
+        return "10 per minute;60 per hour"
 
 # db.py liegt zwei Ebenen über webapp/routes/
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -319,6 +332,7 @@ def list_berichte():
 @bp.route("/import", methods=["GET", "POST"])
 @login_required
 @write_access_required
+@limiter.limit(_upload_rate_limit, methods=["POST"])
 def import_berichte():
     if request.method == "GET":
         return render_template("cognos/import.html")
@@ -637,10 +651,10 @@ def zusammenfassen():
         flash("Keine Berichte ausgewählt.", "warning")
         return redirect(url_for("cognos.list_berichte"))
 
-    ph = ",".join("?" * len(bericht_ids))
+    ph, ph_params = in_clause(bericht_ids)
     berichte = db.execute(
         f"SELECT * FROM cognos_berichte WHERE id IN ({ph}) ORDER BY berichtsname",
-        bericht_ids
+        ph_params
     ).fetchall()
 
     idvs = db.execute("""
@@ -682,13 +696,13 @@ def bulk_aktion():
         flash("Keine Berichte ausgewählt.", "warning")
         return redirect(url_for("cognos.list_berichte"))
 
-    placeholders = ",".join("?" * len(bericht_ids))
+    ph, ph_params = in_clause(bericht_ids)
 
     if aktion == "ignorieren":
         db.execute(
             f"UPDATE cognos_berichte SET bearbeitungsstatus='Ignoriert'"
-            f" WHERE id IN ({placeholders}) AND bearbeitungsstatus != 'Registriert'",
-            bericht_ids,
+            f" WHERE id IN ({ph}) AND bearbeitungsstatus != 'Registriert'",
+            ph_params,
         )
         db.commit()
         flash(f"{len(bericht_ids)} Bericht(e) ignoriert.", "info")
@@ -696,8 +710,8 @@ def bulk_aktion():
     elif aktion == "nicht_mehr_ignorieren":
         db.execute(
             f"UPDATE cognos_berichte SET bearbeitungsstatus='Neu'"
-            f" WHERE id IN ({placeholders}) AND bearbeitungsstatus='Ignoriert'",
-            bericht_ids,
+            f" WHERE id IN ({ph}) AND bearbeitungsstatus='Ignoriert'",
+            ph_params,
         )
         db.commit()
         flash(f"{len(bericht_ids)} Bericht(e): Ignorierung aufgehoben.", "success")
@@ -705,8 +719,8 @@ def bulk_aktion():
     elif aktion == "zur_registrierung":
         db.execute(
             f"UPDATE cognos_berichte SET bearbeitungsstatus='Zur Registrierung'"
-            f" WHERE id IN ({placeholders})",
-            bericht_ids,
+            f" WHERE id IN ({ph})",
+            ph_params,
         )
         db.commit()
         flash(f"{len(bericht_ids)} Bericht(e) zur Registrierung vorgemerkt.", "success")
@@ -714,8 +728,8 @@ def bulk_aktion():
     elif aktion == "nicht_wesentlich":
         db.execute(
             f"UPDATE cognos_berichte SET bearbeitungsstatus='Nicht wesentlich'"
-            f" WHERE id IN ({placeholders})",
-            bericht_ids,
+            f" WHERE id IN ({ph})",
+            ph_params,
         )
         db.commit()
         flash(f"{len(bericht_ids)} Bericht(e) als 'Nicht wesentlich' eingestuft.", "success")
@@ -726,8 +740,8 @@ def bulk_aktion():
             flash("Kein Eigentümer angegeben.", "warning")
         else:
             db.execute(
-                f"UPDATE cognos_berichte SET eigentuemer=? WHERE id IN ({placeholders})",
-                [new_owner] + bericht_ids,
+                f"UPDATE cognos_berichte SET eigentuemer=? WHERE id IN ({ph})",
+                [new_owner] + ph_params,
             )
             db.commit()
             flash(f"{len(bericht_ids)} Bericht(e): Eigentümer auf \"{new_owner}\" gesetzt.", "success")
@@ -735,7 +749,7 @@ def bulk_aktion():
     elif aktion == "bewertung_anfordern":
         from ..email_service import notify_bericht_bewertung_batch, get_app_base_url
         berichte = db.execute(
-            f"SELECT * FROM cognos_berichte WHERE id IN ({placeholders})", bericht_ids
+            f"SELECT * FROM cognos_berichte WHERE id IN ({ph})", ph_params
         ).fetchall()
 
         base_url = get_app_base_url(db)

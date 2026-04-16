@@ -13,9 +13,22 @@ import threading
 import zipfile
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app
 from . import login_required, admin_required, write_access_required, get_db
+from ..security import in_clause
+from .. import limiter
 from datetime import datetime, timezone, timedelta
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+
+def _upload_rate_limit():
+    """VULN-009: Rate-Limit für Admin-Uploads (ZIP, CSV). Wird zur
+    Request-Zeit aus app.config gelesen, damit config.json-Änderungen greifen."""
+    try:
+        return current_app.config.get(
+            "IDV_UPLOAD_RATE_LIMIT", "10 per minute;60 per hour"
+        )
+    except RuntimeError:
+        return "10 per minute;60 per hour"
 
 # ── Scanner-Konfiguration & Scan-Trigger ────────────────────────────────────
 
@@ -955,21 +968,33 @@ def bulk_persons():
         return redirect(url_for("admin.index"))
 
     if action == "deactivate":
-        ph = ",".join("?" * len(ids))
-        db.execute(f"UPDATE persons SET aktiv=0 WHERE id IN ({ph})", ids)
+        ph, ph_params = in_clause(ids)
+        db.execute(f"UPDATE persons SET aktiv=0 WHERE id IN ({ph})", ph_params)
         db.commit()
         flash(f"{len(ids)} Person(en) deaktiviert.", "success")
 
     elif action == "delete":
+        import sqlite3 as _sq
         deleted = skipped = 0
         for pid in ids:
             try:
                 db.execute("DELETE FROM persons WHERE id=?", (pid,))
                 db.commit()
                 deleted += 1
-            except Exception:
+            except _sq.IntegrityError as exc:
+                # VULN-011: FK-Verletzungen (person hat IDVs) sind erwartet,
+                # aber andere DB-Fehler protokollieren wir.
                 db.rollback()
                 skipped += 1
+                current_app.logger.info(
+                    "Person %s nicht löschbar (FK-Constraint): %s", pid, exc
+                )
+            except _sq.DatabaseError as exc:
+                db.rollback()
+                skipped += 1
+                current_app.logger.warning(
+                    "Person %s: Datenbankfehler beim Löschen: %s", pid, exc
+                )
         msg = f"{deleted} Person(en) gelöscht."
         if skipped:
             msg += f" {skipped} konnte(n) nicht gelöscht werden (noch IDVs zugeordnet) → bitte zuerst deaktivieren."
@@ -1139,12 +1164,13 @@ def bulk_gps():
         return redirect(url_for("admin.index") + "#geschaeftsprozesse")
 
     if action == "deactivate":
-        ph = ",".join("?" * len(ids))
-        db.execute(f"UPDATE geschaeftsprozesse SET aktiv=0 WHERE id IN ({ph})", ids)
+        ph, ph_params = in_clause(ids)
+        db.execute(f"UPDATE geschaeftsprozesse SET aktiv=0 WHERE id IN ({ph})", ph_params)
         db.commit()
         flash(f"{len(ids)} Geschäftsprozess(e) deaktiviert.", "success")
 
     elif action == "delete":
+        import sqlite3 as _sq
         deleted = skipped = 0
         for gid in ids:
             try:
@@ -1152,9 +1178,12 @@ def bulk_gps():
                 db.execute("DELETE FROM geschaeftsprozesse WHERE id=?", (gid,))
                 db.commit()
                 deleted += 1
-            except Exception:
+            except _sq.DatabaseError as exc:
                 db.rollback()
                 skipped += 1
+                current_app.logger.warning(
+                    "Geschäftsprozess %s nicht löschbar: %s", gid, exc
+                )
         msg = f"{deleted} Geschäftsprozess(e) gelöscht."
         if skipped:
             msg += f" {skipped} konnte(n) nicht gelöscht werden."
@@ -1262,10 +1291,16 @@ def _save_smtp_password(db, submitted: str, encrypt_fn) -> None:
         return  # Altbestand nicht überschreiben
     try:
         enc = encrypt_fn(submitted)
-    except Exception:
-        # Im Ausnahmefall lieber nicht speichern als Klartext abzulegen
-        flash("SMTP-Passwort konnte nicht verschlüsselt werden – nicht gespeichert.",
-              "error")
+    except Exception as exc:
+        # VULN-011: Fehler protokollieren; im Ausnahmefall lieber nicht
+        # speichern als Klartext abzulegen.
+        current_app.logger.error(
+            "SMTP-Passwort-Verschlüsselung fehlgeschlagen: %s", exc
+        )
+        flash(
+            "SMTP-Passwort konnte nicht verschlüsselt werden – nicht gespeichert.",
+            "error",
+        )
         return
     db.execute(
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
@@ -1324,6 +1359,7 @@ def login_log():
 
 @bp.route("/import/personen", methods=["POST"])
 @admin_required
+@limiter.limit(_upload_rate_limit, methods=["POST"])
 def import_persons():
     """CSV-Import: user_id, email (SMTP-Adresse), ad_name, oe_bezeichnung,
        nachname, vorname, kuerzel, rolle  (Trennzeichen ; oder ,)"""
@@ -1581,6 +1617,7 @@ def import_gp_template():
 
 @bp.route("/import/geschaeftsprozesse", methods=["POST"])
 @admin_required
+@limiter.limit(_upload_rate_limit, methods=["POST"])
 def import_geschaeftsprozesse():
     """
     CSV-Import für Geschäftsprozesse – zwei Formate werden unterstützt:
@@ -2062,6 +2099,7 @@ def _zip_remap(rel: str) -> str:
 
 @bp.route("/update/upload", methods=["POST"])
 @admin_required
+@limiter.limit(_upload_rate_limit, methods=["POST"])
 def update_upload():
     # VULN-B: Opt-out über config.json. Wenn IDV_ALLOW_SIDECAR_UPDATES=0
     # gesetzt ist, wird der Endpoint komplett abgewiesen – das reduziert

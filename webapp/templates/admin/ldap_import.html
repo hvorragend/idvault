@@ -104,11 +104,12 @@
       <div id="ldapBulkBar" class="mt-2 d-flex align-items-center gap-2 flex-wrap d-none">
         <span class="text-muted small"><span id="ldapSelCount">0</span> ausgewählt</span>
         <button type="submit" class="btn btn-sm btn-primary"
-                onclick="setAction('import')">
+                data-ldap-action="import">
           <i class="bi bi-person-check me-1"></i>Ausgewählte importieren
         </button>
         <button type="button" class="btn btn-sm btn-warning"
-                onclick="if(confirm('Ausgewählte Personen in idvault deaktivieren?')){setAction('delete');document.getElementById('ldapImportForm').submit();}">
+                data-ldap-action="delete"
+                data-confirm="Ausgewählte Personen in idvault deaktivieren?">
           <i class="bi bi-person-dash me-1"></i>Ausgewählte deaktivieren
         </button>
       </div>
@@ -180,7 +181,7 @@
       <button type="button" id="onlyNewImportBtn" class="btn btn-outline-primary btn-sm">
         <i class="bi bi-stars me-1"></i>Nur neue importieren
       </button>
-      <button type="submit" class="btn btn-primary btn-sm" onclick="setAction('import')">
+      <button type="submit" class="btn btn-primary btn-sm" data-ldap-action="import">
         <i class="bi bi-person-check me-1"></i>Ausgewählte importieren
       </button>
     </div>
@@ -216,6 +217,19 @@
 function setAction(val) {
   document.getElementById('ldapAction').value = val;
 }
+
+// VULN-M: Delegation für [data-ldap-action]. Setzt ``action`` im
+// Formular und submittet, wenn der Button type=button ist. type=submit
+// triggert den Submit selbst; Button-Click wird nicht abgefangen.
+document.addEventListener('click', function (ev) {
+  var btn = ev.target.closest('[data-ldap-action]');
+  if (!btn) return;
+  setAction(btn.getAttribute('data-ldap-action'));
+  if (btn.getAttribute('type') === 'button') {
+    var form = document.getElementById('ldapImportForm');
+    if (form) form.submit();
+  }
+});
 
 (function () {
   const form       = document.getElementById('ldapImportForm');

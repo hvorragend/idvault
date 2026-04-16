@@ -72,13 +72,14 @@
     <div class="d-flex gap-2 align-items-center flex-wrap">
       {% if can_write_access %}
       <button type="button" id="btn-reaktivieren" class="btn btn-sm btn-outline-success" disabled
-              onclick="submitBulk('reaktivieren-form')">
+              data-bulk-form="reaktivieren-form">
         <i class="bi bi-eye me-1"></i>Auswahl reaktivieren
       </button>
       {% endif %}
       {% if is_admin %}
       <button type="button" id="btn-loeschen" class="btn btn-sm btn-outline-danger" disabled
-              onclick="if(confirm('Ausgewählte Einträge dauerhaft löschen?')) submitBulk('loeschen-form')">
+              data-bulk-form="loeschen-form"
+              data-confirm="Ausgewählte Einträge dauerhaft löschen?">
         <i class="bi bi-trash3 me-1"></i>Auswahl löschen
       </button>
       {% endif %}
@@ -235,6 +236,17 @@
   window.submitBulk = function(formId) {
     document.getElementById(formId).submit();
   };
+
+  // VULN-M: Delegation für [data-bulk-form] – ersetzt inline ``onclick="submitBulk(...)"``.
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-bulk-form]');
+    if (!btn) return;
+    // ``data-confirm`` wird vom globalen Delegate ausgewertet; kommen wir hier
+    // an, dann entweder ohne Confirm oder nach Zustimmung.
+    var formId = btn.getAttribute('data-bulk-form');
+    var form = document.getElementById(formId);
+    if (form) form.submit();
+  });
 })();
 </script>
 {% endblock %}

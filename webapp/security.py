@@ -16,6 +16,72 @@ import html
 import re
 from typing import Iterable, Optional, Sequence
 
+from flask import abort
+
+
+# ---------------------------------------------------------------------------
+# VULN-010 – Eingabelängen-/Format-Validierung
+# ---------------------------------------------------------------------------
+
+# Zentrale Längenbegrenzungen für Freitextfelder. Werden von
+# ``validate_form_lengths()`` beim Annehmen von POST-Formularen
+# ausgewertet. Diese Grenzen liegen deutlich über dem fachlich Üblichen
+# (IDV-Bezeichnung selten > 200 Zeichen) und fangen primär DoS/
+# Speicherfüll-Versuche ab.
+MAX_LENGTHS: dict[str, int] = {
+    "username":            128,
+    "password":            256,
+    "bezeichnung":         200,
+    "beschreibung":      10_000,
+    "kommentar":          5_000,
+    "befunde":            5_000,
+    "nachweise_text":    50_000,   # Quill-HTML; vor bleach begrenzen.
+    "name":               200,
+    "email":              254,     # RFC 5321
+    "telefon":             64,
+    "kuerzel":             16,
+    "new_owner":          128,
+    "titel":              200,
+    "abbruch_kommentar":  2_000,
+    "q":                  200,     # Suchfelder
+}
+
+# Feldnamen, die niemals Zeilenumbrüche enthalten dürfen (Log-Injection,
+# E-Mail-Header-Injection etc.).
+_SINGLE_LINE_FIELDS = {
+    "username", "email", "telefon", "kuerzel", "bezeichnung",
+    "new_owner", "q", "titel",
+}
+
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def validate_form_lengths(form, *, extra: Optional[dict[str, int]] = None) -> None:
+    """Prüft die deklarierten Längen für alle bekannten Felder im Formular.
+
+    * Überschreitungen → HTTP 400 (fast-fail, nicht still trunkieren).
+    * Steuerzeichen (außer TAB/CR/LF) werden unabhängig vom Feld geblockt.
+    * ``extra`` erlaubt Routen-spezifische Overrides (``{"field": max}``).
+
+    Nicht aufgeführte Felder werden *nicht* geprüft – für alles, was nicht
+    in ``MAX_LENGTHS``/``extra`` steht, gilt ohnehin das globale
+    ``MAX_CONTENT_LENGTH`` (32 MB) der Flask-App.
+    """
+    limits = dict(MAX_LENGTHS)
+    if extra:
+        limits.update(extra)
+    for key in form.keys():
+        max_len = limits.get(key)
+        if max_len is None:
+            continue
+        value = form.get(key, "")
+        if len(value) > max_len:
+            abort(400, description=f"Feld '{key}' überschreitet {max_len} Zeichen.")
+        if _CONTROL_CHARS_RE.search(value):
+            abort(400, description=f"Feld '{key}' enthält unzulässige Steuerzeichen.")
+        if key in _SINGLE_LINE_FIELDS and ("\n" in value or "\r" in value):
+            abort(400, description=f"Feld '{key}' darf keinen Zeilenumbruch enthalten.")
+
 # ---------------------------------------------------------------------------
 # VULN-C – HTML-Sanitizing für Quill-Rich-Text-Felder
 # ---------------------------------------------------------------------------

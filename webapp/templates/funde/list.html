@@ -458,7 +458,7 @@
                           title="Eintrag löschen (Admin)"
                           data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}"
                           data-filename="{{ f.file_name }}"
-                          onclick="deleteScannerfund(this)">
+                          data-action="deleteScannerfund">
                     <i class="bi bi-trash"></i>
                   </button>
                   {% endif %}
@@ -664,7 +664,7 @@
                       title="Eintrag löschen (Admin)"
                       data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}"
                       data-filename="{{ f.file_name }}"
-                      onclick="deleteScannerfund(this)">
+                      data-action="deleteScannerfund">
                 <i class="bi bi-trash"></i>
               </button>
               {% endif %}
@@ -741,15 +741,27 @@ document.addEventListener('change', function (ev) {
   }
 });
 
-function deleteScannerfund(btn) {
+// VULN-M: wird über data-action="deleteScannerfund" aufgerufen; this = Button.
+function deleteScannerfund() {
+  const btn = this;
   const name = btn.dataset.filename;
   if (!confirm('Scannerfund "' + name + '" wirklich löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden.')) return;
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = btn.dataset.deleteUrl;
+  // CSRF-Token aus der Meta-Tag nachziehen, damit Flask-WTF den POST akzeptiert.
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  if (meta) {
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'csrf_token';
+    inp.value = meta.content;
+    form.appendChild(inp);
+  }
   document.body.appendChild(form);
   form.submit();
 }
+window.deleteScannerfund = deleteScannerfund;
 
 (function () {
   const selectAll   = document.getElementById('select-all');

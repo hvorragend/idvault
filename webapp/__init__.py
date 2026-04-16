@@ -50,10 +50,15 @@ _SECURITY_HEADERS_STATIC = {
 
 
 def _build_csp(nonce: str) -> str:
+    # VULN-M: Vollständige CSP ohne ``unsafe-inline`` für Scripts.
+    # Alle Inline-<script>/<style>-Blöcke erhalten den Request-Nonce
+    # serverseitig (``_inject_nonces``) – Inline-Event-Handler wurden aus
+    # den Templates entfernt und laufen über globale Event-Delegation in
+    # base.html. ``style-src-attr 'unsafe-inline'`` bleibt, weil Bootstrap-
+    # Utility-Klassen weiterhin einige ``style="…"``-Attribute nutzen.
     return (
         "default-src 'self'; "
         f"script-src 'self' 'nonce-{nonce}'; "
-        "script-src-attr 'unsafe-inline'; "
         f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline'; "
         "style-src-attr 'unsafe-inline'; "
         "img-src 'self' data:; "
@@ -96,22 +101,39 @@ def _load_local_users_from_env() -> dict:
     über ``config.json`` (``"IDV_LOCAL_USERS"``-Key, JSON-Array) konfigurieren
     – ``run.py`` schreibt den JSON-String in die Umgebung.
 
-    Format::
+    Zwei Formate werden akzeptiert – pro Eintrag **eines** von beiden:
 
-        [
+    1. Werkzeug-Hash (empfohlen)::
+
+            {
+                "username":      "admin",
+                "password_hash": "pbkdf2:sha256:600000$…$…",
+                "name":          "Administrator",
+                "role":          "IDV-Administrator",
+                "person_id":     null
+            }
+
+    2. Klartext-Passwort (bequemer für Erstinstallationen / abgeschottete
+       Testumgebungen; **in Produktion nicht empfohlen**)::
+
             {
                 "username": "admin",
-                "password_hash": "pbkdf2:sha256:…",
-                "name": "Administrator",
-                "role": "IDV-Administrator",
-                "person_id": null
+                "password": "mein-geheim",
+                "name":     "Administrator",
+                "role":     "IDV-Administrator"
             }
-        ]
 
-    ``password_hash`` MUSS ein Werkzeug-Hash sein (``werkzeug.security.
-    generate_password_hash``). Klartextpasswörter werden ignoriert.
+       Das Klartextpasswort wird beim Start in einen pbkdf2-Hash
+       konvertiert (niemals im Speicher länger als nötig gehalten) und
+       dann wie ein gehashter Eintrag behandelt. Das ``password``-Feld
+       selbst wird verworfen, sodass nachgelagerter Code keinen Zugriff
+       mehr auf den Klartext hat.
+
+    Einträge ohne ``username`` oder ohne Passwortangabe werden ignoriert.
+    Liegt beides vor, gewinnt ``password_hash``.
     """
     import json
+    from werkzeug.security import generate_password_hash
     raw = os.environ.get("IDV_LOCAL_USERS")
     if not raw:
         return {}
@@ -126,9 +148,27 @@ def _load_local_users_from_env() -> dict:
         if not isinstance(entry, dict):
             continue
         username = str(entry.get("username") or "").strip()
-        pw_hash  = str(entry.get("password_hash") or "").strip()
-        if not username or not pw_hash or ":" not in pw_hash:
+        if not username:
             continue
+
+        pw_hash = str(entry.get("password_hash") or "").strip()
+        if pw_hash and ":" not in pw_hash:
+            # Kein gültiges werkzeug-Format → ignorieren (nicht heimlich
+            # akzeptieren, weil hash-Feld sonst als Klartext genutzt würde).
+            pw_hash = ""
+
+        if not pw_hash:
+            pw_plain = entry.get("password")
+            if isinstance(pw_plain, str) and pw_plain:
+                # Klartext in einen Hash überführen; das Original-Feld
+                # bleibt in ``entry`` zwar bestehen (wir mutieren die
+                # Config nicht), aber das Ergebnis-Dict enthält nur den
+                # Hash.
+                pw_hash = generate_password_hash(pw_plain, method="pbkdf2:sha256")
+
+        if not pw_hash:
+            continue  # weder gültiger Hash noch Klartext → Eintrag ignorieren
+
         out[username] = {
             "password_hash": pw_hash,
             "name":          str(entry.get("name") or username),
@@ -229,6 +269,10 @@ def create_app(db_path: str = None) -> Flask:
         IDV_LOGIN_RATE_LIMIT=os.environ.get(
             "IDV_LOGIN_RATE_LIMIT", "5 per minute;30 per hour"
         ),
+        # VULN-009: Rate-Limit für Admin-Uploads (ZIP, CSV-Importe).
+        IDV_UPLOAD_RATE_LIMIT=os.environ.get(
+            "IDV_UPLOAD_RATE_LIMIT", "10 per minute;60 per hour"
+        ),
     )
 
     # VULN-013: Session-Hardening
@@ -279,6 +323,19 @@ def create_app(db_path: str = None) -> Flask:
     @app.before_request
     def _set_csp_nonce():
         g.csp_nonce = secrets.token_urlsafe(16)
+
+    # VULN-010: Eingabelängen-/Format-Validierung für POST-Formulare.
+    # Greift vor der Route-Logik und weist zu lange oder steuerzeichen-
+    # behaftete Eingaben mit HTTP 400 ab. Multipart-Uploads (Dateien!) und
+    # JSON-APIs bleiben unberührt.
+    @app.before_request
+    def _validate_post_lengths():
+        if request.method != "POST":
+            return
+        ct = (request.content_type or "").lower()
+        if ct.startswith("application/x-www-form-urlencoded") or ct.startswith("multipart/form-data"):
+            from .security import validate_form_lengths
+            validate_form_lengths(request.form)
 
     @app.context_processor
     def _csp_nonce_ctx():

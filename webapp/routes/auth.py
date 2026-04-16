@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 from flask import Blueprint, render_template, request, session, redirect, url_for, flash, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from . import get_db
@@ -27,12 +28,20 @@ def _hash_pw(pw: str) -> str:
 
 
 def _verify_password(stored: str, password: str) -> bool:
-    """Prüft Passwort gegen einen gespeicherten pbkdf2:sha256-Hash."""
+    """Prüft Passwort gegen einen gespeicherten pbkdf2:sha256-Hash.
+
+    Werkzeug wirft bei Legacy-/unbekannten Hash-Formaten ``ValueError``.
+    VULN-011: Andere Exceptions lassen wir durch, damit echte Fehler
+    (I/O, MemoryError) sichtbar bleiben.
+    """
     if not stored or not password:
         return False
     try:
         return check_password_hash(stored, password)
-    except Exception:
+    except (ValueError, TypeError):
+        logging.getLogger(__name__).info(
+            "Passwort-Hash im unbekannten Format – Login abgelehnt"
+        )
         return False
 
 
@@ -83,8 +92,12 @@ def _do_local_login(db, username: str, password: str):
                     "user_role": row["rolle"] or "Fachverantwortlicher",
                     "person_id": row["id"],
                 }
-        except Exception:
-            pass
+        except sqlite3.DatabaseError as e:
+            # VULN-011: DB-Fehler nicht schlucken – Admin muss Defekte im
+            # persons-Schema bemerken. Fallback auf config.json-User bleibt.
+            logging.getLogger(__name__).warning(
+                "Lokaler DB-Login für '%s' fehlgeschlagen: %s", username, e
+            )
     return _check_config_user(username, password)
 
 

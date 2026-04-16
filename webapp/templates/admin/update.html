@@ -105,8 +105,7 @@
             Nach dem Einspielen eines Updates muss die Anwendung neu gestartet werden,
             damit die aktualisierten Dateien geladen werden.
           </p>
-          <form method="post" action="{{ url_for('admin.update_restart') }}"
-                onsubmit="return confirm('App jetzt neu starten? Alle offenen Verbindungen werden getrennt.')">
+          <form method="post" action="{{ url_for('admin.update_restart') }}" data-confirm="App jetzt neu starten? Alle offenen Verbindungen werden getrennt.">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-warning w-100">
               <i class="bi bi-arrow-clockwise me-1"></i>App neu starten
@@ -120,8 +119,7 @@
             Rollback entfernt alle eingespielten Updates. Nach Neustart läuft
             wieder die gebündelte Version.
           </p>
-          <form method="post" action="{{ url_for('admin.update_rollback') }}"
-                onsubmit="return confirm('Override-Verzeichnis löschen und zur gebündelten Version zurückkehren?')">
+          <form method="post" action="{{ url_for('admin.update_rollback') }}" data-confirm="Override-Verzeichnis löschen und zur gebündelten Version zurückkehren?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger w-100">
               <i class="bi bi-arrow-counterclockwise me-1"></i>Rollback (Update entfernen)

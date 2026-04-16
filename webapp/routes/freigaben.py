@@ -18,7 +18,8 @@ from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 from . import login_required, own_write_required, admin_required, get_db, current_person_id
 from ..security import (sanitize_html, validate_upload_mime,
-                        ensure_can_read_idv, ensure_can_write_idv)
+                        ensure_can_read_idv, ensure_can_write_idv,
+                        in_clause)
 
 bp = Blueprint("freigaben", __name__, url_prefix="/freigaben")
 
@@ -107,10 +108,10 @@ def _funktionstrennung_ok(db, idv_db_id: int, person_id: int) -> bool:
 
 def _phase1_komplett_erledigt(db, idv_db_id: int) -> bool:
     """True wenn BEIDE Phase-1-Schritte als Erledigt abgeschlossen sind."""
-    ph = ",".join("?" * len(_PHASE_1))
+    ph, ph_params = in_clause(_PHASE_1)
     rows = db.execute(
         f"SELECT schritt FROM idv_freigaben WHERE idv_id=? AND schritt IN ({ph}) AND status='Erledigt'",
-        [idv_db_id] + _PHASE_1
+        [idv_db_id] + ph_params
     ).fetchall()
     done = {r["schritt"] for r in rows}
     return set(_PHASE_1).issubset(done)
@@ -118,10 +119,10 @@ def _phase1_komplett_erledigt(db, idv_db_id: int) -> bool:
 
 def _phase2_komplett_erledigt(db, idv_db_id: int) -> bool:
     """True wenn BEIDE Phase-2-Schritte als Erledigt abgeschlossen sind."""
-    ph = ",".join("?" * len(_PHASE_2))
+    ph, ph_params = in_clause(_PHASE_2)
     rows = db.execute(
         f"SELECT schritt FROM idv_freigaben WHERE idv_id=? AND schritt IN ({ph}) AND status='Erledigt'",
-        [idv_db_id] + _PHASE_2
+        [idv_db_id] + ph_params
     ).fetchall()
     done = {r["schritt"] for r in rows}
     return set(_PHASE_2).issubset(done)
@@ -724,8 +725,13 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
             recipients = list(recipient_set)
             if recipients:
                 notify_freigabe_schritt(db, idv, schritt, recipients)
-    except Exception:
-        pass
+    except Exception as exc:
+        # VULN-011: Benachrichtigungsfehler dürfen den Freigabe-Prozess nicht
+        # blockieren, werden aber geloggt, damit SMTP-Konfigurationsfehler
+        # nicht unentdeckt bleiben.
+        current_app.logger.warning(
+            "E-Mail-Benachrichtigung zu Freigabe-Schritten fehlgeschlagen: %s", exc
+        )
 
 
 def _notify_freigabe_erteilt(db, idv_db_id: int) -> None:
@@ -746,5 +752,9 @@ def _notify_freigabe_erteilt(db, idv_db_id: int) -> None:
         if recipients:
             from ..email_service import notify_freigabe_abgeschlossen
             notify_freigabe_abgeschlossen(db, idv, recipients)
-    except Exception:
-        pass
+    except Exception as exc:
+        # VULN-011: siehe _notify_schritte – Fehler werden protokolliert, der
+        # Workflow (IDV bereits auf Freigegeben gesetzt) läuft weiter.
+        current_app.logger.warning(
+            "E-Mail-Benachrichtigung 'Freigabe erteilt' fehlgeschlagen: %s", exc
+        )

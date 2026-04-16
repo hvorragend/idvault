@@ -408,8 +408,7 @@
                       formaction="{{ url_for('cognos.loeschen', bericht_id=b.id) }}"
                       formmethod="post"
                       class="btn btn-outline-danger btn-xs ms-1"
-                      title="Löschen"
-                      onclick="return confirm('Bericht \&quot;{{ b.berichtsname|e }}\&quot; wirklich löschen?')">
+                      title="Löschen" data-confirm="Bericht \&quot;{{ b.berichtsname|e }}\&quot; wirklich löschen?">
                 <i class="bi bi-trash"></i>
               </button>
             </td>

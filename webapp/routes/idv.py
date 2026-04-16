@@ -308,8 +308,16 @@ def bulk_status():
         try:
             change_status(db, idv_db_id, neuer_status, geaendert_von_id=person_id)
             updated += 1
-        except Exception:
+        except Exception as exc:
+            # VULN-011: Einzel-Fehler nicht schlucken – damit Batch-Fehler
+            # im Log nachvollziehbar bleiben (z.B. ungültige Übergänge,
+            # DB-Contention).
             errors += 1
+            from flask import current_app
+            current_app.logger.warning(
+                "Bulk-Status-Änderung für IDV %s auf '%s' fehlgeschlagen: %s",
+                idv_db_id, neuer_status, exc,
+            )
 
     msg = f'{updated} IDV(s) auf "{neuer_status}" gesetzt.'
     if errors:
@@ -544,9 +552,9 @@ def new_idv():
             extra_ids_parsed = [_int_or_none(x.strip()) for x in extra_file_ids.split(",") if x.strip()]
             extra_ids_parsed = [i for i in extra_ids_parsed if i and i != file_id]
             if extra_ids_parsed:
-                ph = ",".join("?" * len(extra_ids_parsed))
+                ph, ph_params = in_clause(extra_ids_parsed)
                 extra_fonds = db.execute(
-                    f"SELECT * FROM idv_files WHERE id IN ({ph})", extra_ids_parsed
+                    f"SELECT * FROM idv_files WHERE id IN ({ph})", ph_params
                 ).fetchall()
 
     return render_template("idv/form.html", idv=None,
