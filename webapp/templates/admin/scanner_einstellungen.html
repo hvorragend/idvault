@@ -152,6 +152,132 @@
     </form>
   </div>
 
+  <!-- ── Technischer AD-Benutzer (Scanner) ────────────────────── -->
+  <div class="col-12" id="runas">
+    <form method="post" action="{{ url_for('admin.scanner_runas_speichern') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-600">
+          <i class="bi bi-person-badge me-2"></i>Technischer AD-Benutzer (Scanner)
+        </div>
+        <div class="card-body">
+          <p class="text-muted mb-3" style="font-size:.88rem">
+            Standardmäßig läuft der Scanner im Benutzerkontext des idvault-Prozesses.
+            Hier kann ein technischer Active-Directory-Benutzer hinterlegt werden,
+            der für den Zugriff auf Netzwerklaufwerke verwendet wird
+            (<code>CreateProcessWithLogonW</code>, Windows only).
+            Das Kennwort wird verschlüsselt gespeichert (Fernet/AES-128).
+          </p>
+
+          {% if runas.username %}
+          <div class="alert alert-success py-2 mb-3" style="font-size:.84rem">
+            <i class="bi bi-check-circle me-1"></i>
+            Aktuell konfiguriert:
+            <strong>{{ runas.domain or '.' }}\{{ runas.username }}</strong>
+          </div>
+          {% else %}
+          <div class="alert alert-info py-2 mb-3" style="font-size:.84rem">
+            <i class="bi bi-info-circle me-1"></i>
+            Kein technischer Benutzer konfiguriert – Scanner läuft im aktuellen Benutzerkontext.
+          </div>
+          {% endif %}
+
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-600">Domain</label>
+              <input type="text" name="runas_domain" class="form-control font-monospace"
+                     value="{{ runas.domain }}" placeholder="IHRE-DOMAIN">
+              <div class="form-text">NetBIOS-Domänenname, z.&thinsp;B. <code>BANK</code></div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-600">Benutzername</label>
+              <input type="text" name="runas_username" class="form-control font-monospace"
+                     value="{{ runas.username }}" placeholder="svc-idvault-scan">
+              <div class="form-text">sAMAccountName (ohne Domain-Präfix)</div>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label fw-600">Kennwort</label>
+              <input type="password" name="runas_password" class="form-control"
+                     placeholder="{{ 'Leer lassen = unverändert' if runas.password_enc else 'Kennwort eingeben' }}">
+              <div class="form-text">
+                Wird verschlüsselt gespeichert.
+                {% if runas.password_enc %}
+                <span class="text-success">
+                  <i class="bi bi-check-circle me-1"></i>Kennwort ist hinterlegt.
+                </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+          <button type="button" class="btn btn-outline-secondary" id="btnRunasTest">
+            <i class="bi bi-plug me-1"></i>Anmeldung testen
+          </button>
+          <div class="d-flex gap-2">
+            {% if runas.username %}
+            <button type="button" class="btn btn-outline-danger btn-sm" id="btnRunasRemove">
+              <i class="bi bi-x me-1"></i>Entfernen
+            </button>
+            {% endif %}
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-floppy me-1"></i>Speichern
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+    <div id="runas-test-result" style="display:none" class="mt-2">
+      <div class="alert mb-0 py-2" id="runas-test-alert" style="font-size:.84rem"></div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    const btnTest   = document.getElementById('btnRunasTest');
+    const btnRemove = document.getElementById('btnRunasRemove');
+
+    if (btnTest) {
+      btnTest.addEventListener('click', function () {
+        btnTest.disabled = true;
+        btnTest.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Teste…';
+        fetch('{{ url_for("admin.scanner_runas_testen") }}', { method: 'POST' })
+          .then(r => r.json())
+          .then(data => {
+            const box   = document.getElementById('runas-test-result');
+            const alrt  = document.getElementById('runas-test-alert');
+            box.style.display = '';
+            alrt.className = 'alert mb-0 py-2 alert-' + (data.ok ? 'success' : 'danger');
+            alrt.innerHTML = (data.ok
+              ? '<i class="bi bi-check-circle me-1"></i>'
+              : '<i class="bi bi-x-circle me-1"></i>') + data.msg;
+          })
+          .catch(e => {
+            document.getElementById('runas-test-result').style.display = '';
+            const alrt = document.getElementById('runas-test-alert');
+            alrt.className = 'alert mb-0 py-2 alert-danger';
+            alrt.textContent = 'Netzwerkfehler: ' + e;
+          })
+          .finally(() => {
+            btnTest.disabled = false;
+            btnTest.innerHTML = '<i class="bi bi-plug me-1"></i>Anmeldung testen';
+          });
+      });
+    }
+
+    if (btnRemove) {
+      btnRemove.addEventListener('click', function () {
+        if (!confirm('Technischen Scanner-Benutzer wirklich entfernen?')) return;
+        const form = btnRemove.closest('form');
+        form.querySelector('[name="runas_username"]').value = '';
+        form.querySelector('[name="runas_domain"]').value   = '';
+        form.querySelector('[name="runas_password"]').value = '';
+        form.submit();
+      });
+    }
+  })();
+  </script>
+
   <!-- ── Teams-Scanner ──────────────────────────────────────────── -->
   <div class="col-12">
     <div class="card border-0 shadow-sm">

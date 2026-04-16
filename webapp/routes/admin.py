@@ -124,6 +124,171 @@ def _save_scanner_config(cfg: dict):
         json.dump(full, f, indent=2, ensure_ascii=False)
 
 
+def _load_scanner_runas() -> dict:
+    """Lädt Run-As-Konfiguration aus app_settings.
+
+    Gibt dict mit keys zurück: domain, username, password (entschlüsselt),
+    password_enc (verschlüsselt). Fehlende Felder sind leere Strings.
+    """
+    try:
+        db = get_db()
+        rows = db.execute(
+            "SELECT key, value FROM app_settings WHERE key IN ("
+            "'scanner_runas_domain', 'scanner_runas_username', 'scanner_runas_password'"
+            ")"
+        ).fetchall()
+        settings = {r["key"]: r["value"] for r in rows}
+        domain       = settings.get("scanner_runas_domain",   "") or ""
+        username     = settings.get("scanner_runas_username", "") or ""
+        password_enc = settings.get("scanner_runas_password", "") or ""
+        password = ""
+        if password_enc:
+            try:
+                from ..ldap_auth import decrypt_password
+                password = decrypt_password(
+                    password_enc, current_app.config["SECRET_KEY"]
+                )
+            except Exception:
+                pass
+        return {
+            "domain":       domain,
+            "username":     username,
+            "password":     password,
+            "password_enc": password_enc,
+        }
+    except Exception:
+        return {"domain": "", "username": "", "password": "", "password_enc": ""}
+
+
+def _start_proc_with_logon(
+    cmd: list, cwd: str, log_path: str, creationflags: int,
+    domain: str, username: str, password: str,
+):
+    """Startet einen Prozess als AD-Benutzer via CreateProcessWithLogonW (Windows only).
+
+    Gibt (pid, wait_fn) zurück. wait_fn() blockiert bis der Prozess beendet ist.
+    Setzt pywin32 voraus.
+    """
+    import win32process, win32security, win32con, win32file, win32api, win32event  # noqa: F401
+
+    # Inheritable HANDLE für die Log-Datei (stdout + stderr)
+    sa = win32security.SECURITY_ATTRIBUTES()
+    sa.bInheritHandle = True
+    log_handle = win32file.CreateFile(
+        log_path,
+        win32con.GENERIC_WRITE,
+        win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE,
+        sa,
+        win32con.CREATE_ALWAYS,
+        win32con.FILE_ATTRIBUTE_NORMAL,
+        None,
+    )
+
+    # Inheritable NUL-Handle für stdin (kein interaktiver Input)
+    sa_nul = win32security.SECURITY_ATTRIBUTES()
+    sa_nul.bInheritHandle = True
+    nul_handle = win32file.CreateFile(
+        "nul",
+        win32con.GENERIC_READ,
+        win32con.FILE_SHARE_READ,
+        sa_nul,
+        win32con.OPEN_EXISTING,
+        win32con.FILE_ATTRIBUTE_NORMAL,
+        None,
+    )
+
+    si = win32process.STARTUPINFO()
+    si.dwFlags    = win32con.STARTF_USESTDHANDLES
+    si.hStdInput  = nul_handle
+    si.hStdOutput = log_handle
+    si.hStdError  = log_handle
+
+    cmd_str = subprocess.list2cmdline(cmd)
+
+    proc_handle, _thread_handle, pid, _tid = win32process.CreateProcessWithLogonW(
+        username,
+        domain,
+        password,
+        win32process.LOGON_WITH_PROFILE,
+        None,         # lpApplicationName (None → aus cmd_str ableiten)
+        cmd_str,
+        creationflags,
+        None,         # Umgebung erben
+        cwd,
+        si,
+    )
+
+    # Parent-seitige Handles schließen (Kind hat sie geerbt)
+    nul_handle.Close()
+    log_handle.Close()
+
+    def _wait():
+        win32event.WaitForSingleObject(proc_handle, win32event.INFINITE)
+        proc_handle.Close()
+
+    return pid, _wait
+
+
+def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
+    """Startet den Scanner-Subprocess.
+
+    Auf Windows mit konfiguriertem Run-As-Benutzer wird
+    CreateProcessWithLogonW verwendet, damit der Zugriff auf
+    Netzwerklaufwerke im Kontext des technischen AD-Benutzers erfolgt.
+    Ohne Run-As-Config (oder außerhalb von Windows) fällt die Funktion
+    auf subprocess.Popen zurück.
+
+    Gibt (pid, wait_fn) zurück. wait_fn() blockiert bis der Prozess
+    beendet ist und räumt Handles/File-Objekte auf.
+    """
+    creationflags = 0
+    if os.name == "nt":
+        creationflags = (
+            subprocess.CREATE_NEW_PROCESS_GROUP
+            | subprocess.CREATE_NO_WINDOW
+        )
+
+    runas = _load_scanner_runas()
+    if os.name == "nt" and runas.get("username") and runas.get("password"):
+        try:
+            pid, wait_fn = _start_proc_with_logon(
+                cmd, cwd, log_path, creationflags,
+                runas["domain"] or ".",
+                runas["username"],
+                runas["password"],
+            )
+            current_app.logger.info(
+                "Scanner als AD-Benutzer %s\\%s gestartet (PID %d).",
+                runas["domain"] or ".", runas["username"], pid,
+            )
+            return pid, wait_fn
+        except ImportError:
+            current_app.logger.warning(
+                "pywin32 nicht verfügbar – Scanner läuft im aktuellen Benutzerkontext."
+            )
+        except Exception as exc:
+            current_app.logger.error(
+                "CreateProcessWithLogonW fehlgeschlagen (%s) – "
+                "Fallback auf aktuellen Benutzerkontext.", exc,
+            )
+
+    # Standard-Fallback: subprocess.Popen erbt den aktuellen Benutzerkontext
+    log_fh = open(log_path, "w", encoding="utf-8")
+    proc = subprocess.Popen(
+        cmd,
+        stdout=log_fh,
+        stderr=log_fh,
+        cwd=cwd,
+        creationflags=creationflags,
+    )
+
+    def _wait():
+        proc.wait()
+        log_fh.close()
+
+    return proc.pid, _wait
+
+
 def _scan_is_running() -> bool:
     pid = _scan_state.get("pid")
     if pid is None:
@@ -251,40 +416,22 @@ def _trigger_scheduled_scan() -> bool:
         output_log = os.path.join(logs_dir, "scanner_output.log")
 
         try:
-            log_fh = open(output_log, "w", encoding="utf-8")
-            _creationflags = 0
-            if os.name == "nt":
-                _creationflags = (
-                    subprocess.CREATE_NEW_PROCESS_GROUP
-                    | subprocess.CREATE_NO_WINDOW
-                )
-            proc = subprocess.Popen(
-                cmd,
-                stdout=log_fh,
-                stderr=log_fh,
-                cwd=scanner_dir,
-                creationflags=_creationflags,
-            )
-            _scan_state["pid"]     = proc.pid
+            pid, wait_fn = _start_scanner_proc(cmd, scanner_dir, output_log)
+            _scan_state["pid"]     = pid
             _scan_state["started"] = datetime.now(timezone.utc).isoformat()
 
             def _watch():
-                proc.wait()
-                log_fh.close()
+                wait_fn()
                 with _scan_lock:
-                    if _scan_state.get("pid") == proc.pid:
+                    if _scan_state.get("pid") == pid:
                         _scan_state["pid"]     = None
                         _scan_state["started"] = None
 
             threading.Thread(target=_watch, daemon=True).start()
-            current_app.logger.info("Zeitplan-Scan gestartet (PID %d).", proc.pid)
+            current_app.logger.info("Zeitplan-Scan gestartet (PID %d).", pid)
             return True
         except Exception as exc:
             current_app.logger.error("Zeitplan-Scan konnte nicht gestartet werden: %s", exc)
-            try:
-                log_fh.close()
-            except Exception:
-                pass
             return False
 
 
@@ -453,13 +600,15 @@ def scanner_einstellungen():
         "SELECT value FROM app_settings WHERE key='discard_no_formula'"
     ).fetchone()
     schedule = _load_schedule_settings(db)
+    runas = _load_scanner_runas()
     return render_template("admin/scanner_einstellungen.html",
                            cfg=cfg, scan_running=_scan_is_running(),
                            auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"),
                            discard_no_formula=(discard_nf["value"] if discard_nf else "0"),
                            schedule=schedule,
                            schedule_next=_next_scheduled_scan(schedule),
-                           weekday_names=_WEEKDAY_NAMES)
+                           weekday_names=_WEEKDAY_NAMES,
+                           runas=runas)
 
 
 @bp.route("/scanner/starten", methods=["POST"])
@@ -503,43 +652,33 @@ def scanner_starten():
         _logs_dir = _instance_logs_dir()
         os.makedirs(_logs_dir, exist_ok=True)
         output_log = os.path.join(_logs_dir, "scanner_output.log")
+        # Subprocess von der Konsole des Parents isolieren: sonst werden
+        # Windows-Konsolen-Control-Events (z.B. CTRL_C_EVENT, die bei
+        # Netzlaufwerk-Störungen ausgelöst werden) an alle an dieselbe
+        # Konsole gekoppelten Prozesse zugestellt. Der Scanner fängt
+        # KeyboardInterrupt ab und läuft weiter – der Flask-Prozess
+        # (Werkzeug-Dev-Server) bekommt das gleiche Signal und beendet
+        # sich still, wie bei Ctrl+C. Siehe claude/debug-network-scan.
+        # Abbrechen erfolgt via Signal-Dateien, nicht via CTRL_C.
+        # Wenn ein technischer AD-Benutzer konfiguriert ist, wird der Scanner
+        # via CreateProcessWithLogonW in dessen Kontext gestartet (Windows).
         try:
-            log_fh = open(output_log, "w", encoding="utf-8")
-            # Subprocess von der Konsole des Parents isolieren: sonst werden
-            # Windows-Konsolen-Control-Events (z.B. CTRL_C_EVENT, die bei
-            # Netzlaufwerk-Störungen ausgelöst werden) an alle an dieselbe
-            # Konsole gekoppelten Prozesse zugestellt. Der Scanner fängt
-            # KeyboardInterrupt ab und läuft weiter – der Flask-Prozess
-            # (Werkzeug-Dev-Server) bekommt das gleiche Signal und beendet
-            # sich still, wie bei Ctrl+C. Siehe claude/debug-network-scan.
-            # Abbrechen erfolgt via Signal-Dateien, nicht via CTRL_C.
-            _creationflags = 0
-            if os.name == 'nt':
-                _creationflags = (
-                    subprocess.CREATE_NEW_PROCESS_GROUP  # eigene Signalgruppe
-                    | subprocess.CREATE_NO_WINDOW         # keine geteilte Konsole
-                )
-            proc = subprocess.Popen(
-                cmd,
-                stdout=log_fh,
-                stderr=log_fh,
-                cwd=os.path.dirname(scanner_dir),
-                creationflags=_creationflags,
+            pid, wait_fn = _start_scanner_proc(
+                cmd, os.path.dirname(scanner_dir), output_log
             )
-            _scan_state["pid"]     = proc.pid
+            _scan_state["pid"]     = pid
             _scan_state["started"] = datetime.now(timezone.utc).isoformat()
 
             def _watch():
-                proc.wait()
-                log_fh.close()
+                wait_fn()
                 with _scan_lock:
-                    if _scan_state.get("pid") == proc.pid:
+                    if _scan_state.get("pid") == pid:
                         _scan_state["pid"]     = None
                         _scan_state["started"] = None
 
             threading.Thread(target=_watch, daemon=True).start()
             mode_label = "fortgesetzt" if resume else "gestartet"
-            return jsonify({"ok": True, "msg": f"Scan {mode_label} (PID {proc.pid}).", "pid": proc.pid})
+            return jsonify({"ok": True, "msg": f"Scan {mode_label} (PID {pid}).", "pid": pid})
         except Exception as exc:
             return jsonify({"ok": False, "msg": str(exc)})
 
@@ -589,6 +728,88 @@ def scanner_abbrechen():
         pass
     open(_cancel_path(), "w").close()
     return jsonify({"ok": True, "msg": "Abbruch angefordert."})
+
+
+@bp.route("/scanner/runas/speichern", methods=["POST"])
+@admin_required
+def scanner_runas_speichern():
+    """Speichert den technischen AD-Benutzer für den Scanner."""
+    from ..ldap_auth import encrypt_password
+
+    db = get_db()
+    domain   = request.form.get("runas_domain",   "").strip()
+    username = request.form.get("runas_username",  "").strip()
+    password_plain = request.form.get("runas_password", "").strip()
+
+    # Bestehendes Passwort beibehalten wenn Feld leer gelassen wird
+    if password_plain:
+        secret_key   = current_app.config["SECRET_KEY"]
+        password_enc = encrypt_password(password_plain, secret_key)
+    else:
+        existing = db.execute(
+            "SELECT value FROM app_settings WHERE key='scanner_runas_password'"
+        ).fetchone()
+        password_enc = existing["value"] if existing else ""
+
+    for key, val in [
+        ("scanner_runas_domain",   domain),
+        ("scanner_runas_username", username),
+        ("scanner_runas_password", password_enc),
+    ]:
+        db.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+            (key, val),
+        )
+    db.commit()
+
+    if username:
+        display = f"{domain}\\{username}" if domain else username
+        flash(f"Scanner-Benutzer \"{display}\" gespeichert.", "success")
+    else:
+        flash(
+            "Technischer Scanner-Benutzer entfernt – "
+            "Scanner läuft im aktuellen Benutzerkontext.",
+            "success",
+        )
+    return redirect(url_for("admin.scanner_einstellungen") + "#runas")
+
+
+@bp.route("/scanner/runas/testen", methods=["POST"])
+@admin_required
+def scanner_runas_testen():
+    """Testet die konfigurierten Run-As-Credentials via Windows LogonUser."""
+    if os.name != "nt":
+        return jsonify(ok=False, msg="Nur auf Windows-Systemen verfügbar.")
+
+    try:
+        import win32security  # noqa: F401
+    except ImportError:
+        return jsonify(ok=False, msg="pywin32 nicht installiert.")
+
+    runas = _load_scanner_runas()
+    username = runas.get("username", "")
+    domain   = runas.get("domain")  or "."
+    password = runas.get("password", "")
+
+    if not username:
+        return jsonify(ok=False, msg="Kein Benutzer konfiguriert.")
+    if not password:
+        return jsonify(ok=False, msg="Kein Kennwort hinterlegt.")
+
+    try:
+        import win32security
+        token = win32security.LogonUser(
+            username,
+            domain,
+            password,
+            win32security.LOGON32_LOGON_NETWORK,
+            win32security.LOGON32_PROVIDER_DEFAULT,
+        )
+        token.Close()
+        display = f"{domain}\\{username}" if domain != "." else username
+        return jsonify(ok=True, msg=f"Anmeldung als \"{display}\" erfolgreich.")
+    except Exception as exc:
+        return jsonify(ok=False, msg=str(exc))
 
 
 @bp.route("/scanner/bereinigen", methods=["POST"])
