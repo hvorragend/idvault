@@ -142,7 +142,8 @@ def _load_scanner_runas() -> dict:
     """Lädt Run-As-Konfiguration aus app_settings.
 
     Gibt dict mit keys zurück: domain, username, password (entschlüsselt),
-    password_enc (verschlüsselt). Fehlende Felder sind leere Strings.
+    password_enc (verschlüsselt), decrypt_error (Fehlermeldung oder "").
+    Fehlende Felder sind leere Strings.
     """
     try:
         db = get_db()
@@ -156,22 +157,28 @@ def _load_scanner_runas() -> dict:
         username     = settings.get("scanner_runas_username", "") or ""
         password_enc = settings.get("scanner_runas_password", "") or ""
         password = ""
+        decrypt_error = ""
         if password_enc:
             try:
                 from ..ldap_auth import decrypt_password
                 password = decrypt_password(
                     password_enc, current_app.config["SECRET_KEY"]
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                # Typisch: SECRET_KEY hat sich seit dem Speichern geändert,
+                # oder die verschlüsselten Daten sind korrupt. Ohne Passwort
+                # kann der Scanner nicht als Run-As-User starten.
+                decrypt_error = f"{type(exc).__name__}: {exc}"
         return {
-            "domain":       domain,
-            "username":     username,
-            "password":     password,
-            "password_enc": password_enc,
+            "domain":         domain,
+            "username":       username,
+            "password":       password,
+            "password_enc":   password_enc,
+            "decrypt_error":  decrypt_error,
         }
     except Exception:
-        return {"domain": "", "username": "", "password": "", "password_enc": ""}
+        return {"domain": "", "username": "", "password": "",
+                "password_enc": "", "decrypt_error": ""}
 
 
 def _start_proc_with_logon(
@@ -185,7 +192,12 @@ def _start_proc_with_logon(
     """
     import win32process, win32security, win32con, win32file, win32api, win32event  # noqa: F401
 
-    # Inheritable HANDLE für die Log-Datei (stdout + stderr)
+    # Inheritable HANDLE für die Log-Datei (stdout + stderr).
+    # OPEN_ALWAYS statt CREATE_ALWAYS: Datei wird nicht trunkiert –
+    # die von _write_scanner_notice() vorab geschriebenen
+    # [IDVAULT-START]-Zeilen bleiben erhalten. Anschließend an das
+    # Dateiende positionieren, damit der Scanner-Output sauber
+    # angehängt wird (sonst würde er ab Offset 0 schreiben).
     sa = win32security.SECURITY_ATTRIBUTES()
     sa.bInheritHandle = True
     log_handle = win32file.CreateFile(
@@ -193,10 +205,11 @@ def _start_proc_with_logon(
         win32con.GENERIC_WRITE,
         win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE,
         sa,
-        win32con.CREATE_ALWAYS,
+        win32con.OPEN_ALWAYS,
         win32con.FILE_ATTRIBUTE_NORMAL,
         None,
     )
+    win32file.SetFilePointer(log_handle, 0, win32file.FILE_END)
 
     # Inheritable NUL-Handle für stdin (kein interaktiver Input)
     sa_nul = win32security.SECURITY_ATTRIBUTES()
@@ -219,6 +232,11 @@ def _start_proc_with_logon(
 
     cmd_str = subprocess.list2cmdline(cmd)
 
+    # Environment explizit setzen, damit PYTHONIOENCODING/PYTHONUTF8
+    # im Scanner-Subprocess wirksam werden (UTF-8-Output statt CP1252).
+    # pywin32 konvertiert das dict selbst in den Unicode-Environment-Block.
+    env_dict = _scanner_subprocess_env()
+
     proc_handle, _thread_handle, pid, _tid = win32process.CreateProcessWithLogonW(
         username,
         domain,
@@ -227,7 +245,7 @@ def _start_proc_with_logon(
         None,         # lpApplicationName (None → aus cmd_str ableiten)
         cmd_str,
         creationflags,
-        None,         # Umgebung erben
+        env_dict,
         cwd,
         si,
     )
@@ -265,12 +283,28 @@ def _check_runas_modules() -> tuple:
     return (not missing), missing
 
 
-def _write_scanner_notice(log_path: str, lines: list) -> None:
-    """Schreibt Hinweiszeilen in die stdout/stderr-Log-Datei des Scanners.
+def _truncate_scanner_log(log_path: str) -> None:
+    """Leert die stdout/stderr-Log-Datei zu Beginn eines Scan-Starts.
 
-    Wird aufgerufen, bevor der Subprocess startet, damit Meldungen über
-    fehlgeschlagene Run-As-Versuche im Web-UI (Scan-Log → stdout/stderr-
-    Mitschnitt) sichtbar sind – und nicht nur in ``idvault.log``.
+    Muss VOR _write_scanner_notice aufgerufen werden – danach wird nur
+    noch angehängt, damit alle Diagnose-Zeilen des Start-Vorgangs
+    erhalten bleiben (früher hat der Fallback-Zweig die Datei erneut
+    mit ``open(..., "w")`` überschrieben und alle Notices gelöscht).
+    """
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "w", encoding="utf-8"):
+            pass
+    except Exception:
+        pass
+
+
+def _write_scanner_notice(log_path: str, lines: list) -> None:
+    """Hängt Hinweiszeilen an die stdout/stderr-Log-Datei des Scanners an.
+
+    Die Zeilen erscheinen im Admin-Bereich im Scan-Log-Viewer
+    (Dropdown ``stdout/stderr-Mitschnitt``). Präfix ``[IDVAULT-START]``
+    macht sie leicht von regulären Scanner-Log-Zeilen unterscheidbar.
     """
     try:
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -282,6 +316,21 @@ def _write_scanner_notice(log_path: str, lines: list) -> None:
         pass  # Logging-Fehler dürfen den Start nicht blockieren
 
 
+def _scanner_subprocess_env() -> dict:
+    """Baut das Environment für den Scanner-Subprocess.
+
+    Setzt ``PYTHONIOENCODING=utf-8`` + ``PYTHONUTF8=1``, damit Python
+    auf Windows seine stdout/stderr als UTF-8 enkodiert. Ohne diese
+    Variablen schreibt Python Umlaute in CP1252 in das
+    ``scanner_output.log`` – der Log-Viewer, der die Datei als UTF-8
+    liest, zeigt dann ``�`` statt ``ä/ö/ü``.
+    """
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"]       = "1"
+    return env
+
+
 def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     """Startet den Scanner-Subprocess.
 
@@ -290,6 +339,11 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     Netzwerklaufwerke im Kontext des technischen AD-Benutzers erfolgt.
     Ohne Run-As-Config (oder außerhalb von Windows) fällt die Funktion
     auf subprocess.Popen zurück.
+
+    Schreibt bei jedem Start mindestens eine ``[IDVAULT-START]``-Zeile
+    in das Log, die den gewählten Pfad (Run-As vs. Parent-Kontext)
+    dokumentiert. Damit ist im Admin-Bereich immer nachvollziehbar,
+    warum der Scanner unter der angezeigten Identität läuft.
 
     Gibt (pid, wait_fn) zurück. wait_fn() blockiert bis der Prozess
     beendet ist und räumt Handles/File-Objekte auf.
@@ -301,8 +355,44 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
             | subprocess.CREATE_NO_WINDOW
         )
 
+    # Log einmal zu Beginn leeren – alle nachfolgenden Schreibvorgänge
+    # (Notices + Scanner-Output) hängen an.
+    _truncate_scanner_log(log_path)
+
     runas = _load_scanner_runas()
-    runas_configured = bool(runas.get("username") and runas.get("password"))
+    username_set   = bool(runas.get("username"))
+    has_enc_pw     = bool(runas.get("password_enc"))
+    password_ok    = bool(runas.get("password"))
+    decrypt_err    = runas.get("decrypt_error", "")
+    runas_configured = username_set and password_ok
+
+    # Immer eine Diagnose-Zeile zum Start schreiben.
+    if not username_set:
+        _write_scanner_notice(log_path, [
+            "Run-As nicht konfiguriert – Scanner läuft im Kontext des "
+            "idvault-Prozesses (Dienstkonto)."
+        ])
+    elif has_enc_pw and not password_ok:
+        # Passwort liegt verschlüsselt vor, ließ sich aber nicht
+        # entschlüsseln. Häufigste Ursache: SECRET_KEY hat sich seit
+        # dem Speichern der Konfiguration geändert.
+        msg = (
+            f"Run-As-Passwort für {runas['domain'] or '.'}\\{runas['username']} "
+            f"konnte nicht entschlüsselt werden ({decrypt_err}). "
+            f"Typische Ursache: Der SECRET_KEY der Anwendung hat sich seit "
+            f"dem Speichern geändert. Abhilfe: Administration → Scanner-"
+            f"Einstellungen → Run-As → Passwort erneut eintragen und "
+            f"speichern. Scanner läuft bis dahin im Kontext des idvault-"
+            f"Prozesses (Dienstkonto)."
+        )
+        current_app.logger.error(msg)
+        _write_scanner_notice(log_path, [msg])
+    elif not has_enc_pw:
+        _write_scanner_notice(log_path, [
+            f"Run-As-Benutzer {runas['domain'] or '.'}\\{runas['username']} "
+            f"gespeichert, aber kein Passwort hinterlegt. Scanner läuft im "
+            f"Kontext des idvault-Prozesses (Dienstkonto)."
+        ])
 
     if os.name == "nt" and runas_configured:
         modules_ok, missing = _check_runas_modules()
@@ -319,6 +409,11 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
             current_app.logger.error(msg)
             _write_scanner_notice(log_path, [msg])
         else:
+            _write_scanner_notice(log_path, [
+                f"Starte Scanner als Run-As-Benutzer "
+                f"{runas['domain'] or '.'}\\{runas['username']} "
+                f"(CreateProcessWithLogonW)…"
+            ])
             try:
                 pid, wait_fn = _start_proc_with_logon(
                     cmd, cwd, log_path, creationflags,
@@ -344,14 +439,18 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
                 current_app.logger.error(msg)
                 _write_scanner_notice(log_path, [msg])
 
-    # Standard-Fallback: subprocess.Popen erbt den aktuellen Benutzerkontext
-    log_fh = open(log_path, "w", encoding="utf-8")
+    # Standard-Fallback: subprocess.Popen erbt den aktuellen Benutzerkontext.
+    # "a" (append) damit die oben geschriebenen [IDVAULT-START]-Zeilen
+    # nicht überschrieben werden. Line-buffering (buffering=1) sorgt dafür,
+    # dass Scanner-Output zeitnah sichtbar wird.
+    log_fh = open(log_path, "a", encoding="utf-8", buffering=1)
     proc = subprocess.Popen(
         cmd,
         stdout=log_fh,
         stderr=log_fh,
         cwd=cwd,
         creationflags=creationflags,
+        env=_scanner_subprocess_env(),
     )
 
     def _wait():
