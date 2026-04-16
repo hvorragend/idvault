@@ -3059,7 +3059,7 @@ def update_index():
     active_version = (version_info or {}).get('version', bundled_version)
     update_active = os.path.isdir(upd_dir)
 
-    service_name = os.environ.get('IDV_SERVICE_NAME', '').strip()
+    service_name, service_auto_detected = _effective_service_name()
     return render_template(
         "admin/update.html",
         bundled_version=bundled_version,
@@ -3069,6 +3069,7 @@ def update_index():
         upd_dir=upd_dir,
         sidecar_updates_enabled=_sidecar_updates_enabled(),
         service_name=service_name,
+        service_auto_detected=service_auto_detected,
     )
 
 
@@ -3221,10 +3222,68 @@ def update_upload():
     return redirect(url_for("admin.update_index"))
 
 
+_detected_svc_name: str | None = None  # None = noch nicht geprüft
+
+
+def _detect_windows_service_name() -> str:
+    """Ermittelt den Windows-Dienstnamen des laufenden Prozesses via PID-Abgleich.
+
+    Durchsucht alle aktiven Win32-Dienste nach einem Eintrag, dessen ProcessId
+    mit os.getpid() übereinstimmt. Funktioniert zuverlässig bei nativer
+    Dienst-Registrierung (``sc create binPath=idvault.exe``).
+
+    Bei Service-Wrappern wie NSSM oder winsw meldet der SCM die PID des
+    Wrappers, nicht die von idvault.exe – in diesem Fall liefert die Funktion
+    '' zurück; IDV_SERVICE_NAME muss dann manuell gesetzt werden.
+
+    Returns: Dienstname (interner Name) oder '' wenn nicht erkannt.
+    """
+    global _detected_svc_name
+    if _detected_svc_name is not None:
+        return _detected_svc_name
+    result = ''
+    if os.name == 'nt' and getattr(sys, 'frozen', False):
+        try:
+            import win32service
+            scm = win32service.OpenSCManager(
+                None, None, win32service.SC_MANAGER_ENUMERATE_SERVICE
+            )
+            try:
+                pid = os.getpid()
+                for svc in win32service.EnumServicesStatusEx(
+                    scm,
+                    win32service.SERVICE_WIN32,
+                    win32service.SERVICE_STATE_ALL,
+                ):
+                    if svc.get('ProcessId') == pid:
+                        result = svc['ServiceName']
+                        break
+            finally:
+                win32service.CloseServiceHandle(scm)
+        except Exception:
+            pass
+    _detected_svc_name = result
+    return result
+
+
+def _effective_service_name() -> tuple[str, bool]:
+    """Gibt (Dienstname, auto_detected) zurück.
+
+    Priorität:
+      1. IDV_SERVICE_NAME aus config.json / Umgebungsvariable (explizit)
+      2. Automatische Erkennung via EnumServicesStatusEx (nativ registriert)
+    """
+    explicit = os.environ.get('IDV_SERVICE_NAME', '').strip()
+    if explicit:
+        return explicit, False
+    auto = _detect_windows_service_name()
+    return auto, bool(auto)
+
+
 def _trigger_restart():
     """Startet die EXE sauber neu (gemeinsame Logik für Update & Rollback).
 
-    Direktmodus (IDV_SERVICE_NAME nicht gesetzt):
+    Direktmodus (kein Dienstname ermittelbar):
       Schreibt eine Batch-Datei neben die EXE, die:
         1. PyInstaller-Umgebungsvariablen löscht (_MEIPASS2 etc.)
         2. PATH auf Windows-Systemstandard zurücksetzt
@@ -3232,7 +3291,7 @@ def _trigger_restart():
         4. Die EXE über "start" in einem neuen Konsolenfenster startet
         5. Sich selbst löscht
 
-    Dienstmodus (IDV_SERVICE_NAME in config.json/Umgebungsvariable gesetzt):
+    Dienstmodus (IDV_SERVICE_NAME gesetzt oder automatisch erkannt):
       Schreibt eine Batch-Datei, die nach dem Prozessende ``sc start
       <servicename>`` ausführt. Der Windows-Dienst-Manager startet den
       Dienst dann sauber über den SCM neu – kein loses EXE-Fenster.
@@ -3245,7 +3304,7 @@ def _trigger_restart():
         time.sleep(1.5)
         if getattr(sys, 'frozen', False):
             exe = sys.executable
-            service_name = os.environ.get('IDV_SERVICE_NAME', '').strip()
+            service_name, _ = _effective_service_name()
             bat_path = os.path.join(os.path.dirname(exe), '_idvault_restart.bat')
             if service_name:
                 # Dienstmodus: nach dem Exit des Prozesses den Dienst über

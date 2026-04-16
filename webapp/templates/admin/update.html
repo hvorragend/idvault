@@ -144,14 +144,20 @@
           <strong>Dienst-Modus:</strong> Neustart erfolgt über
           <code>sc start "{{ service_name }}"</code> – der Windows-Dienst-Manager
           übernimmt den Lebenszyklus. Kein separates EXE-Fenster.
+          {% if service_auto_detected %}
+          <span class="badge bg-success ms-1" title="Dienstname per PID-Abgleich automatisch ermittelt">automatisch erkannt</span>
+          {% else %}
+          <span class="badge bg-secondary ms-1" title="IDV_SERVICE_NAME in config.json gesetzt">konfiguriert</span>
+          {% endif %}
         </div>
         {% else %}
         <div class="alert alert-light border py-2 mb-0" style="font-size:.82rem">
           <i class="bi bi-info-circle me-1"></i>
-          <strong>Direktmodus:</strong> Neustart spawnt eine neue EXE-Instanz
-          (kein Windows-Dienst erkannt). Für den Dienst-Modus
-          <code>"IDV_SERVICE_NAME": "idvault"</code> in
-          <code>config.json</code> eintragen.
+          <strong>Direktmodus:</strong> Neustart spawnt eine neue EXE-Instanz.
+          Kein Windows-Dienst erkannt (native Registrierung) und
+          <code>IDV_SERVICE_NAME</code> nicht gesetzt.<br>
+          Bei NSSM/winsw-Wrappern: <code>"IDV_SERVICE_NAME": "idvault"</code>
+          in <code>config.json</code> eintragen.
         </div>
         {% endif %}
 
