@@ -2690,14 +2690,35 @@ def _zip_strip_prefix(members: list[str]) -> str:
     return ''
 
 
+# Top-Level-Importnamen, die im Bundle aus dem scanner/-Verzeichnis stammen
+# (idvault.spec: pathex=['.', 'scanner']). Sie müssen flach unter updates/
+# abgelegt werden, damit der Sidecar-Finder in run.py sie findet.
+_SCANNER_TOPLEVEL_MODULES = frozenset({"idv_scanner", "idv_export"})
+
+
 def _zip_remap(rel: str) -> str:
     """
     Mappt Pfade aus dem ZIP auf die Sidecar-Verzeichnisstruktur.
-    GitHub-ZIPs enthalten Templates unter webapp/templates/ —
-    der ChoiceLoader erwartet sie jedoch direkt unter templates/.
+
+    Besonderheiten:
+    - GitHub-ZIPs enthalten Templates unter ``webapp/templates/`` —
+      der ChoiceLoader in ``run.py`` erwartet sie jedoch direkt unter
+      ``updates/templates/``.
+    - Scanner-Module (``idv_scanner``, ``idv_export``) werden im
+      PyInstaller-Bundle als Top-Level-Module importiert
+      (``pathex=['.', 'scanner']`` in ``idvault.spec``). Damit der
+      Sidecar-Finder in ``run.py`` sie überhaupt findet, müssen sie
+      flach unter ``updates/`` liegen – nicht unter ``updates/scanner/``.
     """
     if rel.startswith('webapp/templates/'):
         return rel[len('webapp/'):]   # → templates/...
+    if rel.startswith('scanner/') and rel.endswith('.py'):
+        # scanner/idv_scanner.py → idv_scanner.py, sofern das
+        # Modul als Top-Level bekannt ist (Whitelist vermeidet
+        # Kollisionen mit anderen Dateien im scanner/-Verzeichnis).
+        module_name = os.path.splitext(rel[len('scanner/'):])[0]
+        if module_name in _SCANNER_TOPLEVEL_MODULES:
+            return rel[len('scanner/'):]
     return rel
 
 
