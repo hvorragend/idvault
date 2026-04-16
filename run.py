@@ -142,6 +142,13 @@ if not os.path.isfile(_config_file):
     # Datei automatisch mit zufälligem SECRET_KEY anlegen.
     if not os.environ.get('SECRET_KEY'):
         import secrets as _secrets
+        # Hinweis zu SMTP/LDAP-Credentials:
+        #   SMTP und LDAP werden über die Web-UI in der SQLite-Datenbank
+        #   gespeichert (Tabellen app_settings bzw. ldap_config). Die
+        #   config.json kann sie OPTIONAL überschreiben – hier im Auto-
+        #   Template bewusst NICHT vorbelegt, damit die in schema.sql
+        #   hinterlegten DB-Defaults greifen, solange kein Override nötig ist.
+        #   Siehe config.json.example für Override-Beispiele.
         _auto_cfg = {
             "SECRET_KEY": _secrets.token_hex(32),
             "PORT": 5000,
@@ -151,13 +158,6 @@ if not os.path.isfile(_config_file):
             "IDV_SSL_AUTOGEN": 1,
             "IDV_DB_PATH": "instance/idvault.db",
             "IDV_INSTANCE_PATH": "instance",
-            "IDV_SMTP_HOST": "",
-            "IDV_SMTP_PORT": 587,
-            "IDV_SMTP_USER": "",
-            "IDV_SMTP_PASSWORD": "",
-            "IDV_SMTP_FROM": "",
-            "IDV_SMTP_TLS": 1,
-            "IDV_APP_BASE_URL": "",
             # VULN-B: Sidecar-Update-Upload (Admin kann Python/Template-Dateien
             # als ZIP hochladen, die beim nächsten Start die gebündelten Module
             # überschreiben) – kann durch Setzen auf 0 komplett deaktiviert werden.
@@ -199,6 +199,23 @@ if not os.path.isfile(_config_file):
                 "move_detection": "name_and_hash",
                 "scan_since": None,
                 "read_file_owner": True
+            },
+            "teams": {
+                "tenant_id": "",
+                "client_id": "",
+                "client_secret": "",
+                "extensions": [
+                    ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
+                    ".accdb", ".mdb", ".accde", ".accdr",
+                    ".ida", ".idv",
+                    ".pbix", ".pbit",
+                    ".dotm", ".pptm",
+                    ".py", ".r", ".rmd", ".sql"
+                ],
+                "hash_size_limit_mb": 100,
+                "download_for_ooxml": True,
+                "move_detection": "name_and_hash",
+                "teams": []
             }
         }
         try:
@@ -208,13 +225,51 @@ if not os.path.isfile(_config_file):
         except Exception:
             pass  # Schreibfehler dürfen den Start nicht verhindern
 
+# ── Einmalige Migration: scanner/teams_config.json → config.json["teams"] ──
+# Frühere Versionen hielten die Teams-Konfiguration in einer separaten Datei.
+# Wenn sie noch existiert und in config.json kein "teams"-Block steht,
+# übernehmen wir den Inhalt. Die alte Datei wird sicherheitshalber nur
+# umbenannt (nicht gelöscht), damit ein Admin die Migration nachvollziehen
+# kann.
+try:
+    _teams_legacy = os.path.join(_PROJECT_ROOT, 'scanner', 'teams_config.json')
+    if os.path.isfile(_teams_legacy) and os.path.isfile(_config_file):
+        _main_cfg = _read_version_json(_config_file)
+        if isinstance(_main_cfg, dict) and "teams" not in _main_cfg:
+            _legacy_cfg = _read_version_json(_teams_legacy)
+            if isinstance(_legacy_cfg, dict):
+                # Pfad-Defaults (db_path, log_path) NICHT mit-migrieren – die
+                # werden zur Laufzeit aus dem Instance-Pfad abgeleitet.
+                _persist_keys = {
+                    "tenant_id", "client_id", "client_secret",
+                    "hash_size_limit_mb", "download_for_ooxml",
+                    "move_detection", "extensions", "teams",
+                }
+                _main_cfg["teams"] = {
+                    k: v for k, v in _legacy_cfg.items() if k in _persist_keys
+                }
+                _tmp_path = _config_file + ".tmp"
+                with open(_tmp_path, 'w', encoding='utf-8') as _mf:
+                    _json.dump(_main_cfg, _mf, indent=2, ensure_ascii=False)
+                os.replace(_tmp_path, _config_file)
+                os.rename(_teams_legacy, _teams_legacy + ".migrated")
+                print(
+                    f"  [config] Teams-Konfiguration aus "
+                    f"{_teams_legacy} migriert nach config.json['teams']; "
+                    f"alte Datei umbenannt nach teams_config.json.migrated"
+                )
+except Exception as _mig_err:
+    print(f"  [config] Teams-Migration übersprungen: {_mig_err}")
+
 if os.path.isfile(_config_file):
     try:
         _cfg_data = _read_version_json(_config_file)
         for _cfg_k, _cfg_v in _cfg_data.items():
-            # Den "scanner"-Abschnitt nicht als Env-Variable setzen –
-            # er wird direkt von idv_scanner.py aus der config.json gelesen.
-            if _cfg_k == "scanner":
+            # Sub-Sektionen NICHT als Env-Variable setzen – sie werden zur
+            # Laufzeit direkt aus der config.json gelesen (scanner durch
+            # idv_scanner.py, teams durch den Teams-Scanner, ldap als
+            # optionaler Override der DB, alle via webapp.config_store).
+            if _cfg_k in ("scanner", "teams", "ldap"):
                 continue
             # Lokale Benutzer (VULN-F) und komplexe Werte müssen als JSON
             # serialisiert werden, sonst wird "[{'username': ...}]" als

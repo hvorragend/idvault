@@ -14,6 +14,7 @@ Ablauf:
 import base64
 import hashlib
 import logging
+import os
 import ssl as _ssl
 from typing import Optional
 
@@ -48,22 +49,135 @@ def decrypt_password(encrypted: str, secret_key: str) -> str:
     return _fernet(secret_key).decrypt(encrypted.encode()).decode()
 
 
+def resolve_bind_password(cfg: dict, secret_key: str) -> str:
+    """Liefert das effektive Bind-Passwort für eine LDAP-Config.
+
+    Wenn ``bind_password`` via ``config.json["ldap"]`` überschrieben ist, steht
+    es als Klartext drin (oder als ``ENV:VARNAME``-Referenz). Ansonsten wird
+    der Wert aus der DB Fernet-entschlüsselt (wie bisher).
+    """
+    raw = cfg.get("bind_password") or ""
+    if not raw:
+        return ""
+    overridden = cfg.get("_override_keys") or []
+    if "bind_password" in overridden:
+        if isinstance(raw, str) and raw.startswith("ENV:"):
+            return os.environ.get(raw[4:], "")
+        return raw
+    return decrypt_password(raw, secret_key)
+
+
 # ---------------------------------------------------------------------------
-# LDAP-Konfiguration aus DB lesen
+# LDAP-Konfiguration aus DB lesen (+ optionaler config.json-Override)
 # ---------------------------------------------------------------------------
 
+# Felder die in config.json["ldap"] gesetzt werden können, um die DB-Werte zu
+# überschreiben. Entspricht den Spalten der ldap_config-Tabelle (ohne
+# id/updated_at).
+_LDAP_OVERRIDE_KEYS = (
+    "enabled", "server_url", "port", "base_dn", "bind_dn",
+    "bind_password", "user_attr", "ssl_verify",
+)
+
+
+def _coerce_ldap_value(key: str, value):
+    """Normalisiert einen Wert aus config.json auf das in der DB erwartete Format.
+
+    ``enabled``/``ssl_verify`` → 0/1 Integer (Bool-tolerant).
+    ``port`` → Integer.
+    Rest als String.
+    """
+    if value is None:
+        return None
+    if key in ("enabled", "ssl_verify"):
+        if isinstance(value, bool):
+            return 1 if value else 0
+        try:
+            return 1 if int(value) != 0 else 0
+        except (TypeError, ValueError):
+            return 1 if str(value).strip().lower() in ("1", "true", "yes", "on") else 0
+    if key == "port":
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 636
+    return str(value)
+
+
+def _read_ldap_file_override() -> dict:
+    """Liest config.json["ldap"] (Roh-Dict) oder liefert ``{}``.
+
+    Konsistent über ``webapp.config_store`` geladen (mtime-Cache). Das
+    Passwort aus der Datei darf Klartext sein und umgeht bewusst die
+    Fernet-Verschlüsselung der DB – so können Ops-Teams das Secret extern
+    managen (z.B. Docker-Secrets, Ansible-Vault), ohne es durch die UI
+    zu schleusen.
+    """
+    try:
+        from . import config_store
+    except ImportError:
+        return {}
+    section = config_store.get_section("ldap")
+    return section or {}
+
+
 def get_ldap_config(db) -> Optional[dict]:
-    """Gibt die LDAP-Konfiguration zurück oder None wenn nicht vorhanden/deaktiviert."""
+    """Gibt die effektive LDAP-Konfiguration zurück (DB + config.json-Override).
+
+    Präzedenz pro Feld: ``config.json["ldap"][feld]`` > ``ldap_config``-Tabelle.
+    Wenn die DB keine Zeile hat und kein Override gesetzt ist, kommt ``None``.
+
+    Zusätzlich wird der Schlüssel ``_override_keys`` (Liste) in das Ergebnis
+    eingefügt, damit die Admin-UI die überschriebenen Felder read-only
+    darstellen kann. Auth-Code darf diesen Schlüssel ignorieren – er ist
+    keine LDAP-Spalte.
+    """
     try:
         row = db.execute("SELECT * FROM ldap_config WHERE id = 1").fetchone()
-        return dict(row) if row else None
+        db_cfg = dict(row) if row else None
     except Exception:
+        db_cfg = None
+
+    file_cfg = _read_ldap_file_override()
+
+    if db_cfg is None and not file_cfg:
         return None
+
+    # Basis: DB-Werte (oder leere Defaults wenn die Zeile fehlt)
+    merged = dict(db_cfg) if db_cfg else {
+        "id": 1,
+        "enabled": 0,
+        "server_url": "",
+        "port": 636,
+        "base_dn": "",
+        "bind_dn": "",
+        "bind_password": "",
+        "user_attr": "sAMAccountName",
+        "ssl_verify": 1,
+        "updated_at": "",
+    }
+
+    overridden: list = []
+    for key in _LDAP_OVERRIDE_KEYS:
+        if key in file_cfg:
+            merged[key] = _coerce_ldap_value(key, file_cfg[key])
+            overridden.append(key)
+
+    merged["_override_keys"] = overridden
+    return merged
 
 
 def ldap_is_enabled(db) -> bool:
     cfg = get_ldap_config(db)
     return bool(cfg and cfg["enabled"] and cfg["server_url"])
+
+
+def ldap_override_keys(db) -> list:
+    """Convenience für die Admin-UI: liefert die überschriebenen Feld-Keys."""
+    cfg = get_ldap_config(db)
+    if not cfg:
+        return []
+    return list(cfg.get("_override_keys") or [])
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +313,7 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
         return None
 
     try:
-        bind_pw = decrypt_password(cfg["bind_password"], secret_key)
+        bind_pw = resolve_bind_password(cfg, secret_key)
     except Exception as e:
         msg = f"Service-Account-Passwort konnte nicht entschlüsselt werden: {e}"
         logger.error("LDAP: %s", msg)
@@ -417,7 +531,7 @@ def ldap_list_users(db, secret_key: str, extra_filter: str = "") -> tuple[bool, 
         return False, "Keine LDAP-Konfiguration vorhanden.", []
 
     try:
-        bind_pw = decrypt_password(cfg["bind_password"], secret_key)
+        bind_pw = resolve_bind_password(cfg, secret_key)
     except Exception:
         return False, "Service-Account-Passwort konnte nicht entschlüsselt werden.", []
 
@@ -510,7 +624,7 @@ def ldap_test_connection(cfg: dict, secret_key: str) -> tuple[bool, str]:
         return False, "ldap3-Paket nicht installiert (pip install ldap3)"
 
     try:
-        bind_pw = decrypt_password(cfg["bind_password"], secret_key)
+        bind_pw = resolve_bind_password(cfg, secret_key)
     except Exception:
         return False, "Service-Account-Passwort konnte nicht entschlüsselt werden."
 

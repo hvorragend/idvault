@@ -15,7 +15,15 @@ Azure AD App-Registrierung (einmalig durch IT-Administrator):
     3. Admin-Zustimmung erteilen
     4. Zertifikate & Geheimnisse → Neuer geheimer Clientschlüssel
 
-Konfiguration (teams_config.json):
+Konfiguration:
+    Liest entweder
+      * die Haupt-``config.json`` (neben ``run.py`` / der EXE) und nutzt daraus
+        den ``"teams"``-Abschnitt (seit der Settings-Konsolidierung, empfohlen),
+        **oder**
+      * eine separate ``teams_config.json`` im Legacy-Format (rückwärts-
+        kompatibel für isolierte Kommandozeilen-Nutzung).
+
+    Shape der "teams"-Sektion:
     {
       "tenant_id":   "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
       "client_id":   "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
@@ -93,8 +101,10 @@ DEFAULT_EXTENSIONS = [
 ]
 
 DEFAULT_CONFIG = {
-    "db_path":             "idv_register.db",
-    "log_path":            "teams_scanner.log",
+    # Relativ zur config.json aufgelöst – landet bei der Haupt-config.json
+    # im Projekt-Root unter instance/ (gleicher Ort wie für idv_scanner).
+    "db_path":             "instance/idvault.db",
+    "log_path":            "instance/logs/teams_scanner.log",
     "tenant_id":           "",
     "client_id":           "",
     # Wert direkt oder "ENV:VARNAME" um eine Umgebungsvariable zu referenzieren
@@ -805,16 +815,34 @@ Beispiele:
         sys.exit(0)
 
     # ── Konfiguration laden ────────────────────────────────────────────────
+    # Akzeptiert sowohl die Haupt-config.json (Schlüssel "teams") als auch
+    # eine Legacy-teams_config.json im flachen Format.
     config = dict(DEFAULT_CONFIG)
     if os.path.exists(args.config):
         with open(args.config, encoding="utf-8") as fh:
-            config.update(json.load(fh))
+            _raw = json.load(fh)
     else:
         print(
             f"Konfigurationsdatei '{args.config}' nicht gefunden.\n"
             f"Starte mit: python teams_scanner.py --init-config"
         )
         sys.exit(1)
+
+    if isinstance(_raw, dict) and isinstance(_raw.get("teams"), dict):
+        # Haupt-config.json-Format: "teams"-Sektion enthält alle Settings.
+        _teams_section = _raw["teams"]
+        config.update(_teams_section)
+        # DB-Pfad aus "scanner"-Sektion erben (beide Scanner teilen die DB),
+        # falls im Teams-Block nicht explizit gesetzt.
+        if "db_path" not in _teams_section:
+            _scanner_section = _raw.get("scanner")
+            if isinstance(_scanner_section, dict) and _scanner_section.get("db_path"):
+                config["db_path"] = _scanner_section["db_path"]
+            elif _raw.get("IDV_DB_PATH"):
+                config["db_path"] = _raw["IDV_DB_PATH"]
+    else:
+        # Legacy-teams_config.json-Format (flaches Dict).
+        config.update(_raw)
 
     # Relative Pfade gegen das Verzeichnis der config.json auflösen
     # (analog zum idv_scanner – portable Konfiguration).
