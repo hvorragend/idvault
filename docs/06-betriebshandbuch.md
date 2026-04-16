@@ -333,6 +333,14 @@ Prüfpunkte in dieser Reihenfolge:
    besitzen; es muss jedoch nicht Zugriff auf das Share haben, solange der
    konfigurierte Scan-User greift.
 
+Das Scanner-Log ist im Web-UI unter **Administration → Scan-Log** verfügbar.
+Bei laufendem Scan aktualisiert sich die Anzeige automatisch alle 3 Sekunden;
+Filter nach Log-Level (ERROR/WARNING/INFO/DEBUG) und Volltextsuche stehen zur
+Verfügung. Über das Auswahlfeld „stdout/stderr-Mitschnitt" lässt sich
+zusätzlich der ungefilterte Subprocess-Output (`scanner_output.log`)
+einsehen – dort landen Crash-Meldungen, die *vor* dem Initialisieren des
+Loggers auftreten (z. B. Probleme mit `CreateProcessWithLogonW`).
+
 ## 8 Backup und Wiederherstellung
 
 ### 8.1 Sicherungsobjekt
