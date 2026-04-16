@@ -20,6 +20,18 @@ sowie **ISO/IEC 27001**.
 | Authentizität | **Hoch** | Anmeldung und Protokollierung müssen Personen zweifelsfrei zuordenbar sein |
 | Nicht-Abstreitbarkeit | **Mittel** | Append-only History; keine digitalen Signaturen |
 
+### 1.2 Betriebsumfeld
+
+idvault wird **ausschließlich im bankeigenen Intranet** betrieben; die
+Anwendung ist **nicht aus dem Internet erreichbar** und nicht über eine
+DMZ exponiert. Diese Randbedingung ist Teil des Angreifermodells und
+beeinflusst die Bewertung aller in diesem Dokument genannten Maßnahmen.
+Details und Konsequenzen für die Schwachstellenbewertung sind in
+[09 – Schwachstellenanalyse](09-schwachstellenanalyse.md), Abschnitt 1.3
+dokumentiert. Der Intranet-Betrieb ersetzt die hier beschriebenen
+Schutzmaßnahmen nicht, sondern ergänzt sie (Defense-in-Depth,
+Zero-Trust-Grundsatz auch im internen Netz).
+
 ## 2 Identitäts- und Berechtigungsmanagement (IAM)
 
 ### 2.1 Authentifizierungsverfahren

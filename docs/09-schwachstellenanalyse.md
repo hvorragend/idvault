@@ -33,6 +33,55 @@ nach DORA Art. 5 und Art. 8.
 | **Mittel** | Theoretische Angriffsfläche; begrenzter Schaden | Innerhalb 90 Tagen |
 | **Niedrig** | Best-Practice-Hinweise | Bei nächstem Major-Release |
 
+### 1.3 Betriebsumfeld und Angreifermodell
+
+idvault wird **ausschließlich im bankeigenen Intranet** betrieben. Die
+Anwendung ist **nicht aus dem Internet erreichbar** und auch nicht über
+eine DMZ exponiert. Der Zugriff erfolgt aus dem internen Netz der Bank
+heraus, in der Regel von Arbeitsplätzen mit Active-Directory-Anmeldung
+und vorgelagerten Netzwerk-Kontrollen (Firewall-Zonen, NAC, Proxy,
+Endpoint-Protection).
+
+Diese Randbedingung verändert das Angreifermodell gegenüber einer
+internet-exponierten Anwendung erheblich und ist bei der Bewertung jeder
+einzelnen Schwachstelle zu berücksichtigen:
+
+| Aspekt | Auswirkung im Intranet-Betrieb |
+|---|---|
+| **Opportunistische Angriffe** (Massenscans, Bot-Netze) | Nicht relevant – die Anwendung ist nicht erreichbar |
+| **Anonyme Angreifer** | Nicht relevant – jeder Zugriff erfolgt aus einem authentifizierten Banknetz heraus |
+| **Insider-Bedrohung** | **Primäres Szenario** – Mitarbeiter, Dienstleister, Wartungspersonal mit LAN-Zugang |
+| **Kompromittierter Arbeitsplatz** | Relevant – Malware auf einem Client könnte als authentifizierter Nutzer agieren |
+| **Lateral Movement nach Perimeterbruch** | Relevant – idvault darf nicht zum Ausgangspunkt weiterer Angriffe werden |
+| **Netzwerk-Sniffing / MitM** | Relevant nur zwischen Segmenten ohne TLS (→ LDAPS, HTTPS bleiben Pflicht) |
+| **DoS / Brute-Force aus dem Internet** | Nicht relevant – Ratenbegrenzung schützt primär vor internen Fehlern und kompromittierten Clients |
+
+**Konsequenzen für die Schwachstellenbewertung**:
+
+- Viele klassische Web-Schwachstellen (CSRF, XSS, Broken Access Control,
+  Path-Traversal) bleiben **unverändert kritisch**, weil sie auch von
+  einem niedrig-privilegierten internen Benutzer oder einer Malware auf
+  einem Fachabteilungs-Client ausgenutzt werden können.
+- Schwachstellen, deren Risikoeinschätzung wesentlich aus der
+  Internet-Exposition resultiert (z. B. Rate-Limiting gegen
+  Brute-Force-Botnetze, HSTS, aggressive Bot-Abwehr), sind im
+  Intranet-Betrieb **tendenziell weniger dringlich**, werden aber aus
+  Defense-in-Depth und aufsichtsrechtlichen Gründen dennoch umgesetzt
+  (BAIT Kap. 5, DORA Art. 9 – interne Netze sind nicht als
+  vertrauenswürdig zu behandeln).
+- Aufsichtsrechtliche Anforderungen (MaRisk, BAIT, DORA, ISO 27001)
+  gelten unabhängig von der Netz-Exposition. Die Schutzbedarfsfeststellung
+  (Vertraulichkeit hoch, Integrität hoch) bleibt gültig, da die
+  verarbeiteten Daten auch gegenüber Insidern zu schützen sind.
+- Das Zero-Trust-Prinzip wird nicht aufgegeben: Authentifizierung,
+  Autorisierung und Audit-Trail sind vollumfänglich implementiert,
+  unabhängig davon, dass der Netzzugang bereits eingeschränkt ist.
+
+**Nicht als Kompensation anerkannt**: Der Intranet-Betrieb ist **kein
+Ersatz** für die dokumentierten Remediation-Maßnahmen. Er reduziert
+lediglich die Eintrittswahrscheinlichkeit externer Angreifer, nicht aber
+den Schaden im Kompromittierungsfall.
+
 ## 2 Übersicht der identifizierten Schwachstellen
 
 Legende Status:
