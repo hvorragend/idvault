@@ -49,12 +49,16 @@
                    value="{{ settings.get('app_base_url','') }}" placeholder="https://idvault.bank.de">
             <div class="form-text">Wird für Direktlinks in Bewertungsanforderungs-E-Mails verwendet. Auch per Umgebungsvariable <code>IDV_APP_BASE_URL</code> setzbar.</div>
           </div>
-          <div class="col-md-8 d-flex align-items-end gap-3 flex-wrap">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="smtp_tls" value="1" id="smtp_tls"
-                     {{ 'checked' if settings.get('smtp_tls','1')=='1' else '' }}>
-              <label class="form-check-label" for="smtp_tls">STARTTLS verwenden</label>
-            </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm fw-600">Verschlüsselung</label>
+            {% set tls_val = settings.get('smtp_tls', 'starttls') %}
+            {# Rückwärtskompatibilität: alte Werte '1'/'0' umrechnen #}
+            {% set tls_val = 'starttls' if tls_val == '1' else ('ssl' if tls_val == '0' else tls_val) %}
+            <select name="smtp_tls" class="form-select form-select-sm">
+              <option value="starttls" {{ 'selected' if tls_val == 'starttls' else '' }}>STARTTLS (Port 587)</option>
+              <option value="ssl"      {{ 'selected' if tls_val == 'ssl'      else '' }}>SSL/TLS (Port 465)</option>
+              <option value="none"     {{ 'selected' if tls_val == 'none'     else '' }}>Kein TLS (Port 25 / Relay)</option>
+            </select>
           </div>
           <div class="col-md-4 d-flex align-items-end">
             <button type="submit" class="btn btn-sm btn-primary">
@@ -273,7 +277,7 @@ document.getElementById('smtp-test-btn').addEventListener('click', function () {
       if (el) form.append(n, el.value);
     });
     var tlsEl = smtpForm.querySelector('[name="smtp_tls"]');
-    form.append('smtp_tls', tlsEl && tlsEl.checked ? '1' : '0');
+    if (tlsEl) form.append('smtp_tls', tlsEl.value);
   }
 
   fetch('{{ url_for("admin.mail_test") }}', {method: 'POST', body: form})
