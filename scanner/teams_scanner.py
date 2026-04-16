@@ -816,6 +816,18 @@ Beispiele:
         )
         sys.exit(1)
 
+    # Relative Pfade gegen das Verzeichnis der config.json auflösen
+    # (analog zum idv_scanner – portable Konfiguration).
+    _config_dir = os.path.dirname(os.path.abspath(args.config))
+    for _key in ("db_path", "log_path"):
+        _val = config.get(_key)
+        if _val and not os.path.isabs(_val):
+            config[_key] = os.path.normpath(os.path.join(_config_dir, _val))
+    try:
+        os.makedirs(os.path.dirname(config["log_path"]), exist_ok=True)
+    except (OSError, TypeError):
+        pass
+
     logger = setup_logging(config["log_path"])
 
     # ── --check-config ────────────────────────────────────────────────────

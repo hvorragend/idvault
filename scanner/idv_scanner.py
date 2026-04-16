@@ -1512,6 +1512,23 @@ def main():
         print(f"Keine config.json gefunden. Starte mit: python idv_scanner.py --init-config")
         sys.exit(1)
 
+    # Relative db_path/log_path werden gegen das Verzeichnis der config.json
+    # aufgelöst, damit die config.json portable Pfade enthalten darf
+    # (z.B. "instance/idvault.db") und unabhängig von der CWD des
+    # Scanner-Subprocesses funktioniert.
+    _config_dir = os.path.dirname(os.path.abspath(args.config))
+    for _key in ("db_path", "log_path"):
+        _val = config.get(_key)
+        if _val and not os.path.isabs(_val):
+            config[_key] = os.path.normpath(os.path.join(_config_dir, _val))
+
+    # Sicherstellen, dass das Log-Verzeichnis existiert (sonst bricht
+    # FileHandler beim ersten Schreibversuch ab).
+    try:
+        os.makedirs(os.path.dirname(config["log_path"]), exist_ok=True)
+    except (OSError, TypeError):
+        pass
+
     signal_dir = args.signal_dir if args.signal_dir else os.path.dirname(os.path.abspath(args.config))
     logger = setup_logging(config["log_path"])
 
