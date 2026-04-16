@@ -786,15 +786,32 @@ def _get_toplevel_dirs(scan_path: str, excludes: list) -> list:
 _EXCEL_EXTENSIONS = {".xlsx", ".xlsm", ".xlsb", ".xls", ".xltm", ".xltx"}
 
 
+def _classify_by_filename(file_name: str) -> Optional[str]:
+    """Gibt bearbeitungsstatus anhand von Dateinamen-Präfix/-Suffix zurück oder None.
+
+    Dateiname enthält 'IDV' (Präfix/Suffix) → 'Zur Registrierung' (wesentliche Eigenentwicklung)
+    Dateiname enthält 'AH'  (Präfix/Suffix) → 'Nicht wesentlich'  (unwesentliche Eigenentwicklung/Arbeitshilfe)
+    IDV hat Vorrang gegenüber AH.
+    """
+    stem = Path(file_name).stem.upper()
+    if stem.startswith("IDV") or stem.endswith("IDV"):
+        return "Zur Registrierung"
+    if stem.startswith("AH") or stem.endswith("AH"):
+        return "Nicht wesentlich"
+    return None
+
+
 def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                    now: str, logger: logging.Logger, move_mode: str,
                    stats: dict, signal_dir: Optional[str],
                    auto_ignore: bool = False,
-                   discard_no_formula: bool = False) -> None:
+                   discard_no_formula: bool = False,
+                   auto_classify_filename: bool = True) -> None:
     """Verarbeitet alle Dateien eines Generators, prüft alle 10 Dateien die Signale.
 
-    auto_ignore:       Neue Excel-Dateien ohne Formeln/Makros sofort als 'Ignoriert' markieren.
-    discard_no_formula: Neue Excel-Dateien ohne Formeln/Makros komplett überspringen (nicht in DB).
+    auto_ignore:            Neue Excel-Dateien ohne Formeln/Makros sofort als 'Ignoriert' markieren.
+    discard_no_formula:     Neue Excel-Dateien ohne Formeln/Makros komplett überspringen (nicht in DB).
+    auto_classify_filename: Neue Dateien mit Präfix/Suffix 'AH' oder 'IDV' automatisch klassifizieren.
     """
     # Signal-Check zu Beginn jedes Chunks (wichtig bei Verzeichnissen mit < 10 Dateien)
     _check_and_handle_signals(signal_dir, logger)
@@ -832,6 +849,19 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                     "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
                     (data["full_path"],)
                 )
+
+            # ── Auto-Klassifizierung nach Dateiname (AH / IDV) ──
+            if auto_classify_filename and change in ("new", "restored"):
+                fn_status = _classify_by_filename(data.get("file_name", ""))
+                if fn_status:
+                    conn.execute(
+                        "UPDATE idv_files SET bearbeitungsstatus = ? "
+                        "WHERE full_path = ? AND status = 'active' "
+                        "  AND bearbeitungsstatus = 'Neu' "
+                        "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
+                        "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
+                        (fn_status, data["full_path"])
+                    )
 
             if file_counter % 10 == 0:
                 _check_and_handle_signals(signal_dir, logger)
@@ -1135,10 +1165,21 @@ def run_scan(config: dict, logger: logging.Logger,
     except Exception:
         runtime_discard = False
 
+    try:
+        _cf_row = conn.execute(
+            "SELECT value FROM app_settings WHERE key='auto_classify_by_filename'"
+        ).fetchone()
+        # Default: aktiviert (kein Eintrag = "1")
+        runtime_classify_filename = (_cf_row["value"] != "0") if _cf_row else True
+    except Exception:
+        runtime_classify_filename = True
+
     if runtime_auto_ignore:
         logger.info("Laufzeit-Auto-Ignore aktiv: neue Excel-Dateien ohne Formeln werden sofort ignoriert")
     if runtime_discard:
         logger.info("Verwerfen aktiv: neue Excel-Dateien ohne Formeln werden nicht in die DB aufgenommen")
+    if runtime_classify_filename:
+        logger.info("Auto-Klassifizierung nach Dateiname aktiv: AH (Arbeitshilfe) → 'Nicht wesentlich', IDV → 'Zur Registrierung'")
 
     # Startdatum-Filter auswerten
     scan_since    = config.get("scan_since") or None
@@ -1223,6 +1264,7 @@ def run_scan(config: dict, logger: logging.Logger,
                     conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
                     auto_ignore=runtime_auto_ignore,
                     discard_no_formula=runtime_discard,
+                    auto_classify_filename=runtime_classify_filename,
                 )
                 conn.commit()
                 completed_dirs.append(root_chunk)
@@ -1243,6 +1285,7 @@ def run_scan(config: dict, logger: logging.Logger,
                     conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
                     auto_ignore=runtime_auto_ignore,
                     discard_no_formula=runtime_discard,
+                    auto_classify_filename=runtime_classify_filename,
                 )
                 conn.commit()
                 completed_dirs.append(subdir)
@@ -1279,6 +1322,56 @@ def run_scan(config: dict, logger: logging.Logger,
                     logger.info(f"  Auto-Ignoriert  : {auto_ignored} Excel-Dateien (ohne Formeln/Makros)")
         except Exception as e:
             logger.warning(f"Auto-Ignorieren fehlgeschlagen: {e}")
+
+        # ── Auto-Klassifizierung nach Dateiname am Scan-Ende ──────────────────
+        # (deckt Dateien ab, die bereits vor diesem Scan existierten und noch 'Neu' sind)
+        auto_classified_nw = 0
+        auto_classified_reg = 0
+        try:
+            if runtime_classify_filename:
+                cur_nw = conn.execute("""
+                    UPDATE idv_files
+                    SET bearbeitungsstatus = 'Nicht wesentlich'
+                    WHERE status = 'active'
+                      AND bearbeitungsstatus = 'Neu'
+                      AND (
+                          UPPER(SUBSTR(file_name, 1, 2)) = 'AH'
+                          OR UPPER(SUBSTR(file_name,
+                                         LENGTH(file_name) - LENGTH(extension) - 1,
+                                         2)) = 'AH'
+                      )
+                      AND NOT (
+                          UPPER(SUBSTR(file_name, 1, 3)) = 'IDV'
+                          OR UPPER(SUBSTR(file_name,
+                                         LENGTH(file_name) - LENGTH(extension) - 2,
+                                         3)) = 'IDV'
+                      )
+                      AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)
+                      AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)
+                """)
+                auto_classified_nw = cur_nw.rowcount
+                cur_reg = conn.execute("""
+                    UPDATE idv_files
+                    SET bearbeitungsstatus = 'Zur Registrierung'
+                    WHERE status = 'active'
+                      AND bearbeitungsstatus = 'Neu'
+                      AND (
+                          UPPER(SUBSTR(file_name, 1, 3)) = 'IDV'
+                          OR UPPER(SUBSTR(file_name,
+                                         LENGTH(file_name) - LENGTH(extension) - 2,
+                                         3)) = 'IDV'
+                      )
+                      AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)
+                      AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)
+                """)
+                auto_classified_reg = cur_reg.rowcount
+                conn.commit()
+                if auto_classified_nw:
+                    logger.info(f"  Auto-Klassifiziert (AH): {auto_classified_nw} Datei(en) → 'Nicht wesentlich'")
+                if auto_classified_reg:
+                    logger.info(f"  Auto-Klassifiziert (IDV): {auto_classified_reg} Datei(en) → 'Zur Registrierung'")
+        except Exception as e:
+            logger.warning(f"Auto-Klassifizierung nach Dateiname fehlgeschlagen: {e}")
 
         if stats.get("discarded"):
             logger.info(f"  Verworfen       : {stats['discarded']} Excel-Dateien (kein Formel/Makro)")

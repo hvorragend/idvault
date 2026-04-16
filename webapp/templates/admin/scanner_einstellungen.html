@@ -141,6 +141,21 @@
             </div>
           </div>
 
+          <div class="col-md-3 d-flex flex-column justify-content-center">
+            <label class="form-label fw-600">Klassifizierung nach Dateiname</label>
+            <div class="form-check form-switch mt-1">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     name="auto_classify_by_filename" id="auto_classify_by_filename" value="1"
+                     {{ 'checked' if auto_classify_by_filename != '0' }}>
+              <label class="form-check-label" for="auto_classify_by_filename">Aktiviert</label>
+            </div>
+            <div class="form-text">
+              Dateien mit Präfix/Suffix <strong>AH</strong> (Arbeitshilfe) werden automatisch
+              als <em>Nicht wesentlich</em> eingestuft, Dateien mit Präfix/Suffix
+              <strong>IDV</strong> als <em>Zur Registrierung</em> vorgemerkt.
+            </div>
+          </div>
+
         </div><!-- /row -->
       </div>
       <div class="card-footer bg-white d-flex justify-content-end gap-2">
