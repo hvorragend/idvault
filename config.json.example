@@ -35,10 +35,10 @@
     },
     {
       "_hinweis": "Variante B (bequem) – Klartext-Passwort. Wird beim Start automatisch gehasht, das Klartext-Feld wird NICHT für den Login wiederverwendet. Schütze config.json mit Dateisystemrechten (NTFS-ACL bzw. Unix 0640).",
-      "username": "koordinator",
+      "username": "notfall-admin",
       "password": "bitte-aendern",
-      "name": "Koordinator",
-      "role": "IDV-Koordinator",
+      "name": "Notfall-Administrator",
+      "role": "IDV-Administrator",
       "person_id": null
     }
   ],
