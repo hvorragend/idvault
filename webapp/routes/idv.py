@@ -433,8 +433,10 @@ def detail_idv(idv_db_id):
     # Phasenstatus für die Freigabe-Anzeige
     _PHASE_1 = ["Fachlicher Test", "Technischer Test"]
     _PHASE_2 = ["Fachliche Abnahme", "Technische Abnahme"]
+    _PHASE_3 = ["Archivierung Originaldatei"]
     phase1_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_1]
     phase2_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_2]
+    phase3_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_3]
     phase1_gestartet  = len(phase1_schritte) > 0
     phase1_erledigt   = (
         {f["schritt"] for f in phase1_schritte if f["status"] == "Erledigt"} == set(_PHASE_1)
@@ -442,6 +444,10 @@ def detail_idv(idv_db_id):
     phase2_gestartet  = len(phase2_schritte) > 0
     phase2_erledigt   = (
         {f["schritt"] for f in phase2_schritte if f["status"] == "Erledigt"} == set(_PHASE_2)
+    )
+    phase3_gestartet  = len(phase3_schritte) > 0
+    phase3_erledigt   = (
+        {f["schritt"] for f in phase3_schritte if f["status"] == "Erledigt"} == set(_PHASE_3)
     )
     hat_offenen_schritt = any(f["status"] == "Ausstehend" for f in freigaben)
 
@@ -462,6 +468,7 @@ def detail_idv(idv_db_id):
         freigabe_persons=freigabe_persons,
         phase1_gestartet=phase1_gestartet, phase1_erledigt=phase1_erledigt,
         phase2_gestartet=phase2_gestartet, phase2_erledigt=phase2_erledigt,
+        phase3_gestartet=phase3_gestartet, phase3_erledigt=phase3_erledigt,
         hat_offenen_schritt=hat_offenen_schritt,
         teststatus_werte=_TESTSTATUS_WERTE,
         fachliche_testfaelle=fachliche_testfaelle,

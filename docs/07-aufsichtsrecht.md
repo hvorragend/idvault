@@ -37,7 +37,8 @@ umfasst.
 | Wesentlichkeitsbeurteilung | Konfigurierbarer Kriterienkatalog | `wesentlichkeitskriterien`, `idv_wesentlichkeit` |
 | Steuerungs- und Rechnungslegungsrelevanz | Separate Felder mit Begründung | `steuerungsrelevant`, `rechnungslegungsrelevant` |
 | Berechtigungsverwaltung | Rollenkonzept (5 Rollen), LDAP-Integration | [05 – Sicherheitskonzept](05-sicherheitskonzept.md) |
-| Entwicklungs-, Test-, Freigabeverfahren | 4-stufiges Freigabeverfahren in 2 Phasen | `idv_freigaben`, `fachliche_testfaelle`, `technischer_test` |
+| Entwicklungs-, Test-, Freigabeverfahren | 5-stufiges Freigabeverfahren in 3 Phasen (Test / Abnahme / Archivierung) | `idv_freigaben`, `fachliche_testfaelle`, `technischer_test` |
+| Revisionssichere Archivierung der Originaldatei | Phase 3 – Upload + SHA-256 oder dokumentierte Nicht-Verfügbarkeit (z.B. Cognos) | `idv_freigaben.datei_verfuegbar`, `archiv_datei_pfad`, `archiv_datei_sha256` |
 | Funktionstrennung | Entwickler darf eigene IDV nicht freigeben | `webapp/routes/freigaben.py` |
 | Dokumentation | Verpflichtendes `dokumentation_vorhanden`-Flag | `idv_register` |
 | Regelmäßige Überprüfungen | Prüfintervall konfigurierbar (Standard 12 Monate); Fälligkeits-Dashboard | `pruefungen`, `v_prueffaelligkeiten` |
@@ -145,7 +146,7 @@ durch Administratoren per Override übersteuert werden, sofern begründet.
 | Anforderung | Status | Bemerkung |
 |---|:---:|---|
 | MaRisk AT 7.2 – IDV-Register | ✅ | Vollständig abgebildet |
-| MaRisk AT 7.2 – Test-/Freigabeverfahren | ✅ | 4 Schritte, 2 Phasen |
+| MaRisk AT 7.2 – Test-/Freigabeverfahren | ✅ | 5 Schritte, 3 Phasen (inkl. revisionssicherer Archivierung der Originaldatei) |
 | MaRisk AT 7.2 – Funktionstrennung | ✅ | Entwickler ≠ Freigebender |
 | MaRisk AT 7.2 – Regelmäßige Prüfungen | ✅ | Prüfintervalle, Fälligkeits-Dashboard |
 | MaRisk AT 7.2 – Änderungsverfolgung | ✅ | `idv_history` |

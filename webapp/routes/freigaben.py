@@ -1,16 +1,25 @@
 """Test- und Freigabeverfahren Blueprint (MaRisk AT 7.2 / BAIT / DORA)
 
-Zwei parallele Phasen:
+Drei Phasen:
   Phase 1 (parallel): Fachlicher Test + Technischer Test
   Phase 2 (parallel): Fachliche Abnahme + Technische Abnahme
+  Phase 3 (einzeln) : Archivierung Originaldatei (revisionssicher)
 
 Phase 2 startet erst, wenn BEIDE Phase-1-Schritte als 'Erledigt' markiert sind.
+Phase 3 wird automatisch angelegt, sobald beide Phase-2-Schritte erledigt sind;
+die Gesamt-Freigabe (`teststatus = 'Freigegeben'`) wird erst nach Abschluss
+der Archivierung gesetzt. Wenn die Originaldatei nicht verfügbar ist (z.B.
+Cognos-Berichte, die nur in agree21Analysen gespeichert sind), kann der
+Schritt mit der Kennzeichnung "Datei nicht verfügbar" und verpflichtender
+Begründung abgeschlossen werden.
+
 Funktionstrennung: Entwickler der IDV darf keine Schritte abschließen.
 Nur wesentliche IDVs mit wesentlicher Änderung durchlaufen dieses Verfahren.
 
 Statuswerte (idv_freigaben.status):
   'Ausstehend' | 'Erledigt' | 'Nicht erledigt' | 'Abgebrochen'
 """
+import hashlib
 import os
 from flask import (Blueprint, request, flash, redirect, url_for, abort,
                    session, current_app, send_from_directory, render_template)
@@ -25,7 +34,9 @@ bp = Blueprint("freigaben", __name__, url_prefix="/freigaben")
 
 _PHASE_1 = ["Fachlicher Test", "Technischer Test"]
 _PHASE_2 = ["Fachliche Abnahme", "Technische Abnahme"]
-_SCHRITTE = _PHASE_1 + _PHASE_2
+_PHASE_3 = ["Archivierung Originaldatei"]
+_SCHRITTE = _PHASE_1 + _PHASE_2 + _PHASE_3
+_MAX_ARCHIV_UPLOAD = 256 * 1024 * 1024  # 256 MB Obergrenze für Originaldateien
 
 _WESENTLICH_SQL = """(
     r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
@@ -42,6 +53,18 @@ def _allowed_file(filename: str) -> bool:
 
 def _upload_folder() -> str:
     folder = os.path.join(current_app.instance_path, "uploads", "freigaben")
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+def _archiv_upload_folder(idv_db_id: int) -> str:
+    """Zielverzeichnis für revisionssicher archivierte Originaldateien.
+
+    Pro IDV wird ein eigener Unterordner angelegt, damit Archiv-Dateien
+    klar vom Nachweis-Upload abgegrenzt sind und je IDV auditierbar bleiben.
+    """
+    folder = os.path.join(current_app.instance_path, "uploads", "archiv",
+                          str(int(idv_db_id)))
     os.makedirs(folder, exist_ok=True)
     return folder
 
@@ -128,6 +151,75 @@ def _phase2_komplett_erledigt(db, idv_db_id: int) -> bool:
     return set(_PHASE_2).issubset(done)
 
 
+def _phase3_komplett_erledigt(db, idv_db_id: int) -> bool:
+    """True wenn der Archivierungs-Schritt (Phase 3) als Erledigt markiert ist."""
+    ph, ph_params = in_clause(_PHASE_3)
+    rows = db.execute(
+        f"SELECT schritt FROM idv_freigaben WHERE idv_id=? AND schritt IN ({ph}) AND status='Erledigt'",
+        [idv_db_id] + ph_params
+    ).fetchall()
+    done = {r["schritt"] for r in rows}
+    return set(_PHASE_3).issubset(done)
+
+
+def _ensure_archiv_schritt(db, idv_db_id: int, person_id: int) -> bool:
+    """Legt den Archivierungs-Schritt (Phase 3) an, sofern er noch nicht existiert.
+
+    Wird aufgerufen, nachdem beide Phase-2-Schritte erledigt sind. Idempotent:
+    ein bereits vorhandener Schritt wird nicht erneut angelegt.
+    """
+    existing = db.execute(
+        "SELECT id FROM idv_freigaben WHERE idv_id=? AND schritt=? LIMIT 1",
+        (idv_db_id, _PHASE_3[0])
+    ).fetchone()
+    if existing:
+        return False
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute("""
+        INSERT INTO idv_freigaben
+            (idv_id, schritt, status, beauftragt_von_id, beauftragt_am)
+        VALUES (?, ?, 'Ausstehend', ?, ?)
+    """, (idv_db_id, _PHASE_3[0], person_id, now))
+    db.execute(
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        (idv_db_id, "archivierung_beauftragt",
+         "Phase 3 – Archivierung Originaldatei beauftragt (nach Abschluss Phase 2)",
+         person_id)
+    )
+    return True
+
+
+def _finalisiere_freigabe_wenn_komplett(db, idv_db_id: int, person_id: int) -> bool:
+    """Setzt `teststatus = 'Freigegeben'`, sobald Phase 2 UND Phase 3 komplett sind.
+
+    Gibt True zurück, wenn die Gesamtfreigabe in diesem Aufruf erteilt wurde.
+    Ruft zusätzlich die E-Mail-Benachrichtigung auf.
+    """
+    if not (_phase2_komplett_erledigt(db, idv_db_id)
+            and _phase3_komplett_erledigt(db, idv_db_id)):
+        return False
+    # Nur einmal setzen: prüfen, ob teststatus bereits 'Freigegeben' ist.
+    row = db.execute(
+        "SELECT teststatus FROM idv_register WHERE id=?", (idv_db_id,)
+    ).fetchone()
+    if row and row["teststatus"] == "Freigegeben":
+        return False
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute("""
+        UPDATE idv_register
+        SET teststatus='Freigegeben', dokumentation_vorhanden=1, aktualisiert_am=?
+        WHERE id=?
+    """, (now, idv_db_id))
+    db.execute(
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        (idv_db_id, "freigabe_erteilt",
+         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – IDV freigegeben", person_id)
+    )
+    db.commit()
+    _notify_freigabe_erteilt(db, idv_db_id)
+    return True
+
+
 def _int_or_none(val):
     try:
         return int(val) if val else None
@@ -190,18 +282,11 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
     db.commit()
 
     if schritt in _PHASE_2 and _phase2_komplett_erledigt(db, idv_db_id):
-        db.execute("""
-            UPDATE idv_register
-            SET teststatus='Freigegeben', dokumentation_vorhanden=1, aktualisiert_am=?
-            WHERE id=?
-        """, (now, idv_db_id))
-        db.execute(
-            "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-            (idv_db_id, "freigabe_erteilt",
-             "Alle 4 Freigabe-Schritte (Phase 1+2) erledigt – IDV freigegeben", person_id)
-        )
-        db.commit()
-        _notify_freigabe_erteilt(db, idv_db_id)
+        # Nach Phase 2 Archivierungs-Schritt (Phase 3) automatisch anlegen,
+        # damit die Originaldatei revisionssicher abgelegt werden kann.
+        if _ensure_archiv_schritt(db, idv_db_id, person_id):
+            db.commit()
+        _finalisiere_freigabe_wenn_komplett(db, idv_db_id, person_id)
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +446,12 @@ def erledigt_seite(freigabe_id):
             kwargs["freigabe_id"] = freigabe_id
         return redirect(url_for("tests.edit_technischer_test", **kwargs))
 
+    # Phase 3: Archivierungs-Schritt → spezialisierte Maske
+    if freigabe["schritt"] in _PHASE_3:
+        readonly = freigabe["status"] != "Ausstehend"
+        return render_template("freigaben/archiv_form.html",
+                               freigabe=freigabe, idv=idv, readonly=readonly)
+
     # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend, sonst Lesemodus
     readonly = freigabe["status"] != "Ausstehend"
     return render_template("freigaben/bestanden_form.html",
@@ -423,22 +514,20 @@ def abschliessen(freigabe_id):
     )
     db.commit()
 
-    # Prüfen ob Phase 2 jetzt vollständig abgeschlossen ist → IDV freigeben
+    # Prüfen ob Phase 2 jetzt vollständig abgeschlossen ist → Archivierung starten
     if schritt in _PHASE_2 and _phase2_komplett_erledigt(db, idv_db_id):
-        db.execute("""
-            UPDATE idv_register
-            SET teststatus='Freigegeben', dokumentation_vorhanden=1,
-                aktualisiert_am=?
-            WHERE id=?
-        """, (now, idv_db_id))
-        db.execute(
-            "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-            (idv_db_id, "freigabe_erteilt",
-             "Alle 4 Freigabe-Schritte (Phase 1+2) erledigt – IDV freigegeben", person_id)
-        )
-        db.commit()
-        _notify_freigabe_erteilt(db, idv_db_id)
-        flash("Alle Freigabe-Schritte erledigt – IDV ist jetzt freigegeben.", "success")
+        neu_angelegt = _ensure_archiv_schritt(db, idv_db_id, person_id)
+        if neu_angelegt:
+            db.commit()
+        freigegeben = _finalisiere_freigabe_wenn_komplett(db, idv_db_id, person_id)
+        if freigegeben:
+            flash("Alle Freigabe-Schritte erledigt – IDV ist jetzt freigegeben.", "success")
+        else:
+            flash(
+                f"'{schritt}' erledigt – Phase 2 vollständig. "
+                "Bitte nun die Originaldatei revisionssicher archivieren "
+                "(Phase 3).", "success"
+            )
     elif schritt in _PHASE_1 and _phase1_komplett_erledigt(db, idv_db_id):
         flash(f"'{schritt}' erledigt – Phase 1 vollständig. Bitte Phase 2 starten.", "success")
     else:
@@ -584,6 +673,11 @@ def schritt_anlegen(idv_db_id):
         flash("Phase-2-Schritte können erst nach kompletter Phase 1 angelegt werden.", "warning")
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
+    # Für Phase 3 (Archivierung) ist erforderlich, dass Phase 2 komplett erledigt ist
+    if schritt in _PHASE_3 and not _phase2_komplett_erledigt(db, idv_db_id):
+        flash("Archivierungs-Schritt kann erst nach kompletter Phase 2 angelegt werden.", "warning")
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
     # Duplikats-Guard: Schritt darf nicht bereits existieren
     existing = db.execute(
         "SELECT id FROM idv_freigaben WHERE idv_id=? AND schritt=? LIMIT 1",
@@ -639,6 +733,211 @@ def loeschen(freigabe_id):
     db.commit()
     flash(f"'{schritt}' wurde gelöscht.", "success")
     return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Archivierung der Originaldatei (revisionssicher, MaRisk AT 7.2)
+# ---------------------------------------------------------------------------
+
+@bp.route("/<int:freigabe_id>/archivieren", methods=["POST"])
+@own_write_required
+def archivieren(freigabe_id):
+    """Schließt den Archivierungs-Schritt (Phase 3) ab.
+
+    Zwei Abschlusspfade:
+    - ``datei_verfuegbar=1`` (Standard): Originaldatei wird hochgeladen,
+      im Archiv-Ordner schreibgeschützt abgelegt und mit einem SHA-256-Hash
+      versehen (Revisionssicherheit gem. MaRisk AT 7.2 / HGB § 239).
+    - ``datei_verfuegbar=0``: Die Originaldatei ist nicht verfügbar
+      (z.B. Cognos-/agree21Analysen-Berichte, reine Server-Skripte ohne
+      Sicherung). In diesem Fall ist eine Begründung zwingend erforderlich;
+      der Statusschritt wird trotzdem revisionssicher festgehalten.
+    """
+    db        = get_db()
+    person_id = current_person_id()
+    now       = datetime.now(timezone.utc).isoformat()
+
+    freigabe = db.execute(
+        "SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)
+    ).fetchone()
+    if (not freigabe
+            or freigabe["schritt"] not in _PHASE_3
+            or freigabe["status"] != "Ausstehend"):
+        flash("Archivierungs-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
+        return redirect(url_for("idv.list_idv"))
+
+    idv_db_id = freigabe["idv_id"]
+    ensure_can_write_idv(db, idv_db_id)
+
+    if not _funktionstrennung_ok(db, idv_db_id, person_id):
+        flash(
+            "Funktionstrennung: Sie sind als Entwickler dieser IDV eingetragen "
+            "und dürfen die Archivierung nicht abschließen.", "error"
+        )
+        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+    datei_verfuegbar = 1 if request.form.get("datei_verfuegbar", "1") == "1" else 0
+    kommentar    = request.form.get("kommentar", "").strip() or None
+    begruendung  = request.form.get("archiv_begruendung", "").strip() or None
+
+    archiv_pfad = archiv_name = archiv_sha256 = None
+    befunde     = None
+
+    if datei_verfuegbar:
+        upload_file = request.files.get("archiv_datei")
+        if not upload_file or not upload_file.filename:
+            flash(
+                "Bitte die Originaldatei zum Archivieren hochladen oder "
+                "'Datei nicht verfügbar' auswählen.", "error"
+            )
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+
+        original_name = upload_file.filename
+        # Für das Archiv werden KEINE Extension- oder Magic-Byte-Prüfungen
+        # vorgenommen, weil die Originaldatei in beliebigen Formaten
+        # (VBA-Makro, Python-Skript, SQL-Datei, Access-DB, PBIX, …) vorliegen
+        # kann. Schutz erfolgt stattdessen durch sicheren Dateinamen,
+        # getrenntes Zielverzeichnis und read-only-Ablage.
+        safe_name = secure_filename(original_name) or "original.bin"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_")
+        save_name = timestamp + safe_name
+        folder = _archiv_upload_folder(idv_db_id)
+        dest = os.path.join(folder, save_name)
+
+        # Streamed-Speichern + SHA-256-Berechnung (Revisionssicherheit),
+        # mit harter Obergrenze zum Schutz gegen DoS / Disk-Full.
+        h = hashlib.sha256()
+        total = 0
+        try:
+            upload_file.stream.seek(0)
+        except Exception:
+            pass
+        try:
+            with open(dest, "wb") as out:
+                while True:
+                    chunk = upload_file.stream.read(65536)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > _MAX_ARCHIV_UPLOAD:
+                        out.close()
+                        try:
+                            os.remove(dest)
+                        except OSError:
+                            pass
+                        flash(
+                            "Archiv-Upload abgelehnt: Datei ist größer als "
+                            f"{_MAX_ARCHIV_UPLOAD // (1024 * 1024)} MB.",
+                            "error",
+                        )
+                        return redirect(url_for("freigaben.erledigt_seite",
+                                                freigabe_id=freigabe_id))
+                    out.write(chunk)
+                    h.update(chunk)
+        except OSError as exc:
+            current_app.logger.warning(
+                "Archiv-Upload fehlgeschlagen für IDV %s: %s", idv_db_id, exc
+            )
+            flash("Archiv-Upload fehlgeschlagen (Dateisystem-Fehler).", "error")
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+
+        archiv_sha256 = h.hexdigest()
+        archiv_pfad   = save_name
+        archiv_name   = original_name
+
+        # Revisionssicher: archivierte Datei nur lesbar setzen. Auf Windows
+        # greift 0o444 nur eingeschränkt; dort sichert die ACL des Service-
+        # Users die Unveränderlichkeit. Fehler werden toleriert.
+        try:
+            os.chmod(dest, 0o444)
+        except OSError:
+            pass
+
+        befunde = (
+            begruendung
+            or f"Originaldatei archiviert (SHA-256: {archiv_sha256})"
+        )
+    else:
+        if not begruendung:
+            flash(
+                "Wenn die Originaldatei nicht verfügbar ist, ist eine "
+                "Begründung zwingend erforderlich.", "error"
+            )
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=freigabe_id))
+        befunde = begruendung
+
+    db.execute("""
+        UPDATE idv_freigaben
+        SET status='Erledigt',
+            durchgefuehrt_von_id=?, durchgefuehrt_am=?,
+            kommentar=?, befunde=?,
+            datei_verfuegbar=?,
+            archiv_datei_pfad=?, archiv_datei_name=?, archiv_datei_sha256=?
+        WHERE id=?
+    """, (person_id, now, kommentar, befunde,
+          datei_verfuegbar,
+          archiv_pfad, archiv_name, archiv_sha256, freigabe_id))
+
+    if datei_verfuegbar:
+        aktion = "originaldatei_archiviert"
+        hist_kom = (
+            f"Originaldatei '{archiv_name}' revisionssicher archiviert "
+            f"(SHA-256: {archiv_sha256})"
+        )
+    else:
+        aktion = "originaldatei_nicht_verfuegbar"
+        hist_kom = (
+            "Originaldatei nicht verfügbar (z.B. Cognos / agree21Analysen). "
+            f"Begründung: {befunde}"
+        )
+    db.execute(
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        (idv_db_id, aktion, hist_kom, person_id)
+    )
+    db.commit()
+
+    freigegeben = _finalisiere_freigabe_wenn_komplett(db, idv_db_id, person_id)
+    if freigegeben:
+        flash("Archivierung abgeschlossen – IDV ist jetzt freigegeben.", "success")
+    else:
+        flash("Archivierungs-Schritt als Erledigt markiert.", "success")
+    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+
+
+@bp.route("/archiv/<int:freigabe_id>")
+@login_required
+def archiv_download(freigabe_id):
+    """Download einer archivierten Originaldatei inkl. Ownership-Check.
+
+    Analog zu ``nachweis_download``: der Download wird über die Freigabe-ID
+    an die IDV gebunden, Pfad-Traversal wird defensiv ausgeschlossen.
+    """
+    db  = get_db()
+    row = db.execute(
+        """SELECT f.archiv_datei_pfad AS pfad,
+                  f.archiv_datei_name AS name,
+                  f.idv_id            AS idv_db_id
+             FROM idv_freigaben f
+            WHERE f.id = ?""",
+        (freigabe_id,),
+    ).fetchone()
+    if not row or not row["pfad"]:
+        abort(404)
+    ensure_can_read_idv(db, row["idv_db_id"])
+
+    if (os.sep in row["pfad"] or "/" in row["pfad"] or "\\" in row["pfad"]
+            or row["pfad"].startswith(".")):
+        abort(404)
+
+    folder = _archiv_upload_folder(row["idv_db_id"])
+    return send_from_directory(
+        folder, row["pfad"],
+        as_attachment=True,
+        download_name=row["name"] or row["pfad"],
+    )
 
 
 # ---------------------------------------------------------------------------

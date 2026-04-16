@@ -709,13 +709,19 @@ CREATE INDEX IF NOT EXISTS idx_wesentl_idv ON idv_wesentlichkeit(idv_db_id);
 
 -- -----------------------------------------------------------------------------
 -- 10. TEST- UND FREIGABEVERFAHREN (MaRisk AT 7.2 / BAIT / DORA)
--- Schrittfolge: Fachlicher Test → Technischer Test → Fachliche Abnahme → Technische Abnahme
+-- Schrittfolge (Phase 1 → Phase 2 → Phase 3):
+--   Phase 1: Fachlicher Test → Technischer Test
+--   Phase 2: Fachliche Abnahme → Technische Abnahme
+--   Phase 3: Archivierung Originaldatei (revisionssichere Ablage gem. MaRisk AT 7.2)
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS idv_freigaben (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     idv_id                  INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
     schritt                 TEXT NOT NULL,
+    -- 'Fachlicher Test' | 'Technischer Test'
+    -- | 'Fachliche Abnahme' | 'Technische Abnahme'
+    -- | 'Archivierung Originaldatei'
     -- 'Ausstehend' | 'Erledigt' | 'Nicht erledigt' | 'Abgebrochen'
     status                  TEXT NOT NULL DEFAULT 'Ausstehend',
     -- Wer hat das Verfahren gestartet / diesen Schritt beauftragt
@@ -732,6 +738,15 @@ CREATE TABLE IF NOT EXISTS idv_freigaben (
     nachweise_text          TEXT,
     nachweis_datei_pfad     TEXT,       -- relativer Pfad zur hochgeladenen Datei
     nachweis_datei_name     TEXT,       -- Originaldateiname
+    -- Archivierung Originaldatei (nur für Schritt 'Archivierung Originaldatei')
+    -- NULL  = nicht anwendbar (Schritt ist kein Archiv-Schritt)
+    -- 1     = Originaldatei wurde revisionssicher archiviert (Upload + SHA-256)
+    -- 0     = Originaldatei nicht verfügbar (z.B. Cognos-Bericht in agree21Analysen);
+    --         Begründung wird in `befunde` festgehalten
+    datei_verfuegbar        INTEGER,
+    archiv_datei_pfad       TEXT,       -- relativer Pfad im Archiv-Ordner
+    archiv_datei_name       TEXT,       -- Originaldateiname der archivierten Datei
+    archiv_datei_sha256     TEXT,       -- SHA-256-Hash zur Integritätssicherung
     -- Admin-Abbruch
     abgebrochen_von_id      INTEGER REFERENCES persons(id),
     abgebrochen_am          TEXT,
