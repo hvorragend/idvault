@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
 {% block title %}Ignorierte Dateien{% endblock %}
 {% block page_title %}<i class="bi bi-eye-slash me-2"></i>Ignorierte Dateien{% endblock %}
 
@@ -128,19 +129,9 @@
             {% if f.dir_path %}
             {% set crumbs = f.dir_path | path_breadcrumbs %}
             {% if crumbs %}
-            <div class="d-flex flex-wrap align-items-center gap-1" style="row-gap:.2rem">
-              {% for label, prefix in crumbs %}
-              <a href="{{ url_for('funde.ignorierte_dateien', dir_path=prefix) }}"
-                 class="badge text-decoration-none {% if dir_path_filt == prefix %}bg-primary{% else %}bg-success{% endif %}"
-                 style="font-size:.68rem;font-family:monospace;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                 title="{{ prefix }}">{{ label }}</a>
-              {% if not loop.last %}<span class="text-muted" style="font-size:.68rem">\</span>{% endif %}
-              {% endfor %}
-            </div>
+              {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.ignorierte_dateien') }}
             {% else %}
-            <span class="badge bg-success font-monospace" style="font-size:.68rem">
-              <i class="bi bi-folder2-open me-1"></i>{{ ('…' + f.dir_path[-40:]) if f.dir_path|length > 43 else f.dir_path }}
-            </span>
+              {{ dir_fallback(f.dir_path) }}
             {% endif %}
             {% endif %}
           </td>
