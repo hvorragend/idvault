@@ -243,6 +243,45 @@ def _start_proc_with_logon(
     return pid, _wait
 
 
+_RUNAS_REQUIRED_MODULES = (
+    "pywintypes", "win32api", "win32con", "win32event",
+    "win32file", "win32process", "win32security",
+)
+
+
+def _check_runas_modules() -> tuple:
+    """Prüft, ob alle pywin32-Module für CreateProcessWithLogonW vorhanden sind.
+
+    Gibt ``(ok, missing)`` zurück. ``missing`` listet die fehlenden Modul-
+    namen, falls ein Import scheitert – typischerweise weil der EXE-Build
+    die Module nicht als Hidden-Import eingebettet hat.
+    """
+    missing = []
+    for mod in _RUNAS_REQUIRED_MODULES:
+        try:
+            __import__(mod)
+        except Exception:
+            missing.append(mod)
+    return (not missing), missing
+
+
+def _write_scanner_notice(log_path: str, lines: list) -> None:
+    """Schreibt Hinweiszeilen in die stdout/stderr-Log-Datei des Scanners.
+
+    Wird aufgerufen, bevor der Subprocess startet, damit Meldungen über
+    fehlgeschlagene Run-As-Versuche im Web-UI (Scan-Log → stdout/stderr-
+    Mitschnitt) sichtbar sind – und nicht nur in ``idvault.log``.
+    """
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_path, "a", encoding="utf-8") as fh:
+            for line in lines:
+                fh.write(f"{ts} [IDVAULT-START] {line}\n")
+    except Exception:
+        pass  # Logging-Fehler dürfen den Start nicht blockieren
+
+
 def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     """Startet den Scanner-Subprocess.
 
@@ -263,28 +302,47 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
         )
 
     runas = _load_scanner_runas()
-    if os.name == "nt" and runas.get("username") and runas.get("password"):
-        try:
-            pid, wait_fn = _start_proc_with_logon(
-                cmd, cwd, log_path, creationflags,
-                runas["domain"] or ".",
-                runas["username"],
-                runas["password"],
+    runas_configured = bool(runas.get("username") and runas.get("password"))
+
+    if os.name == "nt" and runas_configured:
+        modules_ok, missing = _check_runas_modules()
+        if not modules_ok:
+            msg = (
+                f"Run-As konfiguriert ({runas['domain'] or '.'}\\{runas['username']}), "
+                f"aber folgende pywin32-Module fehlen im EXE-Build: "
+                f"{', '.join(missing)}. "
+                f"Scanner läuft deshalb weiterhin im Dienst-/Benutzerkontext "
+                f"des idvault-Prozesses. Abhilfe: EXE mit aktualisiertem "
+                f"idvault.spec neu bauen ODER den idvault-Dienst direkt als "
+                f"Scan-User betreiben (services.msc → Eigenschaften → Anmelden)."
             )
-            current_app.logger.info(
-                "Scanner als AD-Benutzer %s\\%s gestartet (PID %d).",
-                runas["domain"] or ".", runas["username"], pid,
-            )
-            return pid, wait_fn
-        except ImportError:
-            current_app.logger.warning(
-                "pywin32 nicht verfügbar – Scanner läuft im aktuellen Benutzerkontext."
-            )
-        except Exception as exc:
-            current_app.logger.error(
-                "CreateProcessWithLogonW fehlgeschlagen (%s) – "
-                "Fallback auf aktuellen Benutzerkontext.", exc,
-            )
+            current_app.logger.error(msg)
+            _write_scanner_notice(log_path, [msg])
+        else:
+            try:
+                pid, wait_fn = _start_proc_with_logon(
+                    cmd, cwd, log_path, creationflags,
+                    runas["domain"] or ".",
+                    runas["username"],
+                    runas["password"],
+                )
+                current_app.logger.info(
+                    "Scanner als AD-Benutzer %s\\%s gestartet (PID %d).",
+                    runas["domain"] or ".", runas["username"], pid,
+                )
+                return pid, wait_fn
+            except Exception as exc:
+                msg = (
+                    f"CreateProcessWithLogonW fehlgeschlagen "
+                    f"({type(exc).__name__}: {exc}) – Fallback auf aktuellen "
+                    f"Benutzerkontext. Mögliche Ursachen: Passwort falsch/"
+                    f"abgelaufen, Benutzer ohne 'Anmelden als Stapelverarbeitung' "
+                    f"oder 'Lokal anmelden' auf dem idvault-Server, idvault-Dienst "
+                    f"läuft als LOCAL SERVICE (ohne Rechte zum Starten anderer "
+                    f"Konten – dann bitte als LOCAL SYSTEM oder Scan-User betreiben)."
+                )
+                current_app.logger.error(msg)
+                _write_scanner_notice(log_path, [msg])
 
     # Standard-Fallback: subprocess.Popen erbt den aktuellen Benutzerkontext
     log_fh = open(log_path, "w", encoding="utf-8")
@@ -797,14 +855,16 @@ def scanner_runas_speichern():
 @bp.route("/scanner/runas/testen", methods=["POST"])
 @admin_required
 def scanner_runas_testen():
-    """Testet die konfigurierten Run-As-Credentials via Windows LogonUser."""
+    """Testet die konfigurierten Run-As-Credentials via Windows LogonUser.
+
+    Prüft zusätzlich, ob alle pywin32-Module verfügbar sind, die für
+    CreateProcessWithLogonW benötigt werden. Fehlen welche (typisch bei
+    einem unvollständigen EXE-Build), wird das Ergebnis als Warnung
+    zurückgegeben – LogonUser allein würde sonst "alles ok" melden, obwohl
+    der produktive Scan-Start stumm auf den Dienstkontext zurückfällt.
+    """
     if os.name != "nt":
         return jsonify(ok=False, msg="Nur auf Windows-Systemen verfügbar.")
-
-    try:
-        import win32security  # noqa: F401
-    except ImportError:
-        return jsonify(ok=False, msg="pywin32 nicht installiert.")
 
     runas = _load_scanner_runas()
     username = runas.get("username", "")
@@ -816,8 +876,18 @@ def scanner_runas_testen():
     if not password:
         return jsonify(ok=False, msg="Kein Kennwort hinterlegt.")
 
+    modules_ok, missing = _check_runas_modules()
+
     try:
         import win32security
+    except ImportError:
+        return jsonify(
+            ok=False,
+            msg=("pywin32 nicht installiert/gebundlet. Für Run-As benötigt: "
+                 + ", ".join(_RUNAS_REQUIRED_MODULES))
+        )
+
+    try:
         token = win32security.LogonUser(
             username,
             domain,
@@ -826,10 +896,55 @@ def scanner_runas_testen():
             win32security.LOGON32_PROVIDER_DEFAULT,
         )
         token.Close()
-        display = f"{domain}\\{username}" if domain != "." else username
-        return jsonify(ok=True, msg=f"Anmeldung als \"{display}\" erfolgreich.")
     except Exception as exc:
-        return jsonify(ok=False, msg=str(exc))
+        return jsonify(ok=False, msg=f"LogonUser fehlgeschlagen: {exc}")
+
+    display = f"{domain}\\{username}" if domain != "." else username
+
+    if not modules_ok:
+        return jsonify(
+            ok=False,
+            msg=(f"Anmeldung als \"{display}\" war erfolgreich, aber der "
+                 f"Scanner kann den Benutzer NICHT verwenden: Im EXE-Build "
+                 f"fehlen pywin32-Module für CreateProcessWithLogonW "
+                 f"({', '.join(missing)}). Abhilfe: EXE neu bauen ODER den "
+                 f"idvault-Dienst direkt als Scan-User betreiben.")
+        )
+
+    return jsonify(
+        ok=True,
+        msg=(f"Anmeldung als \"{display}\" erfolgreich. "
+             f"Alle pywin32-Module für CreateProcessWithLogonW sind vorhanden.")
+    )
+
+
+@bp.route("/scanner/runas/status")
+@admin_required
+def scanner_runas_status():
+    """Liefert den Diagnose-Status der Run-As-Konfiguration als JSON.
+
+    Wird von der Scanner-Einstellungen-Seite beim Laden aufgerufen, um
+    einen roten Warnbanner einzublenden, wenn die Konfiguration zwar
+    gespeichert, aber nicht wirksam ist (z. B. wegen unvollständiger
+    pywin32-Einbindung im EXE-Build).
+    """
+    if os.name != "nt":
+        return jsonify(platform_ok=False, modules_ok=True, missing=[],
+                       configured=False, password_ok=True,
+                       message="Run-As ist nur auf Windows-Systemen wirksam.")
+
+    runas = _load_scanner_runas()
+    configured  = bool(runas.get("username"))
+    password_ok = bool(runas.get("password")) if runas.get("password_enc") else True
+    modules_ok, missing = _check_runas_modules()
+
+    return jsonify(
+        platform_ok=True,
+        configured=configured,
+        password_ok=password_ok,
+        modules_ok=modules_ok,
+        missing=missing,
+    )
 
 
 @bp.route("/scanner/bereinigen", methods=["POST"])

@@ -82,8 +82,17 @@ hiddenimports = [
     *cryptography_h,
     # Scanner – optional (werden ignoriert wenn nicht installiert)
     'xxhash',
-    'win32security',
+    # pywin32 – alle Module, die für CreateProcessWithLogonW und
+    # das Auslesen von Datei-Eigentümern benötigt werden. Fehlt eines
+    # davon zur Laufzeit, fällt idvault ohne verwertbare Fehlermeldung
+    # auf den Parent-Kontext (Dienstkonto) zurück.
+    'pywintypes',
     'win32api',
+    'win32con',
+    'win32event',
+    'win32file',
+    'win32process',
+    'win32security',
     'ntsecuritycon',
     # Framework-Internals
     *flask_h,
