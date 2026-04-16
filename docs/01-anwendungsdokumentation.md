@@ -392,8 +392,10 @@ werden aus der Personen-Tabelle abgeleitet.
 | Freigabeverfahren vollständig bestanden | Koordinatoren, Administratoren, Entwickler |
 | Datei-Bewertung | Verantwortlicher |
 
-Die Konfiguration erfolgt unter `Administration → E-Mail-Einstellungen (SMTP)`
-oder über Umgebungsvariablen (`IDV_SMTP_*`).
+Die Konfiguration erfolgt ausschließlich unter `Administration →
+E-Mail-Einstellungen (SMTP)`. Die Werte werden in der SQLite-Tabelle
+`app_settings` abgelegt; das SMTP-Passwort wird Fernet-verschlüsselt
+gespeichert.
 
 ## 8 Versions- und Änderungshistorie
 

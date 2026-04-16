@@ -81,31 +81,56 @@ Vorlage für manuelle Anpassung:
 config.json.example  →  config.json kopieren und bearbeiten
 ```
 
-Beispielinhalt:
+Beispielinhalt (Auszug – die komplette Vorlage mit allen Sektionen
+steht in `config.json.example`):
 
 ```json
 {
   "SECRET_KEY": "zufaelliger-schluessel-mind-32-zeichen",
   "PORT": 5000,
   "IDV_HTTPS": 0,
-  "IDV_SMTP_HOST": "mail.bank.de",
-  "IDV_SMTP_PORT": 587,
-  "IDV_SMTP_USER": "idvault@bank.de",
-  "IDV_SMTP_PASSWORD": "Passwort",
-  "IDV_SMTP_FROM": "idvault@bank.de",
-  "IDV_APP_BASE_URL": "https://idvault.bank.de"
+
+  "scanner": {
+    "scan_paths": ["\\\\fileserver\\abteilung$"],
+    "db_path": "instance/idvault.db",
+    "log_path": "instance/logs/idv_scanner.log"
+  },
+
+  "teams": {
+    "tenant_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "client_secret": "ENV:TEAMS_SCANNER_SECRET",
+    "teams": [{ "team_id": "..." }]
+  }
 }
 ```
-
-Die vollständige Vorlage mit allen Schlüsseln liegt in `config.json.example`.
 
 > **Sicherheitshinweis:** `config.json` enthält den `SECRET_KEY` im
 > Klartext. Dateizugriffsrechte auf den Betriebssystemnutzer der
 > Anwendung einschränken.
 
+#### Präzedenz der Konfigurationsquellen
+
+Seit der Konsolidierung der Einstellungen gilt folgende Reihenfolge
+(höchste zuerst):
+
+1. **OS-Umgebungsvariable** – z.B. `SECRET_KEY=...` im systemd-Dienst.
+2. **`config.json`** – Top-Level-Keys (SECRET_KEY, PORT, …) und die
+   Unter-Sektionen `scanner`, `teams`, `ldap`.
+3. **SQLite-Tabellen `app_settings` / `ldap_config`** – werden über die
+   Web-UI (`/admin/mail`, `/admin/ldap-config`, `/admin/scanner-einstellungen`)
+   gepflegt.
+4. **Hardcoded-Defaults** – aus `schema.sql` bzw. dem Quellcode.
+
+Ein Eintrag in `config.json["ldap"]` überschreibt pro Feld die DB-Werte
+und wird in der Admin-UI als `read-only` mit Badge *„Aus config.json"*
+angezeigt. SMTP-Zugangsdaten werden ausschließlich in `app_settings`
+gepflegt – die früheren `IDV_SMTP_*`-Schlüssel in `config.json` hatten
+keine Wirkung mehr und sind aus dem Auto-Template entfernt worden.
+
 ### 3.3 Umgebungsvariablen
 
-OS-Umgebungsvariablen haben **immer Vorrang** über `config.json` — sie
+OS-Umgebungsvariablen haben **immer Vorrang** über `config.json` – sie
 eignen sich als Override in CI/CD-Pipelines, Docker-Containern oder
 Skripten.
 
@@ -119,14 +144,11 @@ Skripten.
 | `PORT` | Netzwerk-Port | 5000 HTTP / 5443 HTTPS |
 | `IDV_DB_PATH` | Datenbankpfad | `instance/idvault.db` |
 | `IDV_INSTANCE_PATH` | Instanzverzeichnis | `instance/` |
-| `IDV_SMTP_HOST` | SMTP-Server | — |
-| `IDV_SMTP_PORT` | SMTP-Port | 587 |
-| `IDV_SMTP_USER` | SMTP-Benutzer | — |
-| `IDV_SMTP_PASSWORD` | SMTP-Passwort | — |
-| `IDV_SMTP_FROM` | Absenderadresse | — |
-| `IDV_SMTP_TLS` | STARTTLS (1) / SMTPS (0) | 1 |
-| `IDV_APP_BASE_URL` | Basis-URL für E-Mail-Links | — |
 | `DEBUG` | **Niemals produktiv** | 0 |
+
+SMTP-Zugangsdaten werden nicht mehr über Umgebungsvariablen gesteuert.
+Sie liegen in der SQLite-Tabelle `app_settings` und werden über
+`Administration → E-Mail-Einstellungen` verwaltet.
 
 ## 4 HTTPS-Konfiguration
 
@@ -360,7 +382,7 @@ Loggers auftreten (z. B. Probleme mit `CreateProcessWithLogonW`).
 ### 8.1 Sicherungsobjekt
 
 ```
-config.json               Konfigurationsdatei (SECRET_KEY, SMTP, ...)
+config.json               Konfigurationsdatei (SECRET_KEY, scanner, teams, ldap …)
 instance/
 ├── idvault.db            SQLite-Datenbank
 ├── idvault.log*          Anwendungs-Logs

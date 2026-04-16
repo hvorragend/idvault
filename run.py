@@ -216,6 +216,33 @@ if not os.path.isfile(_config_file):
                 "download_for_ooxml": True,
                 "move_detection": "name_and_hash",
                 "teams": []
+            },
+            # OPTIONAL: Override der LDAP-Konfiguration aus der DB.
+            #
+            # Der Block unten ist mit Unterstrich-Präfix als INAKTIVES
+            # Beispiel eingetragen – die App wertet nur den Schlüssel "ldap"
+            # aus. Zum Aktivieren:
+            #   1. "_ldap_beispiel" in "ldap" umbenennen.
+            #   2. Felder anpassen (nur die gesetzten Keys überschreiben die DB,
+            #      fehlende Keys bleiben aus /admin/ldap-config aktiv).
+            #   3. bind_password entweder als Klartext oder als
+            #      "ENV:VARNAME" referenzieren – letzteres ist für
+            #      Produktionsumgebungen empfohlen.
+            # Überschriebene Felder werden in der Web-UI read-only angezeigt.
+            "_kommentar_ldap": (
+                "Optionaler Override für /admin/ldap-config. "
+                "Zum Aktivieren '_ldap_beispiel' in 'ldap' umbenennen. "
+                "Siehe config.json.example für Details."
+            ),
+            "_ldap_beispiel": {
+                "enabled": True,
+                "server_url": "ldaps://ad.example.com",
+                "port": 636,
+                "base_dn": "DC=example,DC=com",
+                "bind_dn": "CN=svc-idvault,OU=ServiceAccounts,DC=example,DC=com",
+                "bind_password": "ENV:IDV_LDAP_BIND_PASSWORD",
+                "user_attr": "sAMAccountName",
+                "ssl_verify": True
             }
         }
         try:
