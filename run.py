@@ -189,8 +189,8 @@ if not os.path.isfile(_config_file):
                     "System Volume Information",
                     "AppData"
                 ],
-                "db_path": "instance/idvault.db",
-                "log_path": "instance/logs/idv_scanner.log",
+                "db_path": os.path.join(_PROJECT_ROOT, "instance", "idvault.db"),
+                "log_path": os.path.join(_PROJECT_ROOT, "instance", "logs", "idv_scanner.log"),
                 "hash_size_limit_mb": 500,
                 "max_workers": 4,
                 "move_detection": "name_and_hash",
