@@ -30,8 +30,22 @@ einzelne ausführbare Datei (`idvault.exe`) betrieben werden.
 pip install -r requirements.txt
 python run.py
 # → http://localhost:5000
-# → Erstlogin: admin / idvault2026   (vor Produktiveinsatz deaktivieren!)
 ```
+
+Beim ersten Start wird `config.json` mit einem zufälligen `SECRET_KEY`
+automatisch angelegt. Es gibt **keine Demo-/Default-Benutzer** mehr —
+lokale Benutzer werden ausschließlich in `config.json` unter
+`IDV_LOCAL_USERS` deklariert (oder kommen über LDAP). Beispiel-Eintrag:
+
+```bash
+python -c "from werkzeug.security import generate_password_hash; \
+           print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))"
+# → Ausgabe in config.json → IDV_LOCAL_USERS einfügen
+```
+
+Vollständiges Beispiel: [`config.json.example`](config.json.example).
+Ohne lokalen Benutzer und ohne LDAP ist nach dem Start kein Login
+möglich — bewusst, um Default-Credentials auszuschließen.
 
 Für die Standalone-EXE siehe [docs/11-build-deployment.md](docs/11-build-deployment.md).
 
@@ -64,7 +78,9 @@ Einstiegspunkt und Inhaltsverzeichnis: [`docs/README.md`](docs/README.md).
 | Sprache | Python 3.10+ |
 | Web-Framework | Flask, Jinja2 |
 | Datenbank | SQLite (WAL) |
-| Authentifizierung | LDAP (ldap3) + lokale Fallback-Authentifizierung |
+| Authentifizierung | LDAP (ldap3) + lokale Benutzer aus `config.json` |
+| CSRF / Rate-Limit | Flask-WTF (`CSRFProtect`), Flask-Limiter |
+| HTML-Sanitizing | bleach (Stored-XSS-Schutz für Rich-Text-Felder) |
 | Verschlüsselung | cryptography (Fernet) |
 | Build | PyInstaller (Single-File-EXE) |
 | Export | openpyxl (XLSX) |
@@ -94,25 +110,46 @@ Vollständiges Compliance-Mapping: [docs/07-aufsichtsrecht.md](docs/07-aufsichts
 
 Bereits umgesetzte Hardening-Maßnahmen (Details: [docs/09-schwachstellenanalyse.md](docs/09-schwachstellenanalyse.md)):
 
+**Authentifizierung & Session**
+
 - ✅ Modernes Passwort-Hashing (`pbkdf2:sha256`) mit automatischer Migration von Legacy-SHA-256-Hashes
-- ✅ `SECRET_KEY`-Enforcement: beim ersten Start wird `config.json` mit zufälligem Key auto-generiert; ohne Key und ohne `config.json` bricht die Anwendung ab
-- ✅ Warnung, wenn Debug-Modus aktiv ist
+- ✅ Keine Demo-/Default-Benutzer im Quellcode — lokale Benutzer ausschließlich über `IDV_LOCAL_USERS` in `config.json` (mit werkzeug-Hashes)
+- ✅ Rate-Limiting am Login (Flask-Limiter, konfigurierbar via `IDV_LOGIN_RATE_LIMIT`, Default 5/min, 30/h)
+- ✅ Logout nur per POST + CSRF-Token
+- ✅ Session-Idle-Timeout 4 h + `HttpOnly` / `SameSite=Lax` / `Secure` (automatisch bei HTTPS)
+
+**Anfragen-Härtung**
+
+- ✅ CSRF-Schutz (Flask-WTF `CSRFProtect`) für alle 77 POST-Formulare; AJAX-Wrapper setzt automatisch `X-CSRFToken`-Header
+- ✅ HTTP-Security-Header per `after_request`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS (bei HTTPS)
+- ✅ Nonce-basiertes CSP — `script-src 'self' 'nonce-…'` ohne `unsafe-inline`; alle inline Event-Handler auf Event-Delegation umgestellt
+- ✅ Eingabelängen-/Steuerzeichen-Validierung als globaler `before_request`-Hook (`IDV_LOCAL_USERS`-konforme Längen, CR/LF-Block in Single-Line-Feldern)
+- ✅ Upload-Rate-Limit (`IDV_UPLOAD_RATE_LIMIT`, Default 10/min, 60/h) auf ZIP-Update und CSV-Importe
+
+**Daten-Härtung**
+
+- ✅ Stored-XSS-Schutz: `nachweise_text` aus QuillJS wird mit `bleach` sanitiert (strikte Tag-/Attribut-Whitelist)
+- ✅ Path-Traversal/IDOR am Nachweis-Download behoben — Downloads werden per ID + Ownership-Check ausgeliefert
+- ✅ Broken Access Control behoben — `ensure_can_read_idv` / `ensure_can_write_idv` in allen schreibenden IDV-/Tests-/Reviews-/Measures-/Freigaben-Routen
+- ✅ Upload-Magic-Byte-Validierung — verhindert polyglot-Uploads (z.B. SVG getarnt als PNG)
+- ✅ Admin-RCE-Vektor (Sidecar-ZIP-Update) per `IDV_ALLOW_SIDECAR_UPDATES=0` in `config.json` deaktivierbar
 - ✅ SMTP-Passwort Fernet-verschlüsselt in der Datenbank
-- ✅ HTTP-Security-Header (CSP, X-Frame-Options, HSTS) per `after_request`
+
+**Konfiguration & Betrieb**
+
+- ✅ `SECRET_KEY`-Enforcement: ohne `SECRET_KEY` und nicht im DEBUG-Modus bricht der Start ab (`run.py`); beim ersten Start wird `config.json` mit zufälligem Key auto-generiert
+- ✅ Warnung, wenn Debug-Modus aktiv ist
 - ✅ LDAP: Warnung bei deaktivierter Zertifikatsprüfung (UI + Log)
-- ✅ Session-Idle-Timeout 4 h + HttpOnly/SameSite/Secure
+- ✅ Konkrete Exception-Typen + Logging in kritischen Pfaden (Auth, Bulk-Deletes, SMTP-Verschlüsselung, E-Mail-Notification)
 
 Noch offene Punkte vor bzw. kurz nach Produktivstart:
 
-- [ ] CSRF-Schutz (Flask-WTF) einführen
-- [ ] Rate-Limiting am Login (Flask-Limiter)
-- [ ] HTTPS aktivieren (direkt oder per Reverse-Proxy)
-- [ ] `SECRET_KEY` aus KeyVault/HSM
-
-Demo-Zugänge (`admin / idvault2026` u. a.) bleiben auf Wunsch
-des Auftraggebers **aktiv**; das Restrisiko ist in
-[docs/09-schwachstellenanalyse.md Abschnitt 3.3](docs/09-schwachstellenanalyse.md)
-dokumentiert.
+- [ ] HTTPS aktivieren (direkt via `IDV_HTTPS=1` oder per Reverse-Proxy)
+- [ ] `SECRET_KEY` aus KeyVault/HSM beziehen (Betriebsauflage)
+- [ ] In regulierten Umgebungen: `IDV_ALLOW_SIDECAR_UPDATES=0` setzen und Updates ausschließlich über signierte EXE-Builds einspielen
+- [ ] Bei Multi-Worker-Deployment (gunicorn): Flask-Limiter-Storage auf Redis umstellen
+- [ ] Externer Penetrationstest beauftragen
+- [ ] Test-Suite (pytest) mit ≥ 70 % Abdeckung der Kernlogik (Sprint 4)
 
 Vollständige Pre-Go-Live-Checkliste: [docs/05-sicherheitskonzept.md](docs/05-sicherheitskonzept.md) Abschnitt 7.
 
