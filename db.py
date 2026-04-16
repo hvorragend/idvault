@@ -44,7 +44,26 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
     sql = schema_path.read_text(encoding="utf-8")
     conn.executescript(sql)
     conn.commit()
+    _apply_incremental_migrations(conn)
     return conn
+
+
+def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
+    """Ergänzt fehlende Spalten in bestehenden Datenbanken (idempotent)."""
+    existing_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(geschaeftsprozesse)").fetchall()
+    }
+    migrations = [
+        ("schutzbedarf_a", "ALTER TABLE geschaeftsprozesse ADD COLUMN schutzbedarf_a TEXT"),
+        ("schutzbedarf_c", "ALTER TABLE geschaeftsprozesse ADD COLUMN schutzbedarf_c TEXT"),
+        ("schutzbedarf_i", "ALTER TABLE geschaeftsprozesse ADD COLUMN schutzbedarf_i TEXT"),
+        ("schutzbedarf_n", "ALTER TABLE geschaeftsprozesse ADD COLUMN schutzbedarf_n TEXT"),
+    ]
+    for col, stmt in migrations:
+        if col not in existing_cols:
+            conn.execute(stmt)
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------

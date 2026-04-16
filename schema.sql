@@ -122,6 +122,11 @@ CREATE TABLE IF NOT EXISTS geschaeftsprozesse (
     -- DORA-Klassifizierung
     ist_kritisch    INTEGER NOT NULL DEFAULT 0,     -- kritisch/wichtig i.S.v. DORA Art. 28
     ist_wesentlich  INTEGER NOT NULL DEFAULT 0,     -- wesentlich i.S.v. MaRisk
+    -- Schutzbedarf (A=Verfügbarkeit, C=Vertraulichkeit, I=Integrität, N=Authentizität)
+    schutzbedarf_a  TEXT,
+    schutzbedarf_c  TEXT,
+    schutzbedarf_i  TEXT,
+    schutzbedarf_n  TEXT,
     -- Bewertung
     beschreibung    TEXT,
     aktiv           INTEGER NOT NULL DEFAULT 1,
