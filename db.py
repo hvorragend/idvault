@@ -525,7 +525,7 @@ def insert_demo_data(conn: sqlite3.Connection):
             ("Microsoft Excel",    "Desktop", "Microsoft"),
             ("Microsoft Access",   "Desktop", "Microsoft"),
             ("HCL Notes",   "Desktop", "HCL"),
-            ("agree21Analysen",        "Desktop", "IBM"),
+            ("Business Intelligence",        "Desktop", "BI"),
             ("Shell-Skripte",        "Konsole", "Bank"),
             ("UiPath Studio",        "IDE", "UiPath"),
             ("Power BI Desktop",        "Desktop", "Microsoft"),
