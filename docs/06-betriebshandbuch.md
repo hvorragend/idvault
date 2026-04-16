@@ -294,6 +294,45 @@ Die Scan-Schaltfläche in der Webapp zeigt je nach Zustand:
 
 Details siehe [10 – Scanner](10-scanner.md).
 
+### 7.5 Fehlersuche: „Pfad nicht erreichbar" beim Dienst-Betrieb
+
+Wird idvault als Windows-Dienst betrieben und die Webapp startet den Scanner
+über einen hinterlegten Scan-User (Administration → Scanner-Einstellungen →
+Run-As), kann der Scanner den UNC-Pfad trotz Zugriffsrechten des Scan-Users
+nicht erreichen. Typische Log-Ausgabe:
+
+```
+[INFO]    Scanner-Identität: LOCAL SERVICE (Konsolen-Session-ID: 0)
+[WARNING] Pfad nicht erreichbar: \\server\freigabe – PermissionError [WinError 5]: Zugriff verweigert
+[WARNING]   Hinweis: Bitte prüfen, ob der oben geloggte Scanner-Benutzer …
+```
+
+Prüfpunkte in dieser Reihenfolge:
+
+1. **Scanner-Identität** – Die erste Log-Zeile nach `Scan-Run #N gestartet`
+   zeigt, unter welcher Identität der Scanner-Subprocess tatsächlich läuft.
+   Steht dort der Dienst-Account (z. B. `LOCAL SERVICE`,
+   `NT AUTHORITY\SYSTEM`, `NETWORK SERVICE`) anstelle des konfigurierten
+   AD-Scan-Users, greift die `Run-As`-Konfiguration nicht:
+   - Scan-User in Administration → Scanner-Einstellungen → Run-As
+     hinterlegen (Domäne, Benutzer, Passwort).
+   - Passwort neu speichern, falls es zwischenzeitlich geändert wurde.
+   - Sicherstellen, dass `pywin32` in der idvault.exe enthalten ist
+     (Log-Eintrag „pywin32 nicht verfügbar – Scanner läuft im aktuellen
+     Benutzerkontext" in `idvault.log` deutet auf einen fehlenden Build hin).
+2. **WinError 5 (Zugriff verweigert)** – Der Scan-User darf das Share nicht
+   lesen. NTFS- und Freigabe-Berechtigungen prüfen, ggf. Gruppenmitgliedschaft
+   durch `gpupdate /force` + neuerliches Anmelden aktualisieren.
+3. **WinError 53 / 67 (Netzwerkpfad nicht gefunden)** – DNS- oder
+   NetBIOS-Auflösung scheitert. Vom Server aus
+   `ping fis.i4024.pb.rz.bankenit.de` und `net view \\<server>` prüfen.
+4. **WinError 1326 (Anmeldung fehlgeschlagen)** – Passwort des Scan-Users
+   im idvault falsch / abgelaufen.
+5. **Dienstkonto selbst** – Wenn der idvault-Dienst als Domänen-Account
+   eingerichtet ist, muss dieses Konto zumindest `Anmelden als Dienst`
+   besitzen; es muss jedoch nicht Zugriff auf das Share haben, solange der
+   konfigurierte Scan-User greift.
+
 ## 8 Backup und Wiederherstellung
 
 ### 8.1 Sicherungsobjekt
