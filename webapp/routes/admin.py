@@ -3059,6 +3059,7 @@ def update_index():
     active_version = (version_info or {}).get('version', bundled_version)
     update_active = os.path.isdir(upd_dir)
 
+    service_name = os.environ.get('IDV_SERVICE_NAME', '').strip()
     return render_template(
         "admin/update.html",
         bundled_version=bundled_version,
@@ -3067,6 +3068,7 @@ def update_index():
         changelog=changelog,
         upd_dir=upd_dir,
         sidecar_updates_enabled=_sidecar_updates_enabled(),
+        service_name=service_name,
     )
 
 
@@ -3222,31 +3224,49 @@ def update_upload():
 def _trigger_restart():
     """Startet die EXE sauber neu (gemeinsame Logik für Update & Rollback).
 
-    Schreibt eine Batch-Datei neben die EXE, die:
-      1. PyInstaller-Umgebungsvariablen löscht (_MEIPASS2 etc.)
-      2. PATH auf Windows-Systemstandard zurücksetzt
-      3. ~3 Sekunden wartet, bis Port 5000 freigegeben ist
-      4. Die EXE über "start" in einem neuen Konsolenfenster startet
-      5. Sich selbst löscht
-    cmd.exe läuft unsichtbar (CREATE_NO_WINDOW), die neue EXE-Instanz
-    bekommt ein eigenes, sichtbares Konsolenfenster.
+    Direktmodus (IDV_SERVICE_NAME nicht gesetzt):
+      Schreibt eine Batch-Datei neben die EXE, die:
+        1. PyInstaller-Umgebungsvariablen löscht (_MEIPASS2 etc.)
+        2. PATH auf Windows-Systemstandard zurücksetzt
+        3. ~3 Sekunden wartet, bis der Port freigegeben ist
+        4. Die EXE über "start" in einem neuen Konsolenfenster startet
+        5. Sich selbst löscht
+
+    Dienstmodus (IDV_SERVICE_NAME in config.json/Umgebungsvariable gesetzt):
+      Schreibt eine Batch-Datei, die nach dem Prozessende ``sc start
+      <servicename>`` ausführt. Der Windows-Dienst-Manager startet den
+      Dienst dann sauber über den SCM neu – kein loses EXE-Fenster.
+      Voraussetzung: Das Dienstkonto (z. B. LOCAL SYSTEM) muss das Recht
+      SERVICE_START für den eigenen Dienst besitzen (bei LOCAL SYSTEM
+      standardmäßig vorhanden).
     """
     def _do():
         import time
         time.sleep(1.5)
         if getattr(sys, 'frozen', False):
             exe = sys.executable
+            service_name = os.environ.get('IDV_SERVICE_NAME', '').strip()
             bat_path = os.path.join(os.path.dirname(exe), '_idvault_restart.bat')
-            bat = (
-                '@echo off\r\n'
-                'set _MEIPASS2=\r\n'
-                'set _PYI_ARCHIVE_FILE=\r\n'
-                'set PATH=%SystemRoot%\\system32;%SystemRoot%;'
-                '%SystemRoot%\\System32\\Wbem\r\n'
-                'ping -n 4 127.0.0.1 > nul\r\n'
-                'start "" "{exe}"\r\n'
-                'del "%~f0"\r\n'
-            ).format(exe=exe)
+            if service_name:
+                # Dienstmodus: nach dem Exit des Prozesses den Dienst über
+                # sc.exe neu starten. ping dient als portabler sleep-Ersatz.
+                bat = (
+                    '@echo off\r\n'
+                    'ping -n 4 127.0.0.1 > nul\r\n'
+                    'sc start "{svc}"\r\n'
+                    'del "%~f0"\r\n'
+                ).format(svc=service_name)
+            else:
+                bat = (
+                    '@echo off\r\n'
+                    'set _MEIPASS2=\r\n'
+                    'set _PYI_ARCHIVE_FILE=\r\n'
+                    'set PATH=%SystemRoot%\\system32;%SystemRoot%;'
+                    '%SystemRoot%\\System32\\Wbem\r\n'
+                    'ping -n 4 127.0.0.1 > nul\r\n'
+                    'start "" "{exe}"\r\n'
+                    'del "%~f0"\r\n'
+                ).format(exe=exe)
             with open(bat_path, 'w', encoding='ascii') as _f:
                 _f.write(bat)
             subprocess.Popen(
