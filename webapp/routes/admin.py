@@ -338,7 +338,7 @@ _RUNAS_REQUIRED_MODULES = (
 
 
 def _check_runas_modules() -> tuple:
-    """Prüft, ob alle pywin32-Module für CreateProcessWithLogonW vorhanden sind.
+    """Prüft, ob alle pywin32-Module für LogonUser + CreateProcessAsUser vorhanden sind.
 
     Gibt ``(ok, missing)`` zurück. ``missing`` listet die fehlenden Modul-
     namen, falls ein Import scheitert – typischerweise weil der EXE-Build
@@ -482,7 +482,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
             _write_scanner_notice(log_path, [
                 f"Starte Scanner als Run-As-Benutzer "
                 f"{runas['domain'] or '.'}\\{runas['username']} "
-                f"(CreateProcessWithLogonW)…"
+                f"(LogonUser + CreateProcessAsUser)…"
             ])
             try:
                 pid, wait_fn = _start_proc_with_logon(
