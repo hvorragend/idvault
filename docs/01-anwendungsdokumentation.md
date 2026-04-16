@@ -224,21 +224,24 @@ Maßnahmen. Jede Maßnahme enthält:
 
 ### 5.5 Test- und Freigabeverfahren
 
-Für **wesentliche IDVs** mit wesentlicher Änderung ist ein vierstufiges
-Test- und Freigabeverfahren in zwei parallelen Phasen vorgesehen:
+Für **wesentliche IDVs** mit wesentlicher Änderung ist ein fünfstufiges
+Test-, Abnahme- und Archivierungsverfahren in drei Phasen vorgesehen:
 
 ```
-Phase 1 (parallel):         Phase 2 (parallel):
-┌──────────────────┐        ┌──────────────────┐
-│ Fachlicher Test  │        │ Fachliche Abnahme│
-└────────┬─────────┘        └────────┬─────────┘
-         │ beide bestanden?          │ beide bestanden?
-┌────────┴─────────┐    →   ┌────────┴─────────┐  →  IDV freigegeben
-│Technischer Test  │        │Technische Abnahme│
-└──────────────────┘        └──────────────────┘
+Phase 1 (parallel):         Phase 2 (parallel):         Phase 3:
+┌──────────────────┐        ┌──────────────────┐        ┌──────────────────────┐
+│ Fachlicher Test  │        │ Fachliche Abnahme│        │ Archivierung         │
+└────────┬─────────┘        └────────┬─────────┘        │ Originaldatei        │
+         │ beide bestanden?          │ beide bestanden? │ (revisionssicher)    │
+┌────────┴─────────┐    →   ┌────────┴─────────┐    →   └──────────┬───────────┘
+│Technischer Test  │        │Technische Abnahme│                   │
+└──────────────────┘        └──────────────────┘                   ▼
+                                                          IDV freigegeben
 ```
 
 **Phase 2 kann erst gestartet werden, wenn beide Phase-1-Schritte bestanden sind.**
+Phase 3 wird automatisch angelegt, sobald beide Phase-2-Schritte bestanden
+sind; die Gesamtfreigabe erfolgt erst nach Abschluss der Archivierung.
 
 | Schritt-Status | Bedeutung |
 |---|---|
@@ -249,6 +252,18 @@ Phase 1 (parallel):         Phase 2 (parallel):
 
 Nachweise (Screenshots, Testberichte, Freigabeerklärungen) können pro
 Schritt als Datei-Upload (PDF, XLSX, DOCX u. a., max. 32 MB) hinterlegt werden.
+
+**Phase 3 – Archivierung der Originaldatei (MaRisk AT 7.2 / HGB § 239):**
+Die Originaldatei einer wesentlichen Eigenentwicklung muss revisionssicher
+archiviert werden. Der Schritt bietet zwei Abschlusspfade:
+
+| Pfad | Verhalten |
+|---|---|
+| **Datei archiviert** | Upload der Originaldatei (bis 256 MB, beliebiges Format). Die Datei wird schreibgeschützt unter `instance/uploads/archiv/<idv_id>/` abgelegt und mit einer SHA-256-Prüfsumme versehen. |
+| **Nicht verfügbar** | Für Fälle, in denen die Datei selbst nicht exportierbar ist (z.B. Cognos-Berichte in agree21Analysen, serverseitige Skripte ohne Sicherung). Es ist eine nachvollziehbare Begründung zwingend erforderlich; der Schritt wird trotzdem als dokumentierter Statusschritt festgehalten. |
+
+Der Download einer archivierten Originaldatei und der Zugriff auf die
+SHA-256-Prüfsumme sind in der Detailansicht der IDV möglich.
 
 ### 5.6 Genehmigungen (4-Augen-Workflow)
 

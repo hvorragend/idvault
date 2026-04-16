@@ -16,7 +16,7 @@ aufsichtsrechtlich konformen Erfassung, Klassifizierung, Prüfung und
 - **IDV-Register** dokumentiert Wesentlichkeit, Risiko, DORA-Kritikalität, Verantwortliche
 - **Workflow** bildet Entwurf → Prüfung → Genehmigung → Archiv ab (inklusive 4-Augen-Prinzip)
 - **Prüfungen & Maßnahmen** verfolgen Regelprüfungen und deren Befunde
-- **Test- und Freigabeverfahren** mit 4 Schritten in 2 Phasen für wesentliche IDVs
+- **Test-, Freigabe- und Archivierungsverfahren** mit 5 Schritten in 3 Phasen für wesentliche IDVs (inkl. revisionssicherer Archivierung der Originaldatei mit SHA-256-Prüfsumme; dokumentierte Nicht-Verfügbarkeit z.B. bei Cognos-Berichten)
 - **LDAP-Integration** gegen Active Directory mit Gruppen-Rollen-Mapping
 - **Audit-Trail** auf Tabellen- und Login-Ebene
 - **Export** nach Excel für Revision und Aufsicht

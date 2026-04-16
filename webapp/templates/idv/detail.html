@@ -636,11 +636,13 @@
     <!-- Test- und Freigabeverfahren -->
     {% if ist_wesentlich %}
     {% set is_admin = session.get('user_role') == 'IDV-Administrator' %}
-    <div class="card border-0 shadow-sm mb-4">
+    <div class="card border-0 shadow-sm mb-4" id="freigabeverfahren">
       <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
         <span><i class="bi bi-shield-check me-2"></i>Test & Freigabe</span>
-        {% if phase2_erledigt %}
+        {% if phase2_erledigt and phase3_erledigt %}
         <span class="badge bg-success">Freigegeben</span>
+        {% elif phase2_erledigt and not phase3_erledigt %}
+        <span class="badge bg-warning text-dark">Archivierung ausstehend</span>
         {% elif hat_offenen_schritt %}
         <span class="badge bg-warning text-dark">Läuft</span>
         {% elif freigaben | selectattr('status','equalto','Abgebrochen') | list %}
@@ -836,6 +838,134 @@
               </div>
             </div>
             {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# ── Phase 3: Archivierung Originaldatei ── #}
+        {% if phase3_gestartet %}
+        <div class="mb-2">
+          <div class="d-flex align-items-center mb-2">
+            <span class="fw-600 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
+              <i class="bi bi-3-circle me-1"></i>Phase 3 – Archivierung Originaldatei
+            </span>
+            {% if phase3_erledigt %}
+            <span class="badge bg-success ms-2" style="font-size:.65rem">Archivierung abgeschlossen</span>
+            {% endif %}
+          </div>
+          <div class="row g-2">
+            {% for schritt_name in ['Archivierung Originaldatei'] %}
+            {% set f_rows = freigaben | selectattr('schritt','equalto',schritt_name) | list %}
+            {% set f = f_rows[-1] if f_rows else none %}
+            <div class="col-12">
+              <div class="border rounded p-2 h-100
+                {% if f and f.status == 'Erledigt' %}border-success bg-success bg-opacity-10
+                {% elif f and f.status == 'Nicht erledigt' %}border-danger bg-danger bg-opacity-10
+                {% elif f and f.status == 'Ausstehend' %}border-warning bg-warning bg-opacity-10
+                {% elif f and f.status == 'Abgebrochen' %}border-secondary bg-light
+                {% else %}bg-light{% endif %}">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  {% if not f %}<i class="bi bi-plus-circle text-primary"></i>
+                  {% elif f.status == 'Erledigt' and f.datei_verfuegbar == 1 %}<i class="bi bi-archive-fill text-success"></i>
+                  {% elif f.status == 'Erledigt' and f.datei_verfuegbar == 0 %}<i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                  {% elif f.status == 'Erledigt' %}<i class="bi bi-check-circle-fill text-success"></i>
+                  {% elif f.status == 'Nicht erledigt' %}<i class="bi bi-x-circle-fill text-danger"></i>
+                  {% elif f.status == 'Ausstehend' %}<i class="bi bi-hourglass-split text-warning"></i>
+                  {% else %}<i class="bi bi-slash-circle text-secondary"></i>
+                  {% endif %}
+                  <span class="fw-500" style="font-size:.82rem">{{ schritt_name }}</span>
+                  {% if f %}
+                  {% if f.status == 'Erledigt' and f.datei_verfuegbar == 1 %}
+                  <span class="badge ms-auto bg-success" style="font-size:.6rem" title="Originaldatei revisionssicher archiviert">
+                    Archiviert
+                  </span>
+                  {% elif f.status == 'Erledigt' and f.datei_verfuegbar == 0 %}
+                  <span class="badge ms-auto bg-warning text-dark" style="font-size:.6rem"
+                        title="Originaldatei nicht verfügbar (z.B. Cognos) – als Statusschritt festgehalten">
+                    Nicht verfügbar
+                  </span>
+                  {% else %}
+                  <span class="badge ms-auto
+                    {% if f.status == 'Erledigt' %}bg-success
+                    {% elif f.status == 'Nicht erledigt' %}bg-danger
+                    {% elif f.status == 'Ausstehend' %}bg-warning text-dark
+                    {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
+                  {% endif %}
+                  {% else %}
+                  <span class="badge ms-auto bg-light text-muted border" style="font-size:.6rem">gelöscht</span>
+                  {% endif %}
+                </div>
+
+                {% if f and f.status == 'Erledigt' and f.datei_verfuegbar == 1 and f.archiv_datei_name %}
+                <div class="mt-2" style="font-size:.78rem">
+                  <i class="bi bi-file-earmark-lock me-1 text-muted"></i>
+                  <a href="{{ url_for('freigaben.archiv_download', freigabe_id=f.id) }}"
+                     class="text-decoration-none">{{ f.archiv_datei_name }}</a>
+                  {% if f.archiv_datei_sha256 %}
+                  <div class="text-muted font-monospace mt-1"
+                       style="font-size:.7rem;word-break:break-all">
+                    SHA-256: {{ f.archiv_datei_sha256 }}
+                  </div>
+                  {% endif %}
+                </div>
+                {% elif f and f.status == 'Erledigt' and f.datei_verfuegbar == 0 and f.befunde %}
+                <div class="mt-2 text-muted" style="font-size:.78rem">
+                  <i class="bi bi-info-circle me-1"></i>{{ f.befunde }}
+                </div>
+                {% endif %}
+
+                <div class="d-flex gap-1 mt-2">
+                  {% if not f and can_create %}
+                    <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="schritt" value="{{ schritt_name }}">
+                      <button type="submit" class="btn btn-xs btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i>Archivierung anlegen
+                      </button>
+                    </form>
+                  {% elif f and f.status == 'Ausstehend' and can_create %}
+                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                       class="btn btn-xs btn-outline-success" title="Archivierung vornehmen">
+                      <i class="bi bi-archive me-1"></i>Archivieren
+                    </a>
+                  {% elif f %}
+                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                  {% endif %}
+
+                  {% if f and is_admin %}
+                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}" data-confirm="{{ schritt_name }} löschen?" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% elif phase2_erledigt and can_create %}
+        {# Phase 3 wurde gelöscht, aber Phase 2 ist komplett → Archivierung erneut anlegbar #}
+        <div class="mb-2">
+          <div class="alert alert-warning py-2 mb-0" style="font-size:.82rem">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>Archivierung der Originaldatei ausstehend.</strong>
+            Die Originaldatei einer wesentlichen Eigenentwicklung ist
+            revisionssicher abzulegen (MaRisk AT 7.2). Ist die Datei nicht
+            verfügbar (z.B. Cognos-Bericht), kann dies als Statusschritt
+            mit Begründung dokumentiert werden.
+            <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline ms-2">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="schritt" value="Archivierung Originaldatei">
+              <button type="submit" class="btn btn-xs btn-warning">
+                <i class="bi bi-archive me-1"></i>Archivierung anlegen
+              </button>
+            </form>
           </div>
         </div>
         {% endif %}

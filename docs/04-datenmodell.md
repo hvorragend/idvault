@@ -305,18 +305,26 @@ fachlich nicht vorgesehen.
 | `stufe2_genehmiger_id` | IT-Sicherheit/Revision |
 | `stufe2_status` | Ausstehend/Genehmigt/Abgelehnt/Nicht erforderlich |
 
-### 6.5 `idv_freigaben` – Test- und Abnahmeverfahren
+### 6.5 `idv_freigaben` – Test-, Abnahme- und Archivierungsverfahren
 
 | Spalte | Zweck |
 |---|---|
 | `id` | PK |
 | `idv_db_id` | FK → `idv_register(id)` |
-| `phase` | 1 (Test) / 2 (Abnahme) |
-| `schritt` | `Fachlicher Test` / `Technischer Test` / `Fachliche Abnahme` / `Technische Abnahme` |
+| `phase` | 1 (Test) / 2 (Abnahme) / 3 (Archivierung) |
+| `schritt` | `Fachlicher Test` / `Technischer Test` / `Fachliche Abnahme` / `Technische Abnahme` / `Archivierung Originaldatei` |
 | `beauftragter_id` / `durchfuehrer_id` | Personen-FK |
 | `status` | `Ausstehend` / `Bestanden` / `Nicht bestanden` / `Abgebrochen` |
 | `nachweise_text` | Freitext |
-| `nachweis_datei_pfad`, `nachweis_datei_name` | Upload-Referenz |
+| `nachweis_datei_pfad`, `nachweis_datei_name` | Upload-Referenz (Nachweis) |
+| `datei_verfuegbar` | NULL = n/a, 1 = Originaldatei archiviert, 0 = nicht verfügbar (Cognos etc.) |
+| `archiv_datei_pfad`, `archiv_datei_name` | Revisionssichere Ablage der Originaldatei (nur Schritt „Archivierung Originaldatei") |
+| `archiv_datei_sha256` | SHA-256-Prüfsumme zur Integritätssicherung |
+
+Phase 3 („Archivierung Originaldatei") wird automatisch angelegt, sobald beide
+Phase-2-Schritte erledigt sind. Erst nach Abschluss dieses Schritts (Upload
+der Originaldatei **oder** dokumentierte Nicht-Verfügbarkeit mit Begründung)
+wird der Teststatus der IDV auf `Freigegeben` gesetzt.
 
 ### 6.6 `idv_wesentlichkeit` – Antworten zum Wesentlichkeits-Fragebogen
 

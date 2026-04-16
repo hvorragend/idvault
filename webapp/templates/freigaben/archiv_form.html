@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}{{ freigabe.schritt }} – {{ freigabe.status if readonly else 'Archivieren' }}{% endblock %}
+{% block page_title %}
+{% if readonly %}
+<i class="bi bi-archive-fill text-primary me-2"></i>{{ freigabe.schritt }} – {{ freigabe.status }}
+{% else %}
+<i class="bi bi-archive-fill text-primary me-2"></i>{{ freigabe.schritt }} – Originaldatei ablegen
+{% endif %}
+– {{ idv.bezeichnung }}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+
+    <!-- Aktionszeile oben -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
+         class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Zurück
+      </a>
+    </div>
+
+    {% if readonly %}
+    <!-- ── Lesemodus ── -->
+    <div class="form-section">
+      <div class="form-section-title">
+        <i class="bi bi-archive me-1"></i>Archivierungsprotokoll
+      </div>
+
+      {% if freigabe.durchgefuehrt_von %}
+      <div class="mb-2" style="font-size:.85rem">
+        <span class="text-muted">Durchgeführt von:</span>
+        <strong class="ms-1">{{ freigabe.durchgefuehrt_von }}</strong>
+        {% if freigabe.durchgefuehrt_am %}
+        <span class="text-muted ms-2">· {{ freigabe.durchgefuehrt_am[:10]|datefmt }}</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="mb-3">
+        <div class="form-label text-muted" style="font-size:.82rem">Status der Originaldatei</div>
+        {% if freigabe.datei_verfuegbar == 1 %}
+        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Archiviert</span>
+        {% elif freigabe.datei_verfuegbar == 0 %}
+        <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Nicht verfügbar</span>
+        {% else %}
+        <span class="badge bg-secondary">Unbekannt</span>
+        {% endif %}
+      </div>
+
+      {% if freigabe.datei_verfuegbar == 1 and freigabe.archiv_datei_name %}
+      <div class="mb-2" style="font-size:.85rem">
+        <div class="form-label text-muted" style="font-size:.82rem">Archivierte Originaldatei</div>
+        <i class="bi bi-file-earmark-lock me-1 text-muted"></i>
+        <a href="{{ url_for('freigaben.archiv_download', freigabe_id=freigabe.id) }}"
+           class="text-decoration-none">{{ freigabe.archiv_datei_name }}</a>
+      </div>
+      {% if freigabe.archiv_datei_sha256 %}
+      <div class="mb-2">
+        <div class="form-label text-muted" style="font-size:.82rem">
+          SHA-256-Prüfsumme (Revisionssicherheit)
+        </div>
+        <div class="font-monospace text-break border rounded p-2 bg-light"
+             style="font-size:.78rem">{{ freigabe.archiv_datei_sha256 }}</div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if freigabe.befunde %}
+      <div class="mb-2">
+        <div class="form-label text-muted" style="font-size:.82rem">
+          {% if freigabe.datei_verfuegbar == 0 %}Begründung (Datei nicht verfügbar)
+          {% else %}Anmerkung{% endif %}
+        </div>
+        <div class="border rounded p-2" style="font-size:.9rem">{{ freigabe.befunde }}</div>
+      </div>
+      {% endif %}
+
+      {% if freigabe.kommentar %}
+      <div class="mb-2">
+        <div class="form-label text-muted" style="font-size:.82rem">Kommentar</div>
+        <div class="border rounded p-2" style="font-size:.9rem">{{ freigabe.kommentar }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    {% else %}
+    <!-- ── Bearbeitungsmodus ── -->
+    <div class="alert alert-info py-2 mb-3" style="font-size:.85rem">
+      <i class="bi bi-info-circle me-1"></i>
+      <strong>MaRisk AT 7.2 Tz. 7 / HGB § 239:</strong> Die Originaldatei einer
+      wesentlichen Eigenentwicklung muss revisionssicher archiviert werden.
+      Wenn die Datei selbst nicht verfügbar ist (z.B. Cognos-Berichte, die
+      ausschließlich in agree21Analysen gespeichert sind), ist dies als
+      Statusschritt mit Begründung festzuhalten.
+    </div>
+
+    <form method="post" action="{{ url_for('freigaben.archivieren', freigabe_id=freigabe.id) }}"
+          enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-section">
+        <div class="form-section-title">
+          <i class="bi bi-archive me-1"></i>Archivierungs-Entscheidung
+        </div>
+
+        <div class="mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="datei_verfuegbar"
+                   id="opt_verfuegbar" value="1" checked>
+            <label class="form-check-label" for="opt_verfuegbar">
+              <strong>Originaldatei liegt vor</strong> – Datei hochladen und revisionssicher archivieren
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="datei_verfuegbar"
+                   id="opt_nicht_verfuegbar" value="0">
+            <label class="form-check-label" for="opt_nicht_verfuegbar">
+              <strong>Originaldatei nicht verfügbar</strong> – z.B. Cognos-Bericht,
+              serverseitiges Skript ohne Sicherung, …
+            </label>
+          </div>
+        </div>
+
+        <!-- Upload-Bereich (sichtbar wenn Datei vorhanden) -->
+        <div id="block-upload">
+          <div class="mb-3">
+            <label class="form-label fw-500">Originaldatei</label>
+            <input type="file" name="archiv_datei" id="archiv_datei" class="form-control">
+            <div class="form-text">
+              Die Datei wird schreibgeschützt abgelegt und mit einem SHA-256-Hash
+              versehen. Maximalgröße 256 MB. Zugelassen sind alle Dateiformate
+              (Excel, Access, Python, SQL, PBIX, ZIP, …).
+            </div>
+          </div>
+        </div>
+
+        <!-- Begründung (Pflicht wenn "nicht verfügbar") -->
+        <div class="mb-3">
+          <label class="form-label fw-500">
+            Begründung
+            <span id="begr-required" class="text-danger d-none">(Pflicht)</span>
+            <span id="begr-optional" class="text-muted fw-normal">(optional)</span>
+          </label>
+          <textarea name="archiv_begruendung" id="archiv_begruendung" class="form-control"
+                    rows="3"
+                    placeholder="Grund für fehlende Verfügbarkeit oder Anmerkung zur Archivierung …"></textarea>
+          <div class="form-text" id="begr-help-default">
+            Optionaler Kontext zur Archivierung.
+          </div>
+          <div class="form-text d-none" id="begr-help-required">
+            Bitte nachvollziehbar erläutern, warum die Originaldatei nicht
+            verfügbar ist (z.B. „Cognos-Report – Quelle liegt ausschließlich
+            auf agree21Analysen, kein Export möglich").
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label fw-500">Kommentar <span class="text-muted fw-normal">(optional)</span></label>
+          <textarea name="kommentar" class="form-control" rows="2"
+                    placeholder="Ergänzende Hinweise …"></textarea>
+        </div>
+
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center">
+        <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
+           class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Abbrechen
+        </a>
+        <button type="submit" class="btn btn-success">
+          <i class="bi bi-archive-fill me-1"></i>Archivierung abschließen
+        </button>
+      </div>
+    </form>
+    {% endif %}
+
+  </div><!-- /col-lg-8 -->
+
+  <!-- Kontext-Sidebar -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-info-circle me-2"></i>IDV-Kontext
+      </div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">IDV-ID</div>
+          <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Bezeichnung</div>
+          <div class="fw-500">{{ idv.bezeichnung }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Freigabe-Schritt</div>
+          <div class="fw-500">{{ freigabe.schritt }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Status</div>
+          <span class="badge
+            {% if freigabe.status == 'Erledigt' %}bg-success
+            {% elif freigabe.status == 'Nicht erledigt' %}bg-danger
+            {% elif freigabe.status == 'Ausstehend' %}bg-warning text-dark
+            {% else %}bg-secondary{% endif %}">{{ freigabe.status }}</span>
+        </li>
+        {% if freigabe.zugewiesen_an %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Beauftragt an</div>
+          <div class="fw-500">{{ freigabe.zugewiesen_an }}</div>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div><!-- /col-lg-4 -->
+
+</div><!-- /row -->
+{% endblock %}
+
+{% block extra_js %}
+{% if not readonly %}
+<script>
+(function () {
+  var blockUpload  = document.getElementById('block-upload');
+  var fileInput    = document.getElementById('archiv_datei');
+  var begrInput    = document.getElementById('archiv_begruendung');
+  var reqMark      = document.getElementById('begr-required');
+  var optMark      = document.getElementById('begr-optional');
+  var helpDefault  = document.getElementById('begr-help-default');
+  var helpRequired = document.getElementById('begr-help-required');
+
+  function update() {
+    var verfuegbar = document.querySelector('input[name="datei_verfuegbar"]:checked');
+    var v = verfuegbar ? verfuegbar.value : '1';
+    if (v === '1') {
+      blockUpload.classList.remove('d-none');
+      if (fileInput) fileInput.required = true;
+      if (begrInput) begrInput.required = false;
+      reqMark.classList.add('d-none');
+      optMark.classList.remove('d-none');
+      helpDefault.classList.remove('d-none');
+      helpRequired.classList.add('d-none');
+    } else {
+      blockUpload.classList.add('d-none');
+      if (fileInput) {
+        fileInput.required = false;
+        fileInput.value = '';
+      }
+      if (begrInput) begrInput.required = true;
+      reqMark.classList.remove('d-none');
+      optMark.classList.add('d-none');
+      helpDefault.classList.add('d-none');
+      helpRequired.classList.remove('d-none');
+    }
+  }
+  document.querySelectorAll('input[name="datei_verfuegbar"]').forEach(function (el) {
+    el.addEventListener('change', update);
+  });
+  update();
+})();
+</script>
+{% endif %}
+{% endblock %}

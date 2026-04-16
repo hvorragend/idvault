@@ -63,6 +63,23 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
     for col, stmt in migrations:
         if col not in existing_cols:
             conn.execute(stmt)
+
+    # Archivierung Originaldatei (Phase 3 im Freigabeverfahren, MaRisk AT 7.2):
+    # Neue Spalten in idv_freigaben für revisionssichere Archivierung.
+    existing_freigaben_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(idv_freigaben)").fetchall()
+    }
+    freigaben_migrations = [
+        ("datei_verfuegbar",    "ALTER TABLE idv_freigaben ADD COLUMN datei_verfuegbar INTEGER"),
+        ("archiv_datei_pfad",   "ALTER TABLE idv_freigaben ADD COLUMN archiv_datei_pfad TEXT"),
+        ("archiv_datei_name",   "ALTER TABLE idv_freigaben ADD COLUMN archiv_datei_name TEXT"),
+        ("archiv_datei_sha256", "ALTER TABLE idv_freigaben ADD COLUMN archiv_datei_sha256 TEXT"),
+    ]
+    for col, stmt in freigaben_migrations:
+        if col not in existing_freigaben_cols:
+            conn.execute(stmt)
+
     # Daten-Migration: Status "Genehmigt" → "Freigegeben" (idempotent)
     conn.execute("UPDATE idv_register SET status = 'Freigegeben' WHERE status = 'Genehmigt'")
     conn.execute("UPDATE idv_register SET status = 'Freigegeben mit Auflagen' WHERE status = 'Genehmigt mit Auflagen'")
