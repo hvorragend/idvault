@@ -104,14 +104,15 @@ def _get_smtp_config(db) -> dict:
     else:
         password = _decrypt_smtp_password(cfg.get("smtp_password", ""))
 
+    # Leere Env-Vars werden wie "nicht gesetzt" behandelt (DB-Wert hat Vorrang).
     return {
-        "host":     os.environ.get("IDV_SMTP_HOST",     cfg.get("smtp_host",  "")),
-        "port":     int(os.environ.get("IDV_SMTP_PORT", cfg.get("smtp_port",  587))),
-        "user":     os.environ.get("IDV_SMTP_USER",     cfg.get("smtp_user",  "")),
+        "host":     os.environ.get("IDV_SMTP_HOST") or cfg.get("smtp_host",  ""),
+        "port":     int(os.environ.get("IDV_SMTP_PORT") or cfg.get("smtp_port",  587)),
+        "user":     os.environ.get("IDV_SMTP_USER") or cfg.get("smtp_user",  ""),
         "password": password,
-        "from":     os.environ.get("IDV_SMTP_FROM",     cfg.get("smtp_from",  "")),
+        "from":     os.environ.get("IDV_SMTP_FROM") or cfg.get("smtp_from",  ""),
         "tls_mode": _parse_tls_mode(
-            os.environ.get("IDV_SMTP_TLS", cfg.get("smtp_tls", "starttls"))
+            os.environ.get("IDV_SMTP_TLS") or cfg.get("smtp_tls", "starttls")
         ),
     }
 
