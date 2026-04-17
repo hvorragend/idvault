@@ -118,6 +118,11 @@ def list_funde():
     q_search    = request.args.get("q", "").strip()
     sort        = request.args.get("sort", "scan").strip()
     order       = request.args.get("order", "desc").strip()
+    highlight_raw = request.args.get("highlight", "").strip()
+    try:
+        highlight_id = int(highlight_raw) if highlight_raw else None
+    except ValueError:
+        highlight_id = None
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
@@ -241,6 +246,17 @@ def list_funde():
         LIMIT ? OFFSET ?
     """, params + [per_page, (page - 1) * per_page]).fetchall()
 
+    # Wenn highlight gesetzt und Datei nicht auf aktueller Seite: zur richtigen Seite weiterleiten
+    if highlight_id and not any(f["id"] == highlight_id for f in dateien):
+        all_ids = [r["id"] for r in db.execute(
+            f"SELECT f.id FROM idv_files f {where_sql} {order_sql}", params
+        ).fetchall()]
+        if highlight_id in all_ids:
+            target_page = all_ids.index(highlight_id) // per_page + 1
+            args = request.args.to_dict()
+            args["page"] = str(target_page)
+            return redirect(url_for("funde.list_funde", **args))
+
     # ---------- Duplikat-Erkennung (datenbankweit, nicht nur in der aktuellen Seite) ----------
     duplicate_hashes = {
         r["file_hash"] for r in db.execute("""
@@ -349,6 +365,7 @@ def list_funde():
         persons=persons,
         sort=sort, order=order,
         q_search=q_search,
+        highlight_id=highlight_id,
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
