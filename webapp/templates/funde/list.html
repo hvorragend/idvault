@@ -421,7 +421,8 @@
               </tr>
               {# Detail-Zeilen (eingeklappt) #}
               {% for f in grp %}
-              <tr class="{{ gid }}-row d-none"
+              <tr id="file-{{ f.id }}"
+                  class="{{ gid }}-row d-none"
                   data-formula-count="{{ f.formula_count or 0 }}"
                   data-has-idv="{{ '1' if f.reg_idv_id else '0' }}">
                 <td></td>
@@ -521,7 +522,8 @@
           {% else %}
             {# ── Normale Listenansicht ── #}
           {% for f in dateien %}
-          <tr class="{{ 'table-secondary text-muted' if f.status == 'archiviert' else '' }}"
+          <tr id="file-{{ f.id }}"
+              class="{{ 'table-secondary text-muted' if f.status == 'archiviert' else '' }}"
               data-formula-count="{{ f.formula_count or 0 }}"
               data-has-idv="{{ '1' if f.reg_idv_id else '0' }}">
 
@@ -884,5 +886,21 @@ window.deleteScannerfund = deleteScannerfund;
 
 // ── Spaltensortierung wird zentral im extra_head-Block aus dem
 // sessionStorage wiederhergestellt – siehe oben. ─────────────────────
+
+{% if highlight_id %}
+(function () {
+  var row = document.getElementById('file-{{ highlight_id }}');
+  if (!row) return;
+  // Duplikat-Gruppe aufklappen falls die Zeile versteckt ist
+  if (row.classList.contains('d-none')) {
+    var groupClass = Array.from(row.classList).find(function (c) { return /^dup-[a-f0-9]+-row$/.test(c); });
+    if (groupClass) {
+      toggleDupGroup(groupClass.replace(/-row$/, ''));
+    }
+  }
+  row.classList.add('table-warning');
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+})();
+{% endif %}
 </script>
 {% endblock %}
