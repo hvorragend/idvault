@@ -77,15 +77,15 @@
       ".py", ".r", ".rmd",
       ".sql"
     ],
-    "exclude_paths": [
+    "exclude_paths": [],
+    "_kommentar_blackwhitelist": "blacklist_paths: Ausschluss-Muster (Regex oder Substring) – Dateien/Verzeichnisse, deren Pfad einem Muster entspricht, werden übersprungen. whitelist_paths: Wenn nicht leer, werden NUR Dateien/Verzeichnisse verarbeitet, die einem Muster entsprechen. Hat Vorrang vor blacklist_paths.",
+    "blacklist_paths": [
       "~$",
       ".tmp",
-      "$RECYCLE.BIN",
+      "\\$RECYCLE\\.BIN",
       "System Volume Information",
       "AppData"
     ],
-    "_kommentar_blackwhitelist": "blacklist_paths: Dateien/Verzeichnisse, die diesen Mustern entsprechen, werden übersprungen. whitelist_paths: Wenn nicht leer, werden NUR Dateien/Verzeichnisse verarbeitet, die einem Muster entsprechen. Beide Listen unterstützen Teilzeichenketten und reguläre Ausdrücke (Python re, Groß-/Kleinschreibung ignoriert). blacklist_paths hat Vorrang vor whitelist_paths.",
-    "blacklist_paths": [],
     "whitelist_paths": [],
     "db_path": "instance/idvault.db",
     "log_path": "instance/logs/idv_scanner.log",

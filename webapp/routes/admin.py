@@ -84,7 +84,7 @@ def _instance_logs_dir() -> str:
 
 
 _SCANNER_CFG_KEYS = frozenset({
-    "scan_paths", "extensions", "exclude_paths", "db_path", "log_path",
+    "scan_paths", "extensions", "db_path", "log_path",
     "hash_size_limit_mb", "max_workers", "move_detection", "scan_since", "read_file_owner",
     "blacklist_paths", "whitelist_paths",
 })
@@ -100,8 +100,7 @@ def _default_scanner_cfg() -> dict:
     return {
         "scan_paths": [],
         "extensions": _DEFAULT_SCANNER_EXTENSIONS,
-        "exclude_paths": _DEFAULT_SCANNER_EXCLUDE,
-        "blacklist_paths": [],
+        "blacklist_paths": _DEFAULT_SCANNER_EXCLUDE,
         "whitelist_paths": [],
         "db_path": "instance/idvault.db",
         "log_path": "instance/logs/idv_scanner.log",
@@ -837,7 +836,6 @@ def scanner_einstellungen():
 
         scan_paths    = [p.strip() for p in request.form.get("scan_paths",    "").splitlines() if p.strip()]
         extensions    = [e.strip().lower() for e in request.form.get("extensions",    "").splitlines() if e.strip()]
-        exclude_paths = [p.strip() for p in request.form.get("exclude_paths", "").splitlines() if p.strip()]
         blacklist_paths = [p.strip() for p in request.form.get("blacklist_paths", "").splitlines() if p.strip()]
         whitelist_paths = [p.strip() for p in request.form.get("whitelist_paths", "").splitlines() if p.strip()]
 
@@ -867,7 +865,6 @@ def scanner_einstellungen():
         cfg.update({
             "scan_paths":        scan_paths,
             "extensions":        extensions,
-            "exclude_paths":     exclude_paths,
             "blacklist_paths":   blacklist_paths,
             "whitelist_paths":   whitelist_paths,
             "hash_size_limit_mb": hash_limit,

@@ -50,20 +50,9 @@
             >{{ cfg.extensions | join('\n') }}</textarea>
           </div>
 
-          <!-- Ausschluss-Pfade -->
-          <div class="col-md-4">
+          <!-- Ausschluss-Muster -->
+          <div class="col-md-6">
             <label class="form-label fw-600">Ausschluss-Muster
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— ein Muster pro Zeile (Substring)</span>
-            </label>
-            <textarea name="exclude_paths" class="form-control font-monospace"
-                      rows="10" style="font-size:.82rem"
-            >{{ cfg.exclude_paths | join('\n') }}</textarea>
-            <div class="form-text">Legacy-Feld: Substring-Abgleich. Dateien/Verzeichnisse, deren Pfad ein Muster enthält, werden übersprungen.</div>
-          </div>
-
-          <!-- Blacklist -->
-          <div class="col-md-4">
-            <label class="form-label fw-600">Blacklist
               <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— Regex oder Substring, eine Regel pro Zeile</span>
             </label>
             <textarea name="blacklist_paths" class="form-control font-monospace"
@@ -74,7 +63,7 @@
           </div>
 
           <!-- Whitelist -->
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label fw-600">Whitelist
               <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— optional, Regex oder Substring</span>
             </label>
