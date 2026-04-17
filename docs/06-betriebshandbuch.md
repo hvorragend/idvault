@@ -404,6 +404,17 @@ Prüfpunkte in dieser Reihenfolge:
      beim Aufruf von `idvault.exe install/start/stop/remove` fehlt ein
      pywin32-Dienstmodul im EXE-Build. Gleiche Abhilfe wie oben: neu
      bauen mit vollständiger `idvault.spec`.
+   - **Fehler 1053** („Der Dienst antwortete nicht rechtzeitig auf die
+     Start- oder Steuerungsanforderung") beim Starten über
+     `services.msc` / `sc start idvault` – die EXE hat
+     `StartServiceCtrlDispatcher()` nicht innerhalb von ~30 s erreicht.
+     Ab Version mit Lazy-App-Build sollte das nicht mehr auftreten
+     (Flask-App wird erst nach SCM-Connect innerhalb `SvcDoRun` gebaut).
+     Falls doch: langsames `%TEMP%` (Netzlaufwerk-Redirect, Virenscanner,
+     BitLocker-Entschlüsselung) – EXE lokal auf SSD ablegen, oder die
+     systemweite SCM-Wartezeit in der Registry anpassen:
+     `HKLM\SYSTEM\CurrentControlSet\Control\ServicesPipeTimeout`
+     (DWORD, Millisekunden; erfordert Neustart).
    - `LogonUser(…, NETWORK_CLEARTEXT) fehlgeschlagen` – pywin32 ist
      vollständig, aber der Logon schlug fehl. Detail-Ursachen im
      Klammertext:

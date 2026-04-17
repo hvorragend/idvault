@@ -79,7 +79,8 @@ if getattr(sys, 'frozen', False) and '--scan' not in sys.argv:
 # Ohne Handler lässt Windows den Prozess nach ~5 s als "hängend" erscheinen und
 # bietet nur „Prozess beenden" an – das X scheint wirkungslos.
 # Lösung: Eigenen Handler registrieren, der sofort os._exit(0) ruft.
-if getattr(sys, 'frozen', False) and os.name == 'nt' and '--scan' not in sys.argv:
+if getattr(sys, 'frozen', False) and os.name == 'nt' and '--scan' not in sys.argv \
+        and '--service-run' not in sys.argv:
     import ctypes
     import ctypes.wintypes as _cwt
     _CTRL_CLOSE_EVENT = 2
@@ -352,27 +353,56 @@ if '--scan' in sys.argv:
             traceback.print_exc(file=_f)
     sys.exit(0)
 
-from webapp import create_app
+# ── Flask-App lazy aufbauen ──────────────────────────────────────────────────
+# Beim Start als Windows-Dienst (argv enthält --service-run) MUSS
+# servicemanager.StartServiceCtrlDispatcher() innerhalb von ~30 s nach dem
+# EXE-Start erreicht werden — sonst killt SCM den Prozess mit Fehler 1053.
+# In einer PyInstaller-Onefile-EXE verschlingt allein das Entpacken nach
+# %TEMP%\_MEIxxxx schon mehrere Sekunden; create_app() lädt zusätzlich
+# Flask, alle Blueprints, ldap3, cryptography, openpyxl und initialisiert
+# die SQLite-DB – zusammen reicht das auf langsameren Maschinen (oder bei
+# langsamem %TEMP%) nicht für die 30-Sekunden-Grenze.
+#
+# Deshalb: im Service-Modus wird der App-Aufbau erst innerhalb SvcDoRun()
+# angestoßen – nach diesem Zeitpunkt hat pywin32 bereits SERVICE_RUNNING
+# gemeldet und SCM wartet nicht mehr.
+app = None  # wird in _build_app() gesetzt
 
-app = create_app()
 
-# ── Template-Loader in run.py verankern ──────────────────────────────────────
-# run.py ist die einzige Datei die nicht durch den Sidecar überschrieben wird.
-# Der Jinja2-Loader wird hier nach create_app() final gesetzt — korrekt
-# unabhängig davon, von wo oder in welcher Version webapp/__init__.py geladen
-# wurde (z.B. ältere Version aus updates/ ohne IDV_PROJECT_ROOT-Unterstützung).
-from jinja2 import ChoiceLoader, FileSystemLoader as _FSL
+def _build_app():
+    """Baut die Flask-App einmalig auf und setzt den Jinja-Loader."""
+    global app
+    if app is not None:
+        return app
+    from webapp import create_app
+    app = create_app()
 
-if getattr(sys, 'frozen', False):
-    _real_tpl = os.path.join(sys._MEIPASS, 'webapp', 'templates')
-else:
-    _real_tpl = os.path.join(_PROJECT_ROOT, 'webapp', 'templates')
-_ovr_tpl = os.path.join(_PROJECT_ROOT, 'updates', 'templates')
+    # ── Template-Loader in run.py verankern ──
+    # run.py ist die einzige Datei die nicht durch den Sidecar überschrieben
+    # wird. Der Loader wird hier nach create_app() final gesetzt — korrekt
+    # unabhängig davon, von wo oder in welcher Version webapp/__init__.py
+    # geladen wurde (z.B. ältere Version aus updates/ ohne
+    # IDV_PROJECT_ROOT-Unterstützung).
+    from jinja2 import ChoiceLoader, FileSystemLoader as _FSL
 
-if _upd and os.path.isdir(_ovr_tpl):
-    app.jinja_loader = ChoiceLoader([_FSL(_ovr_tpl), _FSL(_real_tpl)])
-else:
-    app.jinja_loader = _FSL(_real_tpl)
+    if getattr(sys, 'frozen', False):
+        _real_tpl = os.path.join(sys._MEIPASS, 'webapp', 'templates')
+    else:
+        _real_tpl = os.path.join(_PROJECT_ROOT, 'webapp', 'templates')
+    _ovr_tpl = os.path.join(_PROJECT_ROOT, 'updates', 'templates')
+
+    if _upd and os.path.isdir(_ovr_tpl):
+        app.jinja_loader = ChoiceLoader([_FSL(_ovr_tpl), _FSL(_real_tpl)])
+    else:
+        app.jinja_loader = _FSL(_real_tpl)
+    return app
+
+
+# Im Service-Modus NICHT eager aufbauen – siehe Kommentar oben.
+# Für gunicorn ("run:app") und den normalen EXE-Start bleibt das Verhalten
+# gleich: app ist nach Import von run.py direkt nutzbar.
+if '--service-run' not in sys.argv:
+    _build_app()
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Optional: Demo-Daten beim ersten Start laden
@@ -393,6 +423,12 @@ def _run_server(service_mode: bool = False):
     service_mode=True: Kein Konsolenoutput; os._exit statt sys.exit, damit
     der Prozess auch aus einem Daemon-Thread heraus zuverlässig beendet wird.
     """
+    # Im Service-Modus wird die Flask-App bewusst erst hier aufgebaut (siehe
+    # Kommentar bei _build_app) – nach diesem Zeitpunkt hat pywin32 bereits
+    # SERVICE_RUNNING an SCM gemeldet, der 30-Sekunden-Timeout (Fehler 1053)
+    # kann hier nicht mehr zuschlagen.
+    _build_app()
+
     from ssl_utils import build_ssl_context, https_enabled
 
     debug = os.environ.get("DEBUG", "0") == "1"
