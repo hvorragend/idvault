@@ -184,9 +184,10 @@ if not os.path.isfile(_config_file):
                     ".py", ".r", ".rmd",
                     ".sql"
                 ],
-                "exclude_paths": [
+                "exclude_paths": [],
+                "blacklist_paths": [
                     "~$", ".tmp",
-                    "$RECYCLE.BIN",
+                    r"\$RECYCLE\.BIN",
                     "System Volume Information",
                     "AppData"
                 ],

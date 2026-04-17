@@ -78,14 +78,14 @@ DEFAULT_CONFIG = {
         ".py", ".r", ".rmd",
         ".sql"
     ],
-    "exclude_paths": [
-        "~$",          # Office-Sperrdateien
+    "exclude_paths": [],
+    "blacklist_paths": [
+        "~$",
         ".tmp",
-        "$RECYCLE.BIN",
+        r"\$RECYCLE\.BIN",
         "System Volume Information",
         "AppData",
     ],
-    "blacklist_paths": [],
     "whitelist_paths": [],
     "path_mappings": [],
     "db_path": "idv_register.db",
@@ -742,16 +742,13 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
     zuletzt geändert wurden, werden übersprungen.
     """
     extensions = set(e.lower() for e in config["extensions"])
-    excludes   = config["exclude_paths"]
     blacklist  = config.get("blacklist_paths", [])
     whitelist  = config.get("whitelist_paths", [])
 
     for root, dirs, files in safe_walk(scan_path, followlinks=False, logger=logger):
-        # Ausschlusspfade: dirs in-place filtern (verhindert Abstieg)
         dirs[:] = [
             d for d in dirs
-            if not should_exclude(os.path.join(root, d), excludes)
-            and should_pass_filters(os.path.join(root, d), blacklist, whitelist)
+            if should_pass_filters(os.path.join(root, d), blacklist, whitelist)
         ]
 
         for fname in files:
@@ -760,8 +757,6 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                 continue
 
             full_path = os.path.join(root, fname)
-            if should_exclude(full_path, excludes):
-                continue
             if not should_pass_filters(full_path, blacklist, whitelist):
                 continue
 
@@ -785,7 +780,6 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
                     logger: logging.Logger, scan_since_ts: Optional[float] = None):
     """Generator: liefert Metadaten-Dicts für Dateien direkt im scan_path (keine Rekursion)."""
     extensions = set(e.lower() for e in config["extensions"])
-    excludes   = config["exclude_paths"]
     blacklist  = config.get("blacklist_paths", [])
     whitelist  = config.get("whitelist_paths", [])
     try:
@@ -807,8 +801,6 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
         ext = Path(fname).suffix.lower()
         if ext not in extensions:
             continue
-        if should_exclude(full_path, excludes):
-            continue
         if not should_pass_filters(full_path, blacklist, whitelist):
             continue
         if scan_since_ts is not None:
@@ -825,14 +817,14 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
             logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
-def _get_toplevel_dirs(scan_path: str, excludes: list) -> list:
+def _get_toplevel_dirs(scan_path: str, blacklist: list, whitelist: list) -> list:
     """Gibt eine sortierte Liste der direkten Unterverzeichnisse zurück."""
     try:
         return sorted([
             os.path.join(scan_path, d)
             for d in os.listdir(scan_path)
             if os.path.isdir(os.path.join(scan_path, d))
-            and not should_exclude(os.path.join(scan_path, d), excludes)
+            and should_pass_filters(os.path.join(scan_path, d), blacklist, whitelist)
         ])
     except OSError:
         return []
@@ -1398,7 +1390,8 @@ def run_scan(config: dict, logger: logging.Logger,
 
     # ── Hauptschleife über Scan-Pfade ─────────────────────────────────────
     try:
-        excludes = config["exclude_paths"]
+        blacklist = config.get("blacklist_paths", [])
+        whitelist = config.get("whitelist_paths", [])
 
         for scan_path in scan_paths:
             accessible, err_msg = _check_path_accessible(scan_path, logger)
@@ -1435,7 +1428,7 @@ def run_scan(config: dict, logger: logging.Logger,
                                      completed_dirs, stats)
 
             # Top-Level-Unterverzeichnisse als einzelne Checkpunkt-Einheiten
-            for subdir in _get_toplevel_dirs(scan_path, excludes):
+            for subdir in _get_toplevel_dirs(scan_path, blacklist, whitelist):
                 if subdir in completed_dirs:
                     logger.info(f"  Überspringe (bereits abgeschlossen): {subdir}")
                     continue
