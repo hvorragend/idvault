@@ -1,8 +1,11 @@
 """Funde-Blueprint (Scanner-Ergebnisse)"""
 import json
+import logging
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
 from ..security import in_clause
+
+log = logging.getLogger("idvault.funde")
 
 bp = Blueprint("funde", __name__, url_prefix="/funde")
 
@@ -978,7 +981,8 @@ def bulk_aktion():
                     n_dateien_gesendet += len(dateien_gruppe)
                 else:
                     fehler += 1
-            except Exception:
+            except Exception as exc:
+                log.exception("Fehler beim Versand an %s: %s", email, exc)
                 fehler += 1
 
         msg_parts = []

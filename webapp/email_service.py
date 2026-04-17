@@ -669,6 +669,7 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
     if not file_rows:
         return False
     if not _is_notify_enabled(db, "bewertung"):
+        log.warning("Bewertungsanforderung nicht gesendet: notify_enabled_bewertung ist deaktiviert.")
         return False
 
     ersteller = "–"
