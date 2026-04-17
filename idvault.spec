@@ -94,6 +94,13 @@ hiddenimports = [
     'win32process',
     'win32security',
     'ntsecuritycon',
+    # pywin32 – Windows-Dienst-Framework. Ohne diese Module schlägt
+    # "idvault.exe install/start/stop/remove" mit ImportError fehl
+    # ("pywin32 nicht verfügbar – Dienst-Modus nicht möglich.").
+    'win32service',
+    'win32serviceutil',
+    'servicemanager',
+    'win32timezone',
     # Framework-Internals
     *flask_h,
     *jinja2_h,

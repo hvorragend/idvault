@@ -397,8 +397,13 @@ Prüfpunkte in dieser Reihenfolge:
    - `pywin32-Module fehlen im EXE-Build: …` – der Build enthält nicht
      alle benötigten Hidden-Imports. EXE mit der aktuellen `idvault.spec`
      (`pywintypes`, `win32api`, `win32con`, `win32event`, `win32file`,
-     `win32process`, `win32security`, `ntsecuritycon`) neu bauen. Oder
-     den Dienst direkt als Scan-User betreiben – siehe 7.6.
+     `win32process`, `win32security`, `ntsecuritycon`, `win32service`,
+     `win32serviceutil`, `servicemanager`, `win32timezone`) neu bauen.
+     Oder den Dienst direkt als Scan-User betreiben – siehe 7.6.
+   - `pywin32 nicht verfügbar – Dienst-Modus nicht möglich: <Modul>` –
+     beim Aufruf von `idvault.exe install/start/stop/remove` fehlt ein
+     pywin32-Dienstmodul im EXE-Build. Gleiche Abhilfe wie oben: neu
+     bauen mit vollständiger `idvault.spec`.
    - `LogonUser(…, NETWORK_CLEARTEXT) fehlgeschlagen` – pywin32 ist
      vollständig, aber der Logon schlug fehl. Detail-Ursachen im
      Klammertext:
