@@ -66,7 +66,12 @@ def new_measure(idv_db_id):
         return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
 
     persons = db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall()
+    ist_wesentlich = bool(db.execute(
+        "SELECT 1 FROM idv_wesentlichkeit WHERE idv_db_id=? AND erfuellt=1 LIMIT 1",
+        (idv_db_id,),
+    ).fetchone())
     return render_template("measures/form.html", idv=idv, persons=persons,
+        ist_wesentlich=ist_wesentlich,
         massnahmentypen=get_klassifizierungen(db, "massnahmentyp"),
         prioritaeten=get_klassifizierungen(db, "massnahmen_prioritaet"))
 

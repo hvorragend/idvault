@@ -17,10 +17,8 @@ def index():
             ou.id                                AS oe_id,
             ou.bezeichnung                       AS oe_bezeichnung,
             COUNT(r.id)                          AS anzahl,
-            SUM(CASE WHEN (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1
-                           OR r.dora_kritisch_wichtig=1
-                           OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
-                                     WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
+            SUM(CASE WHEN EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
+                                 WHERE iw.idv_db_id=r.id AND iw.erfuellt=1)
                      THEN 1 ELSE 0 END)          AS wesentlich,
             SUM(CASE WHEN r.status = 'Freigegeben' THEN 1 ELSE 0 END)      AS genehmigt,
             SUM(CASE WHEN r.status = 'Entwurf' THEN 1 ELSE 0 END)        AS entwurf,
@@ -40,10 +38,8 @@ def index():
             p.nachname || ', ' || p.vorname      AS person,
             ou.bezeichnung                       AS oe_bezeichnung,
             COUNT(r.id)                          AS anzahl,
-            SUM(CASE WHEN (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1
-                           OR r.dora_kritisch_wichtig=1
-                           OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
-                                     WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
+            SUM(CASE WHEN EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
+                                 WHERE iw.idv_db_id=r.id AND iw.erfuellt=1)
                      THEN 1 ELSE 0 END)          AS wesentlich,
             SUM(CASE WHEN r.status = 'Freigegeben' THEN 1 ELSE 0 END)      AS genehmigt,
             SUM(CASE WHEN r.naechste_pruefung < date('now')

@@ -509,15 +509,13 @@ def als_idv_registrieren(bericht_id: int):
     cur = db.execute("""
         INSERT INTO idv_register (
             idv_id, bezeichnung, kurzbeschreibung, idv_typ,
-            gda_wert, steuerungsrelevant, rechnungslegungsrelevant,
-            dora_kritisch_wichtig, enthaelt_personendaten,
+            enthaelt_personendaten,
             pruefintervall_monate, naechste_pruefung,
             idv_entwickler_id,
             status, erstellt_am, aktualisiert_am, teststatus
         ) VALUES (
             ?, ?, ?, 'Cognos-Report',
-            1, 0, 0,
-            0, 0,
+            0,
             12, ?,
             ?,
             'Entwurf', ?, ?, 'Wertung ausstehend'

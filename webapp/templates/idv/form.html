@@ -348,92 +348,16 @@
     })();
     </script>
 
-    <!-- Wesentlichkeitskriterien -->
-    <div class="row g-4 mb-4">
-
-      <!-- 1. Steuerungsrelevant -->
-      <div class="col-md-4">
-        <div class="border rounded p-3 h-100">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-secondary" style="font-size:.65rem">1</span>
-            <div class="form-check form-switch mb-0">
-              <input class="form-check-input" type="checkbox" name="steuerungsrelevant" value="1" id="sw_steuerung"
-                {{ 'checked' if idv and idv.steuerungsrelevant }}>
-              <label class="form-check-label fw-500" for="sw_steuerung">Steuerungsrelevant</label>
-            </div>
-          </div>
-          <textarea name="steuerungsrelevanz_begr" class="form-control form-control-sm" rows="2"
-            placeholder="Begründung (Pflicht wenn aktiv)">{{ (idv.steuerungsrelevanz_begr or '') if idv else '' }}</textarea>
-        </div>
-      </div>
-
-      <!-- 2. Rechnungslegungsrelevant -->
-      <div class="col-md-4">
-        <div class="border rounded p-3 h-100">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-secondary" style="font-size:.65rem">2</span>
-            <div class="form-check form-switch mb-0">
-              <input class="form-check-input" type="checkbox" name="rechnungslegungsrelevant" value="1" id="sw_rl"
-                {{ 'checked' if idv and idv.rechnungslegungsrelevant }}>
-              <label class="form-check-label fw-500" for="sw_rl">Rechnungslegungsrelevant</label>
-            </div>
-          </div>
-          <textarea name="rechnungslegungsrelevanz_begr" class="form-control form-control-sm" rows="2"
-            placeholder="Begründung (Pflicht wenn aktiv)">{{ (idv.rechnungslegungsrelevanz_begr or '') if idv else '' }}</textarea>
-        </div>
-      </div>
-
-      <!-- 3. DORA-kritisch/wichtig (abgeleitet) mit Grad der Abhängigkeit -->
-      <div class="col-md-4">
-        <div class="border rounded p-3 h-100 border-danger border-opacity-50">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-secondary" style="font-size:.65rem">3</span>
-            <span class="fw-500">DORA-kritisch/wichtig</span>
-            <span class="badge bg-light text-muted border ms-auto" style="font-size:.65rem">abgeleitet</span>
-          </div>
-          <div id="dora_status_box" class="rounded p-2 mb-2"
-            style="font-size:.82rem;background:#f8f9fa;border:1px solid #dee2e6">
-            {% if idv and idv.dora_kritisch_wichtig %}
-            <span class="badge bg-danger"><i class="bi bi-shield-exclamation me-1"></i>DORA-kritisch/wichtig</span>
-            {% else %}
-            <span class="text-muted"><i class="bi bi-shield me-1"></i>Nicht DORA-kritisch/wichtig</span>
-            {% endif %}
-            <div class="text-muted mt-1" style="font-size:.75rem">
-              Krit. Geschäftsprozess + GDA 4 → DORA Art. 28 Abs. 2
-            </div>
-          </div>
-          <!-- Grad der Abhängigkeit (GDA) -->
-          <label class="form-label form-label-sm fw-500 mb-1">Grad der Abhängigkeit</label>
-          <div class="d-flex flex-column gap-1 mb-2">
-            {% for stufe in gda_stufen %}
-            {% set val = stufe.wert|int %}
-            <label class="d-flex align-items-center border rounded px-2 py-1
-              {{ 'border-danger bg-danger bg-opacity-10' if val == 4 else '' }}" style="cursor:pointer;font-size:.82rem">
-              <input type="radio" name="gda_wert" value="{{ val }}" class="form-check-input me-2"
-                {{ 'checked' if (idv and idv.gda_wert==val) or (not idv and val==1) }}>
-              <strong>{{ val }}</strong><span class="mx-1">–</span>{{ stufe.bezeichnung }}
-            </label>
-            {% endfor %}
-          </div>
-          <textarea name="dora_begruendung" class="form-control form-control-sm" rows="2"
-            placeholder="Ergänzende Notiz (optional)">{{ (idv.dora_begruendung or '') if idv else '' }}</textarea>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Weitere konfigurierbare Wesentlichkeitskriterien -->
+    <!-- Konfigurierbare Wesentlichkeitskriterien (Administration) -->
     {% if wesentlichkeitskriterien %}
-    <p class="text-muted mb-2" style="font-size:.82rem">
-      <strong>Weitere Wesentlichkeitskriterien</strong> (administrativ konfigurierbar)
-    </p>
     <div class="row g-3">
       {% for k in wesentlichkeitskriterien %}
       {% set ant = wesentlichkeit_antworten.get(k.id, {}) %}
+      {% set gewaehlte_details = ant.get('detail_ids', []) %}
       <div class="col-md-4">
         <div class="border rounded p-3 h-100">
           <div class="d-flex align-items-center gap-2 mb-1">
-            <span class="badge bg-secondary" style="font-size:.65rem">{{ loop.index + 3 }}</span>
+            <span class="badge bg-secondary" style="font-size:.65rem">{{ loop.index }}</span>
             <div class="form-check form-switch mb-0">
               <input class="form-check-input" type="checkbox" name="kriterium_{{ k.id }}" value="1" id="sw_k{{ k.id }}"
                 {{ 'checked' if ant.get('erfuellt') }}>
@@ -443,11 +367,33 @@
           {% if k.beschreibung %}
           <div class="text-muted mb-2" style="font-size:.78rem">{{ k.beschreibung }}</div>
           {% endif %}
+          {% if k.details %}
+          <div class="border-start border-2 ps-2 mb-2">
+            <div class="text-muted mb-1" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.04em">
+              Details
+            </div>
+            {% for d in k.details %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox"
+                     name="kriterium_detail_{{ k.id }}" value="{{ d.id }}"
+                     id="det_{{ k.id }}_{{ d.id }}"
+                     {{ 'checked' if d.id in gewaehlte_details }}>
+              <label class="form-check-label" for="det_{{ k.id }}_{{ d.id }}"
+                     style="font-size:.8rem">{{ d.bezeichnung }}</label>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
           <textarea name="kriterium_begr_{{ k.id }}" class="form-control form-control-sm mt-1" rows="2"
             placeholder="Begründung{% if k.begruendung_pflicht %} (Pflicht wenn aktiv){% endif %}">{{ ant.get('begruendung', '') or '' }}</textarea>
         </div>
       </div>
       {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-warning py-2" style="font-size:.85rem">
+      Es sind keine Wesentlichkeitskriterien konfiguriert. Bitte über die
+      Administration anlegen.
     </div>
     {% endif %}
 

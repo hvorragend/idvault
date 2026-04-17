@@ -1666,7 +1666,6 @@ _KLASSIFIZIERUNGS_BEREICHE = [
     ("pruefungs_ergebnis",    "Prüfungsergebnis"),
     ("massnahmentyp",         "Maßnahmentyp"),
     ("massnahmen_prioritaet", "Maßnahmen-Priorität"),
-    ("gda_stufen",            "GDA-Stufen (Bezeichnung & Beschreibung)"),
 ]
 
 
@@ -1685,10 +1684,21 @@ def index():
             SELECT * FROM klassifizierungen WHERE bereich=? ORDER BY sort_order, wert
         """, (bereich,)).fetchall()
 
-    # Konfigurierbare Wesentlichkeitskriterien (alle, inkl. inaktiv)
-    wesentlichkeitskriterien = db.execute("""
+    # Konfigurierbare Wesentlichkeitskriterien (alle, inkl. inaktiv) mit Details
+    kriterien_rows = db.execute("""
         SELECT * FROM wesentlichkeitskriterien ORDER BY sort_order, id
     """).fetchall()
+    wesentlichkeitskriterien = []
+    for k in kriterien_rows:
+        details = db.execute("""
+            SELECT id, bezeichnung, sort_order, aktiv
+            FROM wesentlichkeitskriterium_details
+            WHERE kriterium_id = ?
+            ORDER BY sort_order, id
+        """, (k["id"],)).fetchall()
+        d = dict(k)
+        d["details"] = [dict(r) for r in details]
+        wesentlichkeitskriterien.append(d)
 
     return render_template("admin/index.html",
         org_units=org_units,
@@ -2635,9 +2645,15 @@ def edit_wesentlichkeitskriterium(kid):
         ))
         db.commit()
         flash("Kriterium gespeichert.", "success")
-        return redirect(url_for("admin.index") + "#wesentlichkeit")
+        return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
 
-    return render_template("admin/wesentlichkeit_edit.html", row=row)
+    details = db.execute("""
+        SELECT id, bezeichnung, sort_order, aktiv
+        FROM wesentlichkeitskriterium_details
+        WHERE kriterium_id=?
+        ORDER BY sort_order, id
+    """, (kid,)).fetchall()
+    return render_template("admin/wesentlichkeit_edit.html", row=row, details=details)
 
 
 @bp.route("/wesentlichkeit/<int:kid>/loeschen", methods=["POST"])
@@ -2648,6 +2664,74 @@ def delete_wesentlichkeitskriterium(kid):
     db.commit()
     flash("Kriterium deaktiviert. Vorhandene Antworten bleiben erhalten.", "success")
     return redirect(url_for("admin.index") + "#wesentlichkeit")
+
+
+# ── Details (Checkbox-Optionen) zu einem Kriterium ──────────────────────────
+
+@bp.route("/wesentlichkeit/<int:kid>/detail/neu", methods=["POST"])
+@admin_required
+def new_wesentlichkeit_detail(kid):
+    db = get_db()
+    if not db.execute("SELECT 1 FROM wesentlichkeitskriterien WHERE id=?", (kid,)).fetchone():
+        flash("Kriterium nicht gefunden.", "error")
+        return redirect(url_for("admin.index") + "#wesentlichkeit")
+
+    bezeichnung = request.form.get("bezeichnung", "").strip()
+    if not bezeichnung:
+        flash("Bezeichnung darf nicht leer sein.", "error")
+        return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
+
+    max_order = db.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) FROM wesentlichkeitskriterium_details WHERE kriterium_id=?",
+        (kid,),
+    ).fetchone()[0]
+    try:
+        db.execute("""
+            INSERT INTO wesentlichkeitskriterium_details
+                (kriterium_id, bezeichnung, sort_order, aktiv)
+            VALUES (?, ?, ?, 1)
+        """, (kid, bezeichnung, max_order + 1))
+        db.commit()
+        flash(f"Detail '{bezeichnung}' hinzugefügt.", "success")
+    except Exception as exc:
+        flash(f"Detail konnte nicht angelegt werden: {exc}", "error")
+    return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
+
+
+@bp.route("/wesentlichkeit/<int:kid>/detail/<int:did>/bearbeiten", methods=["POST"])
+@admin_required
+def edit_wesentlichkeit_detail(kid, did):
+    db = get_db()
+    bezeichnung = request.form.get("bezeichnung", "").strip()
+    if not bezeichnung:
+        flash("Bezeichnung darf nicht leer sein.", "error")
+        return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
+    db.execute("""
+        UPDATE wesentlichkeitskriterium_details
+        SET bezeichnung=?, sort_order=?, aktiv=?
+        WHERE id=? AND kriterium_id=?
+    """, (
+        bezeichnung,
+        int(request.form.get("sort_order") or 0),
+        1 if request.form.get("aktiv") else 0,
+        did, kid,
+    ))
+    db.commit()
+    flash("Detail gespeichert.", "success")
+    return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
+
+
+@bp.route("/wesentlichkeit/<int:kid>/detail/<int:did>/loeschen", methods=["POST"])
+@admin_required
+def delete_wesentlichkeit_detail(kid, did):
+    db = get_db()
+    db.execute(
+        "UPDATE wesentlichkeitskriterium_details SET aktiv=0 WHERE id=? AND kriterium_id=?",
+        (did, kid),
+    )
+    db.commit()
+    flash("Detail deaktiviert. Vorhandene Antworten bleiben erhalten.", "success")
+    return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
 
 
 # ── Geschäftsprozess-Import ────────────────────────────────────────────────
