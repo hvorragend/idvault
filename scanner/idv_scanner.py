@@ -647,7 +647,7 @@ def scan_file(path: str, config: dict, scan_paths: list,
 
 
 def _to_extended_path(path: str) -> str:
-    """Windows: wandelt UNC/lokale Pfade in Extended-Length-Form um (max. 32767 Zeichen).
+    r"""Windows: wandelt UNC/lokale Pfade in Extended-Length-Form um (max. 32767 Zeichen).
 
     \\server\share\...  →  \\?\UNC\server\share\...
     C:\...              →  \\?\C:\...

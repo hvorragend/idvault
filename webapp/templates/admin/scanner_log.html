@@ -57,6 +57,9 @@
             {% if login_log_exists %}
             <option value="login">Login-Log</option>
             {% endif %}
+            {% if crash_exists %}
+            <option value="crash" style="color:red;font-weight:600">⚠ Crash-Log</option>
+            {% endif %}
           </select>
           <div class="form-check form-switch ms-1 mb-0">
             <input class="form-check-input" type="checkbox" role="switch" id="autoRefresh"
@@ -136,6 +139,7 @@
   const SCANNER_PATH = {{ log_path | tojson }};
   const OUTPUT_PATH  = {{ output_log_path | tojson }};
   const LOGIN_PATH   = {{ login_log_path | tojson }};
+  const CRASH_PATH   = {{ crash_log_path | tojson }};
   const LOG_URL      = {{ url_for('admin.scanner_log_raw') | tojson }};
   const STATUS_URL   = {{ url_for('admin.scanner_status') | tojson }};
 
@@ -210,6 +214,7 @@
   function currentPathLabel(which) {
     if (which === 'output') return OUTPUT_PATH;
     if (which === 'login')  return LOGIN_PATH;
+    if (which === 'crash')  return CRASH_PATH;
     return SCANNER_PATH;
   }
 
