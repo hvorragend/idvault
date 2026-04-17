@@ -990,7 +990,8 @@ def bulk_aktion():
         flash(". ".join(msg_parts) + ".", "success" if gesendet and not fehler else "warning")
 
     elif aktion == "loeschen":
-        if current_user_role() != ROLE_ADMIN:
+        from . import ROLE_ADMIN as _ROLE_ADMIN
+        if current_user_role() != _ROLE_ADMIN:
             flash("Löschen ist nur für Administratoren erlaubt.", "error")
         else:
             geloescht = 0
