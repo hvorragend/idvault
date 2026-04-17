@@ -311,6 +311,8 @@ if os.path.isfile(_config_file):
                 os.environ.setdefault(_cfg_k, str(_cfg_v))
     except Exception as _cfg_err:
         print(f"  [config] config.json konnte nicht geladen werden: {_cfg_err}")
+if not os.environ.get('IDV_SERVICE_NAME', '').strip():
+    os.environ['IDV_SERVICE_NAME'] = 'idvault'
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Gebündelte version.json lesen (immer, unabhängig vom Sidecar)
