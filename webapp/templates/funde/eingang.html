@@ -373,6 +373,14 @@
               title="Dateieigentümer für ausgewählte Dateien setzen">
         <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
       </button>
+      {% if is_admin %}
+      <button type="submit" name="aktion" value="loeschen"
+              class="btn btn-sm btn-outline-danger"
+              data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne IDV-Verknüpfung)">
+        <i class="bi bi-trash me-1"></i>Löschen
+      </button>
+      {% endif %}
       <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
         Auswahl aufheben
       </button>
