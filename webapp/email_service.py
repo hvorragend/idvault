@@ -158,7 +158,12 @@ def send_mail(db, to: str | list[str], subject: str,
     """Sendet eine E-Mail. Gibt True bei Erfolg zurück."""
     cfg = _get_smtp_config(db)
     if not cfg["host"] or not cfg["from"]:
-        log.warning("E-Mail nicht konfiguriert (smtp_host / smtp_from fehlen).")
+        try:
+            rows = db.execute("SELECT key, value FROM app_settings WHERE key LIKE 'smtp%'").fetchall()
+            found = {r["key"]: bool(r["value"]) for r in rows}
+        except Exception as e:
+            found = f"DB-Fehler: {e}"
+        log.warning("E-Mail nicht konfiguriert (smtp_host / smtp_from fehlen). DB-Inhalt: %s", found)
         return False
 
     recipients = [to] if isinstance(to, str) else to
