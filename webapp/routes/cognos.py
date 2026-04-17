@@ -15,13 +15,12 @@ from .. import limiter
 
 
 def _upload_rate_limit():
-    """VULN-009: Rate-Limit für Cognos-Import (XLSX/CSV)."""
-    from flask import current_app
+    """VULN-009: Rate-Limit für Cognos-Import (XLSX/CSV). Wird zur Request-
+    Zeit aus ``app_settings['upload_rate_limit']`` gelesen."""
     try:
-        return current_app.config.get(
-            "IDV_UPLOAD_RATE_LIMIT", "10 per minute;60 per hour"
-        )
-    except RuntimeError:
+        from .. import app_settings as _aps
+        return _aps.get_upload_rate_limit(get_db())
+    except Exception:
         return "10 per minute;60 per hour"
 
 # db.py liegt zwei Ebenen über webapp/routes/

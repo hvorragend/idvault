@@ -118,10 +118,11 @@ Keine MSI, keine Registry-Einträge außer dem SCM-Eintrag bei
 
 ### 3.2 Konfigurationsdatei (config.json)
 
-Die bevorzugte Methode zur Konfiguration ist die Datei `config.json`
-neben der EXE (bzw. im Projektverzeichnis). Sie wird beim ersten Start
-**automatisch angelegt**, falls weder die Datei noch die Env-Variable
-`SECRET_KEY` vorhanden ist.
+`config.json` liegt neben der EXE (bzw. im Projektverzeichnis) und enthält
+ausschließlich **Bootstrap-Werte** – Einstellungen, die beim Start der
+Anwendung benötigt werden, bevor die Datenbank zur Verfügung steht.
+Sie wird beim ersten Start mit einem zufälligen `SECRET_KEY`
+automatisch angelegt.
 
 Vorlage für manuelle Anpassung:
 
@@ -129,75 +130,48 @@ Vorlage für manuelle Anpassung:
 config.json.example  →  config.json kopieren und bearbeiten
 ```
 
-Beispielinhalt (Auszug – die komplette Vorlage mit allen Sektionen
-steht in `config.json.example`):
+Beispiel (`config.json.example` enthält die vollständige Vorlage):
 
 ```json
 {
   "SECRET_KEY": "zufaelliger-schluessel-mind-32-zeichen",
   "PORT": 5000,
   "IDV_HTTPS": 0,
-
-  "scanner": {
-    "scan_paths": ["\\\\fileserver\\abteilung$"],
-    "db_path": "instance/idvault.db",
-    "log_path": "instance/logs/idv_scanner.log"
-  },
-
-  "teams": {
-    "tenant_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "client_secret": "ENV:TEAMS_SCANNER_SECRET",
-    "teams": [{ "team_id": "..." }]
-  }
+  "IDV_DB_PATH": "instance/idvault.db",
+  "IDV_INSTANCE_PATH": "instance",
+  "IDV_SERVICE_NAME": "",
+  "IDV_LOCAL_USERS": [ { "username": "admin", "password": "bitte-aendern", "role": "IDV-Administrator" } ]
 }
 ```
 
 > **Sicherheitshinweis:** `config.json` enthält den `SECRET_KEY` im
 > Klartext. Dateizugriffsrechte auf den Betriebssystemnutzer der
-> Anwendung einschränken.
+> Anwendung einschränken (NTFS-ACL bzw. Unix 0640).
 
-#### Präzedenz der Konfigurationsquellen
+#### Aufteilung der Einstellungen
 
-Seit der Konsolidierung der Einstellungen gilt folgende Reihenfolge
-(höchste zuerst):
+Seit der Konsolidierung gilt: **eine Quelle pro Einstellung.**
 
-1. **OS-Umgebungsvariable** – z.B. `SECRET_KEY=...` im systemd-Dienst.
-2. **`config.json`** – Top-Level-Keys (SECRET_KEY, PORT, …) und die
-   Unter-Sektionen `scanner`, `teams`, `ldap`.
-3. **SQLite-Tabellen `app_settings` / `ldap_config`** – werden über die
-   Web-UI (`/admin/mail`, `/admin/ldap-config`, `/admin/scanner-einstellungen`)
-   gepflegt.
-4. **Hardcoded-Defaults** – aus `schema.sql` bzw. dem Quellcode.
+- **`config.json` – Bootstrap (eine Datei, keine Umgebungsvariablen):**
+  `SECRET_KEY`, `PORT`, `DEBUG`, `IDV_HTTPS`, `IDV_SSL_CERT`, `IDV_SSL_KEY`,
+  `IDV_SSL_AUTOGEN`, `IDV_DB_PATH`, `IDV_INSTANCE_PATH`,
+  `IDV_LOCAL_USERS` (lokale Fallback-User) sowie `IDV_SERVICE_NAME`.
+- **SQLite `app_settings`:** SMTP (verschlüsselt), Rate-Limits
+  (`login_rate_limit`, `upload_rate_limit`), Pfad-Mappings
+  (`path_mappings`), Scanner-Konfiguration (`scanner_config`),
+  Teams-Konfiguration (`teams_config` + Fernet-Secret
+  `teams_client_secret_enc`) und der Sidecar-Update-Schalter
+  (`allow_sidecar_updates`). Gepflegt über die Web-UI unter
+  `Administration → E-Mail`, `… → Rate-Limits`,
+  `… → Scanner-Einstellungen`, `… → Teams-Einstellungen` und
+  `… → Update`.
+- **SQLite `ldap_config`:** LDAP-/AD-Verbindung, ausschließlich über
+  `/admin/ldap-config`. Kein Override via `config.json` mehr.
 
-Ein Eintrag in `config.json["ldap"]` überschreibt pro Feld die DB-Werte
-und wird in der Admin-UI als `read-only` mit Badge *„Aus config.json"*
-angezeigt. SMTP-Zugangsdaten werden ausschließlich in `app_settings`
-gepflegt – die früheren `IDV_SMTP_*`-Schlüssel in `config.json` hatten
-keine Wirkung mehr und sind aus dem Auto-Template entfernt worden.
-
-### 3.3 Umgebungsvariablen
-
-OS-Umgebungsvariablen haben **immer Vorrang** über `config.json` – sie
-eignen sich als Override in CI/CD-Pipelines, Docker-Containern oder
-Skripten.
-
-| Variable | Zweck | Default |
-|---|---|---|
-| `SECRET_KEY` | Flask Session Secret (≥ 32 Zeichen). Wird beim ersten Start ohne `config.json` automatisch generiert. | — (auto) |
-| `IDV_HTTPS` | HTTPS aktivieren | `0` |
-| `IDV_SSL_CERT` | Zertifikatspfad | `instance/certs/cert.pem` |
-| `IDV_SSL_KEY` | Privater Schlüssel | `instance/certs/key.pem` |
-| `IDV_SSL_AUTOGEN` | Auto-Generierung selbstsigniert | `1` |
-| `PORT` | Netzwerk-Port | 5000 HTTP / 5443 HTTPS |
-| `IDV_DB_PATH` | Datenbankpfad | `instance/idvault.db` |
-| `IDV_INSTANCE_PATH` | Instanzverzeichnis | `instance/` |
-| `IDV_SERVICE_NAME` | Windows-Dienstname für Neustart aus Web-UI und `idvault.exe install`. Wird bei nativer SCM-Registrierung automatisch erkannt; bei NSSM/winsw manuell setzen. | `""` (auto) |
-| `DEBUG` | **Niemals produktiv** | 0 |
-
-SMTP-Zugangsdaten werden nicht mehr über Umgebungsvariablen gesteuert.
-Sie liegen in der SQLite-Tabelle `app_settings` und werden über
-`Administration → E-Mail-Einstellungen` verwaltet.
+Die Anwendung wertet **keine OS-Umgebungsvariablen** mehr aus.
+Bestehende `config.json`-Einträge für Scanner, Teams, LDAP oder
+Rate-Limits werden beim Upgrade ignoriert; Admin-Team pflegt sie
+einmalig über die Web-UI nach.
 
 ## 4 HTTPS-Konfiguration
 

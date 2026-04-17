@@ -86,20 +86,11 @@ _INLINE_STYLE_TAG = re.compile(
 )
 
 
-def _env_bool(name: str, default: bool) -> bool:
-    """Liest einen Env-Wert ``0/1`` oder ``true/false`` als Bool."""
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _load_local_users_from_env() -> dict:
-    """Liest lokale Benutzer aus der ``IDV_LOCAL_USERS``-Umgebungsvariable.
+def _load_local_users_from_config() -> dict:
+    """Liest lokale Benutzer direkt aus ``config.json["IDV_LOCAL_USERS"]``.
 
     VULN-F: Demo-Logins sind entfernt. Wer lokale Kennungen braucht, kann sie
-    über ``config.json`` (``"IDV_LOCAL_USERS"``-Key, JSON-Array) konfigurieren
-    – ``run.py`` schreibt den JSON-String in die Umgebung.
+    über ``config.json`` (``"IDV_LOCAL_USERS"``-Key, JSON-Array) konfigurieren.
 
     Zwei Formate werden akzeptiert – pro Eintrag **eines** von beiden:
 
@@ -124,26 +115,18 @@ def _load_local_users_from_env() -> dict:
             }
 
        Das Klartextpasswort wird beim Start in einen pbkdf2-Hash
-       konvertiert (niemals im Speicher länger als nötig gehalten) und
-       dann wie ein gehashter Eintrag behandelt. Das ``password``-Feld
-       selbst wird verworfen, sodass nachgelagerter Code keinen Zugriff
-       mehr auf den Klartext hat.
+       konvertiert und dann wie ein gehashter Eintrag behandelt. Das
+       ``password``-Feld wird verworfen.
 
     Einträge ohne ``username`` oder ohne Passwortangabe werden ignoriert.
     Liegt beides vor, gewinnt ``password_hash``.
     """
-    import json
     from werkzeug.security import generate_password_hash
-    raw = os.environ.get("IDV_LOCAL_USERS")
-    if not raw:
-        return {}
-    try:
-        data = json.loads(raw)
-    except Exception:
+    from . import config_store
+    data = config_store.get_bootstrap("IDV_LOCAL_USERS", [])
+    if not isinstance(data, list):
         return {}
     out: dict = {}
-    if not isinstance(data, list):
-        return out
     for entry in data:
         if not isinstance(entry, dict):
             continue
@@ -197,6 +180,8 @@ def _inject_nonces(body: bytes, nonce: str) -> bytes:
 
 
 def create_app(db_path: str = None) -> Flask:
+    from . import config_store
+
     # Absoluter Projektpfad – von run.py gesetzt, bevor irgendein Modul
     # importiert wird. Dadurch bleiben alle Pfade korrekt, auch wenn
     # webapp/__init__.py aus dem Sidecar-Override (updates/) geladen wurde.
@@ -222,14 +207,15 @@ def create_app(db_path: str = None) -> Flask:
     # Projekt-``instance/``-Ordner – besonders fatal bei PyInstaller-Builds,
     # wo Flasks Default im (temporären) _MEIPASS-Verzeichnis liegen kann.
     #
-    # Flask verlangt einen absoluten Pfad. ``IDV_INSTANCE_PATH`` darf trotzdem
-    # relativ angegeben werden – wir lösen relative Werte zum EXE-Verzeichnis
-    # (frozen) bzw. zur Projektwurzel (Dev) auf, NICHT zur CWD. Das ist
-    # wichtig, weil ``idvault.exe`` als Dienst oder per Doppelklick häufig
-    # mit einer fremden CWD (z.B. ``C:\Windows\System32``) gestartet wird.
+    # Flask verlangt einen absoluten Pfad. ``IDV_INSTANCE_PATH`` in der
+    # config.json darf relativ sein – wir lösen relative Werte zum
+    # EXE-Verzeichnis (frozen) bzw. zur Projektwurzel (Dev) auf, NICHT zur
+    # CWD. Das ist wichtig, weil ``idvault.exe`` als Dienst oder per
+    # Doppelklick häufig mit fremder CWD (z.B. ``C:\Windows\System32``)
+    # gestartet wird.
     _anchor = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) \
               else _project_root
-    _raw_instance = os.environ.get("IDV_INSTANCE_PATH", _instance_default)
+    _raw_instance = config_store.get_str("IDV_INSTANCE_PATH", _instance_default)
     _instance_path = (
         _raw_instance if os.path.isabs(_raw_instance)
         else os.path.normpath(os.path.join(_anchor, _raw_instance))
@@ -253,13 +239,13 @@ def create_app(db_path: str = None) -> Flask:
     upload_folder = os.path.join(_instance_path, "uploads", "freigaben")
 
     # VULN-004: SECRET_KEY-Enforcement
-    #   - Ist die Umgebungsvariable SECRET_KEY nicht gesetzt, fällt die
+    #   - Ist kein SECRET_KEY in der config.json hinterlegt, fällt die
     #     Anwendung auf einen statischen Dev-Key zurück. Im DEBUG-Modus ist
     #     das tolerierbar, im Produktivbetrieb nicht. Wir markieren diesen
     #     Zustand im app.config, damit er oben sichtbar wird (Konsole, Banner)
     #     und prüfen ihn unten per Startup-Check in run.py.
-    _debug_mode = os.environ.get("DEBUG", "0") == "1"
-    _secret_key = os.environ.get("SECRET_KEY")
+    _debug_mode = config_store.get_bool("DEBUG", False)
+    _secret_key = config_store.get_str("SECRET_KEY", "")
     _secret_key_is_default = False
     if not _secret_key:
         _secret_key = _DEFAULT_DEV_SECRET
@@ -272,12 +258,14 @@ def create_app(db_path: str = None) -> Flask:
     # beliebigen Verzeichnissen — sqlite3.connect schlägt dann mit
     # "unable to open database file" fehl. Deshalb: relative Werte an den
     # EXE-Anker binden (wie oben für _instance_path).
-    _raw_db = db_path or os.environ.get("IDV_DB_PATH")
+    _raw_db = db_path or config_store.get_str("IDV_DB_PATH", "")
     if _raw_db:
         _db_path = _raw_db if os.path.isabs(_raw_db) \
                    else os.path.normpath(os.path.join(_anchor, _raw_db))
     else:
         _db_path = os.path.join(_instance_path, "idvault.db")
+
+    _https_enabled = config_store.get_bool("IDV_HTTPS", False)
 
     app.config.update(
         SECRET_KEY=_secret_key,
@@ -287,23 +275,14 @@ def create_app(db_path: str = None) -> Flask:
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
         APP_NAME="idvault",
+        IDV_HTTPS=_https_enabled,
         BUNDLED_VERSION=os.environ.get('BUNDLED_VERSION', '0.1.0'),
         APP_VERSION=os.environ.get('IDV_ACTIVE_VERSION') or os.environ.get('BUNDLED_VERSION', '0.1.0'),
         # VULN-A: CSRFProtect
         WTF_CSRF_TIME_LIMIT=None,          # Token für gesamte Session gültig
         WTF_CSRF_SSL_STRICT=False,          # Referer-Check würde bei HTTP-Proxy scheitern
-        # VULN-B: Sidecar-Update-Upload per config.json abschaltbar.
-        IDV_ALLOW_SIDECAR_UPDATES=_env_bool("IDV_ALLOW_SIDECAR_UPDATES", True),
         # VULN-F: Lokale Benutzer werden ausschließlich aus config.json gelesen.
-        IDV_LOCAL_USERS=_load_local_users_from_env(),
-        # VULN-J: Login-Rate-Limit konfigurierbar.
-        IDV_LOGIN_RATE_LIMIT=os.environ.get(
-            "IDV_LOGIN_RATE_LIMIT", "5 per minute;30 per hour"
-        ),
-        # VULN-009: Rate-Limit für Admin-Uploads (ZIP, CSV-Importe).
-        IDV_UPLOAD_RATE_LIMIT=os.environ.get(
-            "IDV_UPLOAD_RATE_LIMIT", "10 per minute;60 per hour"
-        ),
+        IDV_LOCAL_USERS=_load_local_users_from_config(),
     )
 
     # VULN-013: Session-Hardening
@@ -314,7 +293,7 @@ def create_app(db_path: str = None) -> Flask:
         PERMANENT_SESSION_LIFETIME=timedelta(hours=4),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=(os.environ.get("IDV_HTTPS", "0") == "1"),
+        SESSION_COOKIE_SECURE=_https_enabled,
     )
 
     os.makedirs(_instance_path, exist_ok=True)
@@ -377,16 +356,10 @@ def create_app(db_path: str = None) -> Flask:
     def _csrf_ctx():
         return {"csrf_token": generate_csrf}
 
-    # Pfad-Mappings (UNC → Laufwerksbuchstabe) aus config.json laden
-    import json as _json_mod
-    _raw_mappings = os.environ.get("path_mappings", "[]")
-    try:
-        _path_mappings = _json_mod.loads(_raw_mappings)
-        if not isinstance(_path_mappings, list):
-            _path_mappings = []
-    except Exception:
-        _path_mappings = []
-    app.config["PATH_MAPPINGS"] = _path_mappings
+    # Pfad-Mappings (UNC → Laufwerksbuchstabe) werden nach init_app_db aus
+    # app_settings['path_mappings'] geladen; bis dahin leere Liste, damit
+    # der map_path-Filter keine KeyError wirft.
+    app.config["PATH_MAPPINGS"] = []
 
     # Jinja2-Filter: {{ pfad | map_path }}
     # Wendet konfigurierte Pfad-Mappings auf einen Anzeigewert an.
@@ -416,6 +389,19 @@ def create_app(db_path: str = None) -> Flask:
 
     # Datenbank
     init_app_db(app)
+
+    # Pfad-Mappings (DB-basiert) nach Schema-Init laden.
+    try:
+        from db import get_connection as _get_conn
+        from . import app_settings as _app_settings
+        _init_db = _get_conn(app.config["DATABASE"])
+        try:
+            app.config["PATH_MAPPINGS"] = _app_settings.get_path_mappings(_init_db)
+        finally:
+            _init_db.close()
+    except Exception as _pm_err:
+        app.logger.warning("path_mappings konnten nicht geladen werden: %s", _pm_err)
+        app.config["PATH_MAPPINGS"] = []
 
     # Sidecar DB-Migration: updates/db_migrate.py wird einmalig beim Start
     # ausgeführt, wenn die Datei vorhanden ist. ZIP-Updates können damit
@@ -513,7 +499,7 @@ def create_app(db_path: str = None) -> Flask:
 
         # HSTS nur senden, wenn HTTPS aktiv ist – sonst sperren wir HTTP
         # unbeabsichtigt aus.
-        if os.environ.get("IDV_HTTPS", "0") == "1":
+        if app.config.get("IDV_HTTPS"):
             response.headers.setdefault(
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",

@@ -97,10 +97,10 @@ Legende Status:
 | VULN-003 | Hardcodierte Demo-Zugangsdaten | **Kritisch** | A07:2021 | CWE-798 | ✅ Behoben (Demo-User entfernt; lokale Benutzer ausschließlich über `config.json`) |
 | VULN-004 | Standard-`SECRET_KEY` im Quellcode | **Kritisch** | A02:2021 | CWE-798 | ✅ Behoben (Startup-Check in run.py) |
 | VULN-005 | Aktivierbarer Debug-Modus | **Hoch** | A05:2021 | CWE-489 | ✅ Behoben (prominente Start-Warnung) |
-| VULN-006 | Fehlendes Rate-Limiting am Login | **Hoch** | A07:2021 | CWE-307 | ✅ Behoben (Flask-Limiter, konfigurierbar per `IDV_LOGIN_RATE_LIMIT`) |
+| VULN-006 | Fehlendes Rate-Limiting am Login | **Hoch** | A07:2021 | CWE-307 | ✅ Behoben (Flask-Limiter, konfigurierbar über `/admin/rate-limits`) |
 | VULN-007 | SMTP-Passwort im Klartext in DB | **Mittel** | A02:2021 | CWE-312 | ✅ Behoben (Fernet mit "enc:"-Präfix) |
 | VULN-008 | Fehlende HTTP-Security-Header | **Mittel** | A05:2021 | CWE-693 | ✅ Behoben (Security-Header + nonce-basiertes CSP; `script-src-attr 'unsafe-inline'` vollständig entfernt, alle inline Event-Handler auf Event-Delegation umgestellt) |
-| VULN-009 | Upload-Größe 32 MB ohne Rate-Limiting | **Mittel** | A05:2021 | CWE-770 | ✅ Behoben (Flask-Limiter auf Update/CSV/Teams/Cognos-Upload via `IDV_UPLOAD_RATE_LIMIT`) |
+| VULN-009 | Upload-Größe 32 MB ohne Rate-Limiting | **Mittel** | A05:2021 | CWE-770 | ✅ Behoben (Flask-Limiter auf Update/CSV/Teams/Cognos-Upload, konfigurierbar über `/admin/rate-limits`) |
 | VULN-010 | Unvalidierte Eingaben (Längen/Format) | **Mittel** | A03:2021 | CWE-20 | ✅ Behoben (zentrale Längen-/Steuerzeichen-Prüfung vor jedem POST) |
 | VULN-011 | Generisches Exception-Handling | **Mittel** | A09:2021 | CWE-391 | 🛡 Teilweise (kritische Pfade: Auth, Bulk-Deletes, Verschlüsselung, E-Mail – mit Logging und spezifischen Exception-Typen) |
 | VULN-012 | LDAP-Zertifikatsprüfung deaktivierbar | **Mittel** | A02:2021 | CWE-295 | ✅ Behoben (Default=1, Warnungen im Log + UI) |
@@ -113,7 +113,7 @@ Legende Status:
 | VULN-019 | Jinja-Variablen in inline `onclick`-Attributen | **Mittel** | A03:2021 | CWE-79 | ✅ Behoben (Event-Delegation + `data-*`-Attribute) |
 | VULN-020 | Dynamischer `IN (…)`-SQL-Fragment-Aufbau | **Niedrig** | A03:2021 | CWE-89 | ✅ Behoben (`security.in_clause()`-Helper) |
 | VULN-021 | Logout über GET (unfreiwilliger Logout möglich) | **Niedrig** | A01:2021 | CWE-352 | ✅ Behoben (Logout nur noch POST + CSRF) |
-| VULN-022 | Admin-RCE-Vektor über Sidecar-ZIP-Upload | **Hoch** | A08:2021 | CWE-434 | 📋 Opt-out via `IDV_ALLOW_SIDECAR_UPDATES` in `config.json` |
+| VULN-022 | Admin-RCE-Vektor über Sidecar-ZIP-Upload | **Hoch** | A08:2021 | CWE-434 | 📋 Opt-out im Admin-UI unter `Administration → Update` (app_settings.allow_sidecar_updates) |
 
 ## 3 Detailbeschreibung der kritischen Schwachstellen
 
@@ -337,12 +337,11 @@ LDAP-Account-Lockout-Auslösung.
   wird in `create_app()` per `limiter.init_app(app)` registriert.
 - `webapp/routes/auth.py`: Dekorator `@limiter.limit(_login_rate_limit,
   methods=["POST"])` auf der `login()`-Route. Das Limit wird zur
-  Request-Zeit aus `current_app.config["IDV_LOGIN_RATE_LIMIT"]`
-  gelesen, damit Änderungen in `config.json` ohne Code-Anpassung
-  greifen.
-- `config.json.example`: neuer Schalter
-  `"IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour"` (Default).
-  Syntax folgt der Flask-Limiter-Konvention.
+  Request-Zeit aus `app_settings.login_rate_limit` gelesen, damit
+  Änderungen über die Admin-UI ohne Neustart greifen.
+- Admin-UI `/admin/rate-limits`: pflegt `login_rate_limit` und
+  `upload_rate_limit` in `app_settings`. Default `"5 per minute;30 per hour"`
+  folgt der Flask-Limiter-Konvention.
 
 **Verifikation**: In Flask-Test-Client ausgeführte Serie von POST /login
 wird nach Überschreiten der Quote mit HTTP 429 abgewiesen.
@@ -453,15 +452,15 @@ ermöglichten Resource-Exhaustion-Angriffe gegen Admin-Upload-Endpunkte
 (ZIP-Update, CSV-Imports, Teams-/Cognos-Import).
 
 **Umgesetzte Remediation**:
-- Neuer Config-Schalter `IDV_UPLOAD_RATE_LIMIT`
-  (Default `"10 per minute;60 per hour"`).
+- Neues `app_settings.upload_rate_limit` (Default `"10 per minute;60 per hour"`)
+  über `/admin/rate-limits` pflegbar.
 - Dekorator `@limiter.limit(_upload_rate_limit, methods=["POST"])` auf:
   - `admin.update_upload` (Sidecar-ZIP)
   - `admin.import_persons` (CSV)
   - `admin.import_geschaeftsprozesse` (CSV)
   - `cognos.import_berichte` (XLSX/CSV)
-- `_upload_rate_limit()` liest den Wert zur Request-Zeit aus
-  `app.config`, damit config.json-Änderungen ohne Neustart greifen.
+- `_upload_rate_limit()` liest den Wert zur Request-Zeit aus der DB,
+  damit UI-Änderungen ohne Neustart greifen.
 - Kombinierbar mit VULN-B (komplette Deaktivierung des Sidecar-Uploads).
 
 **Verifikation**: Flask-Test-Client-Test mit wiederholten POSTs >
@@ -557,7 +556,7 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(hours=4),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=(os.environ.get("IDV_HTTPS", "0") == "1"),
+    SESSION_COOKIE_SECURE=bool(config_store.get_bool("IDV_HTTPS", False)),
 )
 
 @app.before_request
@@ -756,19 +755,20 @@ Server.
 
 **Entscheidung des Auftraggebers**: Die Funktion bleibt unverändert,
 weil sie für das Betriebsmodell (Updates ohne EXE-Neubuild) essenziell
-ist. Es wird jedoch ein **Opt-out** per `config.json` bereitgestellt,
+ist. Es wird jedoch ein **Opt-out** im Admin-UI bereitgestellt,
 damit regulierte Umgebungen die Upload-Funktion deaktivieren können.
 
 **Umgesetzte Remediation**:
-- `config.json.example`: neuer Schalter
-  `"IDV_ALLOW_SIDECAR_UPDATES": 1` (Default aktiv). Auf `0` gesetzt
-  wird das Upload-Verhalten komplett unterbunden.
+- `app_settings.allow_sidecar_updates` (Default `"1"`, aktiv): Schalter
+  pflegbar unter `Administration → Update` (Button „Sidecar-Updates
+  deaktivieren/aktivieren"). Bei `"0"` weist der Upload-Endpoint jede
+  Anfrage ab.
 - `webapp/routes/admin.py :: update_upload()` liest den Schalter über
   `_sidecar_updates_enabled()` und weist Anfragen bei `0` mit
   `flash(…, "error")` + Log-Warnung ab. Rollback (`update_rollback`)
   bleibt aus Betriebs­sicherheitsgründen aktiv.
 - `webapp/templates/admin/update.html` zeigt eine deutliche
-  Warn-Box, wenn der Upload deaktiviert ist, inkl. Anleitung zum
+  Warn-Box, wenn der Upload deaktiviert ist, inkl. Button zum
   Wiedereinschalten.
 
 **Restrisiko (bei aktivem Upload)**: Admin-Account-Kompromittierung
@@ -776,6 +776,12 @@ erlaubt RCE. Kompensierend: `@admin_required`, CSRF-Schutz (VULN-002),
 Login-Rate-Limit (VULN-006), Audit-Logs. In regulierten Umgebungen
 sollte der Schalter auf `0` gesetzt und Updates ausschließlich über
 signierte EXE-Builds eingespielt werden.
+
+**Hinweis:** Da der Schalter selbst nun im Admin-UI liegt, kann ein
+kompromittierter Admin-Account den Schutz ebenfalls deaktivieren. Für
+extrem kritische Umgebungen bietet sich zusätzlich eine Dateisystem-
+oder Netzwerk-Sperre an (z. B. Endpunkt in der Reverse-Proxy-ACL
+blockieren).
 
 ## 7 OWASP-Top-10-Abdeckung
 

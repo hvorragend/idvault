@@ -47,7 +47,7 @@
             <label class="form-label form-label-sm fw-600">Server-URL (für Links in E-Mails)</label>
             <input type="url" name="app_base_url" class="form-control form-control-sm"
                    value="{{ settings.get('app_base_url','') }}" placeholder="https://idvault.bank.de">
-            <div class="form-text">Wird für Direktlinks in Bewertungsanforderungs-E-Mails verwendet. Auch per Umgebungsvariable <code>IDV_APP_BASE_URL</code> setzbar.</div>
+            <div class="form-text">Wird für Direktlinks in Bewertungsanforderungs-E-Mails verwendet.</div>
           </div>
           <div class="col-md-4">
             <label class="form-label form-label-sm fw-600">Verschlüsselung</label>
@@ -147,14 +147,6 @@
             </div>
           </div>
 
-          <div class="col-12">
-            <div class="alert alert-info py-2 mb-0" style="font-size:.83rem">
-              <i class="bi bi-info-circle me-1"></i>
-              Umgebungsvariablen <code>IDV_SMTP_HOST</code>, <code>IDV_SMTP_PORT</code>,
-              <code>IDV_SMTP_USER</code>, <code>IDV_SMTP_PASSWORD</code>, <code>IDV_SMTP_FROM</code>
-              überschreiben die DB-Einstellungen.
-            </div>
-          </div>
         </form>
       </div>
     </div>

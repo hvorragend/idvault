@@ -612,10 +612,7 @@ def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
 
 
 def get_app_base_url(db) -> str:
-    """Liest die App-Basis-URL aus DB oder Umgebungsvariable."""
-    env_url = os.environ.get("IDV_APP_BASE_URL", "")
-    if env_url:
-        return env_url.rstrip("/")
+    """Liest die App-Basis-URL aus app_settings."""
     try:
         row = db.execute("SELECT value FROM app_settings WHERE key='app_base_url'").fetchone()
         if row and row["value"]:

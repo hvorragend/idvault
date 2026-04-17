@@ -88,8 +88,6 @@ DEFAULT_CONFIG = {
     ],
     "whitelist_paths": [],
     "path_mappings": [],
-    "db_path": "idv_register.db",
-    "log_path": "idv_scanner.log",
     "hash_size_limit_mb": 500,   # Dateien > X MB werden nicht gehasht (Performance)
     "max_workers": 4,
     # Dateibesitzer via Windows-API lesen (pywin32 erforderlich).
@@ -1636,52 +1634,92 @@ def run_scan(config: dict, logger: logging.Logger,
 # CLI
 # ---------------------------------------------------------------------------
 
+def _load_config_from_db(db_path: str) -> dict:
+    """Liest scanner_config + path_mappings aus app_settings und verschmilzt
+    mit DEFAULT_CONFIG. db_path ist absolut und wird in config übernommen."""
+    import sqlite3
+    cfg = dict(DEFAULT_CONFIG)
+    cfg["db_path"] = db_path
+    conn = sqlite3.connect(db_path, timeout=30)
+    conn.row_factory = sqlite3.Row
+    try:
+        def _read_json(key: str, default):
+            row = conn.execute(
+                "SELECT value FROM app_settings WHERE key=?", (key,)
+            ).fetchone()
+            if not row or not row["value"]:
+                return default
+            try:
+                return json.loads(row["value"])
+            except (TypeError, ValueError):
+                return default
+
+        scanner_cfg = _read_json("scanner_config", {})
+        if isinstance(scanner_cfg, dict):
+            cfg.update(scanner_cfg)
+        path_mappings = _read_json("path_mappings", [])
+        if isinstance(path_mappings, list):
+            cfg["path_mappings"] = path_mappings
+    finally:
+        conn.close()
+    return cfg
+
+
 def main():
     parser = argparse.ArgumentParser(description="IDV-Scanner – Netzlaufwerk-Discovery")
-    parser.add_argument("--config", default="config.json",
-                        help="Pfad zur Konfigurationsdatei (default: config.json)")
+    parser.add_argument("--db-path", default=None,
+                        help="Pfad zur SQLite-DB. Scanner-Config + path_mappings werden "
+                             "aus app_settings gelesen; der Log-Pfad wird aus <db_parent>/logs "
+                             "abgeleitet.")
+    parser.add_argument("--config", default=None,
+                        help="Fallback: Pfad zu einer JSON-Config (nur für Ad-hoc-CLI-Tests "
+                             "ohne Webapp-DB).")
     parser.add_argument("--signal-dir", default=None,
                         help="Verzeichnis für Signal-Dateien (Pause/Abbruch/Checkpoint). "
-                             "Standard: Verzeichnis der config.json")
-    parser.add_argument("--init-config", action="store_true",
-                        help="Erstellt eine Beispiel-config.json und beendet sich")
+                             "Standard: Verzeichnis der DB bzw. der config.json")
     parser.add_argument("--resume", action="store_true",
                         help="Setzt einen unterbrochenen Scan (Checkpoint) fort")
     args = parser.parse_args()
 
-    if args.init_config:
-        with open("config.json", "w", encoding="utf-8") as f:
-            json.dump({"scanner": DEFAULT_CONFIG}, f, indent=2, ensure_ascii=False)
-        print("config.json erstellt. Bitte Scan-Pfade unter 'scanner' anpassen.")
-        sys.exit(0)
+    if not args.db_path and not args.config:
+        print("Fehler: --db-path oder --config erforderlich.", file=sys.stderr)
+        sys.exit(2)
 
-    # Konfiguration laden
-    # Unterstützt zusammengeführte config.json mit "scanner"-Abschnitt
-    # sowie die frühere flache Scanner-Konfiguration (rückwärtskompatibel).
-    config = dict(DEFAULT_CONFIG)
-    if os.path.exists(args.config):
+    if args.db_path:
+        db_path = os.path.abspath(args.db_path)
+        if not os.path.isfile(db_path):
+            print(f"DB nicht gefunden: {db_path}", file=sys.stderr)
+            sys.exit(1)
+        config = _load_config_from_db(db_path)
+        log_path = os.path.join(os.path.dirname(db_path), "logs", "idv_scanner.log")
+        config["log_path"] = log_path
+        signal_dir = args.signal_dir if args.signal_dir else os.path.dirname(db_path)
+    else:
+        # Fallback: JSON-Config für CLI-Standalone-Läufe ohne Webapp-DB.
+        config = dict(DEFAULT_CONFIG)
+        if not os.path.isfile(args.config):
+            print(f"Konfiguration nicht gefunden: {args.config}", file=sys.stderr)
+            sys.exit(1)
         with open(args.config, encoding="utf-8") as f:
             raw = json.load(f)
-        if "scanner" in raw:
-            config.update(raw["scanner"])
-        else:
-            config.update(raw)
-        # path_mappings liegt auf der obersten Ebene der config.json
+        scanner_data = raw.get("scanner", raw)
+        config.update({k: v for k, v in scanner_data.items() if k in DEFAULT_CONFIG})
         if "path_mappings" in raw:
             config["path_mappings"] = raw["path_mappings"]
-    else:
-        print(f"Keine config.json gefunden. Starte mit: python idv_scanner.py --init-config")
-        sys.exit(1)
-
-    # Relative db_path/log_path werden gegen das Verzeichnis der config.json
-    # aufgelöst, damit die config.json portable Pfade enthalten darf
-    # (z.B. "instance/idvault.db") und unabhängig von der CWD des
-    # Scanner-Subprocesses funktioniert.
-    _config_dir = os.path.dirname(os.path.abspath(args.config))
-    for _key in ("db_path", "log_path"):
-        _val = config.get(_key)
-        if _val and not os.path.isabs(_val):
-            config[_key] = os.path.normpath(os.path.join(_config_dir, _val))
+        _config_dir = os.path.dirname(os.path.abspath(args.config))
+        for _key in ("db_path", "log_path"):
+            _val = raw.get(_key) or scanner_data.get(_key)
+            if _val:
+                config[_key] = _val if os.path.isabs(_val) \
+                               else os.path.normpath(os.path.join(_config_dir, _val))
+        if not config.get("db_path"):
+            print("Fehler: 'db_path' muss in der JSON-Config gesetzt sein.", file=sys.stderr)
+            sys.exit(2)
+        if not config.get("log_path"):
+            config["log_path"] = os.path.join(
+                os.path.dirname(config["db_path"]), "logs", "idv_scanner.log"
+            )
+        signal_dir = args.signal_dir if args.signal_dir else _config_dir
 
     # Sicherstellen, dass das Log-Verzeichnis existiert (sonst bricht
     # FileHandler beim ersten Schreibversuch ab).
@@ -1690,7 +1728,6 @@ def main():
     except (OSError, TypeError):
         pass
 
-    signal_dir = args.signal_dir if args.signal_dir else os.path.dirname(os.path.abspath(args.config))
     logger = setup_logging(config["log_path"])
 
     _set_keep_awake(True)

@@ -53,53 +53,49 @@ pip install -r requirements.txt
 
 ## Konfigurationsort
 
-Der Teams-Scanner akzeptiert zwei Quell-Formate:
+Alle Einstellungen des Teams-Scanners werden in der SQLite-Datenbank
+(`app_settings`-Tabelle) gehalten und über die Web-UI
+`Administration → Teams-Einstellungen` gepflegt. Das Clientgeheimnis wird
+dort mit Fernet (AES-128) verschlüsselt abgelegt (`teams_client_secret_enc`);
+der Schlüssel stammt aus `SECRET_KEY` in `config.json`.
 
-1. **Empfohlen: Haupt-`config.json`** neben `run.py` / der EXE, Abschnitt
-   `"teams"`. Wird von der Admin-Web-UI unter
-   `Administration → Teams-Einstellungen` geschrieben und von dort auch
-   als Subprocess gestartet. Die Einstellungen liegen gemeinsam mit
-   `scanner`- und `ldap`-Block in einer Datei; der `db_path` wird
-   automatisch aus dem `scanner`-Abschnitt geerbt.
+Die Webapp startet den Scanner als Subprocess mit `--db-path <pfad>`; der
+Scanner liest sämtliche Einstellungen und das Geheimnis selbstständig aus der
+DB.
 
-2. **Legacy-`teams_config.json`** (flaches Dict ohne `"teams"`-Sektion)
-   wird für Standalone-Aufrufe per Kommandozeile weiterhin akzeptiert.
-   Früher in `scanner/teams_config.json` abgelegt; wird beim nächsten
-   Start von `idvault` automatisch nach `config.json["teams"]` migriert
-   und zu `teams_config.json.migrated` umbenannt.
+## Schnellstart (aus der Web-UI)
 
-## Schnellstart (Standalone / Legacy-Modus)
+1. In der Admin-Oberfläche unter **Scanner → Teams-Einstellungen** Tenant-ID,
+   Client-ID und Clientgeheimnis eintragen, Teams/Sites hinzufügen und
+   speichern.
+2. Scan per Schaltfläche starten – der Subprocess protokolliert nach
+   `instance/logs/teams_scanner.log`.
+
+## Standalone-Aufruf (Debug / Scheduled Task)
 
 ```cmd
-REM 1. Beispielkonfiguration erzeugen
-python teams_scanner.py --init-config
-
-REM 2. teams_config.json anpassen (Zugangsdaten + Teams/Sites eintragen)
-
-REM 3. Konfiguration prüfen (ohne Datenbankzugriff)
-python teams_scanner.py --config teams_config.json --check-config
-
-REM 4. Probe-Lauf: Dateien auflisten ohne Datenbankänderungen
-python teams_scanner.py --config teams_config.json --dry-run
-
-REM 5. Scan starten
-python teams_scanner.py --config teams_config.json
+python teams_scanner.py --db-path instance\idvault.db
+python teams_scanner.py --db-path instance\idvault.db --dry-run
+python teams_scanner.py --db-path instance\idvault.db --check-config
 ```
+
+Voraussetzung: `teams_config` und `teams_client_secret_enc` wurden zuvor
+über die Web-UI befüllt. Der Log-Pfad leitet sich aus dem DB-Pfad ab
+(`<db_parent>/logs/teams_scanner.log`).
 
 ---
 
-## Konfiguration (`config.json["teams"]` bzw. Legacy-`teams_config.json`)
+## Konfiguration (`app_settings['teams_config']`)
+
+Intern als JSON-Blob in der Tabelle `app_settings`:
 
 ```json
 {
-  "tenant_id":           "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "client_id":           "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "client_secret":       "ENV:TEAMS_SCANNER_SECRET",
-  "db_path":             "../instance/idvault.db",
-  "log_path":            "teams_scanner.log",
-  "hash_size_limit_mb":  100,
-  "download_for_ooxml":  true,
-  "move_detection":      "name_and_hash",
+  "tenant_id":          "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "client_id":          "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "hash_size_limit_mb": 100,
+  "download_for_ooxml": true,
+  "move_detection":     "name_and_hash",
   "extensions": [
     ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
     ".accdb", ".mdb",
@@ -108,17 +104,14 @@ python teams_scanner.py --config teams_config.json
     ".sql"
   ],
   "teams": [
-    {
-      "team_id":      "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "display_name": "IDV-Team Markt"
-    },
-    {
-      "site_url":     "https://contoso.sharepoint.com/sites/Controlling",
-      "display_name": "Controlling"
-    }
+    { "team_id":  "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", "display_name": "IDV-Team Markt" },
+    { "site_url": "https://contoso.sharepoint.com/sites/Controlling", "display_name": "Controlling" }
   ]
 }
 ```
+
+Das Clientgeheimnis liegt getrennt davon verschlüsselt in
+`app_settings['teams_client_secret_enc']`.
 
 ### Parameter-Referenz
 
@@ -126,9 +119,7 @@ python teams_scanner.py --config teams_config.json
 |---|---|---|---|
 | `tenant_id` | String | – | Azure-Verzeichnis-ID (aus App-Registrierung) |
 | `client_id` | String | – | Anwendungs-ID (aus App-Registrierung) |
-| `client_secret` | String | – | Clientgeheimnis oder `"ENV:VARNAME"` (s.u.) |
-| `db_path` | String | `"idv_register.db"` | Pfad zur SQLite-Datenbank |
-| `log_path` | String | `"teams_scanner.log"` | Pfad zur Logdatei |
+| `client_secret` | String | – | Clientgeheimnis (Fernet-verschlüsselt in `teams_client_secret_enc`) |
 | `hash_size_limit_mb` | Integer | `100` | Dateien größer als dieser Wert werden nicht heruntergeladen |
 | `download_for_ooxml` | Boolean | `true` | Dateien für OOXML-Analyse herunterladen (Makros, Formeln etc.) |
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (identisch zu `idv_scanner.py`) |
@@ -146,39 +137,11 @@ Jeder Eintrag hat entweder `team_id` **oder** `site_url`:
 
 ---
 
-### Geheimnis als Umgebungsvariable (empfohlen)
-
-Das Clientgeheimnis sollte **nicht im Klartext** in der Konfigurationsdatei
-stehen. Mit dem Präfix `ENV:` wird stattdessen eine Umgebungsvariable gelesen:
-
-```json
-"client_secret": "ENV:TEAMS_SCANNER_SECRET"
-```
-
-**Windows:**
-```cmd
-setx TEAMS_SCANNER_SECRET "mein-geheimnis"
-```
-
-**Linux/macOS:**
-```bash
-export TEAMS_SCANNER_SECRET="mein-geheimnis"
-```
-
----
-
 ## Integration mit der idvault-Webapp
 
-Scanner und Webapp teilen sich dieselbe Datenbank. `db_path` auf die
-Webapp-Instanz-Datenbank zeigen lassen:
-
-```json
-{
-  "db_path": "../instance/idvault.db"
-}
-```
-
-Im idvault-Interface erscheinen Teams/SharePoint-Dateien unter
+Scanner und Webapp teilen sich dieselbe SQLite-Datenbank. Der Subprocess
+erhält den Pfad via `--db-path`. Im idvault-Interface erscheinen
+Teams/SharePoint-Dateien unter
 **Scanner → Entdeckte Dateien** mit der Quellenangabe `sharepoint` in der
 neuen Spalte `source`.
 
@@ -350,11 +313,12 @@ im Log protokolliert. Der Scan läuft für die übrigen Dateien weiter.
 ```
 1. Aufgabenplanung öffnen
 2. Neue Aufgabe:
-   python C:\IDV-Scanner\teams_scanner.py --config C:\IDV-Scanner\teams_config.json
-3. Trigger: wöchentlich (z.B. Dienstag 07:00 Uhr, versetzt zum Netzlaufwerk-Scan)
+   python C:\IDV-Scanner\teams_scanner.py --db-path C:\IDV-Scanner\instance\idvault.db
+3. Trigger: wöchentlich (z. B. Dienstag 07:00 Uhr, versetzt zum Netzlaufwerk-Scan)
 4. Ausführen als: Dienstkonto (benötigt nur HTTPS-Internetzugriff auf
-   graph.microsoft.com und login.microsoftonline.com)
-5. Umgebungsvariable TEAMS_SCANNER_SECRET im Konto des Dienstkontos setzen
+   graph.microsoft.com und login.microsoftonline.com). Das Clientgeheimnis
+   wird aus der SQLite-DB gelesen – keine zusätzlichen Umgebungsvariablen
+   nötig.
 ```
 
 ---
@@ -364,8 +328,8 @@ im Log protokolliert. Der Scan läuft für die übrigen Dateien weiter.
 ```
 python teams_scanner.py --help
 
-  --config PATH        Pfad zur Konfigurationsdatei (Standard: teams_config.json)
-  --init-config        Erstellt eine Beispielkonfiguration und beendet sich
+  --db-path PATH       Pfad zur SQLite-Datenbank (Pflicht im Normalbetrieb;
+                       Konfiguration wird aus app_settings gelesen)
   --dry-run            Listet gefundene Dateien auf, ohne DB zu ändern
   --check-config       Prüft Abhängigkeiten und Konfiguration
 ```
@@ -380,7 +344,7 @@ python teams_scanner.py --help
 | `Token-Anfrage fehlgeschlagen: AADSTS700016` | client_id falsch | App-Registrierung prüfen |
 | `Token-Anfrage fehlgeschlagen: AADSTS7000215` | client_secret falsch/abgelaufen | Neues Geheimnis anlegen |
 | `403 Forbidden` bei Graph-Anfragen | Admin-Zustimmung fehlt | IT-Admin: "Administratorzustimmung erteilen" |
-| `Umgebungsvariable 'XYZ' nicht gesetzt` | ENV-Variable fehlt | Variable im Betriebssystem setzen |
+| `Kein Clientgeheimnis gespeichert` | Secret in der Web-UI nicht eingetragen | Unter /admin/teams-einstellungen erneut speichern |
 | `Keine Dokumentbibliothek gefunden` | Site-URL falsch oder keine Berechtigung | site_url und Sites.Read.All prüfen |
 
 ---

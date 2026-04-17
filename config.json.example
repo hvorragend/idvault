@@ -1,9 +1,10 @@
 {
-  "_kommentar_praezedenz": "Präzedenz der Konfigurationsquellen (höchste zuerst): Umgebungsvariable > config.json > SQLite (app_settings / ldap_config) > Hardcoded-Default. Die Web-UI speichert in die SQLite-DB. Ein Eintrag hier überschreibt den DB-Wert und macht das entsprechende Feld in der Web-UI read-only.",
+  "_kommentar_konfig": "Bootstrap-Konfiguration. Enthält nur Werte, die beim Start der Anwendung benötigt werden (Port, TLS, DB-Pfad, lokale Fallback-User, Windows-Dienstname). Alle Betriebseinstellungen (SMTP, LDAP, Rate-Limits, Scanner, Teams, Pfad-Mappings, Sidecar-Update-Schalter) werden über die Web-UI in die SQLite-Datenbank geschrieben.",
 
   "SECRET_KEY": "BITTE_ERSETZEN_mindestens_32_Zeichen",
 
   "PORT": 5000,
+  "DEBUG": 0,
 
   "IDV_HTTPS": 0,
   "IDV_SSL_CERT": "instance/certs/cert.pem",
@@ -12,13 +13,6 @@
 
   "IDV_DB_PATH": "instance/idvault.db",
   "IDV_INSTANCE_PATH": "instance",
-
-  "_kommentar_smtp": "SMTP-Zugangsdaten werden über die Web-UI unter /admin/mail in der SQLite-Tabelle app_settings gespeichert. Daher sind hier keine SMTP-Keys mehr vorbelegt. Frühere Einträge wie IDV_SMTP_HOST wurden von der Anwendung nie gelesen und dienen nur als Umgebungsvariable.",
-
-  "_kommentar_sicherheit": "Folgende Schalter steuern Sicherheitsfunktionen – vor Produktivbetrieb unbedingt anpassen.",
-
-  "IDV_ALLOW_SIDECAR_UPDATES": 1,
-  "_kommentar_sidecar": "Auf 0 setzen, um das Hochladen von Sidecar-Updates (Admin → Update) komplett zu deaktivieren. Empfohlen in regulierten Umgebungen oder wenn Updates ausschließlich über neue EXE-Builds erfolgen sollen.",
 
   "IDV_SERVICE_NAME": "",
   "_kommentar_service": "Windows-Dienstname (interner Name, wie bei 'sc create' angegeben, z. B. 'idvault'). Wenn gesetzt, löst 'App neu starten' in der Web-UI einen sauberen Dienst-Neustart via 'sc start <name>' aus, statt eine neue EXE-Instanz direkt zu spawnen. Das Dienstkonto benötigt das Recht SERVICE_START für den eigenen Dienst (bei LOCAL SYSTEM standardmäßig vorhanden). Leer lassen = Direktmodus (EXE wird als neues Konsolenfenster gestartet).",
@@ -41,94 +35,5 @@
       "person_id": null
     }
   ],
-  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. Reihenfolge beim lokalen Login: LDAP (falls aktiv) → config.json → persons-Tabelle. Ein hier gepflegter Eintrag überschreibt damit bewusst einen gleichnamigen DB-Benutzer (z.B. für Break-Glass-Admin trotz vorhandener persons-Zeile); der Konflikt wird in idvault.log protokolliert. Leere Liste = kein lokaler Login.",
-
-  "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",
-  "_kommentar_ratelimit": "Flask-Limiter-Syntax. Gilt pro Client-IP am POST /login.",
-
-  "IDV_UPLOAD_RATE_LIMIT": "10 per minute;60 per hour",
-  "_kommentar_uploadlimit": "Rate-Limit für Admin-Uploads (Update-ZIP, CSV-Importe). Pro Client-IP.",
-
-  "_kommentar_path_mappings": "UNC-Pfade (oder beliebige Pfad-Präfixe) durch Laufwerksbuchstaben oder andere Bezeichnungen ersetzen – sowohl beim Speichern in der Datenbank (Scanner) als auch in der Anzeige (Web-UI). Reihenfolge: Regeln werden der Reihe nach angewendet; die erste passende Regel gewinnt NICHT – alle Regeln werden angewendet. Einfaches Modus (regex: false): Präfix-Ersetzen, Groß-/Kleinschreibung ignoriert. Regex-Modus (regex: true): Python-re.sub, Gruppen-Referenzen erlaubt, optionale 'flags': 'i' = IGNORECASE, 'm' = MULTILINE.",
-
-  "path_mappings": [
-    {
-      "_beispiel": "Löschen oder anpassen. Führende \\\\ in JSON als \\\\\\\\ schreiben.",
-      "pattern": "\\\\\\\\fileserver.example.local\\\\Inst_001\\\\daten",
-      "replacement": "O:",
-      "regex": false
-    },
-    {
-      "pattern": "\\\\\\\\fileserver.example.local\\\\Inst_001\\\\zentral",
-      "replacement": "Q:",
-      "regex": false
-    }
-  ],
-
-  "scanner": {
-    "scan_paths": [],
-    "extensions": [
-      ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
-      ".accdb", ".mdb", ".accde", ".accdr",
-      ".ida", ".idv",
-      ".bas", ".cls", ".frm",
-      ".pbix", ".pbit",
-      ".dotm", ".pptm",
-      ".py", ".r", ".rmd",
-      ".sql"
-    ],
-    "exclude_paths": [],
-    "_kommentar_blackwhitelist": "blacklist_paths: Ausschluss-Muster (Regex oder Substring) – Dateien/Verzeichnisse, deren Pfad einem Muster entspricht, werden übersprungen. whitelist_paths: Wenn nicht leer, werden NUR Dateien/Verzeichnisse verarbeitet, die einem Muster entsprechen. Hat Vorrang vor blacklist_paths.",
-    "blacklist_paths": [
-      "~$",
-      ".tmp",
-      "\\$RECYCLE\\.BIN",
-      "System Volume Information",
-      "AppData"
-    ],
-    "whitelist_paths": [],
-    "db_path": "instance/idvault.db",
-    "log_path": "instance/logs/idv_scanner.log",
-    "hash_size_limit_mb": 500,
-    "max_workers": 4,
-    "move_detection": "name_and_hash",
-    "scan_since": null,
-    "read_file_owner": true
-  },
-
-  "_kommentar_teams": "Teams-Scanner (SharePoint/Graph-API). Ersetzt die frühere scanner/teams_config.json – die wird beim nächsten Start automatisch nach config.json['teams'] migriert und zu teams_config.json.migrated umbenannt. Die Web-UI unter /admin/teams-einstellungen schreibt direkt hier hinein.",
-
-  "teams": {
-    "tenant_id": "",
-    "client_id": "",
-    "client_secret": "",
-    "extensions": [
-      ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
-      ".accdb", ".mdb", ".accde", ".accdr",
-      ".ida", ".idv",
-      ".pbix", ".pbit",
-      ".dotm", ".pptm",
-      ".py", ".r", ".rmd", ".sql"
-    ],
-    "hash_size_limit_mb": 100,
-    "download_for_ooxml": true,
-    "move_detection": "name_and_hash",
-    "_kommentar_blackwhitelist": "blacklist_paths/whitelist_paths für den Teams-Scanner. Geprüft wird gegen den relativen Pfad innerhalb der SharePoint-Site (relative_path). Unterstützt Teilzeichenketten und reguläre Ausdrücke.",
-    "blacklist_paths": [],
-    "whitelist_paths": [],
-    "teams": []
-  },
-
-  "_kommentar_ldap": "OPTIONAL. Der 'ldap'-Block überschreibt pro Feld die SQLite-Tabelle ldap_config. Fehlt er (oder einzelne Keys), gelten die in /admin/ldap-config gepflegten DB-Werte. Überschriebene Felder sind in der Web-UI read-only. bind_password darf Klartext sein oder 'ENV:VARNAME' referenzieren – so managen Ops-Teams das Secret extern, ohne die Fernet-Verschlüsselung der DB zu benötigen.",
-
-  "_ldap_beispiel": {
-    "enabled": true,
-    "server_url": "ldaps://ad.example.com",
-    "port": 636,
-    "base_dn": "DC=example,DC=com",
-    "bind_dn": "CN=svc-idvault,OU=ServiceAccounts,DC=example,DC=com",
-    "bind_password": "ENV:IDV_LDAP_BIND_PASSWORD",
-    "user_attr": "sAMAccountName",
-    "ssl_verify": true
-  }
+  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. Reihenfolge beim Login: LDAP (falls aktiv) → config.json → persons-Tabelle. Ein hier gepflegter Eintrag überschreibt damit bewusst einen gleichnamigen DB-Benutzer (z. B. für Break-Glass-Admin trotz vorhandener persons-Zeile); der Konflikt wird in idvault.log protokolliert. Leere Liste = kein lokaler Login."
 }

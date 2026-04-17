@@ -5,15 +5,6 @@
 {% block content %}
 {% include 'admin/_subnav.html' %}
 
-{% set override_keys = override_keys or [] %}
-{% macro override_badge(key) -%}
-  {% if key in override_keys %}
-    <span class="badge bg-secondary ms-1" title="Dieser Wert wird durch config.json überschrieben und ist hier nicht editierbar.">
-      <i class="bi bi-file-earmark-lock2 me-1"></i>aus config.json
-    </span>
-  {% endif %}
-{%- endmacro %}
-
 <div class="d-flex justify-content-between align-items-center mb-3">
   <span class="text-muted" style="font-size:.88rem">
     Verbindung zu LDAP / Active Directory konfigurieren (LDAPS, Port 636)
@@ -37,20 +28,6 @@
   {% endfor %}
 {% endwith %}
 
-{% if override_keys %}
-<div class="alert alert-info d-flex align-items-start" role="alert">
-  <i class="bi bi-info-circle me-2 mt-1"></i>
-  <div>
-    <strong>Override über <code>config.json</code> aktiv.</strong>
-    Folgende Felder werden durch den <code>"ldap"</code>-Block in der
-    <code>config.json</code> überschrieben und lassen sich hier nicht ändern:
-    <code>{{ override_keys|join(', ') }}</code>.
-    Entferne den entsprechenden Schlüssel aus der Datei, um wieder die
-    DB-Werte wirken zu lassen.
-  </div>
-</div>
-{% endif %}
-
 <div class="row g-4">
 
   <!-- ── Konfigurationsformular ─────────────────────────────────────────── -->
@@ -69,10 +46,9 @@
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" name="enabled"
                      id="enabled" value="1"
-                     {{ 'checked' if cfg and cfg.enabled else '' }}
-                     {{ 'disabled' if 'enabled' in override_keys else '' }}>
+                     {{ 'checked' if cfg and cfg.enabled else '' }}>
               <label class="form-check-label fw-600" for="enabled">
-                LDAP-Authentifizierung aktivieren{{ override_badge('enabled') }}
+                LDAP-Authentifizierung aktivieren
               </label>
             </div>
             <div class="form-text text-warning">
@@ -84,54 +60,47 @@
 
           <!-- Server-URL -->
           <div class="col-md-8">
-            <label class="form-label fw-600">Server-URL <span class="text-danger">*</span>{{ override_badge('server_url') }}</label>
+            <label class="form-label fw-600">Server-URL <span class="text-danger">*</span></label>
             <input type="text" name="server_url" class="form-control font-monospace"
                    value="{{ cfg.server_url if cfg else '' }}"
-                   placeholder="ldaps://ldap.ihre-bank.de"
-                   {{ 'readonly' if 'server_url' in override_keys else 'required' }}>
+                   placeholder="ldaps://ldap.ihre-bank.de" required>
             <div class="form-text">Protokoll <code>ldaps://</code> für verschlüsselte Verbindung (empfohlen)</div>
           </div>
 
           <!-- Port -->
           <div class="col-md-4">
-            <label class="form-label fw-600">Port{{ override_badge('port') }}</label>
+            <label class="form-label fw-600">Port</label>
             <input type="number" name="port" class="form-control"
-                   value="{{ cfg.port if cfg else 636 }}" min="1" max="65535"
-                   {{ 'readonly' if 'port' in override_keys else '' }}>
+                   value="{{ cfg.port if cfg else 636 }}" min="1" max="65535">
             <div class="form-text">Standard: 636 (LDAPS) oder 389 (LDAP)</div>
           </div>
 
           <!-- Base-DN -->
           <div class="col-12">
-            <label class="form-label fw-600">Base-DN <span class="text-danger">*</span>{{ override_badge('base_dn') }}</label>
+            <label class="form-label fw-600">Base-DN <span class="text-danger">*</span></label>
             <input type="text" name="base_dn" class="form-control font-monospace"
                    value="{{ cfg.base_dn if cfg else '' }}"
-                   placeholder="OU=Benutzer,DC=ihre-bank,DC=de"
-                   {{ 'readonly' if 'base_dn' in override_keys else 'required' }}>
+                   placeholder="OU=Benutzer,DC=ihre-bank,DC=de" required>
             <div class="form-text">Suchbasis für Benutzer im Verzeichnis</div>
           </div>
 
           <!-- Technischer Benutzer -->
           <div class="col-12">
-            <label class="form-label fw-600">Technischer Benutzer (Bind-DN) <span class="text-danger">*</span>{{ override_badge('bind_dn') }}</label>
+            <label class="form-label fw-600">Technischer Benutzer (Bind-DN) <span class="text-danger">*</span></label>
             <input type="text" name="bind_dn" class="form-control font-monospace"
                    value="{{ cfg.bind_dn if cfg else '' }}"
-                   placeholder="CN=svc-idvault,OU=ServiceAccounts,DC=ihre-bank,DC=de"
-                   {{ 'readonly' if 'bind_dn' in override_keys else 'required' }}>
+                   placeholder="CN=svc-idvault,OU=ServiceAccounts,DC=ihre-bank,DC=de" required>
             <div class="form-text">Service-Account für LDAP-Suche (nur Leserechte benötigt)</div>
           </div>
 
           <!-- Kennwort -->
           <div class="col-12">
-            <label class="form-label fw-600">Kennwort Service-Account{{ override_badge('bind_password') }}</label>
+            <label class="form-label fw-600">Kennwort Service-Account</label>
             <input type="password" name="bind_password" class="form-control"
-                   placeholder="{{ 'Aus config.json (nicht über UI änderbar)' if 'bind_password' in override_keys else ('Leer lassen = unverändert' if cfg and cfg.bind_password else 'Kennwort eingeben') }}"
-                   {{ 'readonly' if 'bind_password' in override_keys else '' }}>
+                   placeholder="{{ 'Leer lassen = unverändert' if cfg and cfg.bind_password else 'Kennwort eingeben' }}">
             <div class="form-text">
               Wird verschlüsselt gespeichert (Fernet/AES-128).
-              {% if 'bind_password' in override_keys %}
-              <span class="text-muted"><i class="bi bi-file-earmark-lock2 me-1"></i>Wert kommt als Klartext (oder ENV:VARNAME) aus der config.json.</span>
-              {% elif cfg and cfg.bind_password %}
+              {% if cfg and cfg.bind_password %}
               <span class="text-success"><i class="bi bi-check-circle me-1"></i>Kennwort ist hinterlegt.</span>
               {% endif %}
             </div>
@@ -139,9 +108,8 @@
 
           <!-- Benutzer-Attribut & SSL-Verify -->
           <div class="col-md-6">
-            <label class="form-label fw-600">Benutzer-Attribut{{ override_badge('user_attr') }}</label>
-            <select name="user_attr" class="form-select"
-                    {{ 'disabled' if 'user_attr' in override_keys else '' }}>
+            <label class="form-label fw-600">Benutzer-Attribut</label>
+            <select name="user_attr" class="form-select">
               {% for attr in ['sAMAccountName', 'userPrincipalName', 'cn', 'uid'] %}
               <option value="{{ attr }}" {{ 'selected' if cfg and cfg.user_attr == attr else '' }}>{{ attr }}</option>
               {% endfor %}
@@ -150,12 +118,11 @@
           </div>
 
           <div class="col-md-6">
-            <label class="form-label fw-600">TLS-Zertifikat{{ override_badge('ssl_verify') }}</label>
+            <label class="form-label fw-600">TLS-Zertifikat</label>
             <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" name="ssl_verify"
                      id="ssl_verify" value="1"
-                     {{ 'checked' if not cfg or cfg.ssl_verify else '' }}
-                     {{ 'disabled' if 'ssl_verify' in override_keys else '' }}>
+                     {{ 'checked' if not cfg or cfg.ssl_verify else '' }}>
               <label class="form-check-label" for="ssl_verify">
                 Zertifikat verifizieren (empfohlen)
               </label>

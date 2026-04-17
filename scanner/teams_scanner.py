@@ -16,23 +16,11 @@ Azure AD App-Registrierung (einmalig durch IT-Administrator):
     4. Zertifikate & Geheimnisse → Neuer geheimer Clientschlüssel
 
 Konfiguration:
-    Liest entweder
-      * die Haupt-``config.json`` (neben ``run.py`` / der EXE) und nutzt daraus
-        den ``"teams"``-Abschnitt (seit der Settings-Konsolidierung, empfohlen),
-        **oder**
-      * eine separate ``teams_config.json`` im Legacy-Format (rückwärts-
-        kompatibel für isolierte Kommandozeilen-Nutzung).
-
-    Shape der "teams"-Sektion:
-    {
-      "tenant_id":   "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "client_id":   "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "client_secret": "ENV:TEAMS_SCANNER_SECRET",   // Umgebungsvariable empfohlen
-      "teams": [
-        { "team_id":  "...", "display_name": "IDV-Team Markt" },
-        { "site_url": "https://contoso.sharepoint.com/sites/Controlling" }
-      ]
-    }
+    Wird aus der SQLite-Datenbank (``app_settings``) gelesen. Die Webapp
+    pflegt Tenant-/Client-ID, client_secret (Fernet-verschlüsselt) und
+    Teams-/Site-Liste über ``/admin/teams-einstellungen``. Der Scanner
+    wird vom Webapp-Prozess als Subprocess mit ``--db-path <idvault.db>``
+    aufgerufen.
 
 Autor:  IDV-Register Projekt
 Lizenz: intern
@@ -102,13 +90,10 @@ DEFAULT_EXTENSIONS = [
 ]
 
 DEFAULT_CONFIG = {
-    # Relativ zur config.json aufgelöst – landet bei der Haupt-config.json
-    # im Projekt-Root unter instance/ (gleicher Ort wie für idv_scanner).
-    "db_path":             "instance/idvault.db",
-    "log_path":            "instance/logs/teams_scanner.log",
     "tenant_id":           "",
     "client_id":           "",
-    # Wert direkt oder "ENV:VARNAME" um eine Umgebungsvariable zu referenzieren
+    # Bei --db-path-Modus wird das client_secret Fernet-verschlüsselt aus
+    # app_settings['teams_client_secret_enc'] geladen.
     "client_secret":       "",
     "extensions":          DEFAULT_EXTENSIONS,
     # Dateien > X MB werden nicht heruntergeladen (OOXML-Analyse übersprungen)
@@ -161,19 +146,6 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
 # Authentifizierung (MSAL Client-Credentials-Flow)
 # ---------------------------------------------------------------------------
 
-def _resolve_secret(value: str) -> str:
-    """Löst 'ENV:VARNAME' in den Wert der entsprechenden Umgebungsvariable auf."""
-    if value.startswith("ENV:"):
-        env_var = value[4:]
-        resolved = os.environ.get(env_var, "")
-        if not resolved:
-            raise ValueError(
-                f"Umgebungsvariable '{env_var}' ist nicht gesetzt oder leer."
-            )
-        return resolved
-    return value
-
-
 def get_access_token(config: dict, logger: logging.Logger) -> str:
     """Holt ein Access Token via MSAL Client-Credentials-Flow (keine Benutzeranmeldung)."""
     if not HAS_MSAL:
@@ -182,7 +154,7 @@ def get_access_token(config: dict, logger: logging.Logger) -> str:
 
     tenant_id     = config.get("tenant_id", "")
     client_id     = config.get("client_id", "")
-    client_secret = _resolve_secret(config.get("client_secret", ""))
+    client_secret = config.get("client_secret", "")
 
     if not all([tenant_id, client_id, client_secret]):
         logger.error(
@@ -788,24 +760,85 @@ def _print_check(ok: bool, label: str) -> None:
     print(f"  [{mark}] {label}")
 
 
+def _load_teams_config_from_db(db_path: str, secret_key: str) -> dict:
+    """Lädt teams_config + Fernet-entschlüsseltes client_secret aus app_settings."""
+    import sqlite3
+    cfg = dict(DEFAULT_CONFIG)
+    cfg["db_path"] = db_path
+    conn = sqlite3.connect(db_path, timeout=30)
+    conn.row_factory = sqlite3.Row
+    try:
+        def _read(key: str) -> str:
+            row = conn.execute(
+                "SELECT value FROM app_settings WHERE key=?", (key,)
+            ).fetchone()
+            return (row["value"] if row and row["value"] else "") or ""
+
+        raw = _read("teams_config")
+        if raw:
+            try:
+                data = json.loads(raw)
+                if isinstance(data, dict):
+                    cfg.update(data)
+            except (TypeError, ValueError):
+                pass
+
+        enc = _read("teams_client_secret_enc")
+        if enc and secret_key:
+            try:
+                # secrets.py liegt in webapp/; Scanner importiert es über
+                # project-root (Pfad wird unten in main() gesetzt).
+                from webapp.secrets import decrypt_with
+                cfg["client_secret"] = decrypt_with(secret_key, enc)
+            except Exception:
+                cfg["client_secret"] = ""
+
+        raw_pm = _read("path_mappings")
+        if raw_pm:
+            try:
+                pm = json.loads(raw_pm)
+                if isinstance(pm, list):
+                    cfg["path_mappings"] = pm
+            except (TypeError, ValueError):
+                pass
+    finally:
+        conn.close()
+    return cfg
+
+
+def _load_bootstrap_secret_key() -> str:
+    """Liest SECRET_KEY aus config.json (für Subprozesse ohne Flask-App-Kontext)."""
+    try:
+        # Projekt-Root neben run.py/EXE.
+        _root = os.environ.get("IDV_PROJECT_ROOT")
+        if not _root:
+            _root = os.path.dirname(
+                os.path.dirname(os.path.abspath(__file__))
+            )
+        path = os.path.join(_root, "config.json")
+        if not os.path.isfile(path):
+            return ""
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return str(data.get("SECRET_KEY", "") or "")
+    except Exception:
+        return ""
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="IDV Teams-Scanner – Microsoft Teams/SharePoint via Graph API",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Beispiele:
-  python teams_scanner.py --init-config
-  python teams_scanner.py --config teams_config.json --dry-run
-  python teams_scanner.py --config teams_config.json
+  python teams_scanner.py --db-path instance/idvault.db --dry-run
+  python teams_scanner.py --db-path instance/idvault.db
         """,
     )
     parser.add_argument(
-        "--config", default="teams_config.json",
-        help="Pfad zur Konfigurationsdatei (Standard: teams_config.json)",
-    )
-    parser.add_argument(
-        "--init-config", action="store_true",
-        help="Erstellt eine Beispiel-Konfigurationsdatei und beendet sich",
+        "--db-path", default=None,
+        help="Pfad zur SQLite-DB. Teams-Config + client_secret (Fernet) "
+             "werden aus app_settings gelesen.",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -817,55 +850,29 @@ Beispiele:
     )
     args = parser.parse_args()
 
-    # ── --init-config ─────────────────────────────────────────────────────
-    if args.init_config:
-        out_path = "teams_config.json"
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(DEFAULT_CONFIG, fh, indent=2, ensure_ascii=False)
-        print(f"Beispielkonfiguration erstellt: {out_path}")
-        print("Bitte tenant_id, client_id, client_secret und Teams/Sites eintragen.")
-        sys.exit(0)
+    if not args.db_path:
+        print("Fehler: --db-path erforderlich.", file=sys.stderr)
+        sys.exit(2)
 
-    # ── Konfiguration laden ────────────────────────────────────────────────
-    # Akzeptiert sowohl die Haupt-config.json (Schlüssel "teams") als auch
-    # eine Legacy-teams_config.json im flachen Format.
-    config = dict(DEFAULT_CONFIG)
-    if os.path.exists(args.config):
-        with open(args.config, encoding="utf-8") as fh:
-            _raw = json.load(fh)
-    else:
-        print(
-            f"Konfigurationsdatei '{args.config}' nicht gefunden.\n"
-            f"Starte mit: python teams_scanner.py --init-config"
-        )
+    # Projektwurzel in sys.path eintragen, damit ``from webapp.secrets``
+    # im Subprozess-Kontext funktioniert.
+    _proj_root = os.environ.get("IDV_PROJECT_ROOT") or os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))
+    )
+    if _proj_root not in sys.path:
+        sys.path.insert(0, _proj_root)
+
+    db_path = os.path.abspath(args.db_path)
+    if not os.path.isfile(db_path):
+        print(f"DB nicht gefunden: {db_path}", file=sys.stderr)
         sys.exit(1)
 
-    if isinstance(_raw, dict) and isinstance(_raw.get("teams"), dict):
-        # Haupt-config.json-Format: "teams"-Sektion enthält alle Settings.
-        _teams_section = _raw["teams"]
-        config.update(_teams_section)
-        # DB-Pfad aus "scanner"-Sektion erben (beide Scanner teilen die DB),
-        # falls im Teams-Block nicht explizit gesetzt.
-        if "db_path" not in _teams_section:
-            _scanner_section = _raw.get("scanner")
-            if isinstance(_scanner_section, dict) and _scanner_section.get("db_path"):
-                config["db_path"] = _scanner_section["db_path"]
-            elif _raw.get("IDV_DB_PATH"):
-                config["db_path"] = _raw["IDV_DB_PATH"]
-        # path_mappings liegt auf der obersten Ebene der config.json
-        if "path_mappings" in _raw:
-            config["path_mappings"] = _raw["path_mappings"]
-    else:
-        # Legacy-teams_config.json-Format (flaches Dict).
-        config.update(_raw)
+    secret_key = _load_bootstrap_secret_key()
+    config = _load_teams_config_from_db(db_path, secret_key)
+    config["log_path"] = os.path.join(
+        os.path.dirname(db_path), "logs", "teams_scanner.log"
+    )
 
-    # Relative Pfade gegen das Verzeichnis der config.json auflösen
-    # (analog zum idv_scanner – portable Konfiguration).
-    _config_dir = os.path.dirname(os.path.abspath(args.config))
-    for _key in ("db_path", "log_path"):
-        _val = config.get(_key)
-        if _val and not os.path.isabs(_val):
-            config[_key] = os.path.normpath(os.path.join(_config_dir, _val))
     try:
         os.makedirs(os.path.dirname(config["log_path"]), exist_ok=True)
     except (OSError, TypeError):
@@ -880,15 +887,7 @@ Beispiele:
         _print_check(HAS_REQUESTS, "requests installiert        (pip install requests)")
         _print_check(bool(config.get("tenant_id")),     "tenant_id konfiguriert")
         _print_check(bool(config.get("client_id")),     "client_id konfiguriert")
-        secret_ok = False
-        try:
-            secret_ok = bool(_resolve_secret(config.get("client_secret", "")))
-        except ValueError as exc:
-            print(f"  [FEHLT] client_secret: {exc}")
-        if config.get("client_secret", "") and not config["client_secret"].startswith("ENV:"):
-            _print_check(secret_ok, "client_secret konfiguriert")
-        else:
-            _print_check(secret_ok, "client_secret (Umgebungsvariable)")
+        _print_check(bool(config.get("client_secret")), "client_secret konfiguriert")
         _print_check(bool(config.get("teams")), "Teams/Sites konfiguriert")
         db_dir = os.path.dirname(os.path.abspath(config["db_path"]))
         _print_check(os.path.isdir(db_dir), f"Datenbankpfad erreichbar ({config['db_path']})")
