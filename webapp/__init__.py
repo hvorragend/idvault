@@ -554,6 +554,11 @@ def create_app(db_path: str = None) -> Flask:
         return {"scanner_eingang_count": count}
 
     # Template-Filter
+    @app.template_filter("map_path")
+    def map_path_filter(value):
+        """Gibt einen Pfad als lesbaren String zurück (Sidecar-Kompatibilität)."""
+        return str(value) if value else ""
+
     @app.template_filter("datefmt")
     def datefmt(value, fmt="%d.%m.%Y"):
         if not value:
