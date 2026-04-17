@@ -2231,15 +2231,18 @@ def scanner_log():
     if err:
         flash(f"Scan-Log konnte nicht gelesen werden: {err}", "error")
 
-    # Neueste Einträge oben anzeigen.
-    lines.reverse()
+    from ..login_logger import get_log_path as _get_login_log_path
+    login_log_path = _get_login_log_path()
+    output_exists    = os.path.isfile(output_log_path)
+    login_log_exists = os.path.isfile(login_log_path)
 
-    output_exists = os.path.isfile(output_log_path)
     return render_template("admin/scanner_log.html",
                            lines=lines,
                            log_path=log_path,
                            output_log_path=output_log_path,
+                           login_log_path=login_log_path,
                            output_exists=output_exists,
+                           login_log_exists=login_log_exists,
                            scan_running=_scan_is_running(),
                            log_mtime=mtime)
 
@@ -2263,11 +2266,13 @@ def scanner_log_raw():
         max_lines = 500
 
     which = request.args.get("which", "scanner")
-    path = (
-        _resolve_scanner_output_log_path()
-        if which == "output"
-        else _resolve_scanner_log_path()
-    )
+    if which == "output":
+        path = _resolve_scanner_output_log_path()
+    elif which == "login":
+        from ..login_logger import get_log_path as _get_login_log_path
+        path = _get_login_log_path()
+    else:
+        path = _resolve_scanner_log_path()
 
     lines, err, _mtime, _size = _read_log_tail(path, max_lines=max_lines)
     if err:
@@ -2299,7 +2304,6 @@ def login_log():
         with open(log_path, encoding="utf-8") as f:
             lines = f.readlines()
         lines = lines[-1000:]
-        lines.reverse()
     except FileNotFoundError:
         pass
     except Exception as e:

@@ -45,7 +45,7 @@
         die Datei wird beim ersten Login-Versuch angelegt.
       </div>
       {% else %}
-      <div style="max-height:600px;overflow-y:auto;font-family:monospace;font-size:.78rem">
+      <div id="logContainer" style="max-height:600px;overflow-y:auto;font-family:monospace;font-size:.78rem">
         <table class="table table-sm table-hover mb-0" id="logTable">
           <tbody>
             {% for line in lines %}
@@ -68,7 +68,7 @@
       <div class="card-footer bg-white text-muted" style="font-size:.78rem">
         Datei: <code>{{ log_path }}</code> &nbsp;·&nbsp;
         Rotation: 2 MB / Datei, 10 Backups &nbsp;·&nbsp;
-        Neueste Einträge zuerst (max. 1 000 Zeilen)
+        Neueste Einträge unten (max. 1 000 Zeilen)
       </div>
     </div>
   </div>
@@ -126,6 +126,9 @@
   }
   search.addEventListener('input',  apply);
   filter.addEventListener('change', apply);
+
+  const cont = document.getElementById('logContainer');
+  if (cont) cont.scrollTop = cont.scrollHeight;
 })();
 </script>
 {% endblock %}

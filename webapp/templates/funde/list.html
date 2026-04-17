@@ -120,6 +120,13 @@
   <input type="hidden" name="sort" value="{{ sort }}">
   <input type="hidden" name="order" value="{{ order }}">
   <div class="row g-2 align-items-end">
+    <!-- Dateiname-Suche -->
+    <div class="col-12">
+      <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
+      <input type="text" name="q" value="{{ q_search }}"
+             class="form-control form-control-sm font-monospace"
+             placeholder="Dateiname …">
+    </div>
     <!-- Speicherort (dir_path) – durchsuchbares Eingabefeld, volle Breite -->
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
@@ -150,11 +157,14 @@
     </div>
     <div class="col-md-3 d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
-      <a href="{{ url_for('funde.list_funde', filter=filt, sort=sort, order=order) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+      <a href="{{ url_for('funde.list_funde', filter=filt, sort=sort, order=order) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
     </div>
   </div>
-  {% if dir_path_filt or share_root_filt or scan_run_id_filt %}
+  {% if q_search or dir_path_filt or share_root_filt or scan_run_id_filt %}
   <div class="mt-2 d-flex gap-2 flex-wrap">
+    {% if q_search %}
+    <span class="badge bg-info text-dark"><i class="bi bi-search me-1"></i>{{ q_search }}</span>
+    {% endif %}
     {% if dir_path_filt %}
     <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
     {% endif %}
@@ -241,7 +251,7 @@
 {% endmacro %}
 
 <!-- ── Pagination + Variablen (vor dem Bulk-Formular setzen) ──────── -->
-{% set url_extra = {'filter': filt, 'share_root': share_root_filt, 'dir_path': dir_path_filt, 'scan_run': scan_run_id_filt, 'sort': sort, 'order': order} %}
+{% set url_extra = {'filter': filt, 'share_root': share_root_filt, 'dir_path': dir_path_filt, 'scan_run': scan_run_id_filt, 'sort': sort, 'order': order, 'q': q_search} %}
 {% set endpoint = 'funde.list_funde' %}
 {% include 'funde/_pagination.html' %}
 

@@ -206,6 +206,13 @@
 <!-- ── Filter-Leiste ───────────────────────────────────────────────── -->
 <form method="get" class="card border-0 shadow-sm p-3 mb-3">
   <div class="row g-2 align-items-end">
+    <!-- Dateiname-Suche -->
+    <div class="col-12">
+      <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
+      <input type="text" name="q" value="{{ q_search }}"
+             class="form-control form-control-sm font-monospace"
+             placeholder="Dateiname …">
+    </div>
     <!-- Speicherort – durchsuchbares Eingabefeld, volle Breite -->
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
@@ -263,8 +270,11 @@
       </select>
     </div>
   </div>
-  {% if dir_path_filt or share_root_filt or scan_run_id_filt %}
+  {% if q_search or dir_path_filt or share_root_filt or scan_run_id_filt %}
   <div class="mt-2 d-flex gap-2 flex-wrap">
+    {% if q_search %}
+    <span class="badge bg-info text-dark"><i class="bi bi-search me-1"></i>{{ q_search }}</span>
+    {% endif %}
     {% if dir_path_filt %}
     <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
     {% endif %}
@@ -311,7 +321,7 @@
 </div>
 
 <!-- ── Pagination-Variablen (vor dem Formular) ─────────────────────── -->
-{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run': scan_run_id_filt} %}
+{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run': scan_run_id_filt, 'q': q_search} %}
 {% set endpoint = 'funde.eingang_funde' %}
 {% include 'funde/_pagination.html' %}
 
