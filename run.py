@@ -545,8 +545,8 @@ if __name__ == "__main__":
                 _sm.Initialize()
                 _sm.PrepareToHostSingle(_Svc)
                 _sm.StartServiceCtrlDispatcher()
-            except ImportError:
-                print("pywin32 nicht verfügbar – Dienst-Modus nicht möglich.")
+            except ImportError as _e:
+                print(f"pywin32 nicht verfügbar – Dienst-Modus nicht möglich: {_e}")
             sys.exit(0)
 
         if _first_arg in ('install', 'remove', 'start', 'stop', 'restart',
@@ -556,8 +556,8 @@ if __name__ == "__main__":
                 import win32serviceutil as _wsu
                 _Svc = _make_service_class()
                 _wsu.HandleCommandLine(_Svc)
-            except ImportError:
-                print("pywin32 nicht verfügbar – Dienst-Modus nicht möglich.")
+            except ImportError as _e:
+                print(f"pywin32 nicht verfügbar – Dienst-Modus nicht möglich: {_e}")
             sys.exit(0)
     # ─────────────────────────────────────────────────────────────────────────
 
