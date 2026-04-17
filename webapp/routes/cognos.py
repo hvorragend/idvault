@@ -62,10 +62,28 @@ _FLOAT_COLS = {"komplexitaet"}
 
 
 def _parse_german_number(value: str, as_float: bool = False):
-    """Konvertiert deutsche Zahlformate: '1.057' → 1057, '5,2' → 5.2"""
+    """Konvertiert deutsche und englische Zahlformate.
+
+    Deutsche Format-Regeln: Punkt = Tausendertrenner, Komma = Dezimaltrenner.
+    Englisches Format: Punkt = Dezimaltrenner (kein Komma).
+
+    Heuristik: Hat die Zeichenkette kein Komma aber einen Punkt, und folgen
+    auf den letzten Punkt NICHT genau 3 Ziffern, wird der Punkt als
+    Dezimaltrenner interpretiert (z. B. "10.0" → 10.0, nicht 100).
+    """
     if not value or not value.strip():
         return None
-    v = value.strip().replace(".", "").replace(",", ".")
+    v = value.strip()
+    if "," in v:
+        # Deutsches Format: Punkte = Tausendertrenner, Komma = Dezimaltrenner
+        v = v.replace(".", "").replace(",", ".")
+    elif "." in v:
+        last_dot = v.rfind(".")
+        after_dot = v[last_dot + 1:]
+        if len(after_dot) == 3 and after_dot.isdigit():
+            # Deutsches Tausendertrenner-Muster (z. B. "1.000")
+            v = v.replace(".", "")
+        # else: englischer Dezimalpunkt – unverändert lassen (z. B. "10.0")
     try:
         return float(v) if as_float else int(v)
     except ValueError:
@@ -218,7 +236,7 @@ def list_berichte():
     elif komplexitaet_filt == "mittel":
         where_parts.append("komplexitaet IS NOT NULL AND komplexitaet >= 4 AND komplexitaet <= 6")
     elif komplexitaet_filt == "hoch":
-        where_parts.append("komplexitaet IS NOT NULL AND komplexitaet >= 7")
+        where_parts.append("komplexitaet IS NOT NULL AND komplexitaet >= 7 AND komplexitaet <= 10")
     if abfragen_filt == "1-5":
         where_parts.append("anz_abfragen IS NOT NULL AND anz_abfragen >= 1 AND anz_abfragen <= 5")
     elif abfragen_filt == "6-10":

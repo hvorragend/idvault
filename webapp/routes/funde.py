@@ -111,6 +111,7 @@ def list_funde():
     share_root  = request.args.get("share_root", "").strip()
     dir_path_filt = request.args.get("dir_path", "").strip()
     scan_run_id = request.args.get("scan_run", "").strip()
+    q_search    = request.args.get("q", "").strip()
     sort        = request.args.get("sort", "scan").strip()
     order       = request.args.get("order", "desc").strip()
     try:
@@ -189,6 +190,10 @@ def list_funde():
         params.extend([dir_path_filt,
                         dir_path_filt + "\\%",
                         dir_path_filt + "/%"])
+
+    if q_search:
+        where_parts.append("f.file_name LIKE ?")
+        params.append(f"%{q_search}%")
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
     # Duplikate nach Hash sortieren, damit Jinja2-groupby funktioniert
@@ -339,6 +344,7 @@ def list_funde():
         is_admin=is_admin,
         persons=persons,
         sort=sort, order=order,
+        q_search=q_search,
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
@@ -353,6 +359,7 @@ def eingang_funde():
     dir_path_filt = request.args.get("dir_path", "").strip()
     share_root    = request.args.get("share_root", "").strip()
     scan_run_id   = request.args.get("scan_run", "").strip()
+    q_search      = request.args.get("q", "").strip()
     sort          = request.args.get("sort", "prioritaet")
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
@@ -393,6 +400,9 @@ def eingang_funde():
             params.append(int(scan_run_id))
         except ValueError:
             scan_run_id = ""
+    if q_search:
+        where_parts.append("f.file_name LIKE ?")
+        params.append(f"%{q_search}%")
     where_sql = "WHERE " + " AND ".join(where_parts)
 
     sort_map = {
@@ -521,6 +531,7 @@ def eingang_funde():
         scan_run_id_filt=scan_run_id,
         scan_run_label=_scan_run_label,
         sort=sort,
+        q_search=q_search,
         duplicate_hashes=duplicate_hashes,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         is_admin=is_admin,
