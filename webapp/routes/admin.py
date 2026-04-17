@@ -2209,6 +2209,15 @@ def _resolve_scanner_crash_log_path() -> str:
     return os.path.join(_instance_logs_dir(), "scanner_crash.log")
 
 
+def _resolve_app_crash_log_path() -> str:
+    """Liefert den Pfad zum App-Crash-Log (stderr-Umleitung in run.py, nur EXE).
+
+    Enthält Python-Tracebacks und PyInstaller-Bootloader-Fehler des
+    Hauptprozesses; wird nur im gebündelten EXE-Modus geschrieben.
+    """
+    return os.path.join(_instance_logs_dir(), "idvault_crash.log")
+
+
 def _read_log_tail(path: str, max_lines: int = 1000) -> tuple:
     """Liest die letzten ``max_lines`` Zeilen einer Log-Datei.
 
@@ -2243,10 +2252,12 @@ def scanner_log():
 
     from ..login_logger import get_log_path as _get_login_log_path
     login_log_path = _get_login_log_path()
-    crash_log_path   = _resolve_scanner_crash_log_path()
-    output_exists    = os.path.isfile(output_log_path)
-    login_log_exists = os.path.isfile(login_log_path)
-    crash_exists     = os.path.isfile(crash_log_path)
+    crash_log_path     = _resolve_scanner_crash_log_path()
+    app_crash_log_path = _resolve_app_crash_log_path()
+    output_exists      = os.path.isfile(output_log_path)
+    login_log_exists   = os.path.isfile(login_log_path)
+    crash_exists       = os.path.isfile(crash_log_path)
+    app_crash_exists   = os.path.isfile(app_crash_log_path)
 
     return render_template("admin/scanner_log.html",
                            lines=lines,
@@ -2254,9 +2265,11 @@ def scanner_log():
                            output_log_path=output_log_path,
                            login_log_path=login_log_path,
                            crash_log_path=crash_log_path,
+                           app_crash_log_path=app_crash_log_path,
                            output_exists=output_exists,
                            login_log_exists=login_log_exists,
                            crash_exists=crash_exists,
+                           app_crash_exists=app_crash_exists,
                            scan_running=_scan_is_running(),
                            log_mtime=mtime)
 
@@ -2287,6 +2300,8 @@ def scanner_log_raw():
         path = _get_login_log_path()
     elif which == "crash":
         path = _resolve_scanner_crash_log_path()
+    elif which == "app_crash":
+        path = _resolve_app_crash_log_path()
     else:
         path = _resolve_scanner_log_path()
 
