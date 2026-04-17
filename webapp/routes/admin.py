@@ -2,6 +2,7 @@
 import csv
 import io
 import os
+import sqlite3
 import sys
 import json
 import re
@@ -1789,22 +1790,27 @@ def mail_test():
 @login_required
 def new_person():
     db = get_db()
-    db.execute("""
-        INSERT INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id,
-                             user_id, ad_name, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?)
-    """, (
-        request.form.get("kuerzel", "").strip().upper(),
-        request.form.get("nachname", "").strip(),
-        request.form.get("vorname", "").strip(),
-        request.form.get("email") or None,
-        request.form.get("rolle") or None,
-        request.form.get("org_unit_id") or None,
-        request.form.get("user_id") or None,
-        request.form.get("ad_name") or None,
-        _now()
-    ))
-    db.commit()
+    try:
+        db.execute("""
+            INSERT INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id,
+                                 user_id, ad_name, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, (
+            request.form.get("kuerzel", "").strip().upper(),
+            request.form.get("nachname", "").strip(),
+            request.form.get("vorname", "").strip(),
+            request.form.get("email") or None,
+            request.form.get("rolle") or None,
+            request.form.get("org_unit_id") or None,
+            request.form.get("user_id") or None,
+            request.form.get("ad_name") or None,
+            _now()
+        ))
+        db.commit()
+    except sqlite3.OperationalError as exc:
+        current_app.logger.warning("new_person: Datenbank gesperrt: %s", exc)
+        flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
+        return redirect(url_for("admin.index"))
     flash("Person angelegt.", "success")
     return redirect(url_for("admin.index"))
 
@@ -1824,25 +1830,30 @@ def edit_person(pid):
         new_pw = request.form.get("password", "").strip()
         pw_hash = _hash_pw(new_pw) if new_pw else person["password_hash"]
 
-        db.execute("""
-            UPDATE persons SET
-                kuerzel=?, nachname=?, vorname=?, email=?, rolle=?,
-                org_unit_id=?, user_id=?, ad_name=?, password_hash=?, aktiv=?
-            WHERE id=?
-        """, (
-            request.form.get("kuerzel", "").strip().upper(),
-            request.form.get("nachname", "").strip(),
-            request.form.get("vorname", "").strip(),
-            request.form.get("email") or None,
-            request.form.get("rolle") or None,
-            request.form.get("org_unit_id") or None,
-            request.form.get("user_id") or None,
-            request.form.get("ad_name") or None,
-            pw_hash,
-            1 if request.form.get("aktiv") else 0,
-            pid
-        ))
-        db.commit()
+        try:
+            db.execute("""
+                UPDATE persons SET
+                    kuerzel=?, nachname=?, vorname=?, email=?, rolle=?,
+                    org_unit_id=?, user_id=?, ad_name=?, password_hash=?, aktiv=?
+                WHERE id=?
+            """, (
+                request.form.get("kuerzel", "").strip().upper(),
+                request.form.get("nachname", "").strip(),
+                request.form.get("vorname", "").strip(),
+                request.form.get("email") or None,
+                request.form.get("rolle") or None,
+                request.form.get("org_unit_id") or None,
+                request.form.get("user_id") or None,
+                request.form.get("ad_name") or None,
+                pw_hash,
+                1 if request.form.get("aktiv") else 0,
+                pid
+            ))
+            db.commit()
+        except sqlite3.OperationalError as exc:
+            current_app.logger.warning("edit_person (pid=%s): Datenbank gesperrt: %s", pid, exc)
+            flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
+            return redirect(url_for("admin.index"))
         flash("Person gespeichert.", "success")
         return redirect(url_for("admin.index"))
 

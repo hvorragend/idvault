@@ -87,8 +87,10 @@ COLUMNS = [
 # ---------------------------------------------------------------------------
 
 def export_to_excel(db_path: str, output_path: str, only_active: bool = True):
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=15)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 15000")
 
     # --- Übersicht Scan-Runs ---
     runs = conn.execute(
