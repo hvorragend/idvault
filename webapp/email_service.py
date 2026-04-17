@@ -674,7 +674,7 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
 
     ersteller = "–"
     for f in file_rows:
-        val = (f.get("file_owner") or f.get("office_author") or "") if hasattr(f, "__getitem__") else ""
+        val = (f["file_owner"] or f["office_author"] or "") if hasattr(f, "__getitem__") else ""
         if val:
             ersteller = val
             break
