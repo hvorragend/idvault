@@ -311,6 +311,7 @@ def list_berichte():
     eigentuemer_vals = {b["eigentuemer"] for b in berichte if b["eigentuemer"]}
     eigentuemer_map: dict[str, str] = {}
     for ev in eigentuemer_vals:
+        ad_login = ev.split("\\")[-1] if "\\" in ev else ev
         row = db.execute(
             """SELECT vorname, nachname, kuerzel FROM persons
                WHERE aktiv=1 AND (
@@ -319,7 +320,7 @@ def list_berichte():
                    OR (nachname || ', ' || vorname)=?
                    OR (nachname || ' ' || vorname)=?
                ) LIMIT 1""",
-            (ev, ev, ev, ev, ev, ev)
+            (ad_login, ad_login, ad_login, ev, ev, ev)
         ).fetchone()
         if row:
             eigentuemer_map[ev] = f"{row['nachname']}, {row['vorname']} ({row['kuerzel']})"
@@ -492,6 +493,7 @@ def als_idv_registrieren(bericht_id: int):
     entwickler_id = None
     eigentuemer = bericht["eigentuemer"] or ""
     if eigentuemer:
+        ad_login = eigentuemer.split("\\")[-1] if "\\" in eigentuemer else eigentuemer
         dev_row = db.execute(
             """SELECT id FROM persons WHERE aktiv=1 AND (
                 kuerzel=? OR ad_name=? OR user_id=?
@@ -499,7 +501,7 @@ def als_idv_registrieren(bericht_id: int):
                 OR (nachname || ', ' || vorname)=?
                 OR (nachname || ' ' || vorname)=?
             ) LIMIT 1""",
-            (eigentuemer,) * 6
+            (ad_login, ad_login, ad_login, eigentuemer, eigentuemer, eigentuemer)
         ).fetchone()
         if dev_row:
             entwickler_id = dev_row["id"]
@@ -778,9 +780,10 @@ def bulk_aktion():
             owner = bericht["eigentuemer"] or ""
             email = None
             if owner:
+                ad_login = owner.split("\\")[-1] if "\\" in owner else owner
                 person = db.execute(
                     "SELECT email FROM persons WHERE (user_id=? OR kuerzel=? OR ad_name=?) AND aktiv=1 AND email IS NOT NULL",
-                    (owner, owner, owner)
+                    (ad_login, ad_login, ad_login)
                 ).fetchone()
                 if person:
                     email = person["email"]
