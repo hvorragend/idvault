@@ -2295,45 +2295,8 @@ def scanner_log_raw():
 @bp.route("/login-log")
 @admin_required
 def login_log():
-    """Zeigt die letzten Login-Versuche aus instance/login.log."""
-    import os
-    from ..login_logger import get_log_path
-    log_path = get_log_path()
-    lines = []
-    try:
-        with open(log_path, encoding="utf-8") as f:
-            lines = f.readlines()
-        lines = lines[-1000:]
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        flash(f"Log konnte nicht gelesen werden: {e}", "error")
-
-    # Logrotate-Konfiguration mit realem Pfad generieren
-    logrotate_conf = f"""{log_path} {{
-    daily
-    rotate 30
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}}
-
-{os.path.join(os.path.dirname(log_path), 'idvault.log')} {{
-    daily
-    rotate 30
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}}"""
-
-    return render_template("admin/login_log.html",
-                           lines=lines,
-                           log_path=log_path,
-                           logrotate_conf=logrotate_conf)
+    """Leitet auf den einheitlichen Log-Viewer weiter (Login-Log als Quelle)."""
+    return redirect(url_for("admin.scanner_log", which="login"))
 
 
 # ── Mitarbeiter-Import ─────────────────────────────────────────────────────
