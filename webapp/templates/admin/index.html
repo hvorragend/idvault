@@ -235,10 +235,10 @@
   <div class="col-12" id="wesentlichkeit">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
-        <i class="bi bi-check2-square me-2"></i>Weitere Wesentlichkeitskriterien
+        <i class="bi bi-check2-square me-2"></i>Wesentlichkeitskriterien
         <span class="badge bg-secondary ms-2" style="font-weight:400;font-size:.75rem">konfigurierbar</span>
         <span class="text-muted ms-2" style="font-weight:400;font-size:.78rem">
-          — ergänzen die fest vorgegebenen Kriterien (Steuerungsrelevanz, RL-Relevanz, DORA)
+          — vollständig über die Administration definierbar, inkl. Detail-Checkboxen
         </span>
       </div>
       <div class="card-body p-0">
@@ -248,6 +248,7 @@
               <th style="width:40px">#</th>
               <th>Bezeichnung</th>
               <th>Beschreibung / Hinweis</th>
+              <th style="width:90px">Details</th>
               <th style="width:110px">Begr. Pflicht</th>
               <th style="width:80px">Aktiv</th>
               <th style="width:70px"></th>
@@ -260,6 +261,15 @@
               <td class="fw-500">{{ k.bezeichnung }}</td>
               <td style="font-size:.78rem;color:#6c757d">{{ k.beschreibung or '–' }}</td>
               <td class="text-center">
+                {% set aktive_details = k.details | selectattr('aktiv') | list %}
+                {% if aktive_details %}
+                <span class="badge bg-light text-dark border"
+                      title="{{ aktive_details | map(attribute='bezeichnung') | join(', ') }}">
+                  {{ aktive_details | length }}
+                </span>
+                {% else %}<span class="text-muted">–</span>{% endif %}
+              </td>
+              <td class="text-center">
                 {% if k.begruendung_pflicht %}<span class="badge bg-warning text-dark">Ja</span>
                 {% else %}<span class="text-muted">–</span>{% endif %}
               </td>
@@ -269,7 +279,7 @@
               </td>
               <td>
                 <a href="{{ url_for('admin.edit_wesentlichkeitskriterium', kid=k.id) }}"
-                   class="btn btn-xs btn-outline-primary py-0 px-1" title="Bearbeiten">
+                   class="btn btn-xs btn-outline-primary py-0 px-1" title="Bearbeiten / Details">
                   <i class="bi bi-pencil"></i>
                 </a>
                 <form method="post"
@@ -283,8 +293,8 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="text-center text-muted py-3" style="font-size:.83rem">
-              Noch keine weiteren Kriterien konfiguriert.
+            <tr><td colspan="7" class="text-center text-muted py-3" style="font-size:.83rem">
+              Noch keine Kriterien konfiguriert.
             </td></tr>
             {% endfor %}
           </tbody>

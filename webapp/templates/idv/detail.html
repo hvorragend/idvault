@@ -132,8 +132,7 @@
       <div class="row g-3">
 
         <!-- Fazit der Beurteilung -->
-        {% set ist_wesentlich = idv.steuerungsrelevant or idv.rechnungslegungsrelevant or idv.dora_kritisch_wichtig
-        or (wesentlichkeit | selectattr('erfuellt') | list | length > 0) %}
+        {% set ist_wesentlich = (wesentlichkeit | selectattr('erfuellt') | list | length > 0) %}
         <div class="col-12">
           <div
             class="rounded p-3 {{ 'bg-danger bg-opacity-10 border border-danger border-opacity-25' if ist_wesentlich else 'bg-light border' }}">
@@ -148,10 +147,6 @@
             </div>
             {% if ist_wesentlich %}
             <div class="d-flex gap-2 flex-wrap" style="font-size:.82rem">
-              {% if idv.steuerungsrelevant %}<span class="badge bg-primary">Steuerungsrelevant</span>{% endif %}
-              {% if idv.rechnungslegungsrelevant %}<span
-                class="badge bg-info text-dark">Rechnungslegungsrelevant</span>{% endif %}
-              {% if idv.dora_kritisch_wichtig %}<span class="badge bg-danger">DORA-kritisch/wichtig</span>{% endif %}
               {% for k in wesentlichkeit %}{% if k.erfuellt %}<span class="badge bg-secondary">{{ k.bezeichnung
                 }}</span>{% endif %}{% endfor %}
             </div>
@@ -160,7 +155,7 @@
         </div>
 
         <!-- Geschäftsprozess -->
-        <div class="col-sm-5">
+        <div class="col-12">
           <div class="detail-label">Geschäftsprozess</div>
           <div class="detail-value">
             {% if idv.geschaeftsprozess %}
@@ -174,84 +169,29 @@
             {% endif %}
           </div>
         </div>
-        <div class="col-sm-7">
-          <div class="detail-label">DORA-Relevanz</div>
-          <div class="text-muted" style="font-size:.82rem">
-            {% if idv.dora_kritisch_wichtig %}
-            <span class="badge bg-danger">DORA-kritisch/wichtig</span>
-            <div class="mt-1">Krit. Geschäftsprozess + GDA 4 → Art. 28 Abs. 2</div>
-            {% else %}
-            Krit. Geschäftsprozess + GDA 4 erforderlich
-            {% endif %}
-          </div>
-        </div>
         <div class="col-12">
           <hr class="my-1">
         </div>
 
-        <!-- 1. Steuerungsrelevant -->
-        <div class="col-sm-4">
-          <div class="detail-label">
-            <span class="badge bg-secondary me-1" style="font-size:.6rem">1</span>Steuerungsrelevant
-          </div>
-          <div class="detail-value">{{ idv.steuerungsrelevant|yesno }}</div>
-        </div>
-        <div class="col-sm-8">
-          <div class="detail-label">Begründung</div>
-          <div>{{ idv.steuerungsrelevanz_begr or '–' }}</div>
-        </div>
-
-        <!-- 2. Rechnungslegungsrelevant -->
-        <div class="col-sm-4">
-          <div class="detail-label">
-            <span class="badge bg-secondary me-1" style="font-size:.6rem">2</span>Rechnungslegungsrelevant
-          </div>
-          <div class="detail-value">{{ idv.rechnungslegungsrelevant|yesno }}</div>
-        </div>
-        <div class="col-sm-8">
-          <div class="detail-label">Begründung</div>
-          <div>{{ idv.rechnungslegungsrelevanz_begr or '–' }}</div>
-        </div>
-
-        <!-- 3. DORA-kritisch/wichtig (abgeleitet) mit GDA -->
-        <div class="col-sm-4">
-          <div class="detail-label">
-            <span class="badge bg-secondary me-1" style="font-size:.6rem">3</span>DORA-kritisch/wichtig
-            <span class="badge bg-light text-muted border ms-1" style="font-size:.6rem">abgeleitet</span>
-          </div>
-          <div class="detail-value">
-            {% if idv.dora_kritisch_wichtig %}
-            <span class="badge bg-danger">Ja</span>
-            {% else %}
-            <span class="text-muted">Nein</span>
-            {% endif %}
-          </div>
-          <div class="mt-1" style="font-size:.78rem;color:#6c757d">
-            Grad der Abhängigkeit: <span class="badge badge-gda-{{ idv.gda_wert }}">{{ idv.gda_wert }}/4</span>
-          </div>
-        </div>
-        <div class="col-sm-8">
-          <div class="detail-label">Notiz</div>
-          <div>{{ idv.dora_begruendung or '–' }}</div>
-        </div>
-
-        <!-- Weitere konfigurierbare Kriterien -->
-        {% set aktive_kriterien = wesentlichkeit | selectattr('kriterium_aktiv') | list %}
-        {% set inaktive_mit_antwort = wesentlichkeit | rejectattr('kriterium_aktiv') | selectattr('erfuellt') | list %}
-        {% if aktive_kriterien or inaktive_mit_antwort %}
-        <div class="col-12">
-          <hr class="my-1"><small class="text-muted">Weitere Wesentlichkeitskriterien</small>
-        </div>
+        <!-- Alle Wesentlichkeitskriterien (dynamisch, inkl. Detail-Checkboxen) -->
         {% for k in wesentlichkeit %}
         {% if k.kriterium_aktiv or k.erfuellt %}
         <div class="col-sm-4">
           <div class="detail-label">
-            <span class="badge bg-secondary me-1" style="font-size:.6rem">{{ loop.index + 3 }}</span>
+            <span class="badge bg-secondary me-1" style="font-size:.6rem">{{ loop.index }}</span>
             {{ k.bezeichnung }}
             {% if not k.kriterium_aktiv %}<span class="badge bg-warning text-dark ms-1"
               style="font-size:.6rem">inaktiv</span>{% endif %}
           </div>
           <div class="detail-value">{{ k.erfuellt|yesno }}</div>
+          {% set gewaehlt = k.details | selectattr('gewaehlt') | list %}
+          {% if gewaehlt %}
+          <ul class="mb-0 mt-1 ps-3" style="font-size:.8rem">
+            {% for d in gewaehlt %}
+            <li>{{ d.bezeichnung }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
         </div>
         <div class="col-sm-8">
           <div class="detail-label">Begründung</div>
@@ -259,7 +199,6 @@
         </div>
         {% endif %}
         {% endfor %}
-        {% endif %}
 
       </div>
     </div>

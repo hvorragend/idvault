@@ -18,7 +18,6 @@ def index():
 
     kritische_idvs = db.execute("""
         SELECT r.id, r.idv_id, r.bezeichnung, r.status,
-               r.steuerungsrelevant, r.rechnungslegungsrelevant, r.dora_kritisch_wichtig,
                r.naechste_pruefung,
                CASE
                  WHEN r.naechste_pruefung < date('now') THEN 'ÜBERFÄLLIG'
@@ -26,8 +25,8 @@ def index():
                  ELSE 'OK'
                END AS pruefstatus
         FROM idv_register r
-        WHERE (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1 OR r.dora_kritisch_wichtig=1
-               OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
+        WHERE EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
+                     WHERE iw.idv_db_id=r.id AND iw.erfuellt=1)
           AND r.status NOT IN ('Archiviert')
         ORDER BY r.naechste_pruefung ASC
         LIMIT 8

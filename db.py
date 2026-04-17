@@ -41,6 +41,14 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
     schema_path = _resource_path("schema.sql")
     if not schema_path.exists():
         raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
+    # Views mit veralteten Spaltenreferenzen vor dem Re-Execute droppen,
+    # damit schema.sql die neuen Definitionen anlegen kann.
+    for view in ("v_idv_uebersicht", "v_kritische_idvs",
+                 "v_unvollstaendige_idvs", "v_prueffaelligkeiten"):
+        try:
+            conn.execute(f"DROP VIEW IF EXISTS {view}")
+        except sqlite3.OperationalError:
+            pass
     sql = schema_path.read_text(encoding="utf-8")
     conn.executescript(sql)
     conn.commit()
@@ -97,6 +105,124 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE idv_register SET status = 'Freigegeben mit Auflagen' WHERE status = 'Genehmigt mit Auflagen'")
     conn.commit()
 
+    _migrate_dynamic_wesentlichkeit(conn)
+
+
+def _migrate_dynamic_wesentlichkeit(conn: sqlite3.Connection) -> None:
+    """Migriert hart-kodierte Wesentlichkeitsspalten in die dynamischen Tabellen
+    `wesentlichkeitskriterien` / `idv_wesentlichkeit` und entfernt anschließend
+    die Alt-Spalten inklusive GDA aus `idv_register`.
+
+    Idempotent: läuft nur, wenn mindestens eine der Alt-Spalten noch existiert.
+    """
+    idv_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(idv_register)").fetchall()
+    }
+    legacy_cols = [
+        "steuerungsrelevant", "steuerungsrelevanz_begr",
+        "relevant_guv", "relevant_meldewesen", "relevant_risikomanagement",
+        "rechnungslegungsrelevant", "rechnungslegungsrelevanz_begr",
+        "gda_wert", "gda_begruendung",
+        "dora_kritisch_wichtig", "dora_begruendung",
+    ]
+    present_legacy = [c for c in legacy_cols if c in idv_cols]
+    if not present_legacy:
+        return
+
+    def ensure_criterion(bezeichnung: str, beschreibung: str,
+                         sort_order: int) -> int:
+        row = conn.execute(
+            "SELECT id FROM wesentlichkeitskriterien WHERE bezeichnung = ?",
+            (bezeichnung,),
+        ).fetchone()
+        if row:
+            return row[0]
+        cur = conn.execute(
+            """INSERT INTO wesentlichkeitskriterien
+                 (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
+               VALUES (?, ?, 1, ?, 1)""",
+            (bezeichnung, beschreibung, sort_order),
+        )
+        return cur.lastrowid
+
+    kid_rl = ensure_criterion(
+        "Rechnungslegungs-Relevanz (GoB)",
+        "Anwendung verarbeitet automatisierte Daten, die nach der Verarbeitung "
+        "Eingang in die Buchführung finden, z. B. Generierung von "
+        "Buchungsbelegen/ -listen, Import aus Schnittstellen etc. oder wenn "
+        "anhand von Anwendungen Bilanznachweise (z. B. Berechnung von "
+        "Rückstellungen) erstellt werden; allerdings nur, falls keine weiteren "
+        "Nachweise vorhanden sind (s.a. IDW RS FAIT 1)",
+        1,
+    )
+    kid_st = ensure_criterion(
+        "Risiko / Steuerungs-Relevanz im Sinne der MaRisk",
+        "Anwendung verarbeitet Daten, deren Ergebnisse für wesentliche "
+        "geschäftspolitische Entscheidungen bzw. die Unternehmenssteuerung "
+        "inklusive IKS-Maßnahmen zur Überwachung und Kontrolle der "
+        "Geschäftstätigkeit herangezogen werden. Relevant sind dabei "
+        "insbesondere Auswertungen, die zur Erfüllung von bankaufsichts"
+        "rechtlichen Anforderungen der MaRisk Verwendung finden. Hierzu "
+        "zählen beispielsweise Risikoberichte und weitere Auswertungen/"
+        "Anwendungen, deren Erstellung auf Grund der Regelungen bzw. zur "
+        "Erfüllung der Anforderungen der MaRisk zwingend erforderlich sind.",
+        2,
+    )
+    kid_dora = ensure_criterion(
+        "Kritische oder wichtige Funktionen",
+        "Mindestens eine kritische oder wichtige Funktion ist vollständig "
+        "von dem IKT-Asset/der IKT-Dienstleistung abhängig "
+        "(=Abhängigkeitsgrad 4).",
+        3,
+    )
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    def migrate_flag(col_flag: str, col_begr: str, kid: int) -> None:
+        if col_flag not in idv_cols:
+            return
+        begr_sel = f"r.{col_begr}" if col_begr in idv_cols else "NULL"
+        conn.execute(
+            f"""INSERT OR IGNORE INTO idv_wesentlichkeit
+                  (idv_db_id, kriterium_id, erfuellt, begruendung, geaendert_am)
+                SELECT r.id, ?, 1, {begr_sel}, ?
+                  FROM idv_register r
+                 WHERE r.{col_flag} = 1""",
+            (kid, now),
+        )
+
+    migrate_flag("rechnungslegungsrelevant", "rechnungslegungsrelevanz_begr", kid_rl)
+    migrate_flag("steuerungsrelevant",      "steuerungsrelevanz_begr",        kid_st)
+    migrate_flag("dora_kritisch_wichtig",   "dora_begruendung",               kid_dora)
+
+    # Views werden in init_register_db vor dem executescript gedroppt
+    # und anschließend durch schema.sql neu angelegt – sie referenzieren
+    # die Alt-Spalten daher nicht mehr. Alt-Indizes dennoch sicherheits-
+    # halber entfernen (SQLite verhindert sonst den DROP COLUMN).
+    for idx in ("idx_idv_gda", "idx_idv_steuerung"):
+        try:
+            conn.execute(f"DROP INDEX IF EXISTS {idx}")
+        except sqlite3.OperationalError:
+            pass
+
+    for col in present_legacy:
+        try:
+            conn.execute(f"ALTER TABLE idv_register DROP COLUMN {col}")
+        except sqlite3.OperationalError as exc:
+            # SQLite < 3.35 oder referenzierte Abhängigkeit: stehen lassen,
+            # Anwendung liest diese Spalten nicht mehr.
+            print(f"Warnung: Spalte {col} konnte nicht entfernt werden: {exc}")
+
+    # Alte gda_stufen-Klassifizierungen zurückbauen – sie werden nicht mehr
+    # verwendet.
+    try:
+        conn.execute("DELETE FROM klassifizierungen WHERE bereich = 'gda_stufen'")
+    except sqlite3.OperationalError:
+        pass
+
+    conn.commit()
+
 
 # ---------------------------------------------------------------------------
 # Klassifizierungen-Hilfsfunktion
@@ -118,23 +244,51 @@ def get_klassifizierungen(conn: sqlite3.Connection, bereich: str) -> list:
 # ---------------------------------------------------------------------------
 
 def get_wesentlichkeitskriterien(conn: sqlite3.Connection, nur_aktive: bool = True) -> list:
-    """Gibt alle (aktiven) konfigurierbaren Wesentlichkeitskriterien zurück."""
+    """Gibt alle (aktiven) konfigurierbaren Wesentlichkeitskriterien zurück
+    inklusive ihrer Checkbox-Details."""
     where = "WHERE aktiv = 1" if nur_aktive else ""
-    return conn.execute(f"""
+    kriterien = conn.execute(f"""
         SELECT id, bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv
         FROM wesentlichkeitskriterien
         {where}
         ORDER BY sort_order, id
     """).fetchall()
 
+    # Details dazu laden (nur aktive)
+    result = []
+    for k in kriterien:
+        details = conn.execute("""
+            SELECT id, bezeichnung, sort_order, aktiv
+            FROM wesentlichkeitskriterium_details
+            WHERE kriterium_id = ? AND aktiv = 1
+            ORDER BY sort_order, id
+        """, (k["id"],)).fetchall()
+        d = dict(k)
+        d["details"] = [dict(r) for r in details]
+        result.append(d)
+    return result
+
+
+def get_kriterium_details(conn: sqlite3.Connection, kriterium_id: int,
+                           nur_aktive: bool = False) -> list:
+    """Gibt alle Details (Checkboxen) zu einem Kriterium zurück."""
+    where = "AND aktiv = 1" if nur_aktive else ""
+    return conn.execute(f"""
+        SELECT id, kriterium_id, bezeichnung, sort_order, aktiv
+        FROM wesentlichkeitskriterium_details
+        WHERE kriterium_id = ? {where}
+        ORDER BY sort_order, id
+    """, (kriterium_id,)).fetchall()
+
 
 def get_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int) -> list:
     """
-    Gibt alle aktiven Kriterien inkl. der IDV-spezifischen Antwort zurück.
-    Inaktive Kriterien mit vorhandener Antwort werden ebenfalls geliefert
-    (für die Detailansicht), aktive ohne Antwort erscheinen mit erfuellt=0.
+    Gibt alle aktiven Kriterien inkl. der IDV-spezifischen Antwort und der
+    für diese IDV angekreuzten Details zurück. Inaktive Kriterien mit
+    vorhandener Antwort werden ebenfalls geliefert (für die Detailansicht);
+    aktive ohne Antwort erscheinen mit erfuellt=0.
     """
-    return conn.execute("""
+    kriterien = conn.execute("""
         SELECT k.id AS kriterium_id, k.bezeichnung, k.beschreibung,
                k.begruendung_pflicht, k.aktiv AS kriterium_aktiv,
                COALESCE(w.erfuellt, 0) AS erfuellt,
@@ -143,21 +297,51 @@ def get_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int) -> list:
         LEFT JOIN idv_wesentlichkeit w
                ON w.idv_db_id = ? AND w.kriterium_id = k.id
         WHERE k.aktiv = 1
-           OR w.idv_db_id IS NOT NULL          -- inaktiv aber bereits beantwortet
+           OR w.idv_db_id IS NOT NULL
         ORDER BY k.aktiv DESC, k.sort_order, k.id
     """, (idv_db_id,)).fetchall()
+
+    # Detail-Auswahlen je Kriterium einsammeln
+    gewaehlte = {
+        row[0]
+        for row in conn.execute("""
+            SELECT detail_id FROM idv_wesentlichkeit_detail WHERE idv_db_id = ?
+        """, (idv_db_id,)).fetchall()
+    }
+
+    result = []
+    for k in kriterien:
+        details = conn.execute("""
+            SELECT id, bezeichnung, sort_order, aktiv
+            FROM wesentlichkeitskriterium_details
+            WHERE kriterium_id = ?
+              AND (aktiv = 1 OR id IN (
+                    SELECT detail_id FROM idv_wesentlichkeit_detail
+                    WHERE idv_db_id = ?))
+            ORDER BY sort_order, id
+        """, (k["kriterium_id"], idv_db_id)).fetchall()
+        d = dict(k)
+        d["details"] = [
+            {**dict(r), "gewaehlt": r["id"] in gewaehlte} for r in details
+        ]
+        result.append(d)
+    return result
 
 
 def save_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int,
                              antworten: list, commit: bool = True) -> None:
     """
-    Speichert die Antworten einer IDV auf konfigurierbare Kriterien (UPSERT).
-    antworten: [{kriterium_id, erfuellt, begruendung}]
+    Speichert die Antworten einer IDV auf konfigurierbare Kriterien (UPSERT)
+    sowie die angekreuzten Detail-Checkboxen.
+    antworten: [{kriterium_id, erfuellt, begruendung, detail_ids: [int]}]
     Bereits vorhandene Antworten zu inaktiven Kriterien bleiben unberührt.
-    commit=False erlaubt dem Aufrufer, mehrere Operationen in einer Transaktion zu bündeln.
+    commit=False erlaubt mehrere Operationen in einer Transaktion.
     """
     now = datetime.now(timezone.utc).isoformat()
+    touched_kids = []
     for a in antworten:
+        kid = a["kriterium_id"]
+        touched_kids.append(kid)
         conn.execute("""
             INSERT INTO idv_wesentlichkeit
                         (idv_db_id, kriterium_id, erfuellt, begruendung, geaendert_am)
@@ -166,20 +350,30 @@ def save_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int,
                 erfuellt     = excluded.erfuellt,
                 begruendung  = excluded.begruendung,
                 geaendert_am = excluded.geaendert_am
-        """, (idv_db_id, a["kriterium_id"], int(a.get("erfuellt", 0)),
+        """, (idv_db_id, kid, int(a.get("erfuellt", 0)),
               a.get("begruendung") or None, now))
+
+        # Details dieses Kriteriums aktualisieren: alle alten Detail-Auswahlen
+        # für die Kriterium-Details dieses Kriteriums löschen, neue eintragen.
+        conn.execute("""
+            DELETE FROM idv_wesentlichkeit_detail
+            WHERE idv_db_id = ?
+              AND detail_id IN (
+                SELECT id FROM wesentlichkeitskriterium_details
+                WHERE kriterium_id = ?
+              )
+        """, (idv_db_id, kid))
+        for did in a.get("detail_ids", []) or []:
+            try:
+                conn.execute("""
+                    INSERT OR IGNORE INTO idv_wesentlichkeit_detail
+                        (idv_db_id, detail_id) VALUES (?, ?)
+                """, (idv_db_id, int(did)))
+            except (ValueError, TypeError):
+                continue
+
     if commit:
         conn.commit()
-
-
-def _compute_dora(conn: sqlite3.Connection, gp_id, gda_wert) -> int:
-    """Leitet dora_kritisch_wichtig aus GP-Klassifizierung und GDA ab."""
-    if not gp_id:
-        return 0
-    gp = conn.execute(
-        "SELECT ist_kritisch FROM geschaeftsprozesse WHERE id = ?", (gp_id,)
-    ).fetchone()
-    return 1 if (gp and gp["ist_kritisch"] and int(gda_wert or 1) == 4) else 0
 
 
 # ---------------------------------------------------------------------------
@@ -216,9 +410,6 @@ def create_idv(conn: sqlite3.Connection, data: dict,
     intervall = data.get("pruefintervall_monate", 12)
     naechste_pruefung = _add_months(date.today(), intervall).isoformat()
 
-    # DORA wird aus GP-Klassifizierung + GDA abgeleitet (nicht manuell gesetzt)
-    dora = _compute_dora(conn, data.get("gp_id"), data.get("gda_wert", 1))
-
     fields = {
         "idv_id":                    idv_id,
         "bezeichnung":               data["bezeichnung"],
@@ -226,15 +417,8 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "version":                   data.get("version", "1.0"),
         "file_id":                   data.get("file_id"),
         "idv_typ":                   data.get("idv_typ", "unklassifiziert"),
-        "steuerungsrelevant":        int(data.get("steuerungsrelevant", 0)),
-        "steuerungsrelevanz_begr":   data.get("steuerungsrelevanz_begr"),
-        "rechnungslegungsrelevant":  int(data.get("rechnungslegungsrelevant", 0)),
-        "rechnungslegungsrelevanz_begr": data.get("rechnungslegungsrelevanz_begr"),
-        "gda_wert":                  data.get("gda_wert", 1),
         "gp_id":                     data.get("gp_id"),
         "gp_freitext":               data.get("gp_freitext"),
-        "dora_kritisch_wichtig":     dora,
-        "dora_begruendung":          data.get("dora_begruendung"),
         "risikoklasse_id":           data.get("risikoklasse_id"),
         "risiko_verfuegbarkeit":     data.get("risiko_verfuegbarkeit"),
         "risiko_integritaet":        data.get("risiko_integritaet"),
@@ -319,15 +503,9 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
     if not old:
         return False
 
-    # DORA aus GP + GDA ableiten
-    gp_id   = data.get("gp_id", old["gp_id"])
-    gda_wert = data.get("gda_wert", old["gda_wert"])
-    data["dora_kritisch_wichtig"] = _compute_dora(conn, gp_id, gda_wert)
-
     # Änderungsprotokoll aufbauen
     tracked_fields = [
-        "bezeichnung", "idv_typ", "gda_wert", "steuerungsrelevant",
-        "rechnungslegungsrelevant", "dora_kritisch_wichtig", "status",
+        "bezeichnung", "idv_typ", "status",
         "fachverantwortlicher_id", "gp_id", "risikoklasse_id",
         "naechste_pruefung", "pruefintervall_monate", "gobd_relevant",
         "teststatus",
@@ -340,10 +518,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
     # Update ausführen
     update_fields = {k: v for k, v in data.items() if k in [
         "bezeichnung", "kurzbeschreibung", "version", "idv_typ",
-        "steuerungsrelevant", "steuerungsrelevanz_begr",
-        "rechnungslegungsrelevant", "rechnungslegungsrelevanz_begr",
-        "gda_wert", "gp_id", "gp_freitext",
-        "dora_kritisch_wichtig", "dora_begruendung",
+        "gp_id", "gp_freitext",
         "risikoklasse_id", "risiko_verfuegbarkeit", "risiko_integritaet",
         "risiko_vertraulichkeit", "risiko_nachvollziehbarkeit",
         "org_unit_id", "fachverantwortlicher_id", "idv_entwickler_id",
@@ -438,17 +613,14 @@ def get_dashboard_stats(conn: sqlite3.Connection, person_id: Optional[int] = Non
         "in_pruefung":          scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'In Prüfung'"),
         "wesentlich":           scalar("""
             SELECT COUNT(*) FROM idv_register r WHERE status NOT IN ('Archiviert')
-            AND (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1 OR r.dora_kritisch_wichtig=1
-                 OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
+            AND EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
+                       WHERE iw.idv_db_id=r.id AND iw.erfuellt=1)
         """),
         "nicht_wesentlich":     scalar("""
             SELECT COUNT(*) FROM idv_register r WHERE status NOT IN ('Archiviert')
-            AND NOT (r.steuerungsrelevant=1 OR r.rechnungslegungsrelevant=1 OR r.dora_kritisch_wichtig=1
-                     OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id=r.id AND iw.erfuellt=1))
+            AND NOT EXISTS(SELECT 1 FROM idv_wesentlichkeit iw
+                           WHERE iw.idv_db_id=r.id AND iw.erfuellt=1)
         """),
-        "kritisch_gda4":        scalar("SELECT COUNT(*) FROM idv_register WHERE gda_wert = 4 AND status NOT IN ('Archiviert')"),
-        "steuerungsrelevant":   scalar("SELECT COUNT(*) FROM idv_register WHERE steuerungsrelevant = 1 AND status NOT IN ('Archiviert')"),
-        "dora_kritisch":        scalar("SELECT COUNT(*) FROM idv_register WHERE dora_kritisch_wichtig = 1 AND status NOT IN ('Archiviert')"),
         "pruefung_ueberfaellig":scalar("SELECT COUNT(*) FROM idv_register WHERE naechste_pruefung < date('now') AND status NOT IN ('Archiviert','Abgekündigt')"),
         "pruefung_30_tage":     scalar("SELECT COUNT(*) FROM idv_register WHERE naechste_pruefung BETWEEN date('now') AND date('now','+30 days') AND status NOT IN ('Archiviert','Abgekündigt')"),
         "massnahmen_offen":     scalar("SELECT COUNT(*) FROM massnahmen WHERE status IN ('Offen','In Bearbeitung')"),
@@ -458,8 +630,8 @@ def get_dashboard_stats(conn: sqlite3.Connection, person_id: Optional[int] = Non
 
 
 def search_idv(conn: sqlite3.Connection, suchbegriff: str = "",
-               status: str = "", gda_min: int = 0,
-               steuerungsrelevant: Optional[bool] = None,
+               status: str = "",
+               wesentlich: Optional[bool] = None,
                org_unit_id: Optional[int] = None) -> list:
     """Flexibler IDV-Suchaufruf."""
     where = ["r.status NOT IN ('Archiviert')"]
@@ -471,20 +643,25 @@ def search_idv(conn: sqlite3.Connection, suchbegriff: str = "",
     if status:
         where.append("r.status = ?")
         params.append(status)
-    if gda_min > 0:
-        where.append("r.gda_wert >= ?")
-        params.append(gda_min)
-    if steuerungsrelevant is not None:
-        where.append("r.steuerungsrelevant = ?")
-        params.append(1 if steuerungsrelevant else 0)
+    if wesentlich is True:
+        where.append(
+            "EXISTS(SELECT 1 FROM idv_wesentlichkeit iw "
+            "WHERE iw.idv_db_id=r.id AND iw.erfuellt=1)"
+        )
+    elif wesentlich is False:
+        where.append(
+            "NOT EXISTS(SELECT 1 FROM idv_wesentlichkeit iw "
+            "WHERE iw.idv_db_id=r.id AND iw.erfuellt=1)"
+        )
     if org_unit_id:
         where.append("r.org_unit_id = ?")
         params.append(org_unit_id)
 
     sql = f"""
-        SELECT * FROM v_idv_uebersicht r
+        SELECT v.* FROM v_idv_uebersicht v
+        JOIN idv_register r ON r.id = v.idv_db_id
         WHERE {' AND '.join(where)}
-        ORDER BY r.gda_wert DESC, r.bezeichnung
+        ORDER BY v.ist_wesentlich DESC, v.bezeichnung
     """
     return [dict(row) for row in conn.execute(sql, params).fetchall()]
 
@@ -571,15 +748,7 @@ def insert_demo_data(conn: sqlite3.Connection):
         "kurzbeschreibung":        "Excel-Modell zur monatlichen Berechnung und Aufbereitung der "
                                    "Gewinn- und Verlustrechnung auf Filialebene. Datenquelle: OSPlus-Export.",
         "idv_typ":                 "Excel-Modell",
-        "steuerungsrelevant":      1,
-        "steuerungsrelevanz_begr": "Direkte Steuerungsrelevanz: Ergebnisse fließen in die monatliche "
-                                   "Vorstandsberichterstattung ein.",
-        "rechnungslegungsrelevant":1,
-        "rechnungslegungsrelevanz_begr": "Grundlage für HGB-Monatsabschluss.",
-        "gda_wert":                4,
         "gp_freitext":             "GP-BWK-001",
-        "dora_kritisch_wichtig":   1,
-        "dora_begruendung":        "Vollständige Abhängigkeit im kritischen Geschäftsprozess GuV-Berechnung.",
         "pruefintervall_monate":   6,
         "nutzungsfrequenz":        "monatlich",
         "nutzeranzahl":            3,
@@ -591,6 +760,37 @@ def insert_demo_data(conn: sqlite3.Connection):
 
     idv_id = create_idv(conn, demo)
     print(f"Demo-IDV erstellt mit DB-ID: {idv_id}")
+
+    # Demo-Wesentlichkeitsantworten
+    krit = {
+        row["bezeichnung"]: row["id"]
+        for row in conn.execute(
+            "SELECT id, bezeichnung FROM wesentlichkeitskriterien"
+        ).fetchall()
+    }
+    demo_antworten = []
+    if "Rechnungslegungs-Relevanz (GoB)" in krit:
+        demo_antworten.append({
+            "kriterium_id": krit["Rechnungslegungs-Relevanz (GoB)"],
+            "erfuellt":     1,
+            "begruendung":  "Grundlage für HGB-Monatsabschluss.",
+        })
+    if "Risiko / Steuerungs-Relevanz im Sinne der MaRisk" in krit:
+        demo_antworten.append({
+            "kriterium_id": krit["Risiko / Steuerungs-Relevanz im Sinne der MaRisk"],
+            "erfuellt":     1,
+            "begruendung":  "Ergebnisse fließen in die monatliche "
+                            "Vorstandsberichterstattung ein.",
+        })
+    if "Kritische oder wichtige Funktionen" in krit:
+        demo_antworten.append({
+            "kriterium_id": krit["Kritische oder wichtige Funktionen"],
+            "erfuellt":     1,
+            "begruendung":  "Vollständige Abhängigkeit im kritischen "
+                            "Geschäftsprozess GuV-Berechnung.",
+        })
+    if demo_antworten:
+        save_idv_wesentlichkeit(conn, idv_id, demo_antworten)
 
     stats = get_dashboard_stats(conn)
     print("\nDashboard-Statistik nach Demo-Import:")

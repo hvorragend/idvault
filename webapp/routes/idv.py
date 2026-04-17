@@ -34,8 +34,7 @@ def _form_lookups(db):
         "idv_typen":               get_klassifizierungen(db, "idv_typ"),
         "pruefintervalle":         get_klassifizierungen(db, "pruefintervall_monate"),
         "nutzungsfrequenzen":      get_klassifizierungen(db, "nutzungsfrequenz"),
-        "gda_stufen":              get_klassifizierungen(db, "gda_stufen"),
-        # Konfigurierbare Wesentlichkeitskriterien
+        # Konfigurierbare Wesentlichkeitskriterien (inkl. Detail-Checkboxen)
         "wesentlichkeitskriterien": get_wesentlichkeitskriterien(db, nur_aktive=True),
     }
 
@@ -78,9 +77,9 @@ def list_idv():
     if per_page not in _VALID_PER_PAGE_IDV:
         per_page = 100
 
-    _WESENTLICH = """(
-        v.steuerungsrelevant = 'Ja' OR v.rl_relevant = 'Ja' OR v.dora_kritisch = 'Ja'
-        OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
+    _WESENTLICH = """EXISTS(
+        SELECT 1 FROM idv_wesentlichkeit iw
+        WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
     )"""
 
     # Alle Bedingungen und Parameter als positionale Listen aufbauen
@@ -110,10 +109,6 @@ def list_idv():
         where_parts.append(_WESENTLICH)
     elif filt == "nicht_wesentlich":
         where_parts.append(f"NOT {_WESENTLICH}")
-    elif filt == "steuerung":
-        where_parts.append("v.steuerungsrelevant = 'Ja'")
-    elif filt == "dora":
-        where_parts.append("v.dora_kritisch = 'Ja'")
     elif filt == "ueberfaellig":
         where_parts.append("v.pruefstatus = 'ÜBERFÄLLIG'")
     elif filt == "unvollstaendig":
@@ -425,10 +420,7 @@ def detail_idv(idv_db_id):
         "SELECT id, nachname, vorname, rolle FROM persons WHERE aktiv=1 ORDER BY nachname"
     ).fetchall()
 
-    ist_wesentlich = bool(
-        idv["steuerungsrelevant"] or idv["rechnungslegungsrelevant"] or idv["dora_kritisch_wichtig"]
-        or any(k["erfuellt"] for k in wesentlichkeit)
-    )
+    ist_wesentlich = any(k["erfuellt"] for k in wesentlichkeit)
 
     # Phasenstatus für die Freigabe-Anzeige
     _PHASE_1 = ["Fachlicher Test", "Technischer Test"]
@@ -598,11 +590,14 @@ def edit_idv(idv_db_id):
         except Exception as e:
             flash(f"Fehler: {e}", "error")
 
-    # Vorhandene Kriterium-Antworten für das Formular aufbereiten
-    wesentlichkeit_antworten = {
-        row["kriterium_id"]: dict(row)
-        for row in get_idv_wesentlichkeit(db, idv_db_id)
-    }
+    # Vorhandene Kriterium-Antworten (inkl. angekreuzter Detail-IDs)
+    wesentlichkeit_antworten = {}
+    for row in get_idv_wesentlichkeit(db, idv_db_id):
+        ant = dict(row)
+        ant["detail_ids"] = [
+            d["id"] for d in row.get("details") or [] if d.get("gewaehlt")
+        ]
+        wesentlichkeit_antworten[row["kriterium_id"]] = ant
     return render_template("idv/form.html", idv=idv, fund=None, prefill={},
                            wesentlichkeit_antworten=wesentlichkeit_antworten,
                            can_write=can_write(),
@@ -895,15 +890,8 @@ def _form_to_dict(form) -> dict:
         "kurzbeschreibung":          form.get("kurzbeschreibung", "").strip() or None,
         "version":                   form.get("version", "1.0").strip(),
         "idv_typ":                   form.get("idv_typ", "unklassifiziert"),
-        "steuerungsrelevant":        chk("steuerungsrelevant"),
-        "steuerungsrelevanz_begr":   form.get("steuerungsrelevanz_begr") or None,
-        "rechnungslegungsrelevant":  chk("rechnungslegungsrelevant"),
-        "rechnungslegungsrelevanz_begr": form.get("rechnungslegungsrelevanz_begr") or None,
-        "gda_wert":                  _int_or_none(form.get("gda_wert")) or 1,
         "gp_id":                     _int_or_none(form.get("gp_id")),
         "gp_freitext":               form.get("gp_freitext") or None,
-        "dora_kritisch_wichtig":     chk("dora_kritisch_wichtig"),
-        "dora_begruendung":          form.get("dora_begruendung") or None,
         "risikoklasse_id":           _int_or_none(form.get("risikoklasse_id")),
         "org_unit_id":               _int_or_none(form.get("org_unit_id")),
         "fachverantwortlicher_id":   _int_or_none(form.get("fachverantwortlicher_id")),
@@ -940,17 +928,25 @@ def _form_to_dict(form) -> dict:
 
 
 def _save_wesentlichkeit_from_form(db, idv_db_id: int, form) -> None:
-    """Liest die konfigurierbaren Kriterium-Antworten aus dem Formular und speichert sie."""
+    """Liest die konfigurierbaren Kriterium-Antworten (inkl. Detail-Checkboxen)
+    aus dem Formular und speichert sie."""
     criteria = db.execute(
         "SELECT id FROM wesentlichkeitskriterien WHERE aktiv=1"
     ).fetchall()
     antworten = []
     for k in criteria:
         kid = k["id"]
+        detail_ids = []
+        for raw in form.getlist(f"kriterium_detail_{kid}"):
+            try:
+                detail_ids.append(int(raw))
+            except (ValueError, TypeError):
+                continue
         antworten.append({
             "kriterium_id": kid,
             "erfuellt":     1 if form.get(f"kriterium_{kid}") == "1" else 0,
             "begruendung":  form.get(f"kriterium_begr_{kid}") or None,
+            "detail_ids":   detail_ids,
         })
     if antworten:
         save_idv_wesentlichkeit(db, idv_db_id, antworten)
@@ -984,9 +980,9 @@ def nicht_wesentliche_idvs():
     if per_page not in _VALID_PER_PAGE_IDV:
         per_page = 100
 
-    _WESENTLICH = """(
-        v.steuerungsrelevant = 'Ja' OR v.rl_relevant = 'Ja' OR v.dora_kritisch = 'Ja'
-        OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
+    _WESENTLICH = """EXISTS(
+        SELECT 1 FROM idv_wesentlichkeit iw
+        WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
     )"""
 
     where_parts = [f"NOT {_WESENTLICH}"]

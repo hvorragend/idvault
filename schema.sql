@@ -260,17 +260,6 @@ INSERT OR IGNORE INTO klassifizierungen (bereich, wert, sort_order) VALUES
     ('massnahmen_prioritaet', 'Mittel',   3),
     ('massnahmen_prioritaet', 'Niedrig',  4);
 
-INSERT OR IGNORE INTO klassifizierungen
-    (bereich, wert, bezeichnung, beschreibung, sort_order) VALUES
-    ('gda_stufen', '1', 'Unterstützend',
-     'Prozess läuft auch ohne IDV – mit Mehraufwand.', 1),
-    ('gda_stufen', '2', 'Relevant',
-     'Prozessunterstützung; manueller Alternativprozess vorhanden.', 2),
-    ('gda_stufen', '3', 'Wesentlich',
-     'Kernprozessunterstützung; kein vollständiger Ersatz möglich.', 3),
-    ('gda_stufen', '4', 'Vollständig abhängig',
-     'Prozess ohne IDV nicht durchführbar. → 2. Genehmigungsstufe', 4);
-
 -- -----------------------------------------------------------------------------
 -- 1. IDV-REGISTER (Kerntabelle)
 -- -----------------------------------------------------------------------------
@@ -307,42 +296,18 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- 'unklassifiziert'      Noch nicht bewertet
 
     -- -------------------------------------------------------------------------
-    -- Steuerungsrelevanz (MaRisk AT 7.2 / BAIT Tz. 52)
+    -- Wesentlichkeitsbeurteilung
+    -- Alle Kriterien werden dynamisch über die Tabellen
+    --   wesentlichkeitskriterien / wesentlichkeitskriterium_details
+    --   idv_wesentlichkeit / idv_wesentlichkeit_detail
+    -- abgebildet und sind im Admin-Bereich konfigurierbar.
     -- -------------------------------------------------------------------------
-    steuerungsrelevant      INTEGER NOT NULL DEFAULT 0, -- 0=nein, 1=ja
-    steuerungsrelevanz_begr TEXT,                       -- Begründung (Pflicht wenn =1)
-    -- Dimensionen der Steuerungsrelevanz
-    relevant_guv            INTEGER NOT NULL DEFAULT 0, -- GuV-Relevanz
-    relevant_meldewesen     INTEGER NOT NULL DEFAULT 0, -- Meldewesen/Regulatorik
-    relevant_risikomanagement INTEGER NOT NULL DEFAULT 0, -- Risikomanagement
-
-    -- -------------------------------------------------------------------------
-    -- Rechnungslegungsrelevanz
-    -- -------------------------------------------------------------------------
-    rechnungslegungsrelevant       INTEGER NOT NULL DEFAULT 0,
-    rechnungslegungsrelevanz_begr  TEXT,
-
-    -- -------------------------------------------------------------------------
-    -- GDA – Grad der Abhängigkeit (BAIT / eigene Definition)
-    -- -------------------------------------------------------------------------
-    -- 1 = Unterstützend     (Prozess läuft auch ohne IDV, mit Mehraufwand)
-    -- 2 = Relevant          (Prozessunterstützung, Alternativprozess vorhanden)
-    -- 3 = Wesentlich        (Kernprozessunterstützung, kein vollständiger Ersatz)
-    -- 4 = Vollständig       (Prozess ohne IDV nicht durchführbar)
-    gda_wert                INTEGER NOT NULL DEFAULT 1 CHECK(gda_wert BETWEEN 1 AND 4),
-    gda_begruendung         TEXT,
 
     -- -------------------------------------------------------------------------
     -- Geschäftsprozess-Zuordnung
     -- -------------------------------------------------------------------------
     gp_id                   INTEGER REFERENCES geschaeftsprozesse(id),
     gp_freitext             TEXT,                       -- Falls GP noch nicht im Katalog
-
-    -- -------------------------------------------------------------------------
-    -- DORA-Klassifizierung (Art. 28/30 DORA)
-    -- -------------------------------------------------------------------------
-    dora_kritisch_wichtig   INTEGER NOT NULL DEFAULT 0, -- i.S.v. DORA Art. 28 Abs. 2
-    dora_begruendung        TEXT,
 
     -- -------------------------------------------------------------------------
     -- Risikobewertung
@@ -456,8 +421,6 @@ CREATE TABLE IF NOT EXISTS idv_register (
 
 -- Indizes IDV-Register
 CREATE INDEX IF NOT EXISTS idx_idv_status      ON idv_register(status);
-CREATE INDEX IF NOT EXISTS idx_idv_gda         ON idv_register(gda_wert);
-CREATE INDEX IF NOT EXISTS idx_idv_steuerung   ON idv_register(steuerungsrelevant);
 CREATE INDEX IF NOT EXISTS idx_idv_naechste_pr ON idv_register(naechste_pruefung);
 CREATE INDEX IF NOT EXISTS idx_idv_gp          ON idv_register(gp_id);
 CREATE INDEX IF NOT EXISTS idx_idv_fachvera    ON idv_register(fachverantwortlicher_id);
@@ -590,23 +553,18 @@ CREATE TABLE IF NOT EXISTS dokumente (
 -- 8. VIEWS (vordefinierte Auswertungen)
 -- -----------------------------------------------------------------------------
 
--- Vollständige IDV-Übersicht mit allen wichtigen Fehlern
+-- Vollständige IDV-Übersicht
 CREATE VIEW IF NOT EXISTS v_idv_uebersicht AS
 SELECT
+    r.id                        AS idv_db_id,
     r.idv_id,
     r.bezeichnung,
     r.idv_typ,
     r.status,
-    r.gda_wert,
-    CASE r.gda_wert
-        WHEN 1 THEN 'Unterstützend'
-        WHEN 2 THEN 'Relevant'
-        WHEN 3 THEN 'Wesentlich'
-        WHEN 4 THEN 'Vollständig abhängig'
-    END                         AS gda_bezeichnung,
-    CASE r.steuerungsrelevant WHEN 1 THEN 'Ja' ELSE 'Nein' END  AS steuerungsrelevant,
-    CASE r.rechnungslegungsrelevant WHEN 1 THEN 'Ja' ELSE 'Nein' END AS rl_relevant,
-    CASE r.dora_kritisch_wichtig WHEN 1 THEN 'Ja' ELSE 'Nein' END AS dora_kritisch,
+    CASE WHEN EXISTS (
+        SELECT 1 FROM idv_wesentlichkeit iw
+        WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
+    ) THEN 'Ja' ELSE 'Nein' END AS ist_wesentlich,
     rk.bezeichnung              AS risikoklasse,
     gp.gp_nummer,
     gp.bezeichnung              AS geschaeftsprozess,
@@ -635,13 +593,11 @@ LEFT JOIN persons              p_en ON r.idv_entwickler_id = p_en.id
 LEFT JOIN idv_files            f   ON r.file_id = f.id
 WHERE r.status NOT IN ('Archiviert');
 
--- Kritische IDVs (GDA=4 ODER steuerungsrelevant ODER DORA-kritisch)
+-- Wesentliche IDVs (mindestens ein Wesentlichkeitskriterium erfüllt)
 CREATE VIEW IF NOT EXISTS v_kritische_idvs AS
 SELECT * FROM v_idv_uebersicht
-WHERE gda_wert = 4
-   OR steuerungsrelevant = 'Ja'
-   OR dora_kritisch = 'Ja'
-ORDER BY gda_wert DESC, risikoklasse;
+WHERE ist_wesentlich = 'Ja'
+ORDER BY risikoklasse;
 
 -- Offene Maßnahmen mit Fälligkeit
 CREATE VIEW IF NOT EXISTS v_offene_massnahmen AS
@@ -675,7 +631,13 @@ SELECT
     CASE WHEN r.fachverantwortlicher_id IS NULL THEN 1 ELSE 0 END AS fehlt_fachverantwortlicher,
     CASE WHEN r.gp_id IS NULL AND r.gp_freitext IS NULL THEN 1 ELSE 0 END AS fehlt_geschaeftsprozess,
     CASE WHEN r.idv_typ = 'unklassifiziert' THEN 1 ELSE 0 END AS fehlt_typ,
-    CASE WHEN r.steuerungsrelevant = 1 AND (r.steuerungsrelevanz_begr IS NULL OR r.steuerungsrelevanz_begr = '') THEN 1 ELSE 0 END AS fehlt_steuerungsbegruendung,
+    CASE WHEN EXISTS (
+        SELECT 1 FROM idv_wesentlichkeit iw
+        JOIN wesentlichkeitskriterien k ON k.id = iw.kriterium_id
+        WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
+          AND k.begruendung_pflicht = 1
+          AND (iw.begruendung IS NULL OR iw.begruendung = '')
+    ) THEN 1 ELSE 0 END AS fehlt_wesentlichkeitsbegruendung,
     CASE WHEN r.risikoklasse_id IS NULL THEN 1 ELSE 0 END AS fehlt_risikoklasse,
     r.erstellt_am,
     r.aktualisiert_am
@@ -686,14 +648,23 @@ WHERE r.status NOT IN ('Archiviert')
     OR (r.gp_id IS NULL AND r.gp_freitext IS NULL)
     OR r.idv_typ = 'unklassifiziert'
     OR r.risikoklasse_id IS NULL
-    OR (r.steuerungsrelevant = 1 AND (r.steuerungsrelevanz_begr IS NULL OR r.steuerungsrelevanz_begr = ''))
+    OR EXISTS (
+        SELECT 1 FROM idv_wesentlichkeit iw
+        JOIN wesentlichkeitskriterien k ON k.id = iw.kriterium_id
+        WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
+          AND k.begruendung_pflicht = 1
+          AND (iw.begruendung IS NULL OR iw.begruendung = '')
+    )
   );
 
 -- -----------------------------------------------------------------------------
 -- 9. KONFIGURIERBARE WESENTLICHKEITSKRITERIEN (MaRisk AT 7.2 / DORA)
 -- -----------------------------------------------------------------------------
 
--- Vom Administrator definierbare Zusatz-Wesentlichkeitskriterien
+-- Vom Administrator vollständig konfigurierbare Wesentlichkeitskriterien.
+-- Alle Kriterien – auch die gemäß MaRisk/DORA – sind als Datensätze in dieser
+-- Tabelle hinterlegt. Beim initialen Setup werden drei Beispielkriterien
+-- angelegt, die anschließend umbenannt, ergänzt oder deaktiviert werden können.
 CREATE TABLE IF NOT EXISTS wesentlichkeitskriterien (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     bezeichnung         TEXT NOT NULL,           -- Anzeigename
@@ -703,6 +674,21 @@ CREATE TABLE IF NOT EXISTS wesentlichkeitskriterien (
     aktiv               INTEGER NOT NULL DEFAULT 1,
     erstellt_am         TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );
+
+-- Checkbox-Details je Kriterium (z.B. "Generierung von Buchungsbelegen",
+-- "Import aus Schnittstellen"). Jeder Eintrag ist eine optionale Checkbox,
+-- die innerhalb eines Kriteriums zusätzlich ausgewählt werden kann.
+CREATE TABLE IF NOT EXISTS wesentlichkeitskriterium_details (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    kriterium_id    INTEGER NOT NULL REFERENCES wesentlichkeitskriterien(id) ON DELETE CASCADE,
+    bezeichnung     TEXT NOT NULL,
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    aktiv           INTEGER NOT NULL DEFAULT 1,
+    erstellt_am     TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    UNIQUE (kriterium_id, bezeichnung)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wk_details_krit ON wesentlichkeitskriterium_details(kriterium_id);
 
 -- Antworten je IDV auf konfigurierbare Wesentlichkeitskriterien
 CREATE TABLE IF NOT EXISTS idv_wesentlichkeit (
@@ -716,6 +702,64 @@ CREATE TABLE IF NOT EXISTS idv_wesentlichkeit (
 );
 
 CREATE INDEX IF NOT EXISTS idx_wesentl_idv ON idv_wesentlichkeit(idv_db_id);
+
+-- Angekreuzte Details je IDV (N:M zwischen IDV und Detail-Definitionen)
+CREATE TABLE IF NOT EXISTS idv_wesentlichkeit_detail (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    idv_db_id       INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+    detail_id       INTEGER NOT NULL REFERENCES wesentlichkeitskriterium_details(id) ON DELETE CASCADE,
+    UNIQUE (idv_db_id, detail_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wkd_idv ON idv_wesentlichkeit_detail(idv_db_id);
+
+-- Beispiel-Kriterien (können im Admin-Bereich angepasst oder deaktiviert werden).
+-- Pro Bezeichnung wird nur einmal eingefügt; bei Umbenennung im Admin bleibt der
+-- Eintrag bestehen und wird bei späteren Starts nicht erneut erzeugt.
+INSERT INTO wesentlichkeitskriterien
+    (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
+SELECT 'Rechnungslegungs-Relevanz (GoB)',
+       'Anwendung verarbeitet automatisierte Daten, die nach der Verarbeitung Eingang in die Buchführung finden, z. B. Generierung von Buchungsbelegen/ -listen, Import aus Schnittstellen etc. oder wenn anhand von Anwendungen Bilanznachweise (z. B. Berechnung von Rückstellungen) erstellt werden; allerdings nur, falls keine weiteren Nachweise vorhanden sind (s.a. IDW RS FAIT 1)',
+       1, 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM wesentlichkeitskriterien
+                  WHERE bezeichnung = 'Rechnungslegungs-Relevanz (GoB)');
+
+INSERT INTO wesentlichkeitskriterien
+    (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
+SELECT 'Risiko / Steuerungs-Relevanz im Sinne der MaRisk',
+       'Anwendung verarbeitet Daten, deren Ergebnisse für wesentliche geschäftspolitische Entscheidungen bzw. die Unternehmenssteuerung inklusive IKS-Maßnahmen zur Überwachung und Kontrolle der Geschäftstätigkeit herangezogen werden. Relevant sind dabei insbesondere Auswertungen, die zur Erfüllung von bankaufsichtsrechtlichen Anforderungen der MaRisk Verwendung finden. Hierzu zählen beispielsweise Risikoberichte und weitere Auswertungen/Anwendungen, deren Erstellung auf Grund der Regelungen bzw. zur Erfüllung der Anforderungen der MaRisk zwingend erforderlich sind.',
+       1, 2, 1
+WHERE NOT EXISTS (SELECT 1 FROM wesentlichkeitskriterien
+                  WHERE bezeichnung = 'Risiko / Steuerungs-Relevanz im Sinne der MaRisk');
+
+INSERT INTO wesentlichkeitskriterien
+    (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
+SELECT 'Kritische oder wichtige Funktionen',
+       'Mindestens eine kritische oder wichtige Funktion ist vollständig von dem IKT-Asset/der IKT-Dienstleistung abhängig (=Abhängigkeitsgrad 4).',
+       1, 3, 1
+WHERE NOT EXISTS (SELECT 1 FROM wesentlichkeitskriterien
+                  WHERE bezeichnung = 'Kritische oder wichtige Funktionen');
+
+-- Beispiel-Details zu den o.g. Kriterien
+INSERT OR IGNORE INTO wesentlichkeitskriterium_details (kriterium_id, bezeichnung, sort_order)
+SELECT id, 'Generierung von Buchungsbelegen / -listen', 1
+  FROM wesentlichkeitskriterien WHERE bezeichnung = 'Rechnungslegungs-Relevanz (GoB)';
+INSERT OR IGNORE INTO wesentlichkeitskriterium_details (kriterium_id, bezeichnung, sort_order)
+SELECT id, 'Import aus Schnittstellen', 2
+  FROM wesentlichkeitskriterien WHERE bezeichnung = 'Rechnungslegungs-Relevanz (GoB)';
+INSERT OR IGNORE INTO wesentlichkeitskriterium_details (kriterium_id, bezeichnung, sort_order)
+SELECT id, 'Erstellung von Bilanznachweisen (z. B. Berechnung von Rückstellungen)', 3
+  FROM wesentlichkeitskriterien WHERE bezeichnung = 'Rechnungslegungs-Relevanz (GoB)';
+
+INSERT OR IGNORE INTO wesentlichkeitskriterium_details (kriterium_id, bezeichnung, sort_order)
+SELECT id, 'Risikobericht / Risikoauswertung', 1
+  FROM wesentlichkeitskriterien WHERE bezeichnung = 'Risiko / Steuerungs-Relevanz im Sinne der MaRisk';
+INSERT OR IGNORE INTO wesentlichkeitskriterium_details (kriterium_id, bezeichnung, sort_order)
+SELECT id, 'Meldewesen / bankaufsichtsrechtliche Auswertung', 2
+  FROM wesentlichkeitskriterien WHERE bezeichnung = 'Risiko / Steuerungs-Relevanz im Sinne der MaRisk';
+INSERT OR IGNORE INTO wesentlichkeitskriterium_details (kriterium_id, bezeichnung, sort_order)
+SELECT id, 'Grundlage für geschäftspolitische Entscheidungen', 3
+  FROM wesentlichkeitskriterien WHERE bezeichnung = 'Risiko / Steuerungs-Relevanz im Sinne der MaRisk';
 
 -- -----------------------------------------------------------------------------
 -- 10. TEST- UND FREIGABEVERFAHREN (MaRisk AT 7.2 / BAIT / DORA)
@@ -791,7 +835,6 @@ CREATE VIEW IF NOT EXISTS v_prueffaelligkeiten AS
 SELECT
     r.idv_id,
     r.bezeichnung,
-    r.gda_wert,
     r.status,
     r.naechste_pruefung,
     r.letzte_pruefung,

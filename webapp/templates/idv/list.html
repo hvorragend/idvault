@@ -29,8 +29,6 @@
         <option value=""               {{ 'selected' if filt == '' }}>– Alle IDVs –</option>
         <option value="wesentlich"     {{ 'selected' if filt in ('wesentlich','kritisch') }}>Wesentliche IDVs</option>
         <option value="nicht_wesentlich" {{ 'selected' if filt == 'nicht_wesentlich' }}>Nicht wesentliche IDVs</option>
-        <option value="steuerung"      {{ 'selected' if filt == 'steuerung' }}>Steuerungsrelevant</option>
-        <option value="dora"           {{ 'selected' if filt == 'dora' }}>DORA-kritisch/wichtig</option>
         <option value="ueberfaellig"   {{ 'selected' if filt == 'ueberfaellig' }}>Prüfung überfällig</option>
         <option value="unvollstaendig" {{ 'selected' if filt == 'unvollstaendig' }}>Unvollständig</option>
       </select>
@@ -176,7 +174,7 @@
           </td>
           <td style="font-size:.78rem;white-space:nowrap">
             {% if r.org_einheit %}
-            <a href="{{ url_for('idv.list_idv', oe_id=r.org_unit_id, status=request.args.get('status',''), gda_min=request.args.get('gda_min','0'), filter=request.args.get('filter','')) }}"
+            <a href="{{ url_for('idv.list_idv', oe_id=r.org_unit_id, status=request.args.get('status',''), filter=request.args.get('filter','')) }}"
                class="text-decoration-none text-muted" title="Nach dieser OE filtern">
               {{ r.org_einheit }}
             </a>

@@ -92,8 +92,6 @@
           </li>
           <li class="list-group-item px-3 py-2">
             <div class="detail-label">Wesentlichkeit</div>
-            {% set ist_wesentlich = idv.steuerungsrelevant or idv.rechnungslegungsrelevant or idv.dora_kritisch_wichtig
-            %}
             {% if ist_wesentlich %}
             <span class="badge bg-danger">Wesentlich</span>
             {% else %}

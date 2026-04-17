@@ -38,9 +38,9 @@ _PHASE_3 = ["Archivierung Originaldatei"]
 _SCHRITTE = _PHASE_1 + _PHASE_2 + _PHASE_3
 _MAX_ARCHIV_UPLOAD = 256 * 1024 * 1024  # 256 MB Obergrenze für Originaldateien
 
-_WESENTLICH_SQL = """(
-    r.steuerungsrelevant = 1 OR r.rechnungslegungsrelevant = 1 OR r.dora_kritisch_wichtig = 1
-    OR EXISTS(SELECT 1 FROM idv_wesentlichkeit iw WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1)
+_WESENTLICH_SQL = """EXISTS(
+    SELECT 1 FROM idv_wesentlichkeit iw
+    WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
 )"""
 
 _ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf", "xlsx", "xls", "docx", "doc",
