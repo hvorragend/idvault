@@ -2263,6 +2263,11 @@ def _resolve_scanner_output_log_path() -> str:
     return os.path.join(_instance_logs_dir(), "scanner_output.log")
 
 
+def _resolve_app_log_path() -> str:
+    """Liefert den Pfad zur Haupt-App-Log-Datei (idvault.log)."""
+    return os.path.join(_instance_logs_dir(), "idvault.log")
+
+
 def _resolve_scanner_crash_log_path() -> str:
     """Liefert den Pfad zur Crash-Log-Datei des Scanner-Subprocess.
 
@@ -2318,10 +2323,12 @@ def scanner_log():
     login_log_path = _get_login_log_path()
     crash_log_path     = _resolve_scanner_crash_log_path()
     app_crash_log_path = _resolve_app_crash_log_path()
+    app_log_path       = _resolve_app_log_path()
     output_exists      = os.path.isfile(output_log_path)
     login_log_exists   = os.path.isfile(login_log_path)
     crash_exists       = os.path.isfile(crash_log_path)
     app_crash_exists   = os.path.isfile(app_crash_log_path)
+    app_log_exists     = os.path.isfile(app_log_path)
 
     return render_template("admin/scanner_log.html",
                            lines=lines,
@@ -2330,10 +2337,12 @@ def scanner_log():
                            login_log_path=login_log_path,
                            crash_log_path=crash_log_path,
                            app_crash_log_path=app_crash_log_path,
+                           app_log_path=app_log_path,
                            output_exists=output_exists,
                            login_log_exists=login_log_exists,
                            crash_exists=crash_exists,
                            app_crash_exists=app_crash_exists,
+                           app_log_exists=app_log_exists,
                            scan_running=_scan_is_running(),
                            log_mtime=mtime)
 
@@ -2366,6 +2375,8 @@ def scanner_log_raw():
         path = _resolve_scanner_crash_log_path()
     elif which == "app_crash":
         path = _resolve_app_crash_log_path()
+    elif which == "app":
+        path = _resolve_app_log_path()
     else:
         path = _resolve_scanner_log_path()
 
