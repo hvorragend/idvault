@@ -93,7 +93,8 @@ def _get_smtp_config(db) -> dict:
     try:
         rows = db.execute("SELECT key, value FROM app_settings").fetchall()
         cfg  = {r["key"]: r["value"] for r in rows}
-    except Exception:
+    except Exception as exc:
+        log.error("SMTP-Konfiguration konnte nicht aus DB gelesen werden: %s", exc)
         cfg  = {}
 
     # Passwort: Umgebungsvariable hat Vorrang (Klartext); DB-Wert wird ggf. entschlüsselt
