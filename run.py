@@ -349,8 +349,10 @@ if '--scan' in sys.argv:
         idv_scanner.main()
     except BaseException:
         import traceback
+        _tb = traceback.format_exc()
         with open(_crash_log, 'w', encoding='utf-8') as _f:
-            traceback.print_exc(file=_f)
+            _f.write(_tb)
+        print(_tb, file=sys.stderr, flush=True)
     sys.exit(0)
 
 # ── Flask-App lazy aufbauen ──────────────────────────────────────────────────
