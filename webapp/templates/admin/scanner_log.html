@@ -57,6 +57,9 @@
             {% if app_crash_exists %}
             <option value="app_crash">App-Crash-Log</option>
             {% endif %}
+            {% if app_log_exists %}
+            <option value="app">App-Log (idvault.log)</option>
+            {% endif %}
           </select>
           <div class="form-check form-switch ms-1 mb-0">
             <input class="form-check-input" type="checkbox" role="switch" id="autoRefresh"
@@ -138,6 +141,7 @@
   const LOGIN_PATH     = {{ login_log_path | tojson }};
   const CRASH_PATH     = {{ crash_log_path | tojson }};
   const APP_CRASH_PATH = {{ app_crash_log_path | tojson }};
+  const APP_PATH       = {{ app_log_path | tojson }};
   const LOG_URL        = {{ url_for('admin.scanner_log_raw') | tojson }};
   const STATUS_URL   = {{ url_for('admin.scanner_status') | tojson }};
 
@@ -214,6 +218,7 @@
     if (which === 'login')     return LOGIN_PATH;
     if (which === 'crash')     return CRASH_PATH;
     if (which === 'app_crash') return APP_CRASH_PATH;
+    if (which === 'app')       return APP_PATH;
     return SCANNER_PATH;
   }
 
