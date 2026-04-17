@@ -42,7 +42,8 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
     if not schema_path.exists():
         raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
     # Views mit veralteten Spaltenreferenzen vor dem Re-Execute droppen,
-    # damit schema.sql die neuen Definitionen anlegen kann.
+    # damit schema.sql sie nicht in alter Form wiederherstellt. Die Views
+    # werden nach der Migration neu angelegt (siehe _rebuild_core_views).
     for view in ("v_idv_uebersicht", "v_kritische_idvs",
                  "v_unvollstaendige_idvs", "v_prueffaelligkeiten"):
         try:
@@ -105,7 +106,223 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE idv_register SET status = 'Freigegeben mit Auflagen' WHERE status = 'Genehmigt mit Auflagen'")
     conn.commit()
 
+    _ensure_dynamic_wesentlichkeit_tables(conn)
     _migrate_dynamic_wesentlichkeit(conn)
+    _rebuild_core_views(conn)
+
+
+def _rebuild_core_views(conn: sqlite3.Connection) -> None:
+    """Legt die Views v_idv_uebersicht, v_kritische_idvs und
+    v_unvollstaendige_idvs mit der dynamischen Wesentlichkeits-Logik an.
+    Wird auch gegen Bestandsinstallationen ausgeführt, bei denen im Bundle
+    noch die alten View-Definitionen mit gda_wert/steuerungsrelevant etc.
+    stecken.
+    """
+    for view in ("v_idv_uebersicht", "v_kritische_idvs",
+                 "v_unvollstaendige_idvs"):
+        try:
+            conn.execute(f"DROP VIEW IF EXISTS {view}")
+        except sqlite3.OperationalError:
+            pass
+
+    conn.execute("""
+        CREATE VIEW v_idv_uebersicht AS
+        SELECT
+            r.id                        AS idv_db_id,
+            r.idv_id,
+            r.bezeichnung,
+            r.idv_typ,
+            r.status,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM idv_wesentlichkeit iw
+                WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
+            ) THEN 'Ja' ELSE 'Nein' END AS ist_wesentlich,
+            rk.bezeichnung              AS risikoklasse,
+            gp.gp_nummer,
+            gp.bezeichnung              AS geschaeftsprozess,
+            ou.bezeichnung              AS org_einheit,
+            p_fv.nachname || ', ' || p_fv.vorname AS fachverantwortlicher,
+            p_en.nachname || ', ' || p_en.vorname AS entwickler,
+            r.naechste_pruefung,
+            CASE
+                WHEN r.naechste_pruefung < date('now') THEN 'ÜBERFÄLLIG'
+                WHEN r.naechste_pruefung < date('now', '+30 days') THEN 'BALD FÄLLIG'
+                ELSE 'OK'
+            END                         AS pruefstatus,
+            r.abloesung_geplant,
+            r.abloesung_zieldatum,
+            f.file_name,
+            f.full_path,
+            f.modified_at               AS datei_geaendert,
+            r.erstellt_am,
+            r.aktualisiert_am
+        FROM idv_register r
+        LEFT JOIN risikoklassen        rk   ON r.risikoklasse_id = rk.id
+        LEFT JOIN geschaeftsprozesse   gp   ON r.gp_id = gp.id
+        LEFT JOIN org_units            ou   ON r.org_unit_id = ou.id
+        LEFT JOIN persons              p_fv ON r.fachverantwortlicher_id = p_fv.id
+        LEFT JOIN persons              p_en ON r.idv_entwickler_id = p_en.id
+        LEFT JOIN idv_files            f    ON r.file_id = f.id
+        WHERE r.status NOT IN ('Archiviert')
+    """)
+
+    conn.execute("""
+        CREATE VIEW v_kritische_idvs AS
+        SELECT * FROM v_idv_uebersicht
+        WHERE ist_wesentlich = 'Ja'
+        ORDER BY risikoklasse
+    """)
+
+    conn.execute("""
+        CREATE VIEW v_unvollstaendige_idvs AS
+        SELECT
+            r.idv_id,
+            r.bezeichnung,
+            r.status,
+            CASE WHEN r.fachverantwortlicher_id IS NULL THEN 1 ELSE 0 END AS fehlt_fachverantwortlicher,
+            CASE WHEN r.gp_id IS NULL AND r.gp_freitext IS NULL THEN 1 ELSE 0 END AS fehlt_geschaeftsprozess,
+            CASE WHEN r.idv_typ = 'unklassifiziert' THEN 1 ELSE 0 END AS fehlt_typ,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM idv_wesentlichkeit iw
+                JOIN wesentlichkeitskriterien k ON k.id = iw.kriterium_id
+                WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
+                  AND k.begruendung_pflicht = 1
+                  AND (iw.begruendung IS NULL OR iw.begruendung = '')
+            ) THEN 1 ELSE 0 END AS fehlt_wesentlichkeitsbegruendung,
+            CASE WHEN r.risikoklasse_id IS NULL THEN 1 ELSE 0 END AS fehlt_risikoklasse,
+            r.erstellt_am,
+            r.aktualisiert_am
+        FROM idv_register r
+        WHERE r.status NOT IN ('Archiviert')
+          AND (
+            r.fachverantwortlicher_id IS NULL
+            OR (r.gp_id IS NULL AND r.gp_freitext IS NULL)
+            OR r.idv_typ = 'unklassifiziert'
+            OR r.risikoklasse_id IS NULL
+            OR EXISTS (
+                SELECT 1 FROM idv_wesentlichkeit iw
+                JOIN wesentlichkeitskriterien k ON k.id = iw.kriterium_id
+                WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
+                  AND k.begruendung_pflicht = 1
+                  AND (iw.begruendung IS NULL OR iw.begruendung = '')
+            )
+          )
+    """)
+    conn.commit()
+
+
+def _ensure_dynamic_wesentlichkeit_tables(conn: sqlite3.Connection) -> None:
+    """Legt die Tabellen und Seed-Daten für die dynamischen Wesentlichkeits-
+    kriterien an. Wird auch gegen Bestands-Installationen ausgeführt, bei
+    denen `schema.sql` aus dem alten PyInstaller-Bundle geladen wurde und
+    die neuen Tabellen deshalb noch nicht enthält. Idempotent.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS wesentlichkeitskriterien (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            bezeichnung         TEXT NOT NULL,
+            beschreibung        TEXT,
+            begruendung_pflicht INTEGER NOT NULL DEFAULT 0,
+            sort_order          INTEGER NOT NULL DEFAULT 0,
+            aktiv               INTEGER NOT NULL DEFAULT 1,
+            erstellt_am         TEXT NOT NULL DEFAULT (datetime('now','utc'))
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS wesentlichkeitskriterium_details (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            kriterium_id    INTEGER NOT NULL REFERENCES wesentlichkeitskriterien(id) ON DELETE CASCADE,
+            bezeichnung     TEXT NOT NULL,
+            sort_order      INTEGER NOT NULL DEFAULT 0,
+            aktiv           INTEGER NOT NULL DEFAULT 1,
+            erstellt_am     TEXT NOT NULL DEFAULT (datetime('now','utc')),
+            UNIQUE (kriterium_id, bezeichnung)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_wk_details_krit ON wesentlichkeitskriterium_details(kriterium_id)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS idv_wesentlichkeit (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            idv_db_id       INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+            kriterium_id    INTEGER NOT NULL REFERENCES wesentlichkeitskriterien(id),
+            erfuellt        INTEGER NOT NULL DEFAULT 0,
+            begruendung     TEXT,
+            geaendert_am    TEXT NOT NULL DEFAULT (datetime('now','utc')),
+            UNIQUE (idv_db_id, kriterium_id)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_wesentl_idv ON idv_wesentlichkeit(idv_db_id)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS idv_wesentlichkeit_detail (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            idv_db_id       INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+            detail_id       INTEGER NOT NULL REFERENCES wesentlichkeitskriterium_details(id) ON DELETE CASCADE,
+            UNIQUE (idv_db_id, detail_id)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_wkd_idv ON idv_wesentlichkeit_detail(idv_db_id)")
+
+    # Seed-Kriterien (idempotent: nur anlegen, wenn Bezeichnung noch nicht existiert)
+    seeds = [
+        ("Rechnungslegungs-Relevanz (GoB)",
+         "Anwendung verarbeitet automatisierte Daten, die nach der Verarbeitung "
+         "Eingang in die Buchführung finden, z. B. Generierung von "
+         "Buchungsbelegen/ -listen, Import aus Schnittstellen etc. oder wenn "
+         "anhand von Anwendungen Bilanznachweise (z. B. Berechnung von "
+         "Rückstellungen) erstellt werden; allerdings nur, falls keine weiteren "
+         "Nachweise vorhanden sind (s.a. IDW RS FAIT 1)",
+         1,
+         [
+             "Generierung von Buchungsbelegen / -listen",
+             "Import aus Schnittstellen",
+             "Erstellung von Bilanznachweisen (z. B. Berechnung von Rückstellungen)",
+         ]),
+        ("Risiko / Steuerungs-Relevanz im Sinne der MaRisk",
+         "Anwendung verarbeitet Daten, deren Ergebnisse für wesentliche "
+         "geschäftspolitische Entscheidungen bzw. die Unternehmenssteuerung "
+         "inklusive IKS-Maßnahmen zur Überwachung und Kontrolle der "
+         "Geschäftstätigkeit herangezogen werden. Relevant sind dabei "
+         "insbesondere Auswertungen, die zur Erfüllung von bankaufsichts"
+         "rechtlichen Anforderungen der MaRisk Verwendung finden. Hierzu "
+         "zählen beispielsweise Risikoberichte und weitere Auswertungen/"
+         "Anwendungen, deren Erstellung auf Grund der Regelungen bzw. zur "
+         "Erfüllung der Anforderungen der MaRisk zwingend erforderlich sind.",
+         2,
+         [
+             "Risikobericht / Risikoauswertung",
+             "Meldewesen / bankaufsichtsrechtliche Auswertung",
+             "Grundlage für geschäftspolitische Entscheidungen",
+         ]),
+        ("Kritische oder wichtige Funktionen",
+         "Mindestens eine kritische oder wichtige Funktion ist vollständig "
+         "von dem IKT-Asset/der IKT-Dienstleistung abhängig "
+         "(=Abhängigkeitsgrad 4).",
+         3,
+         []),
+    ]
+    for bezeichnung, beschreibung, sort_order, details in seeds:
+        row = conn.execute(
+            "SELECT id FROM wesentlichkeitskriterien WHERE bezeichnung = ?",
+            (bezeichnung,),
+        ).fetchone()
+        if row:
+            kid = row[0]
+        else:
+            cur = conn.execute(
+                """INSERT INTO wesentlichkeitskriterien
+                    (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
+                   VALUES (?, ?, 1, ?, 1)""",
+                (bezeichnung, beschreibung, sort_order),
+            )
+            kid = cur.lastrowid
+        for order_idx, d_text in enumerate(details, start=1):
+            conn.execute(
+                """INSERT OR IGNORE INTO wesentlichkeitskriterium_details
+                    (kriterium_id, bezeichnung, sort_order) VALUES (?, ?, ?)""",
+                (kid, d_text, order_idx),
+            )
+
+    conn.commit()
 
 
 def _migrate_dynamic_wesentlichkeit(conn: sqlite3.Connection) -> None:
@@ -196,15 +413,35 @@ def _migrate_dynamic_wesentlichkeit(conn: sqlite3.Connection) -> None:
     migrate_flag("steuerungsrelevant",      "steuerungsrelevanz_begr",        kid_st)
     migrate_flag("dora_kritisch_wichtig",   "dora_begruendung",               kid_dora)
 
-    # Views werden in init_register_db vor dem executescript gedroppt
-    # und anschließend durch schema.sql neu angelegt – sie referenzieren
-    # die Alt-Spalten daher nicht mehr. Alt-Indizes dennoch sicherheits-
-    # halber entfernen (SQLite verhindert sonst den DROP COLUMN).
+    # Alt-Views entfernen. Sie referenzieren in Bestandsinstallationen die
+    # Legacy-Spalten und würden einen DROP COLUMN sonst blockieren. Die
+    # neuen Views werden anschließend in _rebuild_core_views angelegt.
+    for view in ("v_idv_uebersicht", "v_kritische_idvs",
+                 "v_unvollstaendige_idvs"):
+        try:
+            conn.execute(f"DROP VIEW IF EXISTS {view}")
+        except sqlite3.OperationalError:
+            pass
+
+    # Alt-Indizes entfernen (SQLite verhindert sonst den DROP COLUMN). Auch
+    # eventuell in Bestandsdatenbanken vorhandene zusätzliche Indizes auf
+    # den Legacy-Spalten werden hier ermittelt und gedroppt.
     for idx in ("idx_idv_gda", "idx_idv_steuerung"):
         try:
             conn.execute(f"DROP INDEX IF EXISTS {idx}")
         except sqlite3.OperationalError:
             pass
+
+    for col in present_legacy:
+        for idx_name, idx_sql in conn.execute(
+            "SELECT name, sql FROM sqlite_master "
+            "WHERE type='index' AND tbl_name='idv_register'"
+        ).fetchall() or []:
+            if idx_sql and col in idx_sql.lower():
+                try:
+                    conn.execute(f'DROP INDEX IF EXISTS "{idx_name}"')
+                except sqlite3.OperationalError:
+                    pass
 
     for col in present_legacy:
         try:
