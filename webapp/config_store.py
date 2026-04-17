@@ -1,20 +1,18 @@
 """
-Zentraler Zugriff auf config.json
-==================================
-Liefert die Roh-Struktur der zusammengeführten ``config.json`` (neben ``run.py``
-bzw. der EXE) zur Laufzeit. Wird von Admin-Routen genutzt, die Sektionen wie
-``config.json["teams"]`` oder ``config.json["ldap"]`` lesen/schreiben bzw. als
-Override über DB-Settings legen müssen.
+Zentraler Zugriff auf config.json (Bootstrap-Konfiguration)
+============================================================
+Nach der Konsolidierung 2026-04 enthält ``config.json`` **nur noch**
+Bootstrap-Belange – Werte, deren Fehlkonfiguration Start oder Login
+blockieren würde:
 
-Unterschied zu ``run.py``:
-  * ``run.py`` liest die Datei **einmal** beim Start und verteilt Top-Level-
-    Werte über ``os.environ``. Sub-Sektionen wie ``"scanner"``/``"teams"``
-    werden bewusst NICHT in Env-Variablen überführt – für die brauchen wir
-    hier Laufzeit-Zugriff.
-  * Ergebnis wird per mtime-Check gecached, damit eine Hand-Edits an der
-    Datei ohne Neustart wirken ("billiger Hot-Reload").
-  * Schreiben erfolgt atomar (tmp + replace), damit konkurrierende Leser
-    keine halbgeschriebene Datei sehen.
+    SECRET_KEY, PORT, DEBUG, IDV_HTTPS, IDV_SSL_CERT, IDV_SSL_KEY,
+    IDV_SSL_AUTOGEN, IDV_DB_PATH, IDV_INSTANCE_PATH, IDV_LOCAL_USERS,
+    IDV_SERVICE_NAME
+
+Alle anderen Einstellungen (Scanner, Teams, SMTP, LDAP, Rate-Limits,
+Pfad-Mappings, Sidecar-Update-Schalter) liegen in der SQLite-Datenbank
+(``app_settings`` bzw. ``ldap_config``) und werden über die Web-UI
+konfiguriert.
 """
 
 from __future__ import annotations
@@ -23,7 +21,7 @@ import json
 import os
 import sys
 import threading
-from typing import Any, Optional
+from typing import Any
 
 _cache_lock = threading.Lock()
 _cache: dict = {"mtime": None, "data": None, "path": None}
@@ -83,35 +81,54 @@ def load_config_json(force: bool = False) -> dict:
         return dict(data)
 
 
-def get_section(name: str) -> Optional[dict]:
-    """Liefert ``config.json[name]`` falls als Dict vorhanden, sonst ``None``."""
-    cfg = load_config_json()
-    section = cfg.get(name)
-    return dict(section) if isinstance(section, dict) else None
+def get_bootstrap(key: str, default: Any = None) -> Any:
+    """Liest einen Top-Level-Bootstrap-Wert aus config.json.
 
-
-def get_override(section: str, key: str, default: Any = None) -> Any:
-    """Convenience: ``config.json[section][key]`` oder ``default``."""
-    sec = get_section(section)
-    if sec is None or key not in sec:
-        return default
-    return sec[key]
-
-
-def write_section(name: str, data: dict) -> None:
-    """Schreibt ``config.json[name] = data`` atomar und invalidiert den Cache.
-
-    Andere Top-Level-Schlüssel bleiben unverändert. Wird von den Admin-Routen
-    genutzt, die einzelne Bereiche (z.B. ``"teams"``, ``"scanner"``) speichern.
+    Ersetzt die früheren ``os.environ.get("IDV_…")``-Aufrufe. Der Rückgabewert
+    behält den JSON-Typ (Bool bleibt Bool, Integer bleibt Integer) – Aufrufer
+    können also auf ``cfg.get_bootstrap("IDV_HTTPS") == True`` direkt prüfen,
+    ohne String-Coercion.
     """
-    write_top_level_key(name, data)
+    cfg = load_config_json()
+    if key not in cfg:
+        return default
+    return cfg[key]
+
+
+def get_bool(key: str, default: bool = False) -> bool:
+    """Bootstrap-Wert als Bool (tolerant: akzeptiert 0/1, true/false, yes/no)."""
+    value = get_bootstrap(key, None)
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def get_int(key: str, default: int) -> int:
+    value = get_bootstrap(key, None)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def get_str(key: str, default: str = "") -> str:
+    value = get_bootstrap(key, None)
+    if value is None:
+        return default
+    return str(value)
 
 
 def write_top_level_key(key: str, value: Any) -> None:
-    """Schreibt ``config.json[key] = value`` atomar (value darf dict oder list sein).
+    """Schreibt ``config.json[key] = value`` atomar.
 
-    Verwendet von Admin-Routen für Top-Level-Schlüssel wie ``"path_mappings"``
-    (Liste) und Sektionen wie ``"scanner"`` / ``"teams"`` (dict).
+    Andere Top-Level-Schlüssel bleiben unverändert. Wird in erster Linie
+    beim initialen Schreiben eines SECRET_KEY in ``run.py`` genutzt.
     """
     path = get_config_path()
     full: dict = {}

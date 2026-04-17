@@ -101,6 +101,24 @@ def _apply_incremental_migrations(conn: sqlite3.Connection) -> None:
         )
     """)
 
+    # Default-Einträge für Keys, die seit 2026-04 aus der config.json in die
+    # DB gewandert sind. Nur anlegen, falls noch kein Eintrag existiert
+    # (idempotent, kein Überschreiben bestehender Werte).
+    _app_settings_defaults = [
+        ("login_rate_limit",       "5 per minute;30 per hour"),
+        ("upload_rate_limit",      "10 per minute;60 per hour"),
+        ("allow_sidecar_updates",  "1"),
+        ("path_mappings",          "[]"),
+        ("scanner_config",         "{}"),
+        ("teams_config",           "{}"),
+        ("teams_client_secret_enc", ""),
+    ]
+    for k, v in _app_settings_defaults:
+        conn.execute(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
+            (k, v),
+        )
+
     # Daten-Migration: Status "Genehmigt" → "Freigegeben" (idempotent)
     conn.execute("UPDATE idv_register SET status = 'Freigegeben' WHERE status = 'Genehmigt'")
     conn.execute("UPDATE idv_register SET status = 'Freigegeben mit Auflagen' WHERE status = 'Genehmigt mit Auflagen'")
