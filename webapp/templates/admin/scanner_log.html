@@ -49,16 +49,13 @@
             <option value="INFO">nur INFO</option>
             <option value="DEBUG">nur DEBUG</option>
           </select>
-          <select id="logSource" class="form-select form-select-sm" style="max-width:200px">
+          <select id="logSource" class="form-select form-select-sm" style="max-width:220px">
             <option value="scanner">Scanner-Log</option>
-            {% if output_exists %}
             <option value="output">stdout/stderr-Mitschnitt</option>
-            {% endif %}
-            {% if login_log_exists %}
             <option value="login">Login-Log</option>
-            {% endif %}
-            {% if crash_exists %}
-            <option value="crash" style="color:red;font-weight:600">⚠ Crash-Log</option>
+            <option value="crash">Scanner-Crash-Log</option>
+            {% if app_crash_exists %}
+            <option value="app_crash">App-Crash-Log</option>
             {% endif %}
           </select>
           <div class="form-check form-switch ms-1 mb-0">
@@ -136,11 +133,12 @@
   const lastUpdate      = document.getElementById('lastUpdate');
   const sourceLabel     = document.getElementById('logSourceLabel');
 
-  const SCANNER_PATH = {{ log_path | tojson }};
-  const OUTPUT_PATH  = {{ output_log_path | tojson }};
-  const LOGIN_PATH   = {{ login_log_path | tojson }};
-  const CRASH_PATH   = {{ crash_log_path | tojson }};
-  const LOG_URL      = {{ url_for('admin.scanner_log_raw') | tojson }};
+  const SCANNER_PATH   = {{ log_path | tojson }};
+  const OUTPUT_PATH    = {{ output_log_path | tojson }};
+  const LOGIN_PATH     = {{ login_log_path | tojson }};
+  const CRASH_PATH     = {{ crash_log_path | tojson }};
+  const APP_CRASH_PATH = {{ app_crash_log_path | tojson }};
+  const LOG_URL        = {{ url_for('admin.scanner_log_raw') | tojson }};
   const STATUS_URL   = {{ url_for('admin.scanner_status') | tojson }};
 
   const REFRESH_RUNNING_MS = 3000;
@@ -212,9 +210,10 @@
   }
 
   function currentPathLabel(which) {
-    if (which === 'output') return OUTPUT_PATH;
-    if (which === 'login')  return LOGIN_PATH;
-    if (which === 'crash')  return CRASH_PATH;
+    if (which === 'output')    return OUTPUT_PATH;
+    if (which === 'login')     return LOGIN_PATH;
+    if (which === 'crash')     return CRASH_PATH;
+    if (which === 'app_crash') return APP_CRASH_PATH;
     return SCANNER_PATH;
   }
 
