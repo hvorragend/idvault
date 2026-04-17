@@ -142,7 +142,7 @@ def list_idv():
 
     sql = f"""
         SELECT r.*, v.*,
-          CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich,
+          CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS wesentlich_flag,
           EXISTS(SELECT 1 FROM idv_register x WHERE x.vorgaenger_idv_id = r.id) AS hat_nachfolger,
           (CASE WHEN r.file_id IS NOT NULL THEN 1 ELSE 0 END
            + (SELECT COUNT(*) FROM idv_file_links lnk WHERE lnk.idv_db_id = r.id)) AS datei_anzahl,
@@ -153,7 +153,7 @@ def list_idv():
         JOIN idv_register r ON r.idv_id = v.idv_id
         LEFT JOIN idv_files f ON f.id = r.file_id
         {where_sql}
-        ORDER BY ist_wesentlich DESC, v.bezeichnung
+        ORDER BY wesentlich_flag DESC, v.bezeichnung
         LIMIT ? OFFSET ?
     """
     idvs = db.execute(sql, params + [per_page, (page - 1) * per_page]).fetchall()

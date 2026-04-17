@@ -199,12 +199,25 @@ def _migrate_dynamic_wesentlichkeit(conn: sqlite3.Connection) -> None:
     # Views werden in init_register_db vor dem executescript gedroppt
     # und anschließend durch schema.sql neu angelegt – sie referenzieren
     # die Alt-Spalten daher nicht mehr. Alt-Indizes dennoch sicherheits-
-    # halber entfernen (SQLite verhindert sonst den DROP COLUMN).
+    # halber entfernen (SQLite verhindert sonst den DROP COLUMN). Auch
+    # eventuell in Bestandsdatenbanken vorhandene zusätzliche Indizes
+    # auf den Legacy-Spalten werden hier ermittelt und gedroppt.
     for idx in ("idx_idv_gda", "idx_idv_steuerung"):
         try:
             conn.execute(f"DROP INDEX IF EXISTS {idx}")
         except sqlite3.OperationalError:
             pass
+
+    for col in present_legacy:
+        for idx_name, idx_sql in conn.execute(
+            "SELECT name, sql FROM sqlite_master "
+            "WHERE type='index' AND tbl_name='idv_register'"
+        ).fetchall() or []:
+            if idx_sql and col in idx_sql.lower():
+                try:
+                    conn.execute(f'DROP INDEX IF EXISTS "{idx_name}"')
+                except sqlite3.OperationalError:
+                    pass
 
     for col in present_legacy:
         try:
