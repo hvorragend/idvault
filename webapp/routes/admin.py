@@ -181,186 +181,124 @@ def _load_scanner_runas() -> dict:
                 "password_enc": "", "decrypt_error": ""}
 
 
-def _enable_privilege(privilege_name: str) -> bool:
-    """Aktiviert ein Windows-Privileg im eigenen Prozess-Token.
+def _unc_share_root(path: str):
+    """Extrahiert ``\\\\server\\share`` aus einem UNC-Pfad.
 
-    CreateProcessAsUser benötigt SE_INCREASE_QUOTA_NAME und
-    SE_ASSIGNPRIMARYTOKEN_NAME. Unter LOCAL SYSTEM sind beide vorhanden,
-    aber nicht immer im Default aktiviert. AdjustTokenPrivileges schaltet
-    sie frei. Liefert False zurück, wenn das Privileg nicht verfügbar
-    ist (z. B. weil der Dienst als LOCAL SERVICE läuft).
+    WNetAddConnection2 registriert Credentials pro ``\\\\server\\share`` –
+    tiefere Pfade müssen auf diesen Root reduziert werden, sonst meldet
+    Windows ``ERROR_BAD_NET_NAME``. Gibt ``None`` zurück, wenn ``path``
+    kein UNC-Pfad ist (z. B. lokaler Pfad).
     """
-    import win32security
-    import win32api
-    import ntsecuritycon
+    if not path:
+        return None
+    p = path.replace("/", "\\")
+    if not p.startswith("\\\\"):
+        return None
+    # Nach "\\\\" liefert split ['', '', 'server', 'share', ...]
+    parts = p.split("\\")
+    if len(parts) < 4 or not parts[2] or not parts[3]:
+        return None
+    return "\\\\" + parts[2] + "\\" + parts[3]
+
+
+def _register_unc_credentials(scan_paths: list, domain: str, username: str,
+                              password: str) -> tuple:
+    """Registriert AD-Credentials via ``WNetAddConnection2`` für jeden
+    ``\\\\server\\share``-Root der konfigurierten Scan-Pfade.
+
+    Analog zu ``net use \\\\server\\share /user:DOMAIN\\foo pw`` speichert
+    Windows die Credentials in der LSA-Credential-Cache der aktuellen
+    Logon-Session. Subprozesse, die später als derselbe Dienst-User
+    gestartet werden, erben diese Session und nutzen die Credentials
+    transparent für UNC-Zugriffe via NTLM.
+
+    Gibt ``(registered_roots, messages)`` zurück. ``registered_roots``
+    kann an ``_cancel_unc_credentials`` übergeben werden. ``messages``
+    enthält Diagnose-Zeilen für jedes registrierte/fehlgeschlagene Share
+    und wird vom Aufrufer ins Scanner-Log geschrieben.
+    """
+    import win32wnet
+    import win32netcon
+
+    full_user = f"{domain}\\{username}" if (domain and domain != ".") else username
+
+    # Eindeutige Share-Roots bestimmen (Reihenfolge beibehalten)
+    roots: list = []
+    seen = set()
+    for p in scan_paths or []:
+        root = _unc_share_root(p)
+        if not root:
+            continue
+        key = root.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(root)
+
+    registered: list = []
+    messages: list = []
+
+    for root in roots:
+        # Bestehende Verbindung zu diesem Share entfernen – sonst schlägt
+        # WNetAddConnection2 mit ERROR_SESSION_CREDENTIAL_CONFLICT (1219)
+        # fehl, wenn der Dienstkontext bereits eine andere Zuordnung
+        # (z. B. vom vorherigen Scan-Lauf oder vom Dienstkonto selbst)
+        # eingetragen hat.
+        try:
+            win32wnet.WNetCancelConnection2(root, 0, True)
+        except Exception:
+            pass
+
+        nr = win32wnet.NETRESOURCE()
+        nr.dwType       = win32netcon.RESOURCETYPE_DISK
+        nr.lpRemoteName = root
+        nr.lpLocalName  = None  # keine Laufwerksbuchstaben-Zuordnung
+
+        try:
+            win32wnet.WNetAddConnection2(nr, password, full_user, 0)
+            registered.append(root)
+            messages.append(
+                f"UNC-Credentials registriert für {root} (als {full_user})"
+            )
+        except Exception as exc:
+            messages.append(
+                f"WNetAddConnection2 für {root} fehlgeschlagen: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    return registered, messages
+
+
+def _cancel_unc_credentials(registered_roots: list) -> None:
+    """Räumt per ``_register_unc_credentials`` angelegte Verbindungen auf.
+
+    Fehler werden geschluckt – der Scanner-Lauf ist zu diesem Zeitpunkt
+    bereits beendet, ein Cleanup-Fehler darf den Aufrufer nicht stören.
+    """
     try:
-        h_token = win32security.OpenProcessToken(
-            win32api.GetCurrentProcess(),
-            win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
-        )
-        luid = win32security.LookupPrivilegeValue(None, privilege_name)
-        win32security.AdjustTokenPrivileges(
-            h_token, False,
-            [(luid, ntsecuritycon.SE_PRIVILEGE_ENABLED)],
-        )
-        # AdjustTokenPrivileges signalisiert Teilerfolg via GetLastError.
-        # Zur Sicherheit prüfen, ob das Privileg jetzt tatsächlich aktiv ist.
-        privs = win32security.GetTokenInformation(
-            h_token, win32security.TokenPrivileges
-        )
-        for (p_luid, attrs) in privs:
-            if p_luid == luid:
-                return bool(attrs & ntsecuritycon.SE_PRIVILEGE_ENABLED)
-        return False
+        import win32wnet
     except Exception:
-        return False
-
-
-def _start_proc_with_logon(
-    cmd: list, cwd: str, log_path: str, creationflags: int,
-    domain: str, username: str, password: str,
-):
-    """Startet den Scanner-Subprocess als AD-Benutzer (Windows only).
-
-    Verwendet ``LogonUser`` + ``CreateProcessAsUser``, nicht
-    ``CreateProcessWithLogonW``. Gründe:
-
-    - ``CreateProcessWithLogonW`` funktioniert laut MSDN nur in
-      interaktiven Sessions. Aus einem Dienst (Session 0) heraus
-      scheitert es mit ``ERROR_NOT_SUPPORTED`` bzw. ist in manchen
-      pywin32-Builds gar nicht exponiert (AttributeError).
-    - ``CreateProcessAsUser`` ist der kanonische Weg für Dienste und
-      in jedem pywin32-Release vorhanden. Voraussetzung sind die
-      Privilegien ``SeIncreaseQuotaPrivilege`` und
-      ``SeAssignPrimaryTokenPrivilege``, die LOCAL SYSTEM standardmäßig
-      besitzt (nur nicht immer aktiviert – wir aktivieren sie unten).
-
-    Gibt (pid, wait_fn) zurück. wait_fn() blockiert bis der Prozess
-    beendet ist und räumt die Win32-Handles auf.
-    """
-    import win32process, win32security, win32con, win32file, win32api, win32event  # noqa: F401
-
-    # Benötigte Privilegien im Service-Token aktivieren (best effort –
-    # unter LOCAL SYSTEM immer erfolgreich, unter LOCAL SERVICE / andere
-    # unprivilegierte Konten schlägt das fehl und CreateProcessAsUser
-    # wirft anschließend eine aussagekräftige WinError 1314).
-    _enable_privilege("SeIncreaseQuotaPrivilege")
-    _enable_privilege("SeAssignPrimaryTokenPrivilege")
-
-    # ── LogonUser: Primary-Token für den Ziel-Benutzer besorgen ────────
-    # LOGON32_LOGON_NETWORK_CLEARTEXT (8) statt LOGON32_LOGON_BATCH (4):
-    #   • BATCH erfordert SeBatchLogonRight ("Anmelden als Stapelverarbeitung")
-    #     auf dem idvault-Server – ein selten vergebenes Recht; fehlt es,
-    #     scheitert LogonUser still und der Scanner fällt auf den
-    #     Dienstkontext zurück.
-    #   • NETWORK_CLEARTEXT benötigt kein Sonderrecht, nur den normalen
-    #     Netzwerk-Logon (Standardrecht aller Domänenkonten).
-    #   • Speichert Klartext-Credentials im Token → NTLM-Auth auf UNC-Shares
-    #     funktioniert auch wenn kein Kerberos-Ticket vorliegt.
-    #   • Liefert ein Primary-Token → direkt mit CreateProcessAsUser nutzbar.
-    try:
-        token = win32security.LogonUser(
-            username,
-            domain,
-            password,
-            win32security.LOGON32_LOGON_NETWORK_CLEARTEXT,
-            win32security.LOGON32_PROVIDER_DEFAULT,
-        )
-    except Exception as exc:
-        raise RuntimeError(
-            f"LogonUser({domain or '.'}\\{username}, NETWORK_CLEARTEXT) "
-            f"fehlgeschlagen: {type(exc).__name__}: {exc}"
-        ) from exc
-
-    # Inheritable HANDLE für die Log-Datei (stdout + stderr).
-    # OPEN_ALWAYS (nicht CREATE_ALWAYS), damit die von
-    # _write_scanner_notice() vorab geschriebenen [IDVAULT-START]-Zeilen
-    # erhalten bleiben. Anschließend an das Dateiende positionieren,
-    # damit der Scanner-Output sauber angehängt wird.
-    sa = win32security.SECURITY_ATTRIBUTES()
-    sa.bInheritHandle = True
-    log_handle = win32file.CreateFile(
-        log_path,
-        win32con.GENERIC_WRITE,
-        win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE,
-        sa,
-        win32con.OPEN_ALWAYS,
-        win32con.FILE_ATTRIBUTE_NORMAL,
-        None,
-    )
-    win32file.SetFilePointer(log_handle, 0, win32file.FILE_END)
-
-    # Inheritable NUL-Handle für stdin (kein interaktiver Input)
-    sa_nul = win32security.SECURITY_ATTRIBUTES()
-    sa_nul.bInheritHandle = True
-    nul_handle = win32file.CreateFile(
-        "nul",
-        win32con.GENERIC_READ,
-        win32con.FILE_SHARE_READ,
-        sa_nul,
-        win32con.OPEN_EXISTING,
-        win32con.FILE_ATTRIBUTE_NORMAL,
-        None,
-    )
-
-    si = win32process.STARTUPINFO()
-    si.dwFlags    = win32con.STARTF_USESTDHANDLES
-    si.hStdInput  = nul_handle
-    si.hStdOutput = log_handle
-    si.hStdError  = log_handle
-
-    cmd_str = subprocess.list2cmdline(cmd)
-
-    # Environment explizit setzen, damit PYTHONIOENCODING/PYTHONUTF8
-    # im Scanner-Subprocess wirksam werden (UTF-8-Output statt CP1252).
-    env_dict = _scanner_subprocess_env()
-
-    try:
-        proc_handle, _thread_handle, pid, _tid = win32process.CreateProcessAsUser(
-            token,
-            None,          # lpApplicationName (None → aus cmd_str ableiten)
-            cmd_str,
-            None,          # Prozess-Security-Attributes
-            None,          # Thread-Security-Attributes
-            True,          # bInheritHandles (Log-/NUL-Handle erben)
-            creationflags,
-            env_dict,
-            cwd,
-            si,
-        )
-    except Exception as exc:
-        raise RuntimeError(
-            f"CreateProcessAsUser fehlgeschlagen: {type(exc).__name__}: {exc}. "
-            f"Häufige Ursache: idvault-Dienst läuft nicht als LOCAL SYSTEM "
-            f"(SeAssignPrimaryTokenPrivilege fehlt)."
-        ) from exc
-    finally:
-        # Log- und NUL-Handle wurden vom Kind geerbt; unsere Referenzen
-        # schließen wir nach dem Start. Token kann ebenfalls freigegeben
-        # werden – der Subprocess hat eine eigene Kopie bekommen.
-        nul_handle.Close()
-        log_handle.Close()
-        token.Close()
-
-    def _wait():
-        win32event.WaitForSingleObject(proc_handle, win32event.INFINITE)
-        proc_handle.Close()
-
-    return pid, _wait
+        return
+    for root in registered_roots or []:
+        try:
+            win32wnet.WNetCancelConnection2(root, 0, True)
+        except Exception:
+            pass
 
 
 _RUNAS_REQUIRED_MODULES = (
-    "pywintypes", "win32api", "win32con", "win32event",
-    "win32file", "win32process", "win32security",
+    "pywintypes", "win32wnet", "win32netcon", "win32security",
 )
 
 
 def _check_runas_modules() -> tuple:
-    """Prüft, ob alle pywin32-Module für LogonUser + CreateProcessAsUser vorhanden sind.
+    """Prüft, ob alle pywin32-Module für die Run-As-Funktionalität vorhanden sind.
 
-    Gibt ``(ok, missing)`` zurück. ``missing`` listet die fehlenden Modul-
-    namen, falls ein Import scheitert – typischerweise weil der EXE-Build
-    die Module nicht als Hidden-Import eingebettet hat.
+    Benötigt werden ``win32wnet`` + ``win32netcon`` für
+    ``WNetAddConnection2`` (produktiver Scan-Start) sowie ``win32security``
+    für den LogonUser-Test im Admin-Bereich. Gibt ``(ok, missing)``
+    zurück; fehlende Einträge deuten auf einen unvollständigen
+    PyInstaller-Build hin.
     """
     missing = []
     for mod in _RUNAS_REQUIRED_MODULES:
@@ -422,19 +360,26 @@ def _scanner_subprocess_env() -> dict:
 def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     """Startet den Scanner-Subprocess.
 
-    Auf Windows mit konfiguriertem Run-As-Benutzer wird
-    CreateProcessWithLogonW verwendet, damit der Zugriff auf
-    Netzwerklaufwerke im Kontext des technischen AD-Benutzers erfolgt.
-    Ohne Run-As-Config (oder außerhalb von Windows) fällt die Funktion
-    auf subprocess.Popen zurück.
+    Auf Windows mit konfiguriertem Run-As-Benutzer werden dessen
+    Credentials vor dem Start via ``WNetAddConnection2`` für jeden
+    ``\\\\server\\share`` der konfigurierten Scan-Pfade in der aktuellen
+    Logon-Session registriert (Analogon zu ``net use``). Der Scanner
+    läuft weiterhin im Kontext des idvault-Dienstes; UNC-Zugriffe nutzen
+    die registrierten Credentials per NTLM.
+
+    Diese Lösung ersetzt den früheren ``LogonUser`` +
+    ``CreateProcessAsUser``-Weg: Letzterer ist in vielen gehärteten
+    Umgebungen durch Group-Policy (``ERROR_ACCESS_DISABLED_BY_POLICY``,
+    WinError 1260) blockiert und benötigt Sonderprivilegien
+    (``SeAssignPrimaryTokenPrivilege``), die nur LOCAL SYSTEM besitzt.
+    ``WNetAddConnection2`` benötigt keines von beidem.
 
     Schreibt bei jedem Start mindestens eine ``[IDVAULT-START]``-Zeile
-    in das Log, die den gewählten Pfad (Run-As vs. Parent-Kontext)
-    dokumentiert. Damit ist im Admin-Bereich immer nachvollziehbar,
-    warum der Scanner unter der angezeigten Identität läuft.
+    ins Log, die den gewählten Pfad und – falls Run-As aktiv – die
+    registrierten Share-Roots dokumentiert.
 
     Gibt (pid, wait_fn) zurück. wait_fn() blockiert bis der Prozess
-    beendet ist und räumt Handles/File-Objekte auf.
+    beendet ist und hebt die Share-Registrierungen wieder auf.
     """
     creationflags = 0
     if os.name == "nt":
@@ -482,6 +427,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
             f"Kontext des idvault-Prozesses (Dienstkonto)."
         ])
 
+    registered_unc: list = []
     if os.name == "nt" and runas_configured:
         modules_ok, missing = _check_runas_modules()
         if not modules_ok:
@@ -489,65 +435,88 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
                 f"Run-As konfiguriert ({runas['domain'] or '.'}\\{runas['username']}), "
                 f"aber folgende pywin32-Module fehlen im EXE-Build: "
                 f"{', '.join(missing)}. "
-                f"Scanner läuft deshalb weiterhin im Dienst-/Benutzerkontext "
-                f"des idvault-Prozesses. Abhilfe: EXE mit aktualisiertem "
-                f"idvault.spec neu bauen ODER den idvault-Dienst direkt als "
-                f"Scan-User betreiben (services.msc → Eigenschaften → Anmelden)."
+                f"Scanner läuft deshalb im Dienstkontext ohne gesonderte "
+                f"UNC-Credentials. Abhilfe: EXE mit aktualisiertem "
+                f"idvault.spec neu bauen."
             )
             current_app.logger.error(msg)
             _write_scanner_notice(log_path, [msg])
         else:
+            try:
+                scan_paths = _load_scanner_config().get("scan_paths", [])
+            except Exception:
+                scan_paths = []
+            unc_roots_in_config = [r for r in (_unc_share_root(p)
+                                               for p in scan_paths) if r]
+
             _write_scanner_notice(log_path, [
-                f"Starte Scanner als Run-As-Benutzer "
+                f"Registriere UNC-Credentials für Run-As-Benutzer "
                 f"{runas['domain'] or '.'}\\{runas['username']} "
-                f"(LogonUser + CreateProcessAsUser)…"
+                f"(WNetAddConnection2)…"
             ])
             try:
-                pid, wait_fn = _start_proc_with_logon(
-                    cmd, cwd, log_path, creationflags,
+                registered_unc, msgs = _register_unc_credentials(
+                    scan_paths,
                     runas["domain"] or ".",
                     runas["username"],
                     runas["password"],
                 )
-                current_app.logger.info(
-                    "Scanner als AD-Benutzer %s\\%s gestartet (PID %d).",
-                    runas["domain"] or ".", runas["username"], pid,
-                )
-                return pid, wait_fn
+                if msgs:
+                    _write_scanner_notice(log_path, msgs)
+                if not unc_roots_in_config:
+                    _write_scanner_notice(log_path, [
+                        "Hinweis: Keine UNC-Pfade (\\\\server\\share) in den "
+                        "Scan-Pfaden konfiguriert – Run-As-Credentials werden "
+                        "nicht benötigt und nicht registriert."
+                    ])
+                elif not registered_unc:
+                    _write_scanner_notice(log_path, [
+                        "Alle UNC-Registrierungen fehlgeschlagen – Scanner "
+                        "läuft im Dienstkontext ohne gesonderte Credentials."
+                    ])
+                else:
+                    current_app.logger.info(
+                        "UNC-Credentials für %s\\%s registriert: %s",
+                        runas["domain"] or ".", runas["username"],
+                        ", ".join(registered_unc),
+                    )
             except Exception as exc:
                 msg = (
-                    f"LogonUser/CreateProcessAsUser fehlgeschlagen "
-                    f"({type(exc).__name__}: {exc}) – Fallback auf aktuellen "
-                    f"Benutzerkontext. Mögliche Ursachen: Passwort falsch/"
-                    f"abgelaufen; Scan-User ohne 'Anmelden als "
-                    f"Stapelverarbeitung' (SeBatchLogonRight) auf dem "
-                    f"idvault-Server (secpol.msc → Lokale Richtlinien → "
-                    f"Zuweisen von Benutzerrechten); idvault-Dienst läuft als "
-                    f"LOCAL SERVICE statt LOCAL SYSTEM (ohne die Privilegien "
-                    f"SeAssignPrimaryTokenPrivilege/SeIncreaseQuotaPrivilege – "
-                    f"dann bitte auf LOCAL SYSTEM oder direkt den Scan-User "
-                    f"umstellen)."
+                    f"WNetAddConnection2 fehlgeschlagen "
+                    f"({type(exc).__name__}: {exc}) – Scanner läuft im "
+                    f"Dienstkontext ohne gesonderte Credentials. Mögliche "
+                    f"Ursachen: Passwort falsch/abgelaufen; Scan-User hat "
+                    f"keinen Zugriff auf den Share (Shares-ACL/NTFS-Rechte "
+                    f"prüfen); DNS-/SMB-Problem zum Fileserver."
                 )
                 current_app.logger.error(msg)
                 _write_scanner_notice(log_path, [msg])
 
-    # Standard-Fallback: subprocess.Popen erbt den aktuellen Benutzerkontext.
+    # Scanner im Kontext des idvault-Prozesses (Dienstkonto) starten.
     # "a" (append) damit die oben geschriebenen [IDVAULT-START]-Zeilen
     # nicht überschrieben werden. Line-buffering (buffering=1) sorgt dafür,
     # dass Scanner-Output zeitnah sichtbar wird.
     log_fh = open(log_path, "a", encoding="utf-8", buffering=1)
-    proc = subprocess.Popen(
-        cmd,
-        stdout=log_fh,
-        stderr=log_fh,
-        cwd=cwd,
-        creationflags=creationflags,
-        env=_scanner_subprocess_env(),
-    )
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=log_fh,
+            stderr=log_fh,
+            cwd=cwd,
+            creationflags=creationflags,
+            env=_scanner_subprocess_env(),
+        )
+    except Exception:
+        log_fh.close()
+        _cancel_unc_credentials(registered_unc)
+        raise
 
     def _wait():
-        proc.wait()
-        log_fh.close()
+        try:
+            proc.wait()
+        finally:
+            log_fh.close()
+            _cancel_unc_credentials(registered_unc)
 
     return proc.pid, _wait
 
@@ -929,8 +898,9 @@ def scanner_starten():
         # (Werkzeug-Dev-Server) bekommt das gleiche Signal und beendet
         # sich still, wie bei Ctrl+C. Siehe claude/debug-network-scan.
         # Abbrechen erfolgt via Signal-Dateien, nicht via CTRL_C.
-        # Wenn ein technischer AD-Benutzer konfiguriert ist, wird der Scanner
-        # via CreateProcessWithLogonW in dessen Kontext gestartet (Windows).
+        # Wenn ein technischer AD-Benutzer konfiguriert ist, werden dessen
+        # Credentials vor dem Start via WNetAddConnection2 für die UNC-
+        # Share-Roots der Scan-Pfade registriert (Windows).
         try:
             pid, wait_fn = _start_scanner_proc(
                 cmd, os.path.dirname(scanner_dir), output_log
@@ -1048,11 +1018,12 @@ def scanner_runas_speichern():
 def scanner_runas_testen():
     """Testet die konfigurierten Run-As-Credentials via Windows LogonUser.
 
-    Prüft zusätzlich, ob alle pywin32-Module verfügbar sind, die für
-    CreateProcessWithLogonW benötigt werden. Fehlen welche (typisch bei
-    einem unvollständigen EXE-Build), wird das Ergebnis als Warnung
-    zurückgegeben – LogonUser allein würde sonst "alles ok" melden, obwohl
-    der produktive Scan-Start stumm auf den Dienstkontext zurückfällt.
+    Prüft zusätzlich, ob alle pywin32-Module verfügbar sind, die der
+    produktive Scan-Start für ``WNetAddConnection2`` benötigt. Fehlen
+    welche (typisch bei einem unvollständigen EXE-Build), wird das
+    Ergebnis als Warnung zurückgegeben – LogonUser allein würde sonst
+    "alles ok" melden, obwohl der Scanner die Credentials später nicht
+    an die UNC-Shares weitergeben kann.
     """
     if os.name != "nt":
         return jsonify(ok=False, msg="Nur auf Windows-Systemen verfügbar.")
@@ -1096,16 +1067,15 @@ def scanner_runas_testen():
         return jsonify(
             ok=False,
             msg=(f"Anmeldung als \"{display}\" war erfolgreich, aber der "
-                 f"Scanner kann den Benutzer NICHT verwenden: Im EXE-Build "
-                 f"fehlen pywin32-Module für CreateProcessAsUser "
-                 f"({', '.join(missing)}). Abhilfe: EXE neu bauen ODER den "
-                 f"idvault-Dienst direkt als Scan-User betreiben.")
+                 f"Scanner kann die Credentials NICHT an UNC-Shares "
+                 f"weitergeben: Im EXE-Build fehlen pywin32-Module "
+                 f"({', '.join(missing)}). Abhilfe: EXE neu bauen.")
         )
 
     return jsonify(
         ok=True,
         msg=(f"Anmeldung als \"{display}\" erfolgreich. "
-             f"Alle pywin32-Module für CreateProcessAsUser sind vorhanden.")
+             f"Alle pywin32-Module für WNetAddConnection2 sind vorhanden.")
     )
 
 
@@ -1116,8 +1086,8 @@ def scanner_runas_status():
 
     Wird von der Scanner-Einstellungen-Seite beim Laden aufgerufen, um
     einen roten Warnbanner einzublenden, wenn die Konfiguration zwar
-    gespeichert, aber nicht wirksam ist (z. B. wegen unvollständiger
-    pywin32-Einbindung im EXE-Build).
+    gespeichert, aber nicht wirksam ist (z. B. weil pywin32-Module für
+    WNetAddConnection2 im EXE-Build fehlen).
     """
     if os.name != "nt":
         return jsonify(platform_ok=False, modules_ok=True, missing=[],
@@ -2182,8 +2152,8 @@ def _resolve_scanner_output_log_path() -> str:
     """Liefert den Pfad zum stdout/stderr-Mitschnitt des Scanner-Subprocess.
 
     Diese Datei enthält Crash-Meldungen, die *vor* dem Initialisieren
-    des Loggers auftreten (z. B. Fehler beim Starten via
-    CreateProcessWithLogonW oder Tracebacks aus ``main()``).
+    des Loggers auftreten (z. B. Fehler bei der WNet-Credential-
+    Registrierung oder Tracebacks aus ``main()``).
     """
     return os.path.join(_instance_logs_dir(), "scanner_output.log")
 

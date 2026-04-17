@@ -530,11 +530,10 @@ def _run_server(service_mode: bool = False):
 # Dienstkonto für Netzlaufwerk-Scans:
 #   - LOCAL SYSTEM: einfachste Option; Scanner-Benutzer separat in der
 #     Web-UI unter Administration → Scanner-Einstellungen konfigurieren.
+#     Die Credentials werden vor dem Scan-Start via WNetAddConnection2
+#     in der Dienst-Session registriert (kein Sonderprivileg nötig).
 #   - Domain-Konto: Hat der Dienst direkten Zugriff auf die Scan-Pfade,
-#     ist kein separater Scanner-Benutzer nötig. Für einen abweichenden
-#     Run-As-Benutzer muss dem Dienstkonto SeAssignPrimaryTokenPrivilege
-#     erteilt werden (secpol.msc → Lokale Richtlinien → Zuweisen von
-#     Benutzerrechten → "Token auf Prozessebene ersetzen").
+#     ist kein separater Scanner-Benutzer nötig.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _make_service_class():

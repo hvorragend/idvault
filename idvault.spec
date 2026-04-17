@@ -82,10 +82,11 @@ hiddenimports = [
     *cryptography_h,
     # Scanner – optional (werden ignoriert wenn nicht installiert)
     'xxhash',
-    # pywin32 – alle Module, die für CreateProcessWithLogonW und
-    # das Auslesen von Datei-Eigentümern benötigt werden. Fehlt eines
-    # davon zur Laufzeit, fällt idvault ohne verwertbare Fehlermeldung
-    # auf den Parent-Kontext (Dienstkonto) zurück.
+    # pywin32 – alle Module, die für die Run-As-Credential-Registrierung
+    # (WNetAddConnection2), das Auslesen von Datei-Eigentümern sowie die
+    # Scanner-Identitäts-Diagnose benötigt werden. Fehlt eines davon zur
+    # Laufzeit, fällt idvault ohne verwertbare Fehlermeldung auf den
+    # Dienstkontext zurück.
     'pywintypes',
     'win32api',
     'win32con',
@@ -93,6 +94,8 @@ hiddenimports = [
     'win32file',
     'win32process',
     'win32security',
+    'win32wnet',
+    'win32netcon',
     'ntsecuritycon',
     # pywin32 – Windows-Dienst-Framework. Ohne diese Module schlägt
     # "idvault.exe install/start/stop/remove" mit ImportError fehl

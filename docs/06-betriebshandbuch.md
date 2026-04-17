@@ -461,22 +461,25 @@ Wenn der Dienst laut SCM „wird ausgeführt" ist, aber die Website
 unerreichbar bleibt: zuerst im Event-Viewer nach dem Error-Event
 „`_run_server()` abgebrochen" suchen → dann die dort genannte
 `idvault_crash.log` öffnen.
-   - `LogonUser(…, NETWORK_CLEARTEXT) fehlgeschlagen` – pywin32 ist
-     vollständig, aber der Logon schlug fehl. Detail-Ursachen im
-     Klammertext:
+   - `WNetAddConnection2 für \\server\share fehlgeschlagen` – die
+     Registrierung der Scan-User-Credentials für einen UNC-Share ist
+     gescheitert. Detail-Ursachen im Klammertext:
      - `WinError 1326` (0x52E): Passwort des Scan-Users falsch oder
        abgelaufen. Passwort in Administration → Scanner-Einstellungen →
        Run-As erneut eintragen.
-     - `WinError 1385` (0x569, „nicht die Berechtigung, sich in dieser
-       Art anzumelden"): Sollte mit `LOGON_NETWORK_CLEARTEXT` nicht mehr
-       auftreten (kein `SeBatchLogonRight` erforderlich). Falls doch:
-       Konto in `secpol.msc` → „Auf diesen Computer vom Netzwerk aus
-       zugreifen" eintragen.
-   - `CreateProcessAsUser fehlgeschlagen … WinError 1314` (0x522,
-     „Ein erforderliches Recht steht dem Client nicht zur Verfügung"):
-     Der idvault-Dienst läuft nicht als LOCAL SYSTEM (fehlendes
-     `SeAssignPrimaryTokenPrivilege`). Dienstkonto auf LOCAL SYSTEM
-     umstellen (services.msc → Eigenschaften → Anmelden).
+     - `WinError 1219` (0x4C3, „Es sind nicht genügend Anmelde-
+       informationen verfügbar"): Der Dienstkontext hält bereits eine
+       andere Credential-Zuordnung zum selben Share. idvault löst das
+       automatisch mit `WNetCancelConnection2` vor dem Eintrag; tritt
+       der Fehler dauerhaft auf, manuell im Dienstkontext
+       `net use \\server\share /delete` ausführen.
+     - `WinError 53` / `67` / `2250`: Netzwerkpfad unerreichbar – DNS-
+       oder SMB-Problem, nicht Credential-bezogen.
+   - Der frühere `LogonUser`/`CreateProcessAsUser`-Weg (und dessen
+     typische Fehler `WinError 1260` „Gruppenrichtlinie" oder
+     `WinError 1314` „Token auf Prozessebene ersetzen") wurde durch
+     `WNetAddConnection2` ersetzt. Keines dieser Privilegien bzw.
+     Policy-Ausnahmen wird noch benötigt.
 2. **WinError 5 (Zugriff verweigert)** – Der Scan-User darf das Share nicht
    lesen. NTFS- und Freigabe-Berechtigungen prüfen, ggf. Gruppenmitgliedschaft
    durch `gpupdate /force` + neuerliches Anmelden aktualisieren.
