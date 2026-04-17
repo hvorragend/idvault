@@ -201,9 +201,71 @@ def _unc_share_root(path: str):
     return "\\\\" + parts[2] + "\\" + parts[3]
 
 
+def _mpr_bindings():
+    """Baut die ctypes-Bindings für WNetAddConnection2W / WNetCancelConnection2W.
+
+    Bewusst über ``ctypes`` statt ``win32wnet``: ``ctypes`` + ``mpr.dll``
+    sind in jeder Python-Standard- und PyInstaller-Umgebung vorhanden,
+    ``win32wnet.pyd`` hingegen nur wenn es explizit als Hidden-Import
+    gebundelt wurde. Damit ist diese Funktionalität auch per Sidecar-
+    Update ohne EXE-Neubau ausrollbar.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    class _NETRESOURCEW(ctypes.Structure):
+        _fields_ = [
+            ("dwScope",       wintypes.DWORD),
+            ("dwType",        wintypes.DWORD),
+            ("dwDisplayType", wintypes.DWORD),
+            ("dwUsage",       wintypes.DWORD),
+            ("lpLocalName",   wintypes.LPWSTR),
+            ("lpRemoteName",  wintypes.LPWSTR),
+            ("lpComment",     wintypes.LPWSTR),
+            ("lpProvider",    wintypes.LPWSTR),
+        ]
+
+    mpr = ctypes.WinDLL("mpr.dll", use_last_error=True)
+
+    add = mpr.WNetAddConnection2W
+    add.argtypes = [
+        ctypes.POINTER(_NETRESOURCEW),
+        wintypes.LPCWSTR,   # password
+        wintypes.LPCWSTR,   # username
+        wintypes.DWORD,     # flags
+    ]
+    add.restype = wintypes.DWORD
+
+    cancel = mpr.WNetCancelConnection2W
+    cancel.argtypes = [
+        wintypes.LPCWSTR,   # name
+        wintypes.DWORD,     # flags
+        wintypes.BOOL,      # force
+    ]
+    cancel.restype = wintypes.DWORD
+
+    return _NETRESOURCEW, add, cancel
+
+
+# Bekannte Windows-Fehlercodes für WNetAddConnection2. Die Liste ist nicht
+# erschöpfend – unbekannte Codes werden als numerischer Wert geloggt.
+_WNET_ERROR_HINTS = {
+    5:    "Zugriff verweigert (Share-/NTFS-Rechte prüfen)",
+    53:   "Netzwerkpfad nicht gefunden (DNS / SMB)",
+    67:   "Netzwerkname kann nicht gefunden werden",
+    86:   "Falsches Netzwerkkennwort",
+    1219: "Session hält bereits andere Credentials für diesen Server "
+          "(ERROR_SESSION_CREDENTIAL_CONFLICT)",
+    1326: "Anmeldung fehlgeschlagen – Benutzername/Passwort falsch "
+          "oder abgelaufen (ERROR_LOGON_FAILURE)",
+    1327: "Konto-Einschränkung (leeres Passwort, gesperrt, abgelaufen)",
+    2250: "Netzwerkverbindung existiert nicht",
+}
+
+
 def _register_unc_credentials(scan_paths: list, domain: str, username: str,
                               password: str) -> tuple:
-    """Registriert AD-Credentials via ``WNetAddConnection2`` für jeden
+    """Registriert AD-Credentials via ``WNetAddConnection2W`` für jeden
     ``\\\\server\\share``-Root der konfigurierten Scan-Pfade.
 
     Analog zu ``net use \\\\server\\share /user:DOMAIN\\foo pw`` speichert
@@ -217,8 +279,10 @@ def _register_unc_credentials(scan_paths: list, domain: str, username: str,
     enthält Diagnose-Zeilen für jedes registrierte/fehlgeschlagene Share
     und wird vom Aufrufer ins Scanner-Log geschrieben.
     """
-    import win32wnet
-    import win32netcon
+    import ctypes
+
+    NETRESOURCEW, WNetAddConnection2W, WNetCancelConnection2W = _mpr_bindings()
+    RESOURCETYPE_DISK = 0x00000001
 
     full_user = f"{domain}\\{username}" if (domain and domain != ".") else username
 
@@ -243,27 +307,27 @@ def _register_unc_credentials(scan_paths: list, domain: str, username: str,
         # WNetAddConnection2 mit ERROR_SESSION_CREDENTIAL_CONFLICT (1219)
         # fehl, wenn der Dienstkontext bereits eine andere Zuordnung
         # (z. B. vom vorherigen Scan-Lauf oder vom Dienstkonto selbst)
-        # eingetragen hat.
-        try:
-            win32wnet.WNetCancelConnection2(root, 0, True)
-        except Exception:
-            pass
+        # eingetragen hat. Rückgabewert wird bewusst ignoriert.
+        WNetCancelConnection2W(root, 0, True)
 
-        nr = win32wnet.NETRESOURCE()
-        nr.dwType       = win32netcon.RESOURCETYPE_DISK
+        nr = NETRESOURCEW()
+        nr.dwType       = RESOURCETYPE_DISK
         nr.lpRemoteName = root
         nr.lpLocalName  = None  # keine Laufwerksbuchstaben-Zuordnung
+        nr.lpProvider   = None
 
-        try:
-            win32wnet.WNetAddConnection2(nr, password, full_user, 0)
+        rc = WNetAddConnection2W(ctypes.byref(nr), password, full_user, 0)
+        if rc == 0:
             registered.append(root)
             messages.append(
                 f"UNC-Credentials registriert für {root} (als {full_user})"
             )
-        except Exception as exc:
+        else:
+            hint = _WNET_ERROR_HINTS.get(rc, "")
+            tail = f" – {hint}" if hint else ""
             messages.append(
                 f"WNetAddConnection2 für {root} fehlgeschlagen: "
-                f"{type(exc).__name__}: {exc}"
+                f"WinError {rc}{tail}"
             )
 
     return registered, messages
@@ -275,30 +339,32 @@ def _cancel_unc_credentials(registered_roots: list) -> None:
     Fehler werden geschluckt – der Scanner-Lauf ist zu diesem Zeitpunkt
     bereits beendet, ein Cleanup-Fehler darf den Aufrufer nicht stören.
     """
+    if not registered_roots:
+        return
     try:
-        import win32wnet
+        _NETRES, _add, WNetCancelConnection2W = _mpr_bindings()
     except Exception:
         return
-    for root in registered_roots or []:
+    for root in registered_roots:
         try:
-            win32wnet.WNetCancelConnection2(root, 0, True)
+            WNetCancelConnection2W(root, 0, True)
         except Exception:
             pass
 
 
 _RUNAS_REQUIRED_MODULES = (
-    "pywintypes", "win32wnet", "win32netcon", "win32security",
+    "pywintypes", "win32security",
 )
 
 
 def _check_runas_modules() -> tuple:
-    """Prüft, ob alle pywin32-Module für die Run-As-Funktionalität vorhanden sind.
+    """Prüft, ob alle pywin32-Module für die Run-As-Diagnose vorhanden sind.
 
-    Benötigt werden ``win32wnet`` + ``win32netcon`` für
-    ``WNetAddConnection2`` (produktiver Scan-Start) sowie ``win32security``
-    für den LogonUser-Test im Admin-Bereich. Gibt ``(ok, missing)``
-    zurück; fehlende Einträge deuten auf einen unvollständigen
-    PyInstaller-Build hin.
+    Benötigt wird ``win32security`` (``LogonUser``) für den Credential-Test
+    im Admin-Bereich. Die eigentliche Credential-Registrierung im Scan-
+    Start läuft über ``ctypes`` + ``mpr.dll`` – ohne pywin32-Abhängigkeit,
+    damit sie auch per Sidecar-Update ohne EXE-Neubau wirksam wird.
+    Gibt ``(ok, missing)`` zurück.
     """
     missing = []
     for mod in _RUNAS_REQUIRED_MODULES:
@@ -429,68 +495,52 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
 
     registered_unc: list = []
     if os.name == "nt" and runas_configured:
-        modules_ok, missing = _check_runas_modules()
-        if not modules_ok:
+        try:
+            scan_paths = _load_scanner_config().get("scan_paths", [])
+        except Exception:
+            scan_paths = []
+        unc_roots_in_config = [r for r in (_unc_share_root(p)
+                                           for p in scan_paths) if r]
+
+        _write_scanner_notice(log_path, [
+            f"Registriere UNC-Credentials für Run-As-Benutzer "
+            f"{runas['domain'] or '.'}\\{runas['username']} "
+            f"(WNetAddConnection2)…"
+        ])
+        try:
+            registered_unc, msgs = _register_unc_credentials(
+                scan_paths,
+                runas["domain"] or ".",
+                runas["username"],
+                runas["password"],
+            )
+            if msgs:
+                _write_scanner_notice(log_path, msgs)
+            if not unc_roots_in_config:
+                _write_scanner_notice(log_path, [
+                    "Hinweis: Keine UNC-Pfade (\\\\server\\share) in den "
+                    "Scan-Pfaden konfiguriert – Run-As-Credentials werden "
+                    "nicht benötigt und nicht registriert."
+                ])
+            elif not registered_unc:
+                _write_scanner_notice(log_path, [
+                    "Alle UNC-Registrierungen fehlgeschlagen – Scanner "
+                    "läuft im Dienstkontext ohne gesonderte Credentials."
+                ])
+            else:
+                current_app.logger.info(
+                    "UNC-Credentials für %s\\%s registriert: %s",
+                    runas["domain"] or ".", runas["username"],
+                    ", ".join(registered_unc),
+                )
+        except Exception as exc:
             msg = (
-                f"Run-As konfiguriert ({runas['domain'] or '.'}\\{runas['username']}), "
-                f"aber folgende pywin32-Module fehlen im EXE-Build: "
-                f"{', '.join(missing)}. "
-                f"Scanner läuft deshalb im Dienstkontext ohne gesonderte "
-                f"UNC-Credentials. Abhilfe: EXE mit aktualisiertem "
-                f"idvault.spec neu bauen."
+                f"WNet-Credential-Registrierung fehlgeschlagen "
+                f"({type(exc).__name__}: {exc}) – Scanner läuft im "
+                f"Dienstkontext ohne gesonderte Credentials."
             )
             current_app.logger.error(msg)
             _write_scanner_notice(log_path, [msg])
-        else:
-            try:
-                scan_paths = _load_scanner_config().get("scan_paths", [])
-            except Exception:
-                scan_paths = []
-            unc_roots_in_config = [r for r in (_unc_share_root(p)
-                                               for p in scan_paths) if r]
-
-            _write_scanner_notice(log_path, [
-                f"Registriere UNC-Credentials für Run-As-Benutzer "
-                f"{runas['domain'] or '.'}\\{runas['username']} "
-                f"(WNetAddConnection2)…"
-            ])
-            try:
-                registered_unc, msgs = _register_unc_credentials(
-                    scan_paths,
-                    runas["domain"] or ".",
-                    runas["username"],
-                    runas["password"],
-                )
-                if msgs:
-                    _write_scanner_notice(log_path, msgs)
-                if not unc_roots_in_config:
-                    _write_scanner_notice(log_path, [
-                        "Hinweis: Keine UNC-Pfade (\\\\server\\share) in den "
-                        "Scan-Pfaden konfiguriert – Run-As-Credentials werden "
-                        "nicht benötigt und nicht registriert."
-                    ])
-                elif not registered_unc:
-                    _write_scanner_notice(log_path, [
-                        "Alle UNC-Registrierungen fehlgeschlagen – Scanner "
-                        "läuft im Dienstkontext ohne gesonderte Credentials."
-                    ])
-                else:
-                    current_app.logger.info(
-                        "UNC-Credentials für %s\\%s registriert: %s",
-                        runas["domain"] or ".", runas["username"],
-                        ", ".join(registered_unc),
-                    )
-            except Exception as exc:
-                msg = (
-                    f"WNetAddConnection2 fehlgeschlagen "
-                    f"({type(exc).__name__}: {exc}) – Scanner läuft im "
-                    f"Dienstkontext ohne gesonderte Credentials. Mögliche "
-                    f"Ursachen: Passwort falsch/abgelaufen; Scan-User hat "
-                    f"keinen Zugriff auf den Share (Shares-ACL/NTFS-Rechte "
-                    f"prüfen); DNS-/SMB-Problem zum Fileserver."
-                )
-                current_app.logger.error(msg)
-                _write_scanner_notice(log_path, [msg])
 
     # Scanner im Kontext des idvault-Prozesses (Dienstkonto) starten.
     # "a" (append) damit die oben geschriebenen [IDVAULT-START]-Zeilen
@@ -1018,12 +1068,11 @@ def scanner_runas_speichern():
 def scanner_runas_testen():
     """Testet die konfigurierten Run-As-Credentials via Windows LogonUser.
 
-    Prüft zusätzlich, ob alle pywin32-Module verfügbar sind, die der
-    produktive Scan-Start für ``WNetAddConnection2`` benötigt. Fehlen
-    welche (typisch bei einem unvollständigen EXE-Build), wird das
-    Ergebnis als Warnung zurückgegeben – LogonUser allein würde sonst
-    "alles ok" melden, obwohl der Scanner die Credentials später nicht
-    an die UNC-Shares weitergeben kann.
+    Die eigentliche UNC-Credential-Registrierung beim Scan-Start läuft
+    über ``ctypes`` + ``mpr.dll`` und ist damit unabhängig von pywin32.
+    Dieser Endpoint dient nur der Diagnose: LogonUser meldet innerhalb
+    von Millisekunden, ob Benutzer/Passwort gegen das AD gültig sind –
+    ohne auf einen Scan-Lauf warten zu müssen.
     """
     if os.name != "nt":
         return jsonify(ok=False, msg="Nur auf Windows-Systemen verfügbar.")
@@ -1038,15 +1087,15 @@ def scanner_runas_testen():
     if not password:
         return jsonify(ok=False, msg="Kein Kennwort hinterlegt.")
 
-    modules_ok, missing = _check_runas_modules()
-
     try:
         import win32security
     except ImportError:
         return jsonify(
             ok=False,
-            msg=("pywin32 nicht installiert/gebundlet. Für Run-As benötigt: "
-                 + ", ".join(_RUNAS_REQUIRED_MODULES))
+            msg=("pywin32 nicht installiert/gebundlet – der Credential-Test "
+                 "kann nicht ausgeführt werden. Der Scan-Start selbst läuft "
+                 "über ctypes und funktioniert unabhängig davon; bei Fehlern "
+                 "bitte direkt das Scanner-Log prüfen.")
         )
 
     try:
@@ -1062,20 +1111,12 @@ def scanner_runas_testen():
         return jsonify(ok=False, msg=f"LogonUser fehlgeschlagen: {exc}")
 
     display = f"{domain}\\{username}" if domain != "." else username
-
-    if not modules_ok:
-        return jsonify(
-            ok=False,
-            msg=(f"Anmeldung als \"{display}\" war erfolgreich, aber der "
-                 f"Scanner kann die Credentials NICHT an UNC-Shares "
-                 f"weitergeben: Im EXE-Build fehlen pywin32-Module "
-                 f"({', '.join(missing)}). Abhilfe: EXE neu bauen.")
-        )
-
     return jsonify(
         ok=True,
         msg=(f"Anmeldung als \"{display}\" erfolgreich. "
-             f"Alle pywin32-Module für WNetAddConnection2 sind vorhanden.")
+             f"Die Credentials werden beim nächsten Scan-Start via "
+             f"WNetAddConnection2 für die konfigurierten UNC-Shares "
+             f"registriert.")
     )
 
 

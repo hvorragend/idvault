@@ -198,17 +198,16 @@
           </div>
           {% endif %}
 
-          <div id="runas-module-warning" class="alert alert-danger py-2 mb-3"
+          <div id="runas-module-warning" class="alert alert-warning py-2 mb-3"
                style="display:none; font-size:.84rem">
             <i class="bi bi-exclamation-triangle me-1"></i>
-            <strong>Run-As unwirksam:</strong>
-            Im aktuellen EXE-Build fehlen pywin32-Module für
-            <code>WNetAddConnection2</code>
+            <strong>Credential-Test eingeschränkt:</strong>
+            Im aktuellen EXE-Build fehlen pywin32-Module
             (<span id="runas-missing-modules"></span>).
-            Der Scanner startet deshalb im Kontext des idvault-Dienstes,
-            ohne die konfigurierten UNC-Credentials zu registrieren.<br>
-            <strong>Abhilfe:</strong> EXE mit aktualisiertem
-            <code>idvault.spec</code> neu bauen.
+            Der <em>Testen</em>-Button unten kann damit keinen
+            LogonUser-Check durchführen. Die eigentliche UNC-Credential-
+            Registrierung beim Scan-Start läuft über <code>ctypes</code>
+            und funktioniert unabhängig davon.
           </div>
 
           <div class="row g-3">
