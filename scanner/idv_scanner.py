@@ -646,6 +646,20 @@ def scan_file(path: str, config: dict, scan_paths: list,
     }
 
 
+def _to_extended_path(path: str) -> str:
+    """Windows: wandelt UNC/lokale Pfade in Extended-Length-Form um (max. 32767 Zeichen).
+
+    \\server\share\...  →  \\?\UNC\server\share\...
+    C:\...              →  \\?\C:\...
+    Hebt das MAX_PATH-Limit (260 Zeichen) für os.scandir/os.stat auf.
+    """
+    if os.name != 'nt' or path.startswith('\\\\?\\'):
+        return path
+    if path.startswith('\\\\'):
+        return '\\\\?\\UNC\\' + path[2:]
+    return '\\\\?\\' + path
+
+
 def safe_walk(top: str, followlinks: bool = False, logger: logging.Logger = None):
     """os.walk-Ersatz mit robuster Fehlerbehandlung für Netzlaufwerke.
 
@@ -664,9 +678,21 @@ def safe_walk(top: str, followlinks: bool = False, logger: logging.Logger = None
             logger.warning(f"Kein Zugriff auf Verzeichnis (übersprungen): {top} – {e.strerror}")
         return
     except OSError as e:
-        if logger:
-            logger.warning(f"Lesefehler Verzeichnis (übersprungen): {top} – {e.strerror}")
-        return
+        # WinError 3 (Pfad nicht gefunden) und WinError 206 (Dateiname zu lang)
+        # treten auf, wenn der Pfad das MAX_PATH-Limit (260 Zeichen) überschreitet.
+        # Retry mit Extended-Length-Präfix hebt dieses Limit auf.
+        if os.name == 'nt' and getattr(e, 'winerror', None) in (3, 206):
+            try:
+                with os.scandir(_to_extended_path(top)) as it:
+                    entries = list(it)
+            except OSError as e2:
+                if logger:
+                    logger.warning(f"Lesefehler Verzeichnis (übersprungen): {top} – {e2.strerror}")
+                return
+        else:
+            if logger:
+                logger.warning(f"Lesefehler Verzeichnis (übersprungen): {top} – {e.strerror}")
+            return
     except BaseException as e:
         # Auf Netzlaufwerken kann Windows ein Control-Signal senden,
         # das Python als KeyboardInterrupt darstellt – analog zum bekannten
@@ -746,8 +772,15 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
     try:
         entries = os.listdir(scan_path)
     except OSError as e:
-        logger.warning(f"Kann Verzeichnis nicht öffnen: {scan_path}: {e}")
-        return
+        if os.name == 'nt' and getattr(e, 'winerror', None) in (3, 206):
+            try:
+                entries = os.listdir(_to_extended_path(scan_path))
+            except OSError as e2:
+                logger.warning(f"Kann Verzeichnis nicht öffnen: {scan_path}: {e2}")
+                return
+        else:
+            logger.warning(f"Kann Verzeichnis nicht öffnen: {scan_path}: {e}")
+            return
     for fname in entries:
         full_path = os.path.join(scan_path, fname)
         if not os.path.isfile(full_path):
