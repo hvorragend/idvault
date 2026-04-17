@@ -543,6 +543,8 @@ def new_idv():
             # Datei-Eigentümer als Entwickler vorbelegen
             owner_hint = fund["file_owner"] or fund["office_author"] or ""
             if owner_hint:
+                # DOMAIN\Username → Username (AD-Login ohne Domain-Präfix)
+                ad_login = owner_hint.split("\\")[-1] if "\\" in owner_hint else owner_hint
                 dev_row = db.execute(
                     """SELECT id FROM persons WHERE aktiv=1 AND (
                         kuerzel=? OR ad_name=? OR user_id=?
@@ -550,7 +552,7 @@ def new_idv():
                         OR (nachname || ', ' || vorname)=?
                         OR (nachname || ' ' || vorname)=?
                     ) LIMIT 1""",
-                    (owner_hint,) * 6
+                    (ad_login, ad_login, ad_login, owner_hint, owner_hint, owner_hint)
                 ).fetchone()
                 if dev_row:
                     prefill["idv_entwickler_id"] = dev_row["id"]
