@@ -175,12 +175,12 @@ def send_mail(db, to: str | list[str], subject: str,
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
     msg.attach(MIMEText(body_html, "html", "utf-8"))
 
+    smtp = None
     try:
         smtp = _open_smtp(cfg)
         if cfg["user"] and cfg["password"]:
             smtp.login(cfg["user"], cfg["password"])
         smtp.sendmail(cfg["from"], recipients, msg.as_string())
-        smtp.quit()
         log.info("E-Mail gesendet an %s: %s", recipients, subject)
         _smtp_log(db, recipients, subject, True)
         return True
@@ -189,6 +189,12 @@ def send_mail(db, to: str | list[str], subject: str,
         log.error("E-Mail-Fehler: %s", err)
         _smtp_log(db, recipients, subject, False, err)
         return False
+    finally:
+        if smtp is not None:
+            try:
+                smtp.quit()
+            except Exception:
+                pass
 
 
 def send_smtp_test(db, to_email: str, *,
@@ -234,12 +240,12 @@ def send_smtp_test(db, to_email: str, *,
     msg.attach(MIMEText("idvault – SMTP-Test erfolgreich.\n\nDiese E-Mail wurde automatisch als Verbindungstest gesendet.", "plain", "utf-8"))
     msg.attach(MIMEText(body_html, "html", "utf-8"))
 
+    smtp = None
     try:
         smtp = _open_smtp(cfg)
         if cfg["user"] and cfg["password"]:
             smtp.login(cfg["user"], cfg["password"])
         smtp.sendmail(cfg["from"], recipients, msg.as_string())
-        smtp.quit()
         log.info("SMTP-Test-E-Mail gesendet an %s", to_email)
         _smtp_log(db, recipients, subject, True)
         return True, f"Test-E-Mail erfolgreich gesendet an {to_email}."
@@ -248,6 +254,12 @@ def send_smtp_test(db, to_email: str, *,
         log.error("SMTP-Test-Fehler: %s", err)
         _smtp_log(db, recipients, subject, False, err)
         return False, f"Fehler: {err}"
+    finally:
+        if smtp is not None:
+            try:
+                smtp.quit()
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------

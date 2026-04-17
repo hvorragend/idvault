@@ -968,11 +968,13 @@ def bulk_aktion():
 
         gesendet = 0
         fehler = 0
+        n_dateien_gesendet = 0
         for email, dateien_gruppe in grouped.items():
             try:
                 ok = notify_file_bewertung_batch(db, dateien_gruppe, email, base_url)
                 if ok:
                     gesendet += 1
+                    n_dateien_gesendet += len(dateien_gruppe)
                 else:
                     fehler += 1
             except Exception:
@@ -980,8 +982,7 @@ def bulk_aktion():
 
         msg_parts = []
         if gesendet:
-            n_dateien = sum(len(g) for g in grouped.values() if grouped)
-            msg_parts.append(f"{n_dateien} Datei(en) in {gesendet} E-Mail(s) gesendet")
+            msg_parts.append(f"{n_dateien_gesendet} Datei(en) in {gesendet} E-Mail(s) gesendet")
         if kein_empfaenger:
             msg_parts.append(f"{kein_empfaenger} ohne zugeordnete E-Mail-Adresse")
         if fehler:
