@@ -1950,11 +1950,10 @@ def bulk_persons():
 def new_oe():
     db = get_db()
     db.execute("""
-        INSERT INTO org_units (bezeichnung, ebene, parent_id, created_at)
-        VALUES (?,?,?,?)
+        INSERT INTO org_units (bezeichnung, parent_id, created_at)
+        VALUES (?,?,?)
     """, (
         request.form.get("bezeichnung", "").strip(),
-        request.form.get("ebene") or None,
         request.form.get("parent_id") or None,
         _now()
     ))
@@ -1976,13 +1975,11 @@ def edit_oe(oid):
 
     if request.method == "POST":
         db.execute("""
-            UPDATE org_units SET bezeichnung=?, ebene=?, parent_id=?, aktiv=?
+            UPDATE org_units SET bezeichnung=?, parent_id=?
             WHERE id=?
         """, (
             request.form.get("bezeichnung", "").strip(),
-            request.form.get("ebene") or None,
             request.form.get("parent_id") or None,
-            1 if request.form.get("aktiv") else 0,
             oid
         ))
         db.commit()
@@ -1996,9 +1993,9 @@ def edit_oe(oid):
 @admin_required
 def delete_oe(oid):
     db = get_db()
-    db.execute("UPDATE org_units SET aktiv=0 WHERE id=?", (oid,))
+    db.execute("DELETE FROM org_units WHERE id=?", (oid,))
     db.commit()
-    flash("Organisationseinheit deaktiviert.", "success")
+    flash("Organisationseinheit gelöscht.", "success")
     return redirect(url_for("admin.index"))
 
 

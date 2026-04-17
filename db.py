@@ -687,22 +687,6 @@ def insert_demo_data(conn: sqlite3.Connection):
     """Legt Beispiel-Stammdaten und einen Demo-IDV an."""
     now = datetime.now(timezone.utc).isoformat()
 
-    # Org-Einheiten
-    conn.executemany(
-        "INSERT OR IGNORE INTO org_units (bezeichnung, ebene) VALUES (?,?)",
-        [
-            ("Vorstand",                      "Vorstand"),
-            ("Filialvertrieb",                "Bereich"),
-            ("Kreditabteilung",               "Abteilung"),
-            ("Betriebswirtschaft/Controlling","Abteilung"),
-            ("IT & IT-Sicherheit",            "Abteilung"),
-            ("Risikocontrolling",             "Abteilung"),
-            ("Interne Revision",              "Abteilung"),
-            ("Rechnungswesen/Buchhaltung",    "Abteilung"),
-            ("Meldewesen",                    "Abteilung"),
-        ]
-    )
-
     # Personen
     conn.executemany(
         "INSERT OR IGNORE INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id) "
@@ -741,56 +725,6 @@ def insert_demo_data(conn: sqlite3.Connection):
             ("Python 3.11",             "Server",  "PSF"),
         ]
     )
-
-    # Demo-IDV
-    demo = {
-        "bezeichnung":             "GuV-Monatsabschluss Controlling",
-        "kurzbeschreibung":        "Excel-Modell zur monatlichen Berechnung und Aufbereitung der "
-                                   "Gewinn- und Verlustrechnung auf Filialebene. Datenquelle: OSPlus-Export.",
-        "idv_typ":                 "Excel-Modell",
-        "gp_freitext":             "GP-BWK-001",
-        "pruefintervall_monate":   6,
-        "nutzungsfrequenz":        "monatlich",
-        "nutzeranzahl":            3,
-        "dokumentation_vorhanden": 1,
-        "zugriffsschutz":          1,
-        "zugriffsschutz_beschr":   "Schreibschutz für alle außer Controlling-Laufwerk.",
-        "vier_augen_prinzip":      1,
-    }
-
-    idv_id = create_idv(conn, demo)
-    print(f"Demo-IDV erstellt mit DB-ID: {idv_id}")
-
-    # Demo-Wesentlichkeitsantworten
-    krit = {
-        row["bezeichnung"]: row["id"]
-        for row in conn.execute(
-            "SELECT id, bezeichnung FROM wesentlichkeitskriterien"
-        ).fetchall()
-    }
-    demo_antworten = []
-    if "Rechnungslegungs-Relevanz (GoB)" in krit:
-        demo_antworten.append({
-            "kriterium_id": krit["Rechnungslegungs-Relevanz (GoB)"],
-            "erfuellt":     1,
-            "begruendung":  "Grundlage für HGB-Monatsabschluss.",
-        })
-    if "Risiko / Steuerungs-Relevanz im Sinne der MaRisk" in krit:
-        demo_antworten.append({
-            "kriterium_id": krit["Risiko / Steuerungs-Relevanz im Sinne der MaRisk"],
-            "erfuellt":     1,
-            "begruendung":  "Ergebnisse fließen in die monatliche "
-                            "Vorstandsberichterstattung ein.",
-        })
-    if "Kritische oder wichtige Funktionen" in krit:
-        demo_antworten.append({
-            "kriterium_id": krit["Kritische oder wichtige Funktionen"],
-            "erfuellt":     1,
-            "begruendung":  "Vollständige Abhängigkeit im kritischen "
-                            "Geschäftsprozess GuV-Berechnung.",
-        })
-    if demo_antworten:
-        save_idv_wesentlichkeit(conn, idv_id, demo_antworten)
 
     stats = get_dashboard_stats(conn)
     print("\nDashboard-Statistik nach Demo-Import:")

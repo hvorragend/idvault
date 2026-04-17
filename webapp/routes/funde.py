@@ -116,6 +116,9 @@ def list_funde():
     dir_path_filt = request.args.get("dir_path", "").strip()
     scan_run_id = request.args.get("scan_run", "").strip()
     q_search    = request.args.get("q", "").strip()
+    owner_filt  = request.args.get("owner", "").strip()
+    date_from   = request.args.get("date_from", "").strip()
+    date_to     = request.args.get("date_to", "").strip()
     sort        = request.args.get("sort", "scan").strip()
     order       = request.args.get("order", "desc").strip()
     highlight_raw = request.args.get("highlight", "").strip()
@@ -203,6 +206,18 @@ def list_funde():
     if q_search:
         where_parts.append("f.file_name LIKE ?")
         params.append(f"%{q_search}%")
+
+    if owner_filt:
+        where_parts.append("f.file_owner = ?")
+        params.append(owner_filt)
+
+    if date_from:
+        where_parts.append("f.modified_at >= ?")
+        params.append(date_from)
+
+    if date_to:
+        where_parts.append("f.modified_at <= ?")
+        params.append(date_to + "T23:59:59")
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
     # Duplikate nach Hash sortieren, damit Jinja2-groupby funktioniert
@@ -324,6 +339,13 @@ def list_funde():
         """).fetchall()
         if r["dir_path"]
     ]
+    owner_list = [
+        r["file_owner"] for r in db.execute(
+            "SELECT DISTINCT file_owner FROM idv_files"
+            " WHERE file_owner IS NOT NULL AND file_owner != '' AND status='active'"
+            " ORDER BY file_owner"
+        ).fetchall()
+    ]
     try:
         scan_runs = db.execute("""
             SELECT id, started_at, finished_at, scan_paths,
@@ -366,6 +388,10 @@ def list_funde():
         sort=sort, order=order,
         q_search=q_search,
         highlight_id=highlight_id,
+        owner_list=owner_list,
+        owner_filt=owner_filt,
+        date_from=date_from,
+        date_to=date_to,
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
@@ -381,6 +407,9 @@ def eingang_funde():
     share_root    = request.args.get("share_root", "").strip()
     scan_run_id   = request.args.get("scan_run", "").strip()
     q_search      = request.args.get("q", "").strip()
+    owner_filt    = request.args.get("owner", "").strip()
+    date_from     = request.args.get("date_from", "").strip()
+    date_to       = request.args.get("date_to", "").strip()
     sort          = request.args.get("sort", "prioritaet")
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
@@ -424,6 +453,15 @@ def eingang_funde():
     if q_search:
         where_parts.append("f.file_name LIKE ?")
         params.append(f"%{q_search}%")
+    if owner_filt:
+        where_parts.append("f.file_owner = ?")
+        params.append(owner_filt)
+    if date_from:
+        where_parts.append("f.modified_at >= ?")
+        params.append(date_from)
+    if date_to:
+        where_parts.append("f.modified_at <= ?")
+        params.append(date_to + "T23:59:59")
     where_sql = "WHERE " + " AND ".join(where_parts)
 
     sort_map = {
@@ -532,6 +570,15 @@ def eingang_funde():
         "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
 
+    owner_list = [
+        r["file_owner"] for r in db.execute(
+            "SELECT DISTINCT file_owner FROM idv_files"
+            " WHERE file_owner IS NOT NULL AND file_owner != ''"
+            " AND status='active' AND bearbeitungsstatus='Neu'"
+            " ORDER BY file_owner"
+        ).fetchall()
+    ]
+
     return render_template("funde/eingang.html",
         dateien=dateien,
         total=total, total_pages=total_pages,
@@ -557,6 +604,10 @@ def eingang_funde():
         idv_typ_vorschlag=_idv_typ_vorschlag,
         is_admin=is_admin,
         persons=persons,
+        owner_list=owner_list,
+        owner_filt=owner_filt,
+        date_from=date_from,
+        date_to=date_to,
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )

@@ -60,7 +60,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-4">
       <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Fachverantwortlicher</label>
       <select name="fv_id" class="form-select form-select-sm">
         <option value="">– Alle –</option>
@@ -68,6 +68,15 @@
         <option value="{{ p.id }}" {{ 'selected' if request.args.get('fv_id','') == p.id|string }}>
           {{ p.nachname }}, {{ p.vorname }}
         </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label form-label-sm"><i class="bi bi-person-badge me-1"></i>Eigentümer (Datei)</label>
+      <select name="owner" class="form-select form-select-sm">
+        <option value="">– Alle –</option>
+        {% for o in owner_list %}
+        <option value="{{ o }}" {{ 'selected' if request.args.get('owner','') == o }}>{{ o }}</option>
         {% endfor %}
       </select>
     </div>
@@ -85,7 +94,7 @@
 </form>
 
 <!-- ── Pagination ─────────────────────────────────────────────────── -->
-{% set url_extra = {'q': q, 'status': status, 'filter': filt, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root} %}
+{% set url_extra = {'q': q, 'status': status, 'filter': filt, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root, 'owner': owner_filt} %}
 {% set endpoint = 'idv.list_idv' %}
 {% include 'funde/_pagination.html' %}
 
@@ -152,6 +161,7 @@
           <th class="sortable">Wesentlichkeit</th>
           <th class="sortable">Status</th>
           <th class="sortable">Fachverantwortlicher</th>
+          <th class="sortable">Eigentümer</th>
           <th class="sortable">Geändert</th>
           <th class="sortable">Nächste Prüfung</th>
           <th></th>
@@ -215,6 +225,7 @@
             <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
           </td>
           <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+          <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
           <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}</td>
           <td style="font-size:.82rem">
             {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
@@ -242,7 +253,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="{{ 12 if can_write else 11 }}" class="text-center text-muted py-5">
+          <td colspan="{{ 13 if can_write else 12 }}" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2"></i>
             Keine IDVs gefunden.
             {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}
