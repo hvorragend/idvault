@@ -642,4 +642,15 @@ def create_app(db_path: str = None) -> Flask:
             segs.append((p, prefix))
         return segs
 
+    @app.errorhandler(500)
+    def _internal_error(exc):
+        import sqlite3 as _sq
+        if isinstance(exc, _sq.OperationalError):
+            from flask import flash, redirect, url_for, request as _req
+            app.logger.warning("Global 500: Datenbank gesperrt: %s", exc)
+            flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
+            referrer = _req.referrer
+            return redirect(referrer or url_for("dashboard.index")), 302
+        raise exc
+
     return app
