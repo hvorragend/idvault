@@ -694,7 +694,7 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
 
         link_td = ""
         if with_links and file_id:
-            link = f"{base_url}/scanner/funde?highlight={file_id}"
+            link = f"{base_url}/funde?highlight={file_id}"
             link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In idvault öffnen</a></td>'
 
         rows_html += f"""
@@ -710,7 +710,7 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
     if with_links:
         scanner_link_html = (
             f'<p style="margin-top:12px;">'
-            f'<a href="{base_url}/scanner/funde">Zum Scanner-Eingang in idvault</a>'
+            f'<a href="{base_url}/funde">Zum Scanner-Eingang in idvault</a>'
             f'</p>'
         )
 
