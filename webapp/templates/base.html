@@ -456,10 +456,10 @@
     </a>
     {% endif %}
 
-    <hr style="border-color:rgba(255,255,255,.15);margin:.75rem 0 .5rem">
+    <hr style="border-color:rgba(255,255,255,.3);margin:.75rem 0 .5rem">
     <form method="POST" action="{{ url_for('auth.logout') }}" class="m-0">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="nav-link btn btn-link w-100 text-start p-0"
+      <button type="submit" class="nav-link btn btn-link w-100 text-start"
               style="color:inherit;text-decoration:none;border:0;background:transparent">
         <i class="bi bi-box-arrow-left"></i> Abmelden
       </button>

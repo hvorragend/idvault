@@ -21,20 +21,14 @@
     </li>
     <li class="nav-item">
       <a href="{{ url_for('admin.scanner_log') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.scanner_log' %}active{% endif %}">
-        <i class="bi bi-journal-code me-1"></i>Scan-Log
+         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.scanner_log','admin.login_log') %}active{% endif %}">
+        <i class="bi bi-journal-code me-1"></i>Log-Viewer
       </a>
     </li>
     <li class="nav-item">
       <a href="{{ url_for('admin.mail') }}"
          class="nav-link py-1 px-3 {% if request.endpoint == 'admin.mail' %}active{% endif %}">
         <i class="bi bi-envelope-gear me-1"></i>E-Mail
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.login_log') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.login_log' %}active{% endif %}">
-        <i class="bi bi-journal-text me-1"></i>Login-Log
       </a>
     </li>
   </ul>
