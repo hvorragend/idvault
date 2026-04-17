@@ -163,7 +163,12 @@ def send_mail(db, to: str | list[str], subject: str,
             found = {r["key"]: bool(r["value"]) for r in rows}
         except Exception as e:
             found = f"DB-Fehler: {e}"
-        log.warning("E-Mail nicht konfiguriert (smtp_host / smtp_from fehlen). DB-Inhalt: %s", found)
+        env_overrides = {k: repr(v) for k in ("IDV_SMTP_HOST", "IDV_SMTP_FROM", "IDV_SMTP_PORT", "IDV_SMTP_USER", "IDV_SMTP_TLS") if (v := os.environ.get(k)) is not None}
+        log.warning(
+            "E-Mail nicht konfiguriert (smtp_host / smtp_from fehlen). "
+            "DB: %s | Env-Overrides: %s | cfg.host=%r cfg.from=%r",
+            found, env_overrides, cfg["host"], cfg["from"]
+        )
         return False
 
     recipients = [to] if isinstance(to, str) else to
