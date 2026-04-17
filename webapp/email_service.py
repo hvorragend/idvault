@@ -7,9 +7,8 @@ Konfiguration wird aus der app_settings-Tabelle gelesen.
 Alle E-Mail-Vorlagen (Betreff + HTML-Body) sind über die Admin-Oberfläche
 konfigurierbar. Platzhalter werden im Format {name} ersetzt.
 
-Umgebungsvariablen (überschreiben DB-Einstellungen):
-    IDV_SMTP_HOST, IDV_SMTP_PORT, IDV_SMTP_USER,
-    IDV_SMTP_PASSWORD, IDV_SMTP_FROM, IDV_SMTP_TLS
+Die gesamte Konfiguration (Host, Port, Benutzer, Passwort, Absender, TLS)
+wird ausschließlich aus der Datenbank (app_settings) gelesen.
 """
 
 import os
@@ -89,7 +88,7 @@ def _parse_tls_mode(value: str) -> str:
 
 
 def _get_smtp_config(db) -> dict:
-    """Liest SMTP-Einstellungen aus DB, mit Env-Überschreibung."""
+    """Liest SMTP-Einstellungen ausschließlich aus der Datenbank (app_settings)."""
     try:
         rows = db.execute("SELECT key, value FROM app_settings").fetchall()
         cfg  = {r["key"]: r["value"] for r in rows}
@@ -97,23 +96,13 @@ def _get_smtp_config(db) -> dict:
         log.error("SMTP-Konfiguration konnte nicht aus DB gelesen werden: %s", exc)
         cfg  = {}
 
-    # Passwort: Umgebungsvariable hat Vorrang (Klartext); DB-Wert wird ggf. entschlüsselt
-    env_pw = os.environ.get("IDV_SMTP_PASSWORD")
-    if env_pw is not None:
-        password = env_pw
-    else:
-        password = _decrypt_smtp_password(cfg.get("smtp_password", ""))
-
-    # Leere Env-Vars werden wie "nicht gesetzt" behandelt (DB-Wert hat Vorrang).
     return {
-        "host":     os.environ.get("IDV_SMTP_HOST") or cfg.get("smtp_host",  ""),
-        "port":     int(os.environ.get("IDV_SMTP_PORT") or cfg.get("smtp_port",  587)),
-        "user":     os.environ.get("IDV_SMTP_USER") or cfg.get("smtp_user",  ""),
-        "password": password,
-        "from":     os.environ.get("IDV_SMTP_FROM") or cfg.get("smtp_from",  ""),
-        "tls_mode": _parse_tls_mode(
-            os.environ.get("IDV_SMTP_TLS") or cfg.get("smtp_tls", "starttls")
-        ),
+        "host":     cfg.get("smtp_host",  ""),
+        "port":     int(cfg.get("smtp_port",  587)),
+        "user":     cfg.get("smtp_user",  ""),
+        "password": _decrypt_smtp_password(cfg.get("smtp_password", "")),
+        "from":     cfg.get("smtp_from",  ""),
+        "tls_mode": _parse_tls_mode(cfg.get("smtp_tls", "starttls")),
     }
 
 
@@ -159,16 +148,9 @@ def send_mail(db, to: str | list[str], subject: str,
     """Sendet eine E-Mail. Gibt True bei Erfolg zurück."""
     cfg = _get_smtp_config(db)
     if not cfg["host"] or not cfg["from"]:
-        try:
-            rows = db.execute("SELECT key, value FROM app_settings WHERE key LIKE 'smtp%'").fetchall()
-            found = {r["key"]: bool(r["value"]) for r in rows}
-        except Exception as e:
-            found = f"DB-Fehler: {e}"
-        env_overrides = {k: repr(v) for k in ("IDV_SMTP_HOST", "IDV_SMTP_FROM", "IDV_SMTP_PORT", "IDV_SMTP_USER", "IDV_SMTP_TLS") if (v := os.environ.get(k)) is not None}
         log.warning(
-            "E-Mail nicht konfiguriert (smtp_host / smtp_from fehlen). "
-            "DB: %s | Env-Overrides: %s | cfg.host=%r cfg.from=%r",
-            found, env_overrides, cfg["host"], cfg["from"]
+            "E-Mail nicht konfiguriert: smtp_host=%r smtp_from=%r",
+            cfg["host"], cfg["from"]
         )
         return False
 
