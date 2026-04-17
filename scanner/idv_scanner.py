@@ -1133,12 +1133,12 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
 def _log_scanner_identity(logger: logging.Logger) -> None:
     """Loggt, unter welcher Identität der Scanner läuft.
 
-    Hintergrund: Wird der Scanner aus einem Windows-Dienst heraus über
-    CreateProcessWithLogonW als technischer AD-Benutzer gestartet, ist es
-    wichtig zu prüfen, ob der Subprocess tatsächlich unter diesem Benutzer
-    läuft. Schlägt der Zugriff auf Netzwerkfreigaben fehl, hilft diese
-    Information bei der Fehlersuche (z. B. läuft der Scanner versehentlich
-    als LOCAL SYSTEM oder NETWORK SERVICE statt als Scan-User).
+    Hintergrund: Der Scanner läuft im Kontext des idvault-Dienstes; die
+    UNC-Credentials eines konfigurierten AD-Benutzers werden vor dem
+    Start via WNetAddConnection2 in der Session registriert. Diese Log-
+    Zeile hilft bei der Fehlersuche, wenn UNC-Zugriffe scheitern
+    (z. B. weil der Dienst unerwartet als LOCAL SERVICE statt
+    LOCAL SYSTEM läuft oder eine Credential-Registrierung fehlt).
     """
     try:
         user = getpass.getuser()

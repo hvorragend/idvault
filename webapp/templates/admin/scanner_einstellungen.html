@@ -179,8 +179,9 @@
           <p class="text-muted mb-3" style="font-size:.88rem">
             Standardmäßig läuft der Scanner im Benutzerkontext des idvault-Prozesses.
             Hier kann ein technischer Active-Directory-Benutzer hinterlegt werden,
-            der für den Zugriff auf Netzwerklaufwerke verwendet wird
-            (<code>CreateProcessWithLogonW</code>, Windows only).
+            dessen Credentials für den Zugriff auf UNC-Netzwerkfreigaben verwendet
+            werden (<code>WNetAddConnection2</code>, Windows only –
+            analog zu <code>net use \\server\share /user:…</code>).
             Das Kennwort wird verschlüsselt gespeichert (Fernet/AES-128).
           </p>
 
@@ -197,19 +198,16 @@
           </div>
           {% endif %}
 
-          <div id="runas-module-warning" class="alert alert-danger py-2 mb-3"
+          <div id="runas-module-warning" class="alert alert-warning py-2 mb-3"
                style="display:none; font-size:.84rem">
             <i class="bi bi-exclamation-triangle me-1"></i>
-            <strong>Run-As unwirksam:</strong>
-            Im aktuellen EXE-Build fehlen pywin32-Module für
-            <code>CreateProcessWithLogonW</code>
+            <strong>Credential-Test eingeschränkt:</strong>
+            Im aktuellen EXE-Build fehlen pywin32-Module
             (<span id="runas-missing-modules"></span>).
-            Der Scanner startet deshalb im Kontext des idvault-Dienstes und
-            ignoriert den oben konfigurierten Benutzer.<br>
-            <strong>Abhilfe:</strong> EXE mit aktualisiertem
-            <code>idvault.spec</code> neu bauen <em>oder</em> den
-            idvault-Windows-Dienst direkt als Scan-User anmelden
-            (services.msc → Eigenschaften → Tab „Anmelden").
+            Der <em>Testen</em>-Button unten kann damit keinen
+            LogonUser-Check durchführen. Die eigentliche UNC-Credential-
+            Registrierung beim Scan-Start läuft über <code>ctypes</code>
+            und funktioniert unabhängig davon.
           </div>
 
           <div class="row g-3">

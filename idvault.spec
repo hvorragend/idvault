@@ -82,10 +82,11 @@ hiddenimports = [
     *cryptography_h,
     # Scanner – optional (werden ignoriert wenn nicht installiert)
     'xxhash',
-    # pywin32 – alle Module, die für CreateProcessWithLogonW und
-    # das Auslesen von Datei-Eigentümern benötigt werden. Fehlt eines
-    # davon zur Laufzeit, fällt idvault ohne verwertbare Fehlermeldung
-    # auf den Parent-Kontext (Dienstkonto) zurück.
+    # pywin32 – benötigte Module für Datei-Eigentümer-Auslesung, Scanner-
+    # Identitäts-Diagnose und den LogonUser-Test im Admin-Bereich. Die
+    # eigentliche UNC-Credential-Registrierung läuft über ctypes +
+    # mpr.dll (keine pywin32-Abhängigkeit) – damit ist dieser Fix auch
+    # per Sidecar-Update ohne EXE-Neubau wirksam.
     'pywintypes',
     'win32api',
     'win32con',
