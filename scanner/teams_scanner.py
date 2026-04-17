@@ -63,6 +63,7 @@ from idv_scanner import (
     setup_logging,
     init_db,
 )
+from path_utils import apply_path_mappings, should_pass_filters
 
 # ---------------------------------------------------------------------------
 # Optionale Abhängigkeiten
@@ -496,13 +497,17 @@ def build_file_metadata(
                     except OSError:
                         pass
 
+    mappings = config.get("path_mappings", [])
+    stored_full_path  = apply_path_mappings(web_url,  mappings)
+    stored_share_root = apply_path_mappings(site_url, mappings)
+
     return {
         # Pflichtfelder idv_files
         "file_hash":              file_hash,
-        "full_path":              web_url,      # SharePoint-URL als eindeutiger Pfad
+        "full_path":              stored_full_path,
         "file_name":              name,
         "extension":              ext,
-        "share_root":             site_url,
+        "share_root":             stored_share_root,
         "relative_path":          relative_path,
         "size_bytes":             size_bytes,
         "created_at":             created_at,
@@ -608,6 +613,13 @@ def scan_drive(
                     item, drive_id, site_url, client, config, logger
                 )
                 if meta is None:
+                    continue
+
+                # Blacklist/Whitelist gegen relative_path prüfen
+                blacklist = config.get("blacklist_paths", [])
+                whitelist = config.get("whitelist_paths", [])
+                if not should_pass_filters(meta["relative_path"], blacklist, whitelist):
+                    logger.debug(f"Übersprungen (Filter): {meta['relative_path']}")
                     continue
 
                 # Interne Felder extrahieren (nicht Teil des Standard-Schemas)
@@ -840,6 +852,9 @@ Beispiele:
                 config["db_path"] = _scanner_section["db_path"]
             elif _raw.get("IDV_DB_PATH"):
                 config["db_path"] = _raw["IDV_DB_PATH"]
+        # path_mappings liegt auf der obersten Ebene der config.json
+        if "path_mappings" in _raw:
+            config["path_mappings"] = _raw["path_mappings"]
     else:
         # Legacy-teams_config.json-Format (flaches Dict).
         config.update(_raw)

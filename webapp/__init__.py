@@ -377,6 +377,43 @@ def create_app(db_path: str = None) -> Flask:
     def _csrf_ctx():
         return {"csrf_token": generate_csrf}
 
+    # Pfad-Mappings (UNC → Laufwerksbuchstabe) aus config.json laden
+    import json as _json_mod
+    _raw_mappings = os.environ.get("path_mappings", "[]")
+    try:
+        _path_mappings = _json_mod.loads(_raw_mappings)
+        if not isinstance(_path_mappings, list):
+            _path_mappings = []
+    except Exception:
+        _path_mappings = []
+    app.config["PATH_MAPPINGS"] = _path_mappings
+
+    # Jinja2-Filter: {{ pfad | map_path }}
+    # Wendet konfigurierte Pfad-Mappings auf einen Anzeigewert an.
+    # Idempotent: bereits gemappte Pfade (aus der DB) bleiben unverändert.
+    from flask import current_app as _cur_app
+    try:
+        from scanner.path_utils import apply_path_mappings as _apply_pm
+    except ImportError:
+        try:
+            sys.path.insert(0, os.path.join(_project_root, 'scanner'))
+            from path_utils import apply_path_mappings as _apply_pm
+        except ImportError:
+            _apply_pm = None
+
+    if _apply_pm is not None:
+        @app.template_filter("map_path")
+        def _map_path_filter(path):
+            if not path:
+                return path
+            from flask import current_app
+            mappings = current_app.config.get("PATH_MAPPINGS", [])
+            return _apply_pm(str(path), mappings)
+    else:
+        @app.template_filter("map_path")
+        def _map_path_filter(path):
+            return path
+
     # Datenbank
     init_app_db(app)
 

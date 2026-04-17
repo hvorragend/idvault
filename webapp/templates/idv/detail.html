@@ -379,7 +379,7 @@
         <div class="row g-2 mt-1" style="font-size:.82rem">
           <div class="col-12">
             <div class="detail-label">Pfad</div>
-            <div class="hash-mono">{{ file.full_path }}</div>
+            <div class="hash-mono">{{ file.full_path | map_path }}</div>
           </div>
           <div class="col-sm-4">
             <div class="detail-label">SHA-256</div>
@@ -432,7 +432,7 @@
         <div class="row g-2 mt-1" style="font-size:.82rem">
           <div class="col-12">
             <div class="detail-label">Pfad</div>
-            <div class="hash-mono text-truncate" title="{{ ef.full_path }}">{{ ef.full_path }}</div>
+            <div class="hash-mono text-truncate" title="{{ ef.full_path | map_path }}">{{ ef.full_path | map_path }}</div>
           </div>
           <div class="col-sm-4">
             <div class="detail-label">SHA-256</div>

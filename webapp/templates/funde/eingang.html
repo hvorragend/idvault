@@ -225,7 +225,7 @@
         <option value="">– Alle –</option>
         {% for sr in share_roots %}
         <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}
-                title="{{ sr }}">{{ ('…' + sr[-60:]) if sr|length > 63 else sr }}</option>
+                title="{{ sr }}">{% set sr_display = sr | map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
         {% endfor %}
       </select>
     </div>
@@ -279,7 +279,7 @@
     <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
     {% endif %}
     {% if share_root_filt %}
-    <span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt }}</span>
+    <span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt | map_path }}</span>
     {% endif %}
     {% if scan_run_id_filt %}
     <span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{ scan_run_id_filt }}</span>

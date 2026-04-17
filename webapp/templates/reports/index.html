@@ -191,7 +191,7 @@
             {% set reg_pct = ((r.registriert / r.dateien_gesamt) * 100) | int if r.dateien_gesamt > 0 else 0 %}
             <tr>
               <td class="font-monospace" style="font-size:.78rem;word-break:break-all">
-                <i class="bi bi-folder-fill text-primary me-1"></i>{{ r.share_root }}
+                <i class="bi bi-folder-fill text-primary me-1"></i>{{ r.share_root | map_path }}
               </td>
               <td class="text-end fw-bold">{{ r.dateien_gesamt }}</td>
               <td class="text-end">

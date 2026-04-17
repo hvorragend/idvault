@@ -78,7 +78,7 @@
     {% if share_root or request.args.get('oe_id') or request.args.get('fv_id') %}
     <div class="col-12 d-flex gap-2 flex-wrap mt-1">
       {% if share_root %}
-      <span class="badge bg-success font-monospace"><i class="bi bi-folder me-1"></i>{{ share_root }}</span>
+      <span class="badge bg-success font-monospace"><i class="bi bi-folder me-1"></i>{{ share_root | map_path }}</span>
       {% endif %}
     </div>
     {% endif %}

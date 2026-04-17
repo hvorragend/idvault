@@ -35,6 +35,11 @@ try:
 except ImportError:
     HAS_WIN32 = False
 
+try:
+    from path_utils import apply_path_mappings, should_pass_filters
+except ImportError:
+    from scanner.path_utils import apply_path_mappings, should_pass_filters
+
 
 def _set_keep_awake(active: bool) -> None:
     """Verhindert Bildschirmschoner und Systemschlaf während des Scans (nur Windows).
@@ -80,6 +85,9 @@ DEFAULT_CONFIG = {
         "System Volume Information",
         "AppData",
     ],
+    "blacklist_paths": [],
+    "whitelist_paths": [],
+    "path_mappings": [],
     "db_path": "idv_register.db",
     "log_path": "idv_scanner.log",
     "hash_size_limit_mb": 500,   # Dateien > X MB werden nicht gehasht (Performance)
@@ -609,12 +617,16 @@ def scan_file(path: str, config: dict, scan_paths: list,
 
     share_root, rel_path = get_share_root(path, scan_paths)
 
+    mappings = config.get("path_mappings", [])
+    stored_full_path = apply_path_mappings(path, mappings)
+    stored_share_root = apply_path_mappings(share_root, mappings)
+
     return {
         "file_hash":          file_hash or "HASH_ERROR",
-        "full_path":          path,
+        "full_path":          stored_full_path,
         "file_name":          Path(path).name,
         "extension":          ext,
-        "share_root":         share_root,
+        "share_root":         stored_share_root,
         "relative_path":      rel_path,
         "size_bytes":         fs.get("size_bytes"),
         "created_at":         fs.get("created_at"),
@@ -731,12 +743,15 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
     """
     extensions = set(e.lower() for e in config["extensions"])
     excludes   = config["exclude_paths"]
+    blacklist  = config.get("blacklist_paths", [])
+    whitelist  = config.get("whitelist_paths", [])
 
     for root, dirs, files in safe_walk(scan_path, followlinks=False, logger=logger):
         # Ausschlusspfade: dirs in-place filtern (verhindert Abstieg)
         dirs[:] = [
             d for d in dirs
             if not should_exclude(os.path.join(root, d), excludes)
+            and should_pass_filters(os.path.join(root, d), blacklist, whitelist)
         ]
 
         for fname in files:
@@ -746,6 +761,8 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
 
             full_path = os.path.join(root, fname)
             if should_exclude(full_path, excludes):
+                continue
+            if not should_pass_filters(full_path, blacklist, whitelist):
                 continue
 
             # Startdatum-Filter: Dateien vor scan_since überspringen
@@ -769,6 +786,8 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
     """Generator: liefert Metadaten-Dicts für Dateien direkt im scan_path (keine Rekursion)."""
     extensions = set(e.lower() for e in config["extensions"])
     excludes   = config["exclude_paths"]
+    blacklist  = config.get("blacklist_paths", [])
+    whitelist  = config.get("whitelist_paths", [])
     try:
         entries = os.listdir(scan_path)
     except OSError as e:
@@ -789,6 +808,8 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
         if ext not in extensions:
             continue
         if should_exclude(full_path, excludes):
+            continue
+        if not should_pass_filters(full_path, blacklist, whitelist):
             continue
         if scan_since_ts is not None:
             try:
@@ -1265,6 +1286,10 @@ def run_scan(config: dict, logger: logging.Logger,
         logger.error("Keine Scan-Pfade konfiguriert. Bitte config.json anpassen.")
         sys.exit(1)
 
+    path_mappings = config.get("path_mappings", [])
+    # Gemappte Scan-Pfade für mark_deleted_files (DB enthält gemappte Pfade)
+    mapped_scan_paths = [apply_path_mappings(sp, path_mappings) for sp in scan_paths]
+
     conn = init_db(config["db_path"])
     now  = datetime.now(timezone.utc).isoformat()
 
@@ -1431,7 +1456,7 @@ def run_scan(config: dict, logger: logging.Logger,
                                      completed_dirs, stats)
 
         # ── Erfolgreich abgeschlossen ──────────────────────────────────────
-        deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, scan_paths)
+        deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, mapped_scan_paths)
         conn.commit()
 
         # ── Auto-Ignorieren am Scan-Ende: verbleibende Excel-Dateien ohne Formeln ─
@@ -1645,6 +1670,9 @@ def main():
             config.update(raw["scanner"])
         else:
             config.update(raw)
+        # path_mappings liegt auf der obersten Ebene der config.json
+        if "path_mappings" in raw:
+            config["path_mappings"] = raw["path_mappings"]
     else:
         print(f"Keine config.json gefunden. Starte mit: python idv_scanner.py --init-config")
         sys.exit(1)
