@@ -489,8 +489,26 @@ def _run_server(service_mode: bool = False):
         else:
             print("  Keine lokalen Benutzer konfiguriert – nur DB-Konten/LDAP.")
         print("=" * 55)
+    else:
+        # Im Dienst-Modus: dieselben Informationen nach instance/logs/idvault.log
+        # (Flask-Logger) statt in die Konsole. Spart beim nächsten „Website
+        # nicht erreichbar" das manuelle Starten der EXE zur Diagnose.
+        # WARNING-Level, weil der File-Handler (webapp/__init__.py) auf
+        # WARNING+ konfiguriert ist; für ops-relevante Lifecycle-Events
+        # semantisch passend. [startup]-Präfix zum Filtern per grep.
+        app.logger.warning("[startup] idvault Dienst-Modus: %s://0.0.0.0:%s", scheme, port)
+        app.logger.warning("[startup] DATABASE=%s", app.config['DATABASE'])
+        app.logger.warning("[startup] instance_path=%s", app.instance_path)
+        app.logger.warning("[startup] CWD=%s  EXE=%s", os.getcwd(), sys.executable)
+        if ssl_context is None and https_enabled():
+            app.logger.warning(
+                "[startup] HTTPS angefordert, aber kein SSL-Kontext verfügbar – "
+                "falle auf HTTP zurück."
+            )
 
     _seed_if_empty(app)
+    if service_mode:
+        app.logger.warning("[startup] Werkzeug-Server bindet an %s:%s …", "0.0.0.0", port)
     # use_reloader=False: Im EXE-Bundle gibt es keine .py-Dateien zum Beobachten;
     # der Reloader würde nutzlos einen zweiten Prozess spawnen.
     app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context,
@@ -545,6 +563,10 @@ def _make_service_class():
             self._stop_evt = win32event.CreateEvent(None, 0, 0, None)
 
         def SvcStop(self):
+            try:
+                servicemanager.LogInfoMsg("idvault: Stop-Anforderung empfangen")
+            except Exception:
+                pass
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
             win32event.SetEvent(self._stop_evt)
 
@@ -560,9 +582,19 @@ def _make_service_class():
             # sqlite3.connect, open(...)). Vor dem Flask-Start einmal
             # auf das EXE-Verzeichnis wechseln, damit wir uns so verhalten
             # wie beim manuellen Aufruf aus dem Installationsverzeichnis.
+            _exe_dir = os.path.dirname(sys.executable)
             try:
-                os.chdir(os.path.dirname(sys.executable))
+                os.chdir(_exe_dir)
             except OSError:
+                pass
+
+            try:
+                servicemanager.LogInfoMsg(
+                    f"idvault: SvcDoRun gestartet (CWD={os.getcwd()}, "
+                    f"EXE={sys.executable}, "
+                    f"Crash-Log={os.path.join(_exe_dir, 'instance', 'logs', 'idvault_crash.log')})"
+                )
+            except Exception:
                 pass
 
             # _run_server() läuft in einem Daemon-Thread. Ohne Absicherung
@@ -589,6 +621,12 @@ def _make_service_class():
             import threading as _t
             _t.Thread(target=_server_thread, daemon=True).start()
             win32event.WaitForSingleObject(self._stop_evt, win32event.INFINITE)
+            try:
+                servicemanager.LogInfoMsg(
+                    "idvault: Stop-Event empfangen – Dienst wird beendet"
+                )
+            except Exception:
+                pass
             servicemanager.LogMsg(
                 servicemanager.EVENTLOG_INFORMATION_TYPE,
                 servicemanager.PYS_SERVICE_STOPPED,

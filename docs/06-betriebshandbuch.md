@@ -432,6 +432,35 @@ Prüfpunkte in dieser Reihenfolge:
      EXE-Verzeichnis umgeschaltet und relative DB-/Instance-Pfade
      werden am EXE-Anker aufgelöst. Bei älteren Builds Abhilfe:
      absolute Pfade in `config.json` setzen.
+
+### 7.X  Logs des Windows-Dienstes
+
+Im Dienst-Modus schreibt idvault an drei Stellen – in dieser Reihenfolge
+konsultieren:
+
+1. **`instance/logs/idvault.log`** (neben der EXE) – `[startup]`-Zeilen
+   zeigen beim Dienststart den aufgelösten DB-Pfad, `instance_path`,
+   CWD, EXE-Pfad, Schema/Port und das SSL-Failover (falls aktiv).
+   Im laufenden Betrieb landen hier WARN/ERROR der Flask-App sowie
+   HTTP-Fehlerantworten. Rotiert bei 1 MB, 7 Backups.
+2. **`instance/logs/idvault_crash.log`** (neben der EXE) – Python-
+   Tracebacks aus dem Dienstprozess (auch Fehler im Werkzeug-Server,
+   Init-Abbrüche). Rotiert bei 2 MB, 1 Backup (`.1`). Wird nur
+   geschrieben, wenn tatsächlich etwas auf stderr kam.
+3. **Windows-Event-Viewer → Anwendung → Quelle „idvault"** – Lifecycle-
+   Meilensteine vom Dienstframework:
+   - `PYS_SERVICE_STARTED` / `PYS_SERVICE_STOPPED` (pywin32-Standard)
+   - `idvault: SvcDoRun gestartet (CWD=…, EXE=…, Crash-Log=…)` –
+     der konkrete Crash-Log-Pfad, nützlich bei fremden Installationen
+   - `idvault: Stop-Anforderung empfangen`
+   - `idvault: Stop-Event empfangen – Dienst wird beendet`
+   - `idvault: _run_server() abgebrochen – siehe …idvault_crash.log`
+     (Error-Event; erscheint, wenn Flask im Daemon-Thread crasht)
+
+Wenn der Dienst laut SCM „wird ausgeführt" ist, aber die Website
+unerreichbar bleibt: zuerst im Event-Viewer nach dem Error-Event
+„`_run_server()` abgebrochen" suchen → dann die dort genannte
+`idvault_crash.log` öffnen.
    - `LogonUser(…, NETWORK_CLEARTEXT) fehlgeschlagen` – pywin32 ist
      vollständig, aber der Logon schlug fehl. Detail-Ursachen im
      Klammertext:
