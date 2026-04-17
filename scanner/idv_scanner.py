@@ -277,7 +277,7 @@ def get_fs_metadata(path: str, config: dict = None) -> dict:
             )
             owner_sid = sd.GetSecurityDescriptorOwner()
             name, domain, _ = win32security.LookupAccountSid(None, owner_sid)
-            result["file_owner"] = f"{domain}\\{name}"
+            result["file_owner"] = name
         except BaseException:
             # GetFileSecurity blockiert auf Netzwerkpfaden und kann von Windows
             # mit einem Control-Signal abgebrochen werden, das Python als
