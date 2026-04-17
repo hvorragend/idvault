@@ -415,6 +415,23 @@ Prüfpunkte in dieser Reihenfolge:
      systemweite SCM-Wartezeit in der Registry anpassen:
      `HKLM\SYSTEM\CurrentControlSet\Control\ServicesPipeTimeout`
      (DWORD, Millisekunden; erfordert Neustart).
+   - **Fehler 1067** („Der Prozess wurde unerwartet beendet") beim
+     Stoppen oder Starten des Dienstes – der Python-Prozess hat den
+     Status `SERVICE_STOPPED` nicht an SCM gemeldet, bevor er endete.
+     Ab aktueller Version wird der Status explizit gemeldet; wenn 1067
+     weiterhin erscheint, liegt ein Crash des Flask-Threads vor.
+     Traceback in `instance/logs/idvault_crash.log` prüfen (siehe
+     dort auch den Event-Log-Eintrag mit dem Text „`_run_server()`
+     abgebrochen").
+   - **Dienst läuft, Website nicht erreichbar** – Flask ist im Daemon-
+     Thread abgestürzt, der Dienst-Main-Thread wartet aber weiter auf
+     das Stop-Event. Auslöser war typischerweise ein relativer DB-Pfad
+     (`IDV_DB_PATH=instance/idvault.db`) in Kombination mit der
+     CWD=`C:\Windows\System32`, die SCM beim Dienststart setzt.
+     Ab aktueller Version wird CWD im Dienst-Modus auf das
+     EXE-Verzeichnis umgeschaltet und relative DB-/Instance-Pfade
+     werden am EXE-Anker aufgelöst. Bei älteren Builds Abhilfe:
+     absolute Pfade in `config.json` setzen.
    - `LogonUser(…, NETWORK_CLEARTEXT) fehlgeschlagen` – pywin32 ist
      vollständig, aber der Logon schlug fehl. Detail-Ursachen im
      Klammertext:

@@ -265,14 +265,25 @@ def create_app(db_path: str = None) -> Flask:
         _secret_key = _DEFAULT_DEV_SECRET
         _secret_key_is_default = True
 
+    # IDV_DB_PATH darf (wie IDV_INSTANCE_PATH) relativ angegeben werden —
+    # etwa weil die config.json ab Auslieferung "instance/idvault.db" setzt.
+    # Relative Pfade gegen die CWD aufzulösen ist fatal: idvault.exe wird als
+    # Dienst mit CWD=C:\Windows\System32 gestartet und per Doppelklick aus
+    # beliebigen Verzeichnissen — sqlite3.connect schlägt dann mit
+    # "unable to open database file" fehl. Deshalb: relative Werte an den
+    # EXE-Anker binden (wie oben für _instance_path).
+    _raw_db = db_path or os.environ.get("IDV_DB_PATH")
+    if _raw_db:
+        _db_path = _raw_db if os.path.isabs(_raw_db) \
+                   else os.path.normpath(os.path.join(_anchor, _raw_db))
+    else:
+        _db_path = os.path.join(_instance_path, "idvault.db")
+
     app.config.update(
         SECRET_KEY=_secret_key,
         SECRET_KEY_IS_DEFAULT=_secret_key_is_default,
         DEBUG_MODE_ACTIVE=_debug_mode,
-        DATABASE=db_path or os.environ.get(
-            "IDV_DB_PATH",
-            os.path.join(_instance_path, "idvault.db")
-        ),
+        DATABASE=_db_path,
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
         APP_NAME="idvault",

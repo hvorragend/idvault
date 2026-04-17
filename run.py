@@ -554,15 +554,52 @@ def _make_service_class():
                 servicemanager.PYS_SERVICE_STARTED,
                 (self._svc_name_, ''),
             )
+
+            # SCM startet den Dienst mit CWD=C:\Windows\System32. Das
+            # bricht jede relative Pfadauflösung (config.json,
+            # sqlite3.connect, open(...)). Vor dem Flask-Start einmal
+            # auf das EXE-Verzeichnis wechseln, damit wir uns so verhalten
+            # wie beim manuellen Aufruf aus dem Installationsverzeichnis.
+            try:
+                os.chdir(os.path.dirname(sys.executable))
+            except OSError:
+                pass
+
+            # _run_server() läuft in einem Daemon-Thread. Ohne Absicherung
+            # würde eine Exception dort nur in sys.stderr (→ Crash-Log)
+            # landen und der Dienst bliebe laut SCM im Status "wird
+            # ausgeführt", obwohl Flask nie gestartet wurde. Deshalb
+            # Exceptions hier abfangen und das Stop-Event feuern, damit
+            # der Dienst sauber in "Beendet" geht.
+            def _server_thread():
+                try:
+                    _run_server(service_mode=True)
+                except BaseException:
+                    import traceback
+                    traceback.print_exc()
+                    try:
+                        servicemanager.LogErrorMsg(
+                            "idvault: _run_server() abgebrochen – "
+                            "siehe instance/logs/idvault_crash.log"
+                        )
+                    except Exception:
+                        pass
+                    win32event.SetEvent(self._stop_evt)
+
             import threading as _t
-            _t.Thread(target=_run_server, kwargs={'service_mode': True},
-                      daemon=True).start()
+            _t.Thread(target=_server_thread, daemon=True).start()
             win32event.WaitForSingleObject(self._stop_evt, win32event.INFINITE)
             servicemanager.LogMsg(
                 servicemanager.EVENTLOG_INFORMATION_TYPE,
                 servicemanager.PYS_SERVICE_STOPPED,
                 (self._svc_name_, ''),
             )
+
+            # SERVICE_STOPPED explizit melden, bevor os._exit den Prozess
+            # hart beendet. Ohne diesen Report sieht SCM nur einen
+            # abgestürzten Prozess und meldet Fehler 1067 ("Prozess wurde
+            # unerwartet beendet").
+            self.ReportServiceStatus(win32service.SERVICE_STOPPED)
             os._exit(0)
 
     return _IdvaultService
