@@ -485,7 +485,7 @@ unerreichbar bleibt: zuerst im Event-Viewer nach dem Error-Event
    durch `gpupdate /force` + neuerliches Anmelden aktualisieren.
 3. **WinError 53 / 67 (Netzwerkpfad nicht gefunden)** – DNS- oder
    NetBIOS-Auflösung scheitert. Vom Server aus
-   `ping fis.i4024.pb.rz.bankenit.de` und `net view \\<server>` prüfen.
+   `ping fileserver.example.local` und `net view \\<server>` prüfen.
 4. **WinError 1326 (Anmeldung fehlgeschlagen)** – Passwort des Scan-Users
    im idvault falsch / abgelaufen.
 5. **Dienstkonto selbst** – Wenn der idvault-Dienst als Domänen-Account

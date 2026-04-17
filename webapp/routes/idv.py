@@ -60,6 +60,7 @@ def list_idv():
     filt    = request.args.get("filter", "wesentlich")
     oe_id   = _int_or_none(request.args.get("oe_id"))
     fv_id   = _int_or_none(request.args.get("fv_id"))
+    owner_filt = request.args.get("owner", "").strip()
     share_root = request.args.get("share_root", "").strip()
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
@@ -103,6 +104,11 @@ def list_idv():
             "r.file_id IN (SELECT id FROM idv_files WHERE share_root = ?)"
         )
         params.append(share_root)
+    if owner_filt:
+        where_parts.append(
+            "r.file_id IN (SELECT id FROM idv_files WHERE file_owner = ?)"
+        )
+        params.append(owner_filt)
 
     # Spezialfilter
     if filt in ("kritisch", "wesentlich"):
@@ -148,7 +154,8 @@ def list_idv():
            + (SELECT COUNT(*) FROM idv_file_links lnk WHERE lnk.idv_db_id = r.id)) AS datei_anzahl,
           f.formula_count        AS file_formula_count,
           f.has_macros           AS file_has_macros,
-          f.has_sheet_protection AS file_has_sheet_protection
+          f.has_sheet_protection AS file_has_sheet_protection,
+          f.file_owner           AS file_owner
         FROM v_idv_uebersicht v
         JOIN idv_register r ON r.idv_id = v.idv_id
         LEFT JOIN idv_files f ON f.id = r.file_id
@@ -163,11 +170,21 @@ def list_idv():
         "SELECT id, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
     ).fetchall()
     persons_fv = db.execute(
-        "SELECT id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname"
+        "SELECT DISTINCT p.id, p.nachname, p.vorname FROM persons p"
+        " WHERE p.aktiv=1"
+        " AND EXISTS (SELECT 1 FROM idv_register r WHERE r.fachverantwortlicher_id = p.id)"
+        " ORDER BY p.nachname"
     ).fetchall()
     share_roots = [
         r["share_root"] for r in db.execute(
             "SELECT DISTINCT share_root FROM idv_files WHERE share_root IS NOT NULL AND status='active' ORDER BY share_root"
+        ).fetchall()
+    ]
+    owner_list = [
+        r["file_owner"] for r in db.execute(
+            "SELECT DISTINCT file_owner FROM idv_files"
+            " WHERE file_owner IS NOT NULL AND file_owner != '' AND status='active'"
+            " ORDER BY file_owner"
         ).fetchall()
     ]
 
@@ -177,6 +194,7 @@ def list_idv():
                            is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
                            share_roots=share_roots,
+                           owner_list=owner_list, owner_filt=owner_filt,
                            total=total, total_pages=total_pages,
                            page=page, per_page=per_page,
                            valid_per_page=_VALID_PER_PAGE_IDV,
@@ -964,6 +982,7 @@ def nicht_wesentliche_idvs():
     status     = request.args.get("status", "")
     oe_id      = _int_or_none(request.args.get("oe_id"))
     fv_id      = _int_or_none(request.args.get("fv_id"))
+    owner_filt = request.args.get("owner", "").strip()
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
@@ -1005,6 +1024,11 @@ def nicht_wesentliche_idvs():
             "r.file_id IN (SELECT id FROM idv_files WHERE share_root = ?)"
         )
         params.append(share_root)
+    if owner_filt:
+        where_parts.append(
+            "r.file_id IN (SELECT id FROM idv_files WHERE file_owner = ?)"
+        )
+        params.append(owner_filt)
 
     where_sql = "WHERE " + " AND ".join(where_parts)
 
@@ -1017,15 +1041,17 @@ def nicht_wesentliche_idvs():
     total_pages = max(1, (total + per_page - 1) // per_page)
     page = min(page, total_pages)
 
+    _NW_WESENTLICH = _WESENTLICH
     nicht_wesentliche = db.execute(f"""
         SELECT r.*, v.*,
-          CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich,
+          CASE WHEN {_NW_WESENTLICH} THEN 1 ELSE 0 END AS ist_wesentlich,
           EXISTS(SELECT 1 FROM idv_register x WHERE x.vorgaenger_idv_id = r.id) AS hat_nachfolger,
           (CASE WHEN r.file_id IS NOT NULL THEN 1 ELSE 0 END
            + (SELECT COUNT(*) FROM idv_file_links lnk WHERE lnk.idv_db_id = r.id)) AS datei_anzahl,
           f.formula_count        AS file_formula_count,
           f.has_macros           AS file_has_macros,
-          f.has_sheet_protection AS file_has_sheet_protection
+          f.has_sheet_protection AS file_has_sheet_protection,
+          f.file_owner           AS file_owner
         FROM v_idv_uebersicht v
         JOIN idv_register r ON r.idv_id = v.idv_id
         LEFT JOIN idv_files f ON f.id = r.file_id
@@ -1038,11 +1064,25 @@ def nicht_wesentliche_idvs():
         "SELECT id, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
     ).fetchall()
     persons_fv = db.execute(
-        "SELECT id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname"
+        "SELECT DISTINCT p.id, p.nachname, p.vorname FROM persons p"
+        " WHERE p.aktiv=1"
+        " AND EXISTS ("
+        "   SELECT 1 FROM idv_register r"
+        "   JOIN v_idv_uebersicht v ON v.idv_id = r.idv_id"
+        f"  WHERE r.fachverantwortlicher_id = p.id AND NOT {_WESENTLICH}"
+        " )"
+        " ORDER BY p.nachname"
     ).fetchall()
     share_roots = [
         r["share_root"] for r in db.execute(
             "SELECT DISTINCT share_root FROM idv_files WHERE share_root IS NOT NULL AND status='active' ORDER BY share_root"
+        ).fetchall()
+    ]
+    owner_list = [
+        r["file_owner"] for r in db.execute(
+            "SELECT DISTINCT file_owner FROM idv_files"
+            " WHERE file_owner IS NOT NULL AND file_owner != '' AND status='active'"
+            " ORDER BY file_owner"
         ).fetchall()
     ]
 
@@ -1051,6 +1091,7 @@ def nicht_wesentliche_idvs():
         total=total, total_pages=total_pages, page=page, per_page=per_page,
         org_units=org_units, persons_fv=persons_fv,
         share_roots=share_roots, share_root=share_root,
+        owner_list=owner_list, owner_filt=owner_filt,
         q=q, status=status, oe_id=oe_id, fv_id=fv_id,
         valid_per_page=_VALID_PER_PAGE_IDV,
     )

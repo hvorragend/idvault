@@ -85,9 +85,8 @@ CREATE TABLE IF NOT EXISTS idv_files (
 -- Organisationseinheiten (Fachbereiche / Abteilungen)
 CREATE TABLE IF NOT EXISTS org_units (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    bezeichnung TEXT NOT NULL,                      -- z.B. "Filialvertrieb"
-    ebene       TEXT,                               -- "Vorstand" | "Bereich" | "Abteilung"
-    parent_id   INTEGER REFERENCES org_units(id),  -- Hierarchie
+    bezeichnung TEXT NOT NULL,
+    parent_id   INTEGER REFERENCES org_units(id),
     aktiv       INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );

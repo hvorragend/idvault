@@ -13,18 +13,16 @@
       <div class="card-header bg-white fw-600"><i class="bi bi-diagram-3 me-2"></i>Organisationseinheiten ({{ org_units|length }})</div>
       <div style="max-height:280px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0">
-          <thead class="table-light"><tr><th>Bezeichnung</th><th>Ebene</th><th>Aktiv</th><th></th></tr></thead>
+          <thead class="table-light"><tr><th>Bezeichnung</th><th></th></tr></thead>
           <tbody>
             {% for ou in org_units %}
-            <tr class="{{ '' if ou.aktiv else 'text-muted' }}">
+            <tr>
               <td>{{ ou.bezeichnung }}</td>
-              <td style="font-size:.78rem">{{ ou.ebene or '–' }}</td>
-              <td class="text-center">{% if ou.aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
               <td>
                 <a href="{{ url_for('admin.edit_oe', oid=ou.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
-                <form method="post" action="{{ url_for('admin.delete_oe', oid=ou.id) }}" class="d-inline" data-confirm="OE deaktivieren?">
+                <form method="post" action="{{ url_for('admin.delete_oe', oid=ou.id) }}" class="d-inline" data-confirm="OE löschen?">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-dash-circle"></i></button>
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
                 </form>
               </td>
             </tr>
@@ -38,19 +36,13 @@
           <form method="post" action="{{ url_for('admin.new_oe') }}" class="row g-2 mt-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-5"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
-            <div class="col-md-3">
-              <select name="ebene" class="form-select form-select-sm">
-                <option value="">– Ebene –</option>
-                {% for e in ['Vorstand','Bereich','Abteilung'] %}<option>{{ e }}</option>{% endfor %}
-              </select>
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-5">
               <select name="parent_id" class="form-select form-select-sm">
                 <option value="">– Übergeordnete OE –</option>
                 {% for ou in org_units %}<option value="{{ ou.id }}">{{ ou.bezeichnung }}</option>{% endfor %}
               </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
               <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus me-1"></i>Hinzufügen</button>
             </div>
           </form>

@@ -241,8 +241,27 @@
         {% endfor %}
       </select>
     </div>
+    <!-- Eigentümer -->
+    <div class="col-md-3">
+      <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Eigentümer</label>
+      <select name="owner" class="form-select form-select-sm">
+        <option value="">– Alle –</option>
+        {% for o in owner_list %}
+        <option value="{{ o }}" {{ 'selected' if owner_filt == o }}>{{ o }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <!-- Datum von/bis -->
+    <div class="col-md-2">
+      <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert ab</label>
+      <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert bis</label>
+      <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+    </div>
     <!-- Buttons -->
-    <div class="col-md-3 d-flex gap-1">
+    <div class="col-md-2 d-flex gap-1 align-items-end">
       <button type="submit" class="btn btn-sm btn-primary w-100">
         <i class="bi bi-funnel me-1"></i>Filtern
       </button>
@@ -251,8 +270,8 @@
         <i class="bi bi-x-lg"></i>
       </a>
     </div>
-    <!-- Sortierung + Pro Seite -->
-    <div class="col-md-4">
+    <!-- Sortierung -->
+    <div class="col-md-6">
       <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
       <select name="sort" class="form-select form-select-sm">
         <option value="prioritaet" {{ 'selected' if sort=='prioritaet' }}>Priorität (Makros zuerst)</option>
@@ -261,16 +280,8 @@
         <option value="groesse" {{ 'selected' if sort=='groesse' }}>Größte zuerst</option>
       </select>
     </div>
-    <div class="col-md-2">
-      <label class="form-label form-label-sm"><i class="bi bi-list-ol me-1"></i>Pro Seite</label>
-      <select name="per_page" class="form-select form-select-sm">
-        {% for n in (valid_per_page or (25, 50, 100, 200, 500)) %}
-        <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
-        {% endfor %}
-      </select>
-    </div>
   </div>
-  {% if q_search or dir_path_filt or share_root_filt or scan_run_id_filt %}
+  {% if q_search or dir_path_filt or share_root_filt or scan_run_id_filt or owner_filt or date_from or date_to %}
   <div class="mt-2 d-flex gap-2 flex-wrap">
     {% if q_search %}
     <span class="badge bg-info text-dark"><i class="bi bi-search me-1"></i>{{ q_search }}</span>
@@ -283,6 +294,15 @@
     {% endif %}
     {% if scan_run_id_filt %}
     <span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{ scan_run_id_filt }}</span>
+    {% endif %}
+    {% if owner_filt %}
+    <span class="badge bg-dark"><i class="bi bi-person me-1"></i>{{ owner_filt }}</span>
+    {% endif %}
+    {% if date_from %}
+    <span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>ab {{ date_from }}</span>
+    {% endif %}
+    {% if date_to %}
+    <span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>bis {{ date_to }}</span>
     {% endif %}
   </div>
   {% endif %}
@@ -321,7 +341,7 @@
 </div>
 
 <!-- ── Pagination-Variablen (vor dem Formular) ─────────────────────── -->
-{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run': scan_run_id_filt, 'q': q_search} %}
+{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run': scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'date_to': date_to} %}
 {% set endpoint = 'funde.eingang_funde' %}
 {% include 'funde/_pagination.html' %}
 
