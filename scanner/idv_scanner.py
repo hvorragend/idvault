@@ -217,8 +217,10 @@ CREATE INDEX IF NOT EXISTS idx_history_file    ON idv_file_history(file_id);
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 30000")
     conn.executescript(SCHEMA)
     conn.commit()
     # Incremental migration: scan_status für bestehende Datenbanken
@@ -922,7 +924,7 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                 _check_and_handle_signals(signal_dir, logger)
                 _flush_log(logger)
 
-            if stats["total"] % 100 == 0:
+            if stats["total"] % 20 == 0:
                 conn.commit()
                 logger.info(f"  … {stats['total']} Dateien verarbeitet")
         except ScanCancelledError:
