@@ -41,12 +41,12 @@
               <td class="text-muted" style="max-width:260px">
                 {% if f.share_root %}
                 <span class="badge bg-primary" style="font-size:.7rem;font-family:monospace">
-                  <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
+                  <i class="bi bi-folder-fill me-1"></i>{{ f.share_root | map_path }}
                 </span>
                 {% endif %}
                 <div class="text-truncate hash-mono" style="font-size:.72rem;max-width:250px"
-                     title="{{ f.full_path }}">
-                  {{ f.relative_path or f.full_path }}
+                     title="{{ f.full_path | map_path }}">
+                  {{ f.relative_path or (f.full_path | map_path) }}
                 </div>
               </td>
               <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes else '–' }}</td>

@@ -49,6 +49,22 @@
   "IDV_UPLOAD_RATE_LIMIT": "10 per minute;60 per hour",
   "_kommentar_uploadlimit": "Rate-Limit für Admin-Uploads (Update-ZIP, CSV-Importe). Pro Client-IP.",
 
+  "_kommentar_path_mappings": "UNC-Pfade (oder beliebige Pfad-Präfixe) durch Laufwerksbuchstaben oder andere Bezeichnungen ersetzen – sowohl beim Speichern in der Datenbank (Scanner) als auch in der Anzeige (Web-UI). Reihenfolge: Regeln werden der Reihe nach angewendet; die erste passende Regel gewinnt NICHT – alle Regeln werden angewendet. Einfaches Modus (regex: false): Präfix-Ersetzen, Groß-/Kleinschreibung ignoriert. Regex-Modus (regex: true): Python-re.sub, Gruppen-Referenzen erlaubt, optionale 'flags': 'i' = IGNORECASE, 'm' = MULTILINE.",
+
+  "path_mappings": [
+    {
+      "_beispiel": "Löschen oder anpassen. Führende \\\\ in JSON als \\\\\\\\ schreiben.",
+      "pattern": "\\\\\\\\fis.i4024.pb.rz.bankenit.de\\\\Inst_4024\\\\daten",
+      "replacement": "O:",
+      "regex": false
+    },
+    {
+      "pattern": "\\\\\\\\fis.i4024.pb.rz.bankenit.de\\\\Inst_4024\\\\zentral",
+      "replacement": "Q:",
+      "regex": false
+    }
+  ],
+
   "scanner": {
     "scan_paths": [],
     "extensions": [
@@ -68,6 +84,9 @@
       "System Volume Information",
       "AppData"
     ],
+    "_kommentar_blackwhitelist": "blacklist_paths: Dateien/Verzeichnisse, die diesen Mustern entsprechen, werden übersprungen. whitelist_paths: Wenn nicht leer, werden NUR Dateien/Verzeichnisse verarbeitet, die einem Muster entsprechen. Beide Listen unterstützen Teilzeichenketten und reguläre Ausdrücke (Python re, Groß-/Kleinschreibung ignoriert). blacklist_paths hat Vorrang vor whitelist_paths.",
+    "blacklist_paths": [],
+    "whitelist_paths": [],
     "db_path": "instance/idvault.db",
     "log_path": "instance/logs/idv_scanner.log",
     "hash_size_limit_mb": 500,
@@ -94,6 +113,9 @@
     "hash_size_limit_mb": 100,
     "download_for_ooxml": true,
     "move_detection": "name_and_hash",
+    "_kommentar_blackwhitelist": "blacklist_paths/whitelist_paths für den Teams-Scanner. Geprüft wird gegen den relativen Pfad innerhalb der SharePoint-Site (relative_path). Unterstützt Teilzeichenketten und reguläre Ausdrücke.",
+    "blacklist_paths": [],
+    "whitelist_paths": [],
     "teams": []
   },
 
