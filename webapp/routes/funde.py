@@ -20,6 +20,7 @@ def _bootstrap_extras(state):
             return "#"
 
     state.app.jinja_env.globals.setdefault("safe_url_for", _safe_url_for)
+    state.app.jinja_env.filters.setdefault("map_path", lambda v: str(v) if v else "")
 
 
 def _scan_btn_ctx() -> dict:
