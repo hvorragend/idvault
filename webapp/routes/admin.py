@@ -85,6 +85,7 @@ def _instance_logs_dir() -> str:
 _SCANNER_CFG_KEYS = frozenset({
     "scan_paths", "extensions", "exclude_paths", "db_path", "log_path",
     "hash_size_limit_mb", "max_workers", "move_detection", "scan_since", "read_file_owner",
+    "blacklist_paths", "whitelist_paths",
 })
 
 
@@ -99,6 +100,8 @@ def _default_scanner_cfg() -> dict:
         "scan_paths": [],
         "extensions": _DEFAULT_SCANNER_EXTENSIONS,
         "exclude_paths": _DEFAULT_SCANNER_EXCLUDE,
+        "blacklist_paths": [],
+        "whitelist_paths": [],
         "db_path": "instance/idvault.db",
         "log_path": "instance/logs/idv_scanner.log",
         "hash_size_limit_mb": 500,
@@ -136,6 +139,20 @@ def _save_scanner_config(cfg: dict):
     full["scanner"] = {k: v for k, v in cfg.items() if k in _SCANNER_CFG_KEYS}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(full, f, indent=2, ensure_ascii=False)
+
+
+def _load_path_mappings() -> list:
+    """Lädt path_mappings aus dem Top-Level der config.json."""
+    from .. import config_store
+    cfg = config_store.load_config_json()
+    mappings = cfg.get("path_mappings", [])
+    return mappings if isinstance(mappings, list) else []
+
+
+def _save_path_mappings(mappings: list) -> None:
+    """Speichert path_mappings als Top-Level-Schlüssel in config.json."""
+    from .. import config_store
+    config_store.write_top_level_key("path_mappings", mappings)
 
 
 def _load_scanner_runas() -> dict:
@@ -801,11 +818,37 @@ def start_scheduler(app) -> None:
 @admin_required
 def scanner_einstellungen():
     cfg = _load_scanner_config()
+    path_mappings = _load_path_mappings()
 
     if request.method == "POST":
+        # Separates Formular nur für Pfad-Mappings?
+        if request.form.get("_only_path_mappings") == "1":
+            try:
+                pm_raw = request.form.get("path_mappings_json", "[]")
+                pm_new = json.loads(pm_raw)
+                if not isinstance(pm_new, list):
+                    pm_new = []
+                _save_path_mappings(pm_new)
+                flash("Pfad-Mappings gespeichert.", "success")
+            except Exception as exc:
+                flash(f"Fehler beim Speichern der Pfad-Mappings: {exc}", "error")
+            return redirect(url_for("admin.scanner_einstellungen"))
+
         scan_paths    = [p.strip() for p in request.form.get("scan_paths",    "").splitlines() if p.strip()]
         extensions    = [e.strip().lower() for e in request.form.get("extensions",    "").splitlines() if e.strip()]
         exclude_paths = [p.strip() for p in request.form.get("exclude_paths", "").splitlines() if p.strip()]
+        blacklist_paths = [p.strip() for p in request.form.get("blacklist_paths", "").splitlines() if p.strip()]
+        whitelist_paths = [p.strip() for p in request.form.get("whitelist_paths", "").splitlines() if p.strip()]
+
+        # path_mappings aus JSON-Feld (wird per JS serialisiert)
+        try:
+            pm_raw = request.form.get("path_mappings_json", "[]")
+            path_mappings_new = json.loads(pm_raw)
+            if not isinstance(path_mappings_new, list):
+                path_mappings_new = []
+        except (ValueError, TypeError):
+            path_mappings_new = []
+            flash("Pfad-Mappings konnten nicht gelesen werden – bitte prüfen.", "warning")
 
         try:
             hash_limit  = max(1, int(request.form.get("hash_size_limit_mb", 500)))
@@ -824,6 +867,8 @@ def scanner_einstellungen():
             "scan_paths":        scan_paths,
             "extensions":        extensions,
             "exclude_paths":     exclude_paths,
+            "blacklist_paths":   blacklist_paths,
+            "whitelist_paths":   whitelist_paths,
             "hash_size_limit_mb": hash_limit,
             "max_workers":       max_workers,
             "move_detection":    move_det,
@@ -854,6 +899,8 @@ def scanner_einstellungen():
 
         try:
             _save_scanner_config(cfg)
+            _save_path_mappings(path_mappings_new)
+            path_mappings = path_mappings_new
             # App-Settings für Auto-Ignorieren, Verwerfen und Zeitplan speichern
             db = get_db()
             val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
@@ -890,6 +937,7 @@ def scanner_einstellungen():
     runas = _load_scanner_runas()
     return render_template("admin/scanner_einstellungen.html",
                            cfg=cfg, scan_running=_scan_is_running(),
+                           path_mappings=path_mappings,
                            auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"),
                            discard_no_formula=(discard_nf["value"] if discard_nf else "0"),
                            auto_classify_by_filename=(classify_fn["value"] if classify_fn else "1"),
@@ -1388,6 +1436,7 @@ _TEAMS_CFG_PERSIST_KEYS = frozenset({
     "tenant_id", "client_id", "client_secret",
     "hash_size_limit_mb", "download_for_ooxml", "move_detection",
     "extensions", "teams",
+    "blacklist_paths", "whitelist_paths",
 })
 
 
@@ -1410,6 +1459,8 @@ def _default_teams_cfg() -> dict:
         "move_detection":     "name_and_hash",
         "extensions":         _DEFAULT_TEAMS_EXTENSIONS,
         "teams":              [],
+        "blacklist_paths":    [],
+        "whitelist_paths":    [],
     }
 
 
@@ -1482,6 +1533,9 @@ def teams_einstellungen():
             teams = []
             flash("Teams-Liste konnte nicht gelesen werden – bitte prüfen.", "warning")
 
+        blacklist_paths_t = [p.strip() for p in request.form.get("blacklist_paths", "").splitlines() if p.strip()]
+        whitelist_paths_t = [p.strip() for p in request.form.get("whitelist_paths", "").splitlines() if p.strip()]
+
         cfg.update({
             "tenant_id":          tenant_id,
             "client_id":          client_id,
@@ -1491,6 +1545,8 @@ def teams_einstellungen():
             "download_for_ooxml": download_ooxml,
             "move_detection":     move_det,
             "teams":              teams,
+            "blacklist_paths":    blacklist_paths_t,
+            "whitelist_paths":    whitelist_paths_t,
         })
         try:
             _save_teams_config(cfg)

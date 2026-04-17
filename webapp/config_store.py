@@ -104,6 +104,15 @@ def write_section(name: str, data: dict) -> None:
     Andere Top-Level-Schlüssel bleiben unverändert. Wird von den Admin-Routen
     genutzt, die einzelne Bereiche (z.B. ``"teams"``, ``"scanner"``) speichern.
     """
+    write_top_level_key(name, data)
+
+
+def write_top_level_key(key: str, value: Any) -> None:
+    """Schreibt ``config.json[key] = value`` atomar (value darf dict oder list sein).
+
+    Verwendet von Admin-Routen für Top-Level-Schlüssel wie ``"path_mappings"``
+    (Liste) und Sektionen wie ``"scanner"`` / ``"teams"`` (dict).
+    """
     path = get_config_path()
     full: dict = {}
     try:
@@ -114,7 +123,7 @@ def write_section(name: str, data: dict) -> None:
     except (OSError, ValueError):
         full = {}
 
-    full[name] = data
+    full[key] = value
 
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:

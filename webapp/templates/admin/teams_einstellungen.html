@@ -171,6 +171,31 @@
 
             </div>
           </div>
+
+          <!-- Blacklist -->
+          <div class="col-md-6">
+            <label class="form-label fw-600">Blacklist
+              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— Regex oder Substring, eine Regel pro Zeile</span>
+            </label>
+            <textarea name="blacklist_paths" class="form-control font-monospace"
+                      rows="5" style="font-size:.82rem"
+                      placeholder="z.B. /Archiv/ oder (?i)temp"
+            >{{ cfg.blacklist_paths | join('\n') if cfg.blacklist_paths else '' }}</textarea>
+            <div class="form-text">Relative Pfade innerhalb der SharePoint-Site, die diesen Mustern entsprechen, werden übersprungen. Hat Vorrang vor der Whitelist.</div>
+          </div>
+
+          <!-- Whitelist -->
+          <div class="col-md-6">
+            <label class="form-label fw-600">Whitelist
+              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— optional, Regex oder Substring</span>
+            </label>
+            <textarea name="whitelist_paths" class="form-control font-monospace"
+                      rows="5" style="font-size:.82rem"
+                      placeholder="z.B. /IDV/ oder (?i)controlling"
+            >{{ cfg.whitelist_paths | join('\n') if cfg.whitelist_paths else '' }}</textarea>
+            <div class="form-text">Wenn nicht leer: nur relative Pfade verarbeiten, die mindestens einem Muster entsprechen.</div>
+          </div>
+
         </div><!-- /row -->
       </div>
       <div class="card-footer bg-white d-flex justify-content-end">
