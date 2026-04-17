@@ -54,12 +54,12 @@
   "path_mappings": [
     {
       "_beispiel": "Löschen oder anpassen. Führende \\\\ in JSON als \\\\\\\\ schreiben.",
-      "pattern": "\\\\\\\\fis.i4024.pb.rz.bankenit.de\\\\Inst_4024\\\\daten",
+      "pattern": "\\\\\\\\fileserver.example.local\\\\Inst_001\\\\daten",
       "replacement": "O:",
       "regex": false
     },
     {
-      "pattern": "\\\\\\\\fis.i4024.pb.rz.bankenit.de\\\\Inst_4024\\\\zentral",
+      "pattern": "\\\\\\\\fileserver.example.local\\\\Inst_001\\\\zentral",
       "replacement": "Q:",
       "regex": false
     }
