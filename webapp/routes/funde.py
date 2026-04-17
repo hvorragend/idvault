@@ -840,7 +840,7 @@ def bulk_aktion():
         ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
         return redirect(url_for("funde.zusammenfassen") + "?" + ids_qs)
 
-    if aktion not in ("ignorieren", "nicht_mehr_ignorieren", "zur_registrierung", "nicht_wesentlich", "owner_aendern", "bewertung_anfordern"):
+    if aktion not in ("ignorieren", "nicht_mehr_ignorieren", "zur_registrierung", "nicht_wesentlich", "owner_aendern", "bewertung_anfordern", "loeschen"):
         flash("Ungültige Aktion.", "error")
         return redirect(url_for("funde.list_funde"))
 
@@ -988,6 +988,28 @@ def bulk_aktion():
         if fehler:
             msg_parts.append(f"{fehler} Fehler beim Versand")
         flash(". ".join(msg_parts) + ".", "success" if gesendet and not fehler else "warning")
+
+    elif aktion == "loeschen":
+        if current_user_role() != ROLE_ADMIN:
+            flash("Löschen ist nur für Administratoren erlaubt.", "error")
+        else:
+            geloescht = 0
+            uebersprungen = 0
+            for file_id in file_ids:
+                if db.execute("SELECT id FROM idv_register WHERE file_id=?", (file_id,)).fetchone():
+                    uebersprungen += 1
+                    continue
+                db.execute("DELETE FROM idv_file_history WHERE file_id=?", (file_id,))
+                db.execute("DELETE FROM idv_file_links  WHERE file_id=?", (file_id,))
+                db.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
+                geloescht += 1
+            db.commit()
+            if geloescht:
+                flash(f"{geloescht} Fund/Funde dauerhaft gelöscht.", "success")
+            if uebersprungen:
+                flash(f"{uebersprungen} Fund/Funde übersprungen (mit IDV-Eintrag verknüpft).", "warning")
+            if not geloescht and not uebersprungen:
+                flash("Keine Einträge gefunden.", "warning")
 
     return_to = request.form.get("return_to", "")
     if return_to == "eingang":
