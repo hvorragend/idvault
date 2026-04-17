@@ -661,11 +661,11 @@ def safe_walk(top: str, followlinks: bool = False, logger: logging.Logger = None
             entries = list(it)
     except PermissionError as e:
         if logger:
-            logger.warning(f"Kein Zugriff auf Verzeichnis (übersprungen) – {e.strerror}")
+            logger.warning(f"Kein Zugriff auf Verzeichnis (übersprungen): {top} – {e.strerror}")
         return
     except OSError as e:
         if logger:
-            logger.warning(f"Lesefehler Verzeichnis (übersprungen) – errno {e.errno}: {e.strerror}")
+            logger.warning(f"Lesefehler Verzeichnis (übersprungen): {top} – {e.strerror}")
         return
     except BaseException as e:
         # Auf Netzlaufwerken kann Windows ein Control-Signal senden,
@@ -673,7 +673,7 @@ def safe_walk(top: str, followlinks: bool = False, logger: logging.Logger = None
         # Verhalten von GetFileSecurity auf geschützten Freigaben.
         if logger:
             logger.warning(
-                f"Verzeichnis-Listing unterbrochen (übersprungen) – {type(e).__name__}"
+                f"Verzeichnis-Listing unterbrochen (übersprungen): {top} – {type(e).__name__}"
             )
         return
 
@@ -735,7 +735,7 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                 if data:
                     yield data
             except Exception as e:
-                logger.warning(f"Fehler beim Scannen einer Datei: {type(e).__name__}: {e}")
+                logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
 def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
@@ -746,7 +746,7 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
     try:
         entries = os.listdir(scan_path)
     except OSError as e:
-        logger.warning(f"Kann Verzeichnis nicht öffnen – errno {e.errno}: {e.strerror}")
+        logger.warning(f"Kann Verzeichnis nicht öffnen: {scan_path}: {e}")
         return
     for fname in entries:
         full_path = os.path.join(scan_path, fname)
@@ -768,7 +768,7 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
             if data:
                 yield data
         except Exception as e:
-            logger.warning(f"Fehler beim Scannen einer Datei: {type(e).__name__}: {e}")
+            logger.warning(f"Fehler bei {full_path}: {type(e).__name__}: {e}")
 
 
 def _get_toplevel_dirs(scan_path: str, excludes: list) -> list:
