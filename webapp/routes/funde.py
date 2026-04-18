@@ -613,13 +613,6 @@ def eingang_funde():
     )
 
 
-@bp.route("/bewertet")
-@login_required
-def bewertet():
-    """Redirect zur Ignoriert-Seite (Abwärtskompatibilität)."""
-    return redirect(url_for("funde.ignorierte_dateien"))
-
-
 @bp.route("/ignoriert")
 @login_required
 def ignorierte_dateien():

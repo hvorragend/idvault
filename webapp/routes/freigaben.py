@@ -805,9 +805,6 @@ def archivieren(freigabe_id):
     quelle = (request.form.get("archiv_quelle") or "upload").strip().lower()
     if quelle not in ("upload", "scanner", "nicht_verfuegbar"):
         quelle = "upload"
-    # Rückwärtskompatibilität: ältere Formulare schicken nur datei_verfuegbar
-    if "archiv_quelle" not in request.form:
-        quelle = "upload" if request.form.get("datei_verfuegbar", "1") == "1" else "nicht_verfuegbar"
 
     kommentar    = request.form.get("kommentar", "").strip() or None
     begruendung  = request.form.get("archiv_begruendung", "").strip() or None

@@ -1606,12 +1606,7 @@ def teams_scan_status():
 
 
 def _hash_pw(pw: str) -> str:
-    """Wrapper auf den modernen Passwort-Hash (VULN-001 Remediation).
-
-    Leitet an ``webapp.routes.auth._hash_pw`` weiter, das werkzeug-Hashes
-    (pbkdf2:sha256 mit Salt) erzeugt. Siehe dort für Details zur
-    Rehash-on-Login-Migration bestehender SHA-256-Hashes.
-    """
+    """Wrapper auf den modernen Passwort-Hash (pbkdf2:sha256, siehe auth)."""
     from .auth import _hash_pw as _modern_hash
     return _modern_hash(pw)
 

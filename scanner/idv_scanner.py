@@ -222,13 +222,6 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout = 30000")
     conn.executescript(SCHEMA)
     conn.commit()
-    # Incremental migration: scan_status für bestehende Datenbanken
-    col_names = {r[1] for r in conn.execute("PRAGMA table_info(scan_runs)").fetchall()}
-    if "scan_status" not in col_names:
-        conn.execute(
-            "ALTER TABLE scan_runs ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'completed'"
-        )
-        conn.commit()
     return conn
 
 

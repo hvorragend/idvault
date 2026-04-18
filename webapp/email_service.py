@@ -61,14 +61,11 @@ def encrypt_smtp_password(plain: str) -> str:
 def _decrypt_smtp_password(stored: str) -> str:
     """Entschlüsselt einen gespeicherten SMTP-Passwortwert.
 
-    Erkennt sowohl verschlüsselte Werte (mit "enc:"-Präfix) als auch
-    Altbestände im Klartext und gibt den Klartext zurück.
+    Werte ohne ``enc:``-Präfix werden als leer behandelt (kein
+    Klartext-Fallback).
     """
-    if not stored:
+    if not stored or not stored.startswith(_ENC_PREFIX):
         return ""
-    if not stored.startswith(_ENC_PREFIX):
-        # Legacy-Klartext – wird beim nächsten Speichern automatisch migriert.
-        return stored
     try:
         token = stored[len(_ENC_PREFIX):]
         return _smtp_fernet().decrypt(token.encode()).decode()
@@ -78,13 +75,8 @@ def _decrypt_smtp_password(stored: str) -> str:
 
 
 def _parse_tls_mode(value: str) -> str:
-    """Normalisiert smtp_tls-Werte zu 'starttls', 'ssl' oder 'none'.
-
-    Alte Werte: '1' → starttls, '0'/'' → ssl (Rückwärtskompatibilität).
-    """
-    if value in ("starttls", "ssl", "none"):
-        return value
-    return "starttls" if value == "1" else "ssl"
+    """Normalisiert smtp_tls-Werte zu 'starttls', 'ssl' oder 'none'."""
+    return value if value in ("starttls", "ssl", "none") else "starttls"
 
 
 def _get_smtp_config(db) -> dict:
@@ -493,8 +485,6 @@ def _is_notify_enabled(db, tpl_key: str) -> bool:
 
     Liest den Key ``notify_enabled_{tpl_key}`` aus app_settings.
     Fehlt der Eintrag, gilt die Benachrichtigung als aktiviert (sicherer Default).
-    Rückwärtskompatibilität: Für 'neue_datei' wird zusätzlich der alte
-    Key 'notify_new_file' als Fallback geprüft.
     """
     try:
         row = db.execute(
@@ -503,13 +493,7 @@ def _is_notify_enabled(db, tpl_key: str) -> bool:
         ).fetchone()
         if row is not None:
             return row["value"] == "1"
-        # Rückwärtskompatibilität für den alten 'notify_new_file'-Key
-        if tpl_key == "neue_datei":
-            row = db.execute(
-                "SELECT value FROM app_settings WHERE key='notify_new_file'"
-            ).fetchone()
-            return bool(row and row["value"] == "1")
-        return True  # Kein Eintrag → Default aktiviert
+        return True
     except Exception:
         return True
 

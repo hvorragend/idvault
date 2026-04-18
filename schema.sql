@@ -75,7 +75,18 @@ CREATE TABLE IF NOT EXISTS idv_files (
     last_scan_run_id        INTEGER,
     status                  TEXT DEFAULT 'active',
     bearbeitungsstatus      TEXT NOT NULL DEFAULT 'Neu',
+    source                  TEXT NOT NULL DEFAULT 'filesystem', -- 'filesystem' | 'sharepoint' | 'teams'
+    sharepoint_item_id      TEXT,                              -- stabile Graph-API-ID (Teams/SharePoint)
     UNIQUE(full_path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_files_sp_item ON idv_files(sharepoint_item_id);
+
+-- Delta-Token pro Drive für inkrementellen Graph-API-Sync (Teams-Scanner)
+CREATE TABLE IF NOT EXISTS teams_delta_tokens (
+    drive_id    TEXT PRIMARY KEY,
+    delta_token TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
 );
 
 -- -----------------------------------------------------------------------------
@@ -174,15 +185,22 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('smtp_user',     ''),
     ('smtp_password', ''),
     ('smtp_from',     ''),
-    ('smtp_tls',      '1'),
-    ('notify_new_file', '1'),
+    ('smtp_tls',      'starttls'),
     ('notify_enabled_neue_datei',             '1'),
     ('notify_enabled_pruefung_faellig',       '1'),
     ('notify_enabled_freigabe_schritt',       '1'),
     ('notify_enabled_freigabe_abgeschlossen', '1'),
     ('notify_enabled_bewertung',              '1'),
     ('notify_enabled_massnahme_ueberfaellig', '1'),
-    ('auto_ignore_no_formula', '0');
+    ('auto_ignore_no_formula', '0'),
+    -- Keys, die seit 2026-04 aus der config.json in die DB gewandert sind:
+    ('login_rate_limit',        '5 per minute;30 per hour'),
+    ('upload_rate_limit',       '10 per minute;60 per hour'),
+    ('allow_sidecar_updates',   '1'),
+    ('path_mappings',           '[]'),
+    ('scanner_config',          '{}'),
+    ('teams_config',            '{}'),
+    ('teams_client_secret_enc', '');
 
 -- SMTP-Versandlog (letzte Sendevorgänge, max. 200 Einträge)
 CREATE TABLE IF NOT EXISTS smtp_log (

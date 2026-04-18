@@ -110,39 +110,6 @@ DEFAULT_CONFIG = {
 }
 
 # ---------------------------------------------------------------------------
-# Datenbank-Migration
-# ---------------------------------------------------------------------------
-
-_MIGRATION_STMTS = [
-    # source: Herkunft der Datei ('filesystem' | 'sharepoint' | 'teams')
-    "ALTER TABLE idv_files ADD COLUMN source TEXT DEFAULT 'filesystem'",
-    # Stabiler SharePoint-Item-ID (bleibt bei Umbenennung / Verschieben erhalten)
-    "ALTER TABLE idv_files ADD COLUMN sharepoint_item_id TEXT",
-    # Delta-Token-Speicher für inkrementellen Graph-API-Sync pro Drive
-    """CREATE TABLE IF NOT EXISTS teams_delta_tokens (
-        drive_id    TEXT PRIMARY KEY,
-        delta_token TEXT NOT NULL,
-        updated_at  TEXT NOT NULL
-    )""",
-    "CREATE INDEX IF NOT EXISTS idx_files_sp_item ON idv_files(sharepoint_item_id)",
-]
-
-
-def apply_migrations(conn: sqlite3.Connection) -> None:
-    """Fügt fehlende Spalten / Tabellen hinzu (idempotent, safe to run multiple times)."""
-    for stmt in _MIGRATION_STMTS:
-        try:
-            conn.execute(stmt)
-            conn.commit()
-        except sqlite3.OperationalError as exc:
-            msg = str(exc).lower()
-            if "duplicate column name" in msg or "already exists" in msg:
-                pass  # Spalte / Tabelle / Index existiert bereits – OK
-            else:
-                raise
-
-
-# ---------------------------------------------------------------------------
 # Authentifizierung (MSAL Client-Credentials-Flow)
 # ---------------------------------------------------------------------------
 
@@ -656,7 +623,6 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
         sys.exit(1)
 
     conn = init_db(config["db_path"])
-    apply_migrations(conn)
     now  = datetime.now(timezone.utc).isoformat()
 
     # Scan-Run protokollieren

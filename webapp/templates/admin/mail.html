@@ -52,8 +52,6 @@
           <div class="col-md-4">
             <label class="form-label form-label-sm fw-600">Verschlüsselung</label>
             {% set tls_val = settings.get('smtp_tls', 'starttls') %}
-            {# Rückwärtskompatibilität: alte Werte '1'/'0' umrechnen #}
-            {% set tls_val = 'starttls' if tls_val == '1' else ('ssl' if tls_val == '0' else tls_val) %}
             <select name="smtp_tls" class="form-select form-select-sm">
               <option value="starttls" {{ 'selected' if tls_val == 'starttls' else '' }}>STARTTLS (Port 587)</option>
               <option value="ssl"      {{ 'selected' if tls_val == 'ssl'      else '' }}>SSL/TLS (Port 465)</option>

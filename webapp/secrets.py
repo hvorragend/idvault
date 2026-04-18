@@ -40,12 +40,9 @@ def encrypt(plain: str) -> str:
 
 def decrypt(stored: str) -> str:
     """Entschlüsselt einen gespeicherten Secret-Wert. Werte ohne ``enc:``-
-    Präfix werden als Alt-Klartext zurückgegeben (werden beim nächsten
-    Speichern automatisch migriert)."""
-    if not stored:
+    Präfix werden als leer behandelt (kein Klartext-Fallback)."""
+    if not stored or not stored.startswith(_ENC_PREFIX):
         return ""
-    if not stored.startswith(_ENC_PREFIX):
-        return stored
     try:
         return _fernet_from_app().decrypt(stored[len(_ENC_PREFIX):].encode()).decode()
     except Exception as exc:
@@ -63,10 +60,8 @@ def encrypt_with(secret_key: str, plain: str) -> str:
 
 def decrypt_with(secret_key: str, stored: str) -> str:
     """Wie ``decrypt``, aber mit explizitem SECRET_KEY."""
-    if not stored:
+    if not stored or not stored.startswith(_ENC_PREFIX):
         return ""
-    if not stored.startswith(_ENC_PREFIX):
-        return stored
     try:
         return _fernet_for_key(secret_key).decrypt(
             stored[len(_ENC_PREFIX):].encode()
