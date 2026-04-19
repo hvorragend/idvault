@@ -6,21 +6,20 @@ Produktion:   gunicorn "run:app" --workers 2 --bind 0.0.0.0:5000
 
 Konfiguration (config.json):
   Beim ersten Start wird config.json mit einem zufälligen SECRET_KEY
-  automatisch angelegt (falls weder Datei noch Env-Variable vorhanden).
-  Vorlage: config.json.example → config.json kopieren und anpassen.
+  automatisch angelegt. Die Datei enthält NUR Bootstrap-Werte, die bei
+  Fehlkonfiguration den Start oder Login blockieren würden:
 
-  OS-Umgebungsvariablen haben immer Vorrang über config.json.
+    SECRET_KEY, PORT, DEBUG, IDV_HTTPS, IDV_SSL_CERT, IDV_SSL_KEY,
+    IDV_SSL_AUTOGEN, IDV_DB_PATH, IDV_INSTANCE_PATH, IDV_LOCAL_USERS,
+    IDV_SERVICE_NAME
 
-Umgebungsvariablen (alternativ zu config.json oder als Override):
-  SECRET_KEY       Flask Session Secret      (Pflicht in Produktion!)
-  PORT             Netzwerkport              (Standard: 5000 / 5443 bei HTTPS)
-  DEBUG            1 = Debug-Modus           (Standard: 0)
-  IDV_HTTPS        1 = HTTPS aktivieren      (Standard: 0)
-  IDV_SSL_CERT     Pfad zum Zertifikat (PEM) (Standard: instance/certs/cert.pem)
-  IDV_SSL_KEY      Pfad zum priv. Schlüssel  (Standard: instance/certs/key.pem)
-  IDV_SSL_AUTOGEN  1 = Selbstsigniertes Zertifikat erzeugen, falls fehlend
-                                             (Standard: 1)
-  IDV_DB_PATH      Pfad zur SQLite-Datenbank (Standard: instance/idvault.db)
+  Alles andere (SMTP, LDAP, Scanner, Teams, Rate-Limits, Pfad-Mappings,
+  Sidecar-Update-Schalter) wird über die Web-UI in der SQLite-Datenbank
+  (app_settings bzw. ldap_config) verwaltet.
+
+  OS-Umgebungsvariablen werden nicht mehr ausgewertet – außer den
+  prozessinternen Hilfsvariablen IDV_PROJECT_ROOT, IDV_ACTIVE_VERSION und
+  BUNDLED_VERSION, die run.py selbst setzt.
 """
 
 import os
@@ -133,186 +132,35 @@ def _read_version_json(path: str) -> dict:
 
 
 # ── config.json laden / beim ersten Start automatisch anlegen ────────────────
-# config.json liegt neben run.py bzw. neben der EXE und enthält dieselben
-# Schlüssel wie die Umgebungsvariablen (SECRET_KEY, PORT, IDV_HTTPS, …).
-# Werte werden nur gesetzt, wenn die Variable noch NICHT in der Umgebung steht
-# → OS-Umgebungsvariablen, Docker-Secrets usw. haben immer Vorrang.
+# config.json liegt neben run.py bzw. neben der EXE und enthält NUR Bootstrap-
+# Werte. Alle anderen Einstellungen werden über die Web-UI in der Datenbank
+# (Tabelle app_settings bzw. ldap_config) gepflegt.
 _config_file = os.path.join(_PROJECT_ROOT, 'config.json')
 if not os.path.isfile(_config_file):
-    # Erster Start ohne config.json und ohne SECRET_KEY-Env-Variable:
-    # Datei automatisch mit zufälligem SECRET_KEY anlegen.
-    if not os.environ.get('SECRET_KEY'):
-        import secrets as _secrets
-        # Hinweis zu SMTP/LDAP-Credentials:
-        #   SMTP und LDAP werden über die Web-UI in der SQLite-Datenbank
-        #   gespeichert (Tabellen app_settings bzw. ldap_config). Die
-        #   config.json kann sie OPTIONAL überschreiben – hier im Auto-
-        #   Template bewusst NICHT vorbelegt, damit die in schema.sql
-        #   hinterlegten DB-Defaults greifen, solange kein Override nötig ist.
-        #   Siehe config.json.example für Override-Beispiele.
-        _auto_cfg = {
-            "SECRET_KEY": _secrets.token_hex(32),
-            "PORT": 5000,
-            "IDV_HTTPS": 0,
-            "IDV_SSL_CERT": "instance/certs/cert.pem",
-            "IDV_SSL_KEY": "instance/certs/key.pem",
-            "IDV_SSL_AUTOGEN": 1,
-            "IDV_DB_PATH": "instance/idvault.db",
-            "IDV_INSTANCE_PATH": "instance",
-            # VULN-B: Sidecar-Update-Upload (Admin kann Python/Template-Dateien
-            # als ZIP hochladen, die beim nächsten Start die gebündelten Module
-            # überschreiben) – kann durch Setzen auf 0 komplett deaktiviert werden.
-            "IDV_ALLOW_SIDECAR_UPDATES": 1,
-            # VULN-F: Lokale Benutzer. Leere Liste = kein lokaler Login möglich
-            # (nur LDAP). Pro Eintrag entweder 'password_hash' (empfohlen,
-            # werkzeug-Format) oder 'password' (Klartext, optional – wird beim
-            # Start automatisch gehasht). Beispiel siehe config.json.example.
-            "IDV_LOCAL_USERS": [],
-            # VULN-J: Login-Rate-Limit (Flask-Limiter-Syntax).
-            "IDV_LOGIN_RATE_LIMIT": "5 per minute;30 per hour",
-            # VULN-009: Rate-Limit für Admin-Uploads (ZIP, CSV).
-            "IDV_UPLOAD_RATE_LIMIT": "10 per minute;60 per hour",
-            "scanner": {
-                "scan_paths": [],
-                "extensions": [
-                    ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
-                    ".accdb", ".mdb", ".accde", ".accdr",
-                    ".ida", ".idv",
-                    ".bas", ".cls", ".frm",
-                    ".pbix", ".pbit",
-                    ".dotm", ".pptm",
-                    ".py", ".r", ".rmd",
-                    ".sql"
-                ],
-                "exclude_paths": [],
-                "blacklist_paths": [
-                    "~$", ".tmp",
-                    r"\$RECYCLE\.BIN",
-                    "System Volume Information",
-                    "AppData"
-                ],
-                # Pfade bewusst relativ – die idv_scanner-Routine löst sie
-                # gegen das Verzeichnis der config.json (= Projekt-Root) auf.
-                # Vorteil: portable Installation und gut lesbare config.json.
-                "db_path": "instance/idvault.db",
-                "log_path": "instance/logs/idv_scanner.log",
-                "hash_size_limit_mb": 500,
-                "max_workers": 4,
-                "move_detection": "name_and_hash",
-                "scan_since": None,
-                "read_file_owner": True
-            },
-            "teams": {
-                "tenant_id": "",
-                "client_id": "",
-                "client_secret": "",
-                "extensions": [
-                    ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
-                    ".accdb", ".mdb", ".accde", ".accdr",
-                    ".ida", ".idv",
-                    ".pbix", ".pbit",
-                    ".dotm", ".pptm",
-                    ".py", ".r", ".rmd", ".sql"
-                ],
-                "hash_size_limit_mb": 100,
-                "download_for_ooxml": True,
-                "move_detection": "name_and_hash",
-                "teams": []
-            },
-            # OPTIONAL: Override der LDAP-Konfiguration aus der DB.
-            #
-            # Der Block unten ist mit Unterstrich-Präfix als INAKTIVES
-            # Beispiel eingetragen – die App wertet nur den Schlüssel "ldap"
-            # aus. Zum Aktivieren:
-            #   1. "_ldap_beispiel" in "ldap" umbenennen.
-            #   2. Felder anpassen (nur die gesetzten Keys überschreiben die DB,
-            #      fehlende Keys bleiben aus /admin/ldap-config aktiv).
-            #   3. bind_password entweder als Klartext oder als
-            #      "ENV:VARNAME" referenzieren – letzteres ist für
-            #      Produktionsumgebungen empfohlen.
-            # Überschriebene Felder werden in der Web-UI read-only angezeigt.
-            "_kommentar_ldap": (
-                "Optionaler Override für /admin/ldap-config. "
-                "Zum Aktivieren '_ldap_beispiel' in 'ldap' umbenennen. "
-                "Siehe config.json.example für Details."
-            ),
-            "_ldap_beispiel": {
-                "enabled": True,
-                "server_url": "ldaps://ad.example.com",
-                "port": 636,
-                "base_dn": "DC=example,DC=com",
-                "bind_dn": "CN=svc-idvault,OU=ServiceAccounts,DC=example,DC=com",
-                "bind_password": "ENV:IDV_LDAP_BIND_PASSWORD",
-                "user_attr": "sAMAccountName",
-                "ssl_verify": True
-            }
-        }
-        try:
-            with open(_config_file, 'w', encoding='utf-8') as _f:
-                _json.dump(_auto_cfg, _f, indent=2, ensure_ascii=False)
-            print(f"  [config] Neue config.json angelegt: {_config_file}")
-        except Exception:
-            pass  # Schreibfehler dürfen den Start nicht verhindern
-
-# ── Einmalige Migration: scanner/teams_config.json → config.json["teams"] ──
-# Frühere Versionen hielten die Teams-Konfiguration in einer separaten Datei.
-# Wenn sie noch existiert und in config.json kein "teams"-Block steht,
-# übernehmen wir den Inhalt. Die alte Datei wird sicherheitshalber nur
-# umbenannt (nicht gelöscht), damit ein Admin die Migration nachvollziehen
-# kann.
-try:
-    _teams_legacy = os.path.join(_PROJECT_ROOT, 'scanner', 'teams_config.json')
-    if os.path.isfile(_teams_legacy) and os.path.isfile(_config_file):
-        _main_cfg = _read_version_json(_config_file)
-        if isinstance(_main_cfg, dict) and "teams" not in _main_cfg:
-            _legacy_cfg = _read_version_json(_teams_legacy)
-            if isinstance(_legacy_cfg, dict):
-                # Pfad-Defaults (db_path, log_path) NICHT mit-migrieren – die
-                # werden zur Laufzeit aus dem Instance-Pfad abgeleitet.
-                _persist_keys = {
-                    "tenant_id", "client_id", "client_secret",
-                    "hash_size_limit_mb", "download_for_ooxml",
-                    "move_detection", "extensions", "teams",
-                }
-                _main_cfg["teams"] = {
-                    k: v for k, v in _legacy_cfg.items() if k in _persist_keys
-                }
-                _tmp_path = _config_file + ".tmp"
-                with open(_tmp_path, 'w', encoding='utf-8') as _mf:
-                    _json.dump(_main_cfg, _mf, indent=2, ensure_ascii=False)
-                os.replace(_tmp_path, _config_file)
-                os.rename(_teams_legacy, _teams_legacy + ".migrated")
-                print(
-                    f"  [config] Teams-Konfiguration aus "
-                    f"{_teams_legacy} migriert nach config.json['teams']; "
-                    f"alte Datei umbenannt nach teams_config.json.migrated"
-                )
-except Exception as _mig_err:
-    print(f"  [config] Teams-Migration übersprungen: {_mig_err}")
-
-if os.path.isfile(_config_file):
+    import secrets as _secrets
+    _auto_cfg = {
+        "SECRET_KEY": _secrets.token_hex(32),
+        "PORT": 5000,
+        "DEBUG": 0,
+        "IDV_HTTPS": 0,
+        "IDV_SSL_CERT": "instance/certs/cert.pem",
+        "IDV_SSL_KEY": "instance/certs/key.pem",
+        "IDV_SSL_AUTOGEN": 1,
+        "IDV_DB_PATH": "instance/idvault.db",
+        "IDV_INSTANCE_PATH": "instance",
+        "IDV_SERVICE_NAME": "idvault",
+        # VULN-F: Lokale Benutzer. Leere Liste = kein lokaler Login möglich
+        # (nur LDAP). Pro Eintrag entweder 'password_hash' (empfohlen,
+        # werkzeug-Format) oder 'password' (Klartext, optional – wird beim
+        # Start automatisch gehasht). Beispiel siehe config.json.example.
+        "IDV_LOCAL_USERS": [],
+    }
     try:
-        _cfg_data = _read_version_json(_config_file)
-        for _cfg_k, _cfg_v in _cfg_data.items():
-            # Sub-Sektionen NICHT als Env-Variable setzen – sie werden zur
-            # Laufzeit direkt aus der config.json gelesen (scanner durch
-            # idv_scanner.py, teams durch den Teams-Scanner, ldap als
-            # optionaler Override der DB, alle via webapp.config_store).
-            if _cfg_k in ("scanner", "teams", "ldap"):
-                continue
-            # Lokale Benutzer (VULN-F) und komplexe Werte müssen als JSON
-            # serialisiert werden, sonst wird "[{'username': ...}]" als
-            # String mit Python-Repr übergeben.
-            if isinstance(_cfg_v, (list, dict)):
-                os.environ.setdefault(_cfg_k, _json.dumps(_cfg_v))
-            elif isinstance(_cfg_v, bool):
-                os.environ.setdefault(_cfg_k, "1" if _cfg_v else "0")
-            else:
-                os.environ.setdefault(_cfg_k, str(_cfg_v))
-    except Exception as _cfg_err:
-        print(f"  [config] config.json konnte nicht geladen werden: {_cfg_err}")
-if not os.environ.get('IDV_SERVICE_NAME', '').strip():
-    os.environ['IDV_SERVICE_NAME'] = 'idvault'
+        with open(_config_file, 'w', encoding='utf-8') as _f:
+            _json.dump(_auto_cfg, _f, indent=2, ensure_ascii=False)
+        print(f"  [config] Neue config.json angelegt: {_config_file}")
+    except Exception:
+        pass  # Schreibfehler dürfen den Start nicht verhindern
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Gebündelte version.json lesen (immer, unabhängig vom Sidecar)
@@ -334,10 +182,6 @@ if _upd:
         os.environ['IDV_ACTIVE_VERSION'] = _sidecar_vi['version']
     print(f"  [update] Override aktiv: {_upd}")
 
-# IDV_INSTANCE_PATH vor create_app() setzen — damit der korrekte Pfad verwendet
-# wird, auch wenn webapp/__init__.py aus dem Sidecar stammt und Flask einen
-# falschen root_path ableitet.
-os.environ.setdefault('IDV_INSTANCE_PATH', os.path.join(_PROJECT_ROOT, 'instance'))
 # ─────────────────────────────────────────────────────────────────────────────
 
 # --scan Modus: Die exe startet als Scanner-Subprocess (PyInstaller-Kompatibilität).
@@ -435,21 +279,19 @@ def _run_server(service_mode: bool = False):
     _build_app()
 
     from ssl_utils import build_ssl_context, https_enabled
+    from webapp import config_store
 
-    debug = os.environ.get("DEBUG", "0") == "1"
+    debug = config_store.get_bool("DEBUG", False)
 
     # ── Sicherheits-Startup-Checks (VULN-004 / VULN-005) ─────────────────────
     if app.config.get("SECRET_KEY_IS_DEFAULT"):
         msg = (
             "SICHERHEITS-ABBRUCH: SECRET_KEY ist nicht gesetzt. In der Produktion "
-            "muss ein zufälliger Wert (≥ 32 Zeichen) bereitgestellt werden – "
-            "entweder als Umgebungsvariable SECRET_KEY oder als Eintrag "
-            "\"SECRET_KEY\" in der config.json neben run.py/der EXE. "
-            "Die Umgebungsvariable hat Vorrang vor der config.json.\n"
-            "Beispiel (PowerShell):  $env:SECRET_KEY = [Guid]::NewGuid().ToString('N')\n"
-            "Beispiel (Bash):        export SECRET_KEY=$(openssl rand -hex 32)\n"
+            "muss ein zufälliger Wert (≥ 32 Zeichen) in der config.json neben "
+            "run.py bzw. der EXE hinterlegt werden.\n"
             "Beispiel (config.json): {\"SECRET_KEY\": \"<32+ zufällige Zeichen>\", ...}\n"
-            "Zum lokalen Entwickeln DEBUG=1 setzen, um diesen Check zu umgehen."
+            "Zum lokalen Entwickeln \"DEBUG\": 1 in die config.json eintragen, "
+            "um diesen Check zu umgehen."
         )
         if not debug:
             if not service_mode:
@@ -471,13 +313,16 @@ def _run_server(service_mode: bool = False):
         print("!" * 70 + "\n")
     # ─────────────────────────────────────────────────────────────────────────
 
-    _instance_path = os.environ.get(
-        'IDV_INSTANCE_PATH', os.path.join(_PROJECT_ROOT, 'instance')
+    _raw_instance = config_store.get_str('IDV_INSTANCE_PATH',
+                                         os.path.join(_PROJECT_ROOT, 'instance'))
+    _instance_path = (
+        _raw_instance if os.path.isabs(_raw_instance)
+        else os.path.normpath(os.path.join(_PROJECT_ROOT, _raw_instance))
     )
     ssl_context = build_ssl_context(_instance_path)
     scheme = "https" if ssl_context is not None else "http"
     default_port = 5443 if ssl_context is not None else 5000
-    port = int(os.environ.get("PORT", default_port))
+    port = config_store.get_int("PORT", default_port)
 
     if not service_mode:
         print("=" * 55)
@@ -545,15 +390,15 @@ def _make_service_class():
     """Erzeugt die ServiceFramework-Klasse mit dem konfigurierten Dienstnamen.
 
     Wird innerhalb einer Funktion definiert, damit _svc_name_ erst nach dem
-    Laden der config.json (Modul-Ebene) aus der Umgebungsvariablen gelesen
-    werden kann.
+    Laden der config.json (Modul-Ebene) daraus gelesen werden kann.
     """
     import win32service    # noqa – nur auf Windows verfügbar
     import win32event      # noqa
     import servicemanager  # noqa
     import win32serviceutil
+    from webapp import config_store
 
-    svc_name = os.environ.get('IDV_SERVICE_NAME', 'idvault').strip() or 'idvault'
+    svc_name = (config_store.get_str('IDV_SERVICE_NAME', 'idvault') or '').strip() or 'idvault'
 
     class _IdvaultService(win32serviceutil.ServiceFramework):
         _svc_name_         = svc_name

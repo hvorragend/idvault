@@ -57,12 +57,12 @@
           </div>
           <div class="col-md-4">
             <label class="form-label fw-600">Geheimer Clientschlüssel (client_secret)</label>
-            <input type="text" name="client_secret" class="form-control font-monospace"
-                   value="{{ cfg.client_secret or '' }}"
-                   placeholder="ENV:TEAMS_SCANNER_SECRET  oder direkt eintragen"
+            <input type="password" name="client_secret" class="form-control font-monospace"
+                   placeholder="{{ 'Leer lassen = unverändert' if cfg.client_secret else 'Clientgeheimnis eingeben' }}"
                    autocomplete="off">
             <div class="form-text">
-              Empfohlen: <code>ENV:VARNAME</code> statt Klartext.
+              Wird Fernet-verschlüsselt in <code>app_settings.teams_client_secret_enc</code>
+              gespeichert.
               {% if cfg.client_secret %}
                 <span class="text-success"><i class="bi bi-check-circle me-1"></i>Gespeichert.</span>
               {% endif %}

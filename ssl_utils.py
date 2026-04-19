@@ -3,7 +3,7 @@ idvault – SSL/TLS-Hilfsmodul
 ============================
 Aktiviert HTTPS-Verbindungen über Zertifikate.
 
-Umgebungsvariablen:
+Bootstrap-Keys in ``config.json`` (Top-Level):
   IDV_HTTPS          1 = HTTPS aktivieren                    (Standard: 0)
   IDV_SSL_CERT       Pfad zum Zertifikat (PEM)
                      (Standard: instance/certs/cert.pem)
@@ -17,7 +17,7 @@ Subject-Alternative-Names für den Hostnamen, ``localhost``, ``127.0.0.1``
 und ``::1``. Für den produktiven Einsatz sollte ein von einer
 (internen) CA signiertes Zertifikat verwendet werden – einfach die
 gewünschten PEM-Dateien nach ``instance/certs/`` legen oder die
-Umgebungsvariablen ``IDV_SSL_CERT`` / ``IDV_SSL_KEY`` setzen.
+Bootstrap-Keys ``IDV_SSL_CERT`` / ``IDV_SSL_KEY`` in ``config.json`` setzen.
 """
 
 import datetime
@@ -27,12 +27,7 @@ import socket
 import ssl
 from typing import Optional
 
-
-def _env_truthy(name: str, default: bool = False) -> bool:
-    val = os.environ.get(name)
-    if val is None:
-        return default
-    return val.strip().lower() in ("1", "true", "yes", "on")
+from webapp import config_store
 
 
 def default_cert_dir(instance_path: str) -> str:
@@ -49,7 +44,7 @@ def default_key_path(instance_path: str) -> str:
 
 def https_enabled() -> bool:
     """True, wenn die Anwendung im HTTPS-Modus starten soll."""
-    return _env_truthy("IDV_HTTPS", False)
+    return config_store.get_bool("IDV_HTTPS", False)
 
 
 def generate_self_signed(cert_path: str, key_path: str,
@@ -128,16 +123,16 @@ def build_ssl_context(instance_path: str) -> Optional[ssl.SSLContext]:
     if not https_enabled():
         return None
 
-    cert_path = os.environ.get("IDV_SSL_CERT", default_cert_path(instance_path))
-    key_path  = os.environ.get("IDV_SSL_KEY",  default_key_path(instance_path))
+    cert_path = config_store.get_str("IDV_SSL_CERT", "") or default_cert_path(instance_path)
+    key_path  = config_store.get_str("IDV_SSL_KEY",  "") or default_key_path(instance_path)
 
     if not (os.path.isfile(cert_path) and os.path.isfile(key_path)):
-        if not _env_truthy("IDV_SSL_AUTOGEN", True):
+        if not config_store.get_bool("IDV_SSL_AUTOGEN", True):
             raise FileNotFoundError(
                 f"HTTPS aktiviert, aber Zertifikatsdateien fehlen: "
                 f"{cert_path} / {key_path}. Entweder die Dateien bereitstellen "
-                f"oder IDV_SSL_AUTOGEN=1 setzen, um ein selbstsigniertes "
-                f"Zertifikat zu erzeugen."
+                f"oder IDV_SSL_AUTOGEN=1 in config.json setzen, um ein "
+                f"selbstsigniertes Zertifikat zu erzeugen."
             )
         print(f"  [SSL] Erzeuge selbstsigniertes Zertifikat:")
         print(f"        Zertifikat: {cert_path}")

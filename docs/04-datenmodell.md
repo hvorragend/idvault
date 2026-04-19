@@ -400,12 +400,14 @@ Performance-relevante Indizes auf häufig gefilterte Spalten:
 
 ## 11 Migrationsstrategie
 
-idvault verwendet **idempotente Migrationen** in `db.py::_apply_incremental_migrations()`:
+idvault verwendet **keine** versionierten Migrationen. Das Schema wird
+ausschließlich über `schema.sql` verwaltet:
 
-- Neue Spalten werden per `ALTER TABLE ADD COLUMN IF NOT EXISTS`-Muster ergänzt
-- Schemaänderungen sind rückwärtskompatibel
-- Nach einem Update wird beim nächsten Start automatisch migriert
-- Kein separater Migrationsrunner; keine versionierten Migrationsdateien
+- `db.py::init_register_db()` spielt `schema.sql` bei jedem Start ein.
+- Alle `CREATE TABLE`/`CREATE VIEW`/`CREATE INDEX`-Statements nutzen
+  `IF NOT EXISTS`; Default-Seeds werden mit `INSERT OR IGNORE` eingespielt.
+- Schemaänderungen werden ausschließlich in `schema.sql` gepflegt; die
+  Datenbank wird bei Major-Upgrades gezielt neu erzeugt.
 
 ## 12 Datenklassifikation
 

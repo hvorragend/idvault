@@ -24,12 +24,12 @@ bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 def _upload_rate_limit():
     """VULN-009: Rate-Limit für Admin-Uploads (ZIP, CSV). Wird zur
-    Request-Zeit aus app.config gelesen, damit config.json-Änderungen greifen."""
+    Request-Zeit aus ``app_settings['upload_rate_limit']`` gelesen, damit
+    Admin-Änderungen über die Web-UI ohne Neustart wirksam werden."""
     try:
-        return current_app.config.get(
-            "IDV_UPLOAD_RATE_LIMIT", "10 per minute;60 per hour"
-        )
-    except RuntimeError:
+        from .. import app_settings as _aps
+        return _aps.get_upload_rate_limit(get_db())
+    except Exception:
         return "10 per minute;60 per hour"
 
 # ── Scanner-Konfiguration & Scan-Trigger ────────────────────────────────────
@@ -48,13 +48,6 @@ def _scanner_dir():
         # Im PyInstaller-Bundle: Ordner neben der .exe (persistent & beschreibbar)
         return os.path.join(os.path.dirname(sys.executable), "scanner")
     return os.path.join(os.path.dirname(current_app.root_path), "scanner")
-
-
-def _scanner_config_path():
-    # Zusammengeführte config.json liegt neben der EXE bzw. im Projektverzeichnis
-    if getattr(sys, 'frozen', False):
-        return os.path.join(os.path.dirname(sys.executable), "config.json")
-    return os.path.join(os.path.dirname(current_app.root_path), "config.json")
 
 
 def _scanner_script_path():
@@ -84,26 +77,22 @@ def _instance_logs_dir() -> str:
 
 
 _SCANNER_CFG_KEYS = frozenset({
-    "scan_paths", "extensions", "db_path", "log_path",
+    "scan_paths", "extensions",
     "hash_size_limit_mb", "max_workers", "move_detection", "scan_since", "read_file_owner",
     "blacklist_paths", "whitelist_paths",
 })
 
 
 def _default_scanner_cfg() -> dict:
-    """Erstellt die Standardkonfiguration mit relativen Default-Pfaden.
-
-    Die Pfade werden bewusst relativ zur config.json gespeichert (gut
-    lesbar, portable Installation). Der Scanner löst sie beim Start gegen
-    das Verzeichnis der config.json auf.
-    """
+    """Erstellt die Standardkonfiguration für einen frisch installierten
+    Scanner. Pfade (db_path/log_path) werden vom Scanner-Subprozess aus dem
+    ``--db-path``-Argument abgeleitet und sind deshalb nicht Teil der
+    persistierten Scanner-Config."""
     return {
         "scan_paths": [],
         "extensions": _DEFAULT_SCANNER_EXTENSIONS,
         "blacklist_paths": _DEFAULT_SCANNER_EXCLUDE,
         "whitelist_paths": [],
-        "db_path": "instance/idvault.db",
-        "log_path": "instance/logs/idv_scanner.log",
         "hash_size_limit_mb": 500,
         "max_workers": 4,
         "move_detection": "name_and_hash",
@@ -113,46 +102,35 @@ def _default_scanner_cfg() -> dict:
 
 
 def _load_scanner_config() -> dict:
+    """Lädt Scanner-Config aus ``app_settings['scanner_config']``."""
+    from .. import app_settings as _aps
     cfg = _default_scanner_cfg()
-    try:
-        with open(_scanner_config_path(), encoding="utf-8") as f:
-            full = json.load(f)
-        # Zusammengeführte config.json: Scanner-Einstellungen unter "scanner"-Schlüssel.
-        # Nur bekannte Scanner-Keys übernehmen, damit Top-Level-Keys (SECRET_KEY, PORT …)
-        # nicht in den Scanner-Abschnitt eingeschleppt werden.
-        scanner_data = full.get("scanner", full)
-        cfg.update({k: v for k, v in scanner_data.items() if k in _SCANNER_CFG_KEYS})
-    except Exception:
-        pass
+    data = _aps.get_scanner_config(get_db())
+    cfg.update({k: v for k, v in data.items() if k in _SCANNER_CFG_KEYS})
     return cfg
 
 
 def _save_scanner_config(cfg: dict):
-    path = _scanner_config_path()
-    # Bestehende config.json einlesen um andere Schlüssel (z.B. SECRET_KEY) zu erhalten
-    try:
-        with open(path, encoding="utf-8") as f:
-            full = json.load(f)
-    except Exception:
-        full = {}
-    # Nur bekannte Scanner-Keys speichern – keine Top-Level-Keys duplizieren
-    full["scanner"] = {k: v for k, v in cfg.items() if k in _SCANNER_CFG_KEYS}
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(full, f, indent=2, ensure_ascii=False)
+    from .. import app_settings as _aps
+    to_persist = {k: v for k, v in cfg.items() if k in _SCANNER_CFG_KEYS}
+    _aps.set_scanner_config(get_db(), to_persist)
 
 
 def _load_path_mappings() -> list:
-    """Lädt path_mappings aus dem Top-Level der config.json."""
-    from .. import config_store
-    cfg = config_store.load_config_json()
-    mappings = cfg.get("path_mappings", [])
-    return mappings if isinstance(mappings, list) else []
+    """Lädt path_mappings aus ``app_settings['path_mappings']``."""
+    from .. import app_settings as _aps
+    return _aps.get_path_mappings(get_db())
 
 
 def _save_path_mappings(mappings: list) -> None:
-    """Speichert path_mappings als Top-Level-Schlüssel in config.json."""
-    from .. import config_store
-    config_store.write_top_level_key("path_mappings", mappings)
+    """Speichert path_mappings nach ``app_settings['path_mappings']`` und
+    aktualisiert den App-Config-Cache (``PATH_MAPPINGS``)."""
+    from .. import app_settings as _aps
+    _aps.set_path_mappings(get_db(), mappings)
+    try:
+        current_app.config["PATH_MAPPINGS"] = list(mappings or [])
+    except RuntimeError:
+        pass
 
 
 def _load_scanner_runas() -> dict:
@@ -684,9 +662,7 @@ def _trigger_scheduled_scan() -> bool:
         if _scan_is_running():
             return False
 
-        config_path = _scanner_config_path()
-        if not os.path.isfile(config_path):
-            return False
+        db_path = current_app.config["DATABASE"]
 
         scanner_dir = _scanner_dir()
         os.makedirs(scanner_dir, exist_ok=True)
@@ -698,7 +674,7 @@ def _trigger_scheduled_scan() -> bool:
                 pass
 
         if getattr(sys, "frozen", False):
-            cmd = [sys.executable, "--scan", "--config", config_path,
+            cmd = [sys.executable, "--scan", "--db-path", db_path,
                    "--signal-dir", scanner_dir]
         else:
             script = _scanner_script_path()
@@ -707,7 +683,7 @@ def _trigger_scheduled_scan() -> bool:
                     "Zeitplan-Scan: Scanner-Skript nicht gefunden: %s", script
                 )
                 return False
-            cmd = [sys.executable, script, "--config", config_path,
+            cmd = [sys.executable, script, "--db-path", db_path,
                    "--signal-dir", scanner_dir]
 
         logs_dir = _instance_logs_dir()
@@ -952,10 +928,7 @@ def scanner_starten():
         if _scan_is_running():
             return jsonify({"ok": False, "msg": "Ein Scan läuft bereits."})
 
-        config = _scanner_config_path()
-
-        if not os.path.isfile(config):
-            return jsonify({"ok": False, "msg": f"Konfiguration nicht gefunden: {config}"})
+        db_path = current_app.config["DATABASE"]
 
         scanner_dir = _scanner_dir()
         os.makedirs(scanner_dir, exist_ok=True)
@@ -971,13 +944,13 @@ def scanner_starten():
                 pass
 
         if getattr(sys, 'frozen', False):
-            cmd = [sys.executable, "--scan", "--config", config,
+            cmd = [sys.executable, "--scan", "--db-path", db_path,
                    "--signal-dir", scanner_dir]
         else:
             script = _scanner_script_path()
             if not os.path.isfile(script):
                 return jsonify({"ok": False, "msg": f"Scanner-Skript nicht gefunden: {script}"})
-            cmd = [sys.executable, script, "--config", config,
+            cmd = [sys.executable, script, "--db-path", db_path,
                    "--signal-dir", scanner_dir]
 
         if resume:
@@ -1427,11 +1400,12 @@ _DEFAULT_TEAMS_EXTENSIONS = [
     ".py", ".r", ".rmd", ".sql",
 ]
 
-# Persistente Teams-Keys in config.json["teams"]. Pfad-Defaults (db_path, log_path)
-# werden bewusst NICHT mitgespeichert – sie hängen vom Instance-Pfad ab und werden
-# zur Laufzeit aus der App-Config abgeleitet.
+# Persistente Teams-Keys in app_settings['teams_config'] (JSON-Blob). Das
+# client_secret wird separat Fernet-verschlüsselt in
+# app_settings['teams_client_secret_enc'] abgelegt (siehe
+# ``webapp/app_settings.py``).
 _TEAMS_CFG_PERSIST_KEYS = frozenset({
-    "tenant_id", "client_id", "client_secret",
+    "tenant_id", "client_id",
     "hash_size_limit_mb", "download_for_ooxml", "move_detection",
     "extensions", "teams",
     "blacklist_paths", "whitelist_paths",
@@ -1463,30 +1437,32 @@ def _default_teams_cfg() -> dict:
 
 
 def _load_teams_config() -> dict:
-    """Lädt Teams-Konfiguration aus config.json["teams"] (Haupt-config.json).
-
-    Die früher separate ``scanner/teams_config.json`` wurde in die Haupt-
-    ``config.json`` konsolidiert (siehe run.py für die einmalige Migration).
-    """
-    from .. import config_store
+    """Lädt Teams-Konfiguration aus app_settings + Fernet-entschlüsseltes
+    client_secret. Ergänzt Runtime-Pfade (db_path/log_path) aus der App-Config."""
+    from .. import app_settings as _aps
     cfg = _default_teams_cfg()
-    section = config_store.get_section("teams") or {}
-    # Nur bekannte Keys übernehmen, damit Pfad-Defaults (db_path, log_path)
-    # aus _default_teams_cfg() die Runtime-Werte behalten.
+    db = get_db()
+    section = _aps.get_teams_config(db)
     for key in _TEAMS_CFG_PERSIST_KEYS:
         if key in section:
             cfg[key] = section[key]
+    cfg["client_secret"] = _aps.get_teams_client_secret(db)
     return cfg
 
 
 def _save_teams_config(cfg: dict) -> None:
-    """Speichert Teams-Konfiguration nach config.json["teams"].
-
-    Nur persistente Keys werden geschrieben (keine Laufzeit-Pfade).
-    """
-    from .. import config_store
+    """Speichert Teams-Konfiguration nach app_settings + Fernet-verschlüsseltes
+    client_secret. Leerer Secret-Wert behält den bestehenden Wert (Admin-UI
+    zeigt das Klartext-Passwort nicht an)."""
+    from .. import app_settings as _aps
+    db = get_db()
     to_persist = {k: v for k, v in cfg.items() if k in _TEAMS_CFG_PERSIST_KEYS}
-    config_store.write_section("teams", to_persist)
+    _aps.set_teams_config(db, to_persist)
+    secret = cfg.get("client_secret")
+    # Nur setzen wenn das Formular ein neues Secret liefert – Leerstring
+    # erlaubt gezieltes Löschen über ein Flag (wird derzeit nicht genutzt).
+    if secret:
+        _aps.set_teams_client_secret(db, secret)
 
 
 def _teams_scan_is_running() -> bool:
@@ -1565,11 +1541,6 @@ def teams_scan_starten():
         if _teams_scan_is_running():
             return jsonify({"ok": False, "msg": "Ein Teams-Scan läuft bereits."})
 
-        # Haupt-config.json – der Teams-Scanner liest die "teams"-Sektion daraus.
-        config_path = _scanner_config_path()
-        if not os.path.isfile(config_path):
-            return jsonify({"ok": False, "msg": "config.json nicht gefunden. Bitte zuerst speichern."})
-
         cfg = _load_teams_config()
         if not cfg.get("teams"):
             return jsonify({"ok": False, "msg": "Keine Teams/Sites konfiguriert."})
@@ -1583,7 +1554,8 @@ def teams_scan_starten():
         if not os.path.isfile(script):
             return jsonify({"ok": False, "msg": f"Teams-Scanner nicht gefunden: {script}"})
 
-        cmd = [sys.executable, script, "--config", config_path]
+        db_path = current_app.config["DATABASE"]
+        cmd = [sys.executable, script, "--db-path", db_path]
         _logs_dir = _instance_logs_dir()
         os.makedirs(_logs_dir, exist_ok=True)
         output_log = os.path.join(_logs_dir, "teams_scanner_output.log")
@@ -1634,12 +1606,7 @@ def teams_scan_status():
 
 
 def _hash_pw(pw: str) -> str:
-    """Wrapper auf den modernen Passwort-Hash (VULN-001 Remediation).
-
-    Leitet an ``webapp.routes.auth._hash_pw`` weiter, das werkzeug-Hashes
-    (pbkdf2:sha256 mit Salt) erzeugt. Siehe dort für Details zur
-    Rehash-on-Login-Migration bestehender SHA-256-Hashes.
-    """
+    """Wrapper auf den modernen Passwort-Hash (pbkdf2:sha256, siehe auth)."""
     from .auth import _hash_pw as _modern_hash
     return _modern_hash(pw)
 
@@ -1757,6 +1724,27 @@ def mail():
         email_templates=_email_tpls,
         email_defaults=_email_defaults,
         smtp_log=smtp_log)
+
+
+@bp.route("/rate-limits", methods=["GET", "POST"])
+@admin_required
+def rate_limits():
+    """Admin-UI für Login-/Upload-Rate-Limits (flask_limiter-Syntax)."""
+    from .. import app_settings as _aps
+    db = get_db()
+    if request.method == "POST":
+        login_val  = request.form.get("login_rate_limit",  "").strip() or _aps.DEFAULTS["login_rate_limit"]
+        upload_val = request.form.get("upload_rate_limit", "").strip() or _aps.DEFAULTS["upload_rate_limit"]
+        _aps.set_setting(db, "login_rate_limit",  login_val)
+        _aps.set_setting(db, "upload_rate_limit", upload_val)
+        flash("Rate-Limits gespeichert.", "success")
+        return redirect(url_for("admin.rate_limits"))
+    return render_template(
+        "admin/rate_limits.html",
+        login_rate_limit  = _aps.get_login_rate_limit(db),
+        upload_rate_limit = _aps.get_upload_rate_limit(db),
+        defaults          = _aps.DEFAULTS,
+    )
 
 
 @bp.route("/mail/test", methods=["POST"])
@@ -2247,17 +2235,12 @@ def _save_smtp_password(db, submitted: str, encrypt_fn) -> None:
 def _resolve_scanner_log_path() -> str:
     """Liefert den absoluten Pfad zur Scanner-Log-Datei.
 
-    Liest ``log_path`` aus der Scanner-Konfiguration (config.json).
-    Relative Pfade werden – analog zur Logik im Scanner-Skript – gegen
-    das Verzeichnis der ``config.json`` aufgelöst, sodass die Webapp
-    dieselbe Datei findet wie der Scanner-Subprocess.
+    Der Scanner-Subprozess leitet den Log-Pfad aus ``--db-path`` ab
+    (``<db_parent>/logs/idv_scanner.log``). Die Webapp nutzt dieselbe
+    Logik, damit Scanner-Log-Viewer und Subprozess auf dieselbe Datei
+    zeigen.
     """
-    cfg = _load_scanner_config()
-    log_path = cfg.get("log_path") or "instance/logs/idv_scanner.log"
-    if not os.path.isabs(log_path):
-        config_dir = os.path.dirname(os.path.abspath(_scanner_config_path()))
-        log_path = os.path.normpath(os.path.join(config_dir, log_path))
-    return log_path
+    return os.path.join(_instance_logs_dir(), "idv_scanner.log")
 
 
 def _resolve_scanner_output_log_path() -> str:
@@ -2915,63 +2898,26 @@ def ldap_config():
     db = get_db()
 
     if request.method == "POST":
-        # Vor dem Schreiben die DB-Rohwerte lesen – überschriebene Felder
-        # aus config.json dürfen NICHT in die DB propagiert werden, damit
-        # die DB-Werte intakt bleiben, falls der Override später entfernt
-        # wird. Siehe Plan: "Web-UI schreibt DB; config.json überschreibt".
         db_row = db.execute("SELECT * FROM ldap_config WHERE id = 1").fetchone()
         db_cfg = dict(db_row) if db_row else {}
 
-        # Merged Config (inkl. _override_keys) für UI-konforme Logik
-        effective = get_ldap_config(db) or {}
-        overridden = set(effective.get("_override_keys") or [])
-
-        def _field(name, form_val, coerce=lambda x: x, default=None):
-            """Liefert den DB-seitig zu schreibenden Wert.
-
-            Ist das Feld via config.json überschrieben, bleibt der bestehende
-            DB-Wert unverändert; ansonsten wird der Formularwert genommen.
-            """
-            if name in overridden:
-                return db_cfg.get(name, default)
-            return coerce(form_val)
-
-        enabled = _field("enabled",
-                         1 if request.form.get("enabled") else 0,
-                         default=0)
-        server_url = _field("server_url",
-                            request.form.get("server_url", "").strip(),
-                            default="")
+        enabled = 1 if request.form.get("enabled") else 0
+        server_url = request.form.get("server_url", "").strip()
         try:
-            port_form = int(request.form.get("port") or 636)
+            port = int(request.form.get("port") or 636)
         except (TypeError, ValueError):
-            port_form = 636
-        port = _field("port", port_form, default=636)
-        base_dn = _field("base_dn",
-                         request.form.get("base_dn", "").strip(),
-                         default="")
-        bind_dn = _field("bind_dn",
-                         request.form.get("bind_dn", "").strip(),
-                         default="")
-        user_attr = _field("user_attr",
-                           request.form.get("user_attr", "sAMAccountName"),
-                           default="sAMAccountName")
-        ssl_verify = _field("ssl_verify",
-                            1 if request.form.get("ssl_verify") else 0,
-                            default=1)
+            port = 636
+        base_dn = request.form.get("base_dn", "").strip()
+        bind_dn = request.form.get("bind_dn", "").strip()
+        user_attr = request.form.get("user_attr", "sAMAccountName")
+        ssl_verify = 1 if request.form.get("ssl_verify") else 0
 
-        # Bind-Passwort: Override im config.json hat Vorrang. DB-Wert nur
-        # ändern, wenn das Feld NICHT überschrieben ist und ein neues
-        # Passwort eingegeben wurde.
-        if "bind_password" in overridden:
-            bind_password_enc = db_cfg.get("bind_password", "")
+        bind_password_plain = request.form.get("bind_password", "").strip()
+        if bind_password_plain:
+            secret_key = current_app.config["SECRET_KEY"]
+            bind_password_enc = encrypt_password(bind_password_plain, secret_key)
         else:
-            bind_password_plain = request.form.get("bind_password", "").strip()
-            if bind_password_plain:
-                secret_key = current_app.config["SECRET_KEY"]
-                bind_password_enc = encrypt_password(bind_password_plain, secret_key)
-            else:
-                bind_password_enc = db_cfg.get("bind_password", "")
+            bind_password_enc = db_cfg.get("bind_password", "")
 
         updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         db.execute("""
@@ -2992,15 +2938,7 @@ def ldap_config():
         """, (enabled, server_url, port, base_dn, bind_dn,
               bind_password_enc, user_attr, ssl_verify, updated_at))
         db.commit()
-        if overridden:
-            flash(
-                "LDAP-Konfiguration gespeichert. Hinweis: "
-                f"{', '.join(sorted(overridden))} werden aktuell durch "
-                "config.json überschrieben und wurden nicht verändert.",
-                "success",
-            )
-        else:
-            flash("LDAP-Konfiguration gespeichert.", "success")
+        flash("LDAP-Konfiguration gespeichert.", "success")
         # VULN-012: TLS-Zertifikatsprüfung abgeschaltet → Audit-Warnung
         if enabled and not ssl_verify:
             import logging as _logging
@@ -3019,9 +2957,7 @@ def ldap_config():
         return redirect(url_for("admin.ldap_config"))
 
     cfg = get_ldap_config(db)
-    override_keys = list((cfg or {}).get("_override_keys") or [])
-    return render_template("admin/ldap_config.html",
-                           cfg=cfg, override_keys=override_keys)
+    return render_template("admin/ldap_config.html", cfg=cfg)
 
 
 @bp.route("/ldap-test", methods=["POST"])
@@ -3217,10 +3153,15 @@ def _validate_zip_member(name: str) -> bool:
 
 
 def _sidecar_updates_enabled() -> bool:
-    """Sidecar-ZIP-Updates können per config.json komplett abgeschaltet werden
-    (VULN-B: reduziert den Admin-RCE-Vektor, wenn ZIP-Uploads nicht benötigt
-    werden oder separate Change-Management-Prozesse verwendet werden)."""
-    return bool(current_app.config.get("IDV_ALLOW_SIDECAR_UPDATES", True))
+    """Sidecar-ZIP-Updates können über ``app_settings['allow_sidecar_updates']``
+    komplett abgeschaltet werden (VULN-B: reduziert den Admin-RCE-Vektor, wenn
+    ZIP-Uploads nicht benötigt werden oder separate Change-Management-Prozesse
+    verwendet werden). Admin-UI unter ``/admin/update``."""
+    from .. import app_settings as _aps
+    try:
+        return _aps.allow_sidecar_updates(get_db())
+    except Exception:
+        return True
 
 
 @bp.route("/update")
@@ -3307,18 +3248,17 @@ def _zip_remap(rel: str) -> str:
 @admin_required
 @limiter.limit(_upload_rate_limit, methods=["POST"])
 def update_upload():
-    # VULN-B: Opt-out über config.json. Wenn IDV_ALLOW_SIDECAR_UPDATES=0
-    # gesetzt ist, wird der Endpoint komplett abgewiesen – das reduziert
-    # den Admin-RCE-Vektor in Umgebungen, in denen Sidecar-Updates nicht
-    # gebraucht werden.
+    # VULN-B: Opt-out über app_settings.allow_sidecar_updates (Admin-UI).
+    # Wenn deaktiviert, wird der Endpoint komplett abgewiesen – das
+    # reduziert den Admin-RCE-Vektor in Umgebungen, in denen
+    # Sidecar-Updates nicht gebraucht werden.
     if not _sidecar_updates_enabled():
         current_app.logger.warning(
-            "Sidecar-Update-Upload blockiert (IDV_ALLOW_SIDECAR_UPDATES=0)"
+            "Sidecar-Update-Upload blockiert (app_settings.allow_sidecar_updates=0)"
         )
         flash(
-            "Sidecar-Updates sind deaktiviert (config.json → "
-            "IDV_ALLOW_SIDECAR_UPDATES=0). Zum Aktivieren bitte Wert auf 1 setzen "
-            "und neu starten.",
+            "Sidecar-Updates sind deaktiviert. Unter Administration → "
+            "Update den Schalter wieder aktivieren.",
             "error",
         )
         return redirect(url_for("admin.update_index"))
@@ -3453,10 +3393,11 @@ def _effective_service_name() -> tuple[str, bool]:
     """Gibt (Dienstname, auto_detected) zurück.
 
     Priorität:
-      1. IDV_SERVICE_NAME aus config.json / Umgebungsvariable (explizit)
+      1. IDV_SERVICE_NAME aus config.json (explizit)
       2. Automatische Erkennung via EnumServicesStatusEx (nativ registriert)
     """
-    explicit = os.environ.get('IDV_SERVICE_NAME', '').strip()
+    from .. import config_store
+    explicit = (config_store.get_str("IDV_SERVICE_NAME", "") or "").strip()
     if explicit:
         return explicit, False
     auto = _detect_windows_service_name()
@@ -3528,6 +3469,20 @@ def update_restart():
     """Startet den Prozess neu, damit Sidecar-Dateien wirksam werden."""
     _trigger_restart()
     return render_template("admin/update_restarting.html")
+
+
+@bp.route("/update/sidecar-toggle", methods=["POST"])
+@admin_required
+def update_sidecar_toggle():
+    """Schaltet den Sidecar-Update-Schalter (app_settings.allow_sidecar_updates)."""
+    from .. import app_settings as _aps
+    enabled = request.form.get("enabled") == "1"
+    _aps.set_bool(get_db(), "allow_sidecar_updates", enabled)
+    flash(
+        "Sidecar-Updates " + ("aktiviert." if enabled else "deaktiviert."),
+        "success",
+    )
+    return redirect(url_for("admin.update_index"))
 
 
 @bp.route("/update/rollback", methods=["POST"])

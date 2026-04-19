@@ -53,13 +53,24 @@
         <i class="bi bi-upload me-2"></i>Update einspielen
       </div>
       <div class="card-body">
+        <form method="post" action="{{ url_for('admin.update_sidecar_toggle') }}"
+              class="mb-3 d-flex align-items-center gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="enabled" value="{{ '0' if sidecar_updates_enabled else '1' }}">
+          <button type="submit" class="btn btn-sm btn-outline-{{ 'danger' if sidecar_updates_enabled else 'success' }}">
+            {% if sidecar_updates_enabled %}
+              <i class="bi bi-shield-lock me-1"></i>Sidecar-Updates deaktivieren
+            {% else %}
+              <i class="bi bi-shield-check me-1"></i>Sidecar-Updates aktivieren
+            {% endif %}
+          </button>
+          <span class="text-muted small">Aktueller Status:
+            <strong>{{ 'aktiv' if sidecar_updates_enabled else 'deaktiviert' }}</strong></span>
+        </form>
         {% if not sidecar_updates_enabled %}
         <div class="alert alert-warning mb-0" style="font-size:.88rem">
           <i class="bi bi-shield-lock me-1"></i>
           <strong>Sidecar-Updates sind deaktiviert.</strong><br>
-          In <code>config.json</code> steht <code>"IDV_ALLOW_SIDECAR_UPDATES": 0</code>.
-          Zum Aktivieren den Wert auf <code>1</code> setzen und die Anwendung neu starten.
-          <br><br>
           Empfohlen in regulierten Umgebungen, in denen Updates ausschließlich
           über signierte EXE-Builds eingespielt werden.
         </div>

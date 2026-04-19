@@ -133,7 +133,7 @@ Bereits umgesetzte Hardening-Maßnahmen (Details: [docs/09-schwachstellenanalyse
 
 - ✅ Modernes Passwort-Hashing (`pbkdf2:sha256`) mit automatischer Migration von Legacy-SHA-256-Hashes
 - ✅ Keine Demo-/Default-Benutzer im Quellcode — lokale Benutzer ausschließlich über `IDV_LOCAL_USERS` in `config.json` (werkzeug-Hash empfohlen, Klartext-Passwort optional und wird beim Start automatisch gehasht)
-- ✅ Rate-Limiting am Login (Flask-Limiter, konfigurierbar via `IDV_LOGIN_RATE_LIMIT`, Default 5/min, 30/h)
+- ✅ Rate-Limiting am Login (Flask-Limiter, konfigurierbar unter `/admin/rate-limits`, Default 5/min, 30/h)
 - ✅ Logout nur per POST + CSRF-Token
 - ✅ Session-Idle-Timeout 4 h + `HttpOnly` / `SameSite=Lax` / `Secure` (automatisch bei HTTPS)
 
@@ -143,7 +143,7 @@ Bereits umgesetzte Hardening-Maßnahmen (Details: [docs/09-schwachstellenanalyse
 - ✅ HTTP-Security-Header per `after_request`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS (bei HTTPS)
 - ✅ Nonce-basiertes CSP — `script-src 'self' 'nonce-…'` ohne `unsafe-inline`; alle inline Event-Handler auf Event-Delegation umgestellt
 - ✅ Eingabelängen-/Steuerzeichen-Validierung als globaler `before_request`-Hook (`IDV_LOCAL_USERS`-konforme Längen, CR/LF-Block in Single-Line-Feldern)
-- ✅ Upload-Rate-Limit (`IDV_UPLOAD_RATE_LIMIT`, Default 10/min, 60/h) auf ZIP-Update und CSV-Importe
+- ✅ Upload-Rate-Limit (über `/admin/rate-limits`, Default 10/min, 60/h) auf ZIP-Update und CSV-Importe
 
 **Daten-Härtung**
 
@@ -151,7 +151,7 @@ Bereits umgesetzte Hardening-Maßnahmen (Details: [docs/09-schwachstellenanalyse
 - ✅ Path-Traversal/IDOR am Nachweis-Download behoben — Downloads werden per ID + Ownership-Check ausgeliefert
 - ✅ Broken Access Control behoben — `ensure_can_read_idv` / `ensure_can_write_idv` in allen schreibenden IDV-/Tests-/Reviews-/Measures-/Freigaben-Routen
 - ✅ Upload-Magic-Byte-Validierung — verhindert polyglot-Uploads (z.B. SVG getarnt als PNG)
-- ✅ Admin-RCE-Vektor (Sidecar-ZIP-Update) per `IDV_ALLOW_SIDECAR_UPDATES=0` in `config.json` deaktivierbar
+- ✅ Admin-RCE-Vektor (Sidecar-ZIP-Update) über `Administration → Update` deaktivierbar (app_settings-Schalter)
 - ✅ SMTP-Passwort Fernet-verschlüsselt in der Datenbank
 
 **Konfiguration & Betrieb**
@@ -165,7 +165,7 @@ Noch offene Punkte vor bzw. kurz nach Produktivstart:
 
 - [ ] HTTPS aktivieren (direkt via `IDV_HTTPS=1` oder per Reverse-Proxy)
 - [ ] `SECRET_KEY` aus KeyVault/HSM beziehen (Betriebsauflage)
-- [ ] In regulierten Umgebungen: `IDV_ALLOW_SIDECAR_UPDATES=0` setzen und Updates ausschließlich über signierte EXE-Builds einspielen
+- [ ] In regulierten Umgebungen: Sidecar-Updates in der Admin-Oberfläche (`Administration → Update`) deaktivieren und Updates ausschließlich über signierte EXE-Builds einspielen
 - [ ] Bei Multi-Worker-Deployment (gunicorn): Flask-Limiter-Storage auf Redis umstellen
 - [ ] Externer Penetrationstest beauftragen
 - [ ] Test-Suite (pytest) mit ≥ 70 % Abdeckung der Kernlogik (Sprint 4)

@@ -132,12 +132,13 @@ def _do_local_login(db, username: str, password: str):
 
 
 def _login_rate_limit():
-    """Liefert das aktuell in app.config konfigurierte Rate-Limit für /login."""
+    """Liefert das aktuell in ``app_settings['login_rate_limit']`` konfigurierte
+    Rate-Limit für /login. Wird zur Request-Zeit gelesen, damit Admin-Änderungen
+    ohne Neustart greifen."""
     try:
-        return current_app.config.get(
-            "IDV_LOGIN_RATE_LIMIT", "5 per minute;30 per hour"
-        )
-    except RuntimeError:
+        from .. import app_settings as _aps
+        return _aps.get_login_rate_limit(get_db())
+    except Exception:
         return "5 per minute;30 per hour"
 
 
