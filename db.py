@@ -609,6 +609,26 @@ def save_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int,
             except (ValueError, TypeError):
                 continue
 
+    # Entwicklungsart aus Wesentlichkeit ableiten:
+    # 'idv' ↔ 'arbeitshilfe' wird automatisch umgeschaltet, sobald mindestens
+    # ein aktives Kriterium erfüllt ist. Manuell gesetzte 'eigenprogrammierung'
+    # oder 'auftragsprogrammierung' bleiben unangetastet.
+    wesentlich = conn.execute("""
+        SELECT EXISTS (
+            SELECT 1 FROM idv_wesentlichkeit w
+            JOIN wesentlichkeitskriterien k ON k.id = w.kriterium_id
+            WHERE w.idv_db_id = ? AND w.erfuellt = 1 AND k.aktiv = 1
+        )
+    """, (idv_db_id,)).fetchone()[0]
+    neue_art = "idv" if wesentlich else "arbeitshilfe"
+    conn.execute("""
+        UPDATE idv_register
+        SET entwicklungsart = ?, aktualisiert_am = ?
+        WHERE id = ?
+          AND entwicklungsart IN ('idv', 'arbeitshilfe')
+          AND entwicklungsart != ?
+    """, (neue_art, now, idv_db_id, neue_art))
+
     if commit:
         conn.commit()
 
@@ -654,6 +674,7 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "version":                   data.get("version", "1.0"),
         "file_id":                   data.get("file_id"),
         "idv_typ":                   data.get("idv_typ", "unklassifiziert"),
+        "entwicklungsart":           data.get("entwicklungsart", "arbeitshilfe"),
         "gp_id":                     data.get("gp_id"),
         "gp_freitext":               data.get("gp_freitext"),
         "risikoklasse_id":           data.get("risikoklasse_id"),
@@ -742,7 +763,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
 
     # Änderungsprotokoll aufbauen
     tracked_fields = [
-        "bezeichnung", "idv_typ", "status",
+        "bezeichnung", "idv_typ", "entwicklungsart", "status",
         "fachverantwortlicher_id", "gp_id", "risikoklasse_id",
         "naechste_pruefung", "pruefintervall_monate", "gobd_relevant",
         "teststatus",
@@ -755,6 +776,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
     # Update ausführen
     update_fields = {k: v for k, v in data.items() if k in [
         "bezeichnung", "kurzbeschreibung", "version", "idv_typ",
+        "entwicklungsart",
         "gp_id", "gp_freitext",
         "risikoklasse_id", "risiko_verfuegbarkeit", "risiko_integritaet",
         "risiko_vertraulichkeit", "risiko_nachvollziehbarkeit",

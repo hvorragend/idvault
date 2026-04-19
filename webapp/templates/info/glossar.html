@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Glossar – Entwicklungsarten{% endblock %}
+{% block page_title %}
+<i class="bi bi-book me-2"></i>Glossar: Entwicklungsarten &amp; Abgrenzung
+{% endblock %}
+
+{% block content %}
+
+<div class="alert alert-info d-flex align-items-start gap-3">
+  <i class="bi bi-info-circle fs-4 flex-shrink-0 mt-1"></i>
+  <div>
+    <strong>Regulatorischer Hintergrund.</strong>
+    Im Umfeld von <em>MaRisk AT 7.2</em>, <em>BAIT</em> und <em>DORA</em> bestimmt
+    die Entwicklungsart, welche Kontrollen (Testpflichten, Dokumentation,
+    Funktionstrennung, Auslagerungsmanagement) greifen. Der Übergang
+    <strong>Arbeitshilfe → IDV</strong> erfolgt automatisch über die
+    Wesentlichkeitsprüfung.
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-table me-1"></i>Vergleichstabelle
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Begriff</th>
+          <th>Wer entwickelt?</th>
+          <th>Wo findet es statt?</th>
+          <th>Fokus der Regulatorik</th>
+          <th class="text-center">Im Register erfasst?</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in glossar %}
+        <tr>
+          <td class="fw-600">{{ g.begriff }}</td>
+          <td>{{ g.entwickler }}</td>
+          <td>{{ g.ort }}</td>
+          <td>{{ g.fokus }}</td>
+          <td class="text-center">
+            {% if g.im_register %}
+            <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
+            {% else %}
+            <span class="badge bg-light text-muted border">Oberbegriff</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for g in glossar %}
+  <div class="col-md-6">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-2">{{ g.begriff }}</h5>
+        <div class="text-muted mb-2" style="font-size:.82rem">
+          <i class="bi bi-people me-1"></i>{{ g.entwickler }}
+          &nbsp;·&nbsp;
+          <i class="bi bi-geo-alt me-1"></i>{{ g.ort }}
+        </div>
+        <p class="card-text mb-0">{{ g.beschreibung }}</p>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-arrow-right-circle me-1"></i>Wann wird aus einer Arbeitshilfe eine IDV?
+  </div>
+  <div class="card-body">
+    <p>
+      Eine einfache <strong>Arbeitshilfe</strong> – etwa eine Excel-Tabelle zur
+      Formatierung – unterliegt nur geringen Kontrollen. Sobald die Tabelle jedoch
+    </p>
+    <ul>
+      <li><strong>rechnungsrelevant</strong> ist (HGB / GoBD),</li>
+      <li>komplexe Berechnungslogik enthält,</li>
+      <li>zur <strong>Risikosteuerung</strong> oder zur Meldeerstellung genutzt wird,</li>
+      <li>auf personenbezogene oder besonders sensible Daten zugreift,</li>
+    </ul>
+    <p class="mb-0">
+      wird sie zur <strong>IDV</strong> und unterliegt dem vollständigen
+      Rahmenwerk (Dokumentation, Test, Freigabe, Vier-Augen-Prinzip).
+      Die im Register hinterlegten <em>Wesentlichkeitskriterien</em> entscheiden
+      automatisch: bei mindestens einem erfüllten aktiven Kriterium wechselt die
+      Entwicklungsart auf <strong>IDV</strong>, andernfalls auf
+      <strong>Arbeitshilfe</strong>. Manuell gesetzte Werte
+      (<em>Eigenprogrammierung</em>, <em>Auftragsprogrammierung</em>) bleiben
+      unverändert.
+    </p>
+  </div>
+</div>
+
+{% endblock %}

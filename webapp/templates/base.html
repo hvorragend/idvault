@@ -426,6 +426,12 @@
       <i class="bi bi-bar-chart-line"></i> Berichte
     </a>
 
+    <div class="nav-label">Hilfe</div>
+    <a href="{{ url_for('info.glossar') }}"
+       class="nav-link {% if request.endpoint == 'info.glossar' %}active{% endif %}">
+      <i class="bi bi-book"></i> Glossar
+    </a>
+
     {% if _is_admin %}
     <div class="nav-label">System</div>
     <a href="{{ url_for('admin.index') }}" class="nav-link {% if request.blueprint == 'admin' and request.endpoint != 'admin.update_index' %}active{% endif %}">

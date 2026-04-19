@@ -15,6 +15,13 @@
     {% else %}
     <span class="badge bg-secondary fs-6">Nicht wesentlich</span>
     {% endif %}
+    {% set art = idv.entwicklungsart or 'arbeitshilfe' %}
+    {% set art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
+                        'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
+    <span class="badge {{ art_color.get(art, 'bg-secondary') }} fs-6"
+          title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA / BAIT)">
+      {{ entwicklungsart_label.get(art, art) }}
+    </span>
     <span class="badge status-{{ idv.status|replace(' ', '-') }} fs-6">{{ idv.status }}</span>
   </div>
   <div class="d-flex gap-2">

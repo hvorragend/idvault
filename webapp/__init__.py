@@ -446,6 +446,7 @@ def create_app(db_path: str = None) -> Flask:
     from .routes.freigaben  import bp as freigaben_bp
     from .routes.tests      import bp as tests_bp
     from .routes.cognos     import bp as cognos_bp
+    from .routes.info       import bp as info_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
@@ -458,6 +459,7 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(freigaben_bp)
     app.register_blueprint(tests_bp)
     app.register_blueprint(cognos_bp)
+    app.register_blueprint(info_bp)
 
     # Zeitplan-Scheduler starten (Daemon-Thread – nicht in Testläufen)
     if not app.testing:
