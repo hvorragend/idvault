@@ -1671,17 +1671,12 @@ def index():
         d["verwendungen"] = verwendungen
         wesentlichkeitskriterien.append(d)
 
-    glossar_eintraege = db.execute("""
-        SELECT * FROM glossar_eintraege ORDER BY sort_order, id
-    """).fetchall()
-
     return render_template("admin/index.html",
         org_units=org_units,
         geschaeftsprozesse=geschaeftsprozesse, plattformen=plattformen,
         klassifizierungen=klassifizierungen,
         klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE,
-        wesentlichkeitskriterien=wesentlichkeitskriterien,
-        glossar_eintraege=glossar_eintraege)
+        wesentlichkeitskriterien=wesentlichkeitskriterien)
 
 
 @bp.route("/mitarbeiter")
@@ -3558,6 +3553,36 @@ def update_log():
 
 # ── Glossar-Verwaltung ───────────────────────────────────────────────────────
 
+_GLOSSAR_TEXT_KEYS_OVERVIEW = [
+    "glossar_hintergrund_text",
+    "glossar_wesentlichkeit_titel",
+    "glossar_wesentlichkeit_einleitung",
+    "glossar_wesentlichkeit_kriterien",
+    "glossar_wesentlichkeit_schluss",
+]
+
+
+@bp.route("/glossar")
+@admin_required
+def glossar_overview():
+    db = get_db()
+    glossar_eintraege = db.execute(
+        "SELECT * FROM glossar_eintraege ORDER BY sort_order, id"
+    ).fetchall()
+    rows = db.execute(
+        "SELECT key, value FROM app_settings WHERE key IN ({})".format(
+            ",".join("?" * len(_GLOSSAR_TEXT_KEYS_OVERVIEW))
+        ),
+        _GLOSSAR_TEXT_KEYS_OVERVIEW,
+    ).fetchall()
+    settings = {r["key"]: r["value"] for r in rows}
+    return render_template(
+        "admin/glossar.html",
+        glossar_eintraege=glossar_eintraege,
+        settings=settings,
+    )
+
+
 @bp.route("/glossar/neu", methods=["GET", "POST"])
 @admin_required
 def new_glossar():
@@ -3578,7 +3603,7 @@ def new_glossar():
         ))
         db.commit()
         flash("Glossar-Eintrag angelegt.", "success")
-        return redirect(url_for("admin.index") + "#glossar")
+        return redirect(url_for("admin.glossar_overview"))
     return render_template("admin/glossar_edit.html", row=None)
 
 
@@ -3589,7 +3614,7 @@ def edit_glossar(gid):
     row = db.execute("SELECT * FROM glossar_eintraege WHERE id = ?", (gid,)).fetchone()
     if not row:
         flash("Eintrag nicht gefunden.", "error")
-        return redirect(url_for("admin.index") + "#glossar")
+        return redirect(url_for("admin.glossar_overview"))
     if request.method == "POST":
         db.execute("""
             UPDATE glossar_eintraege
@@ -3615,7 +3640,7 @@ def edit_glossar(gid):
         ))
         db.commit()
         flash("Glossar-Eintrag gespeichert.", "success")
-        return redirect(url_for("admin.index") + "#glossar")
+        return redirect(url_for("admin.glossar_overview"))
     return render_template("admin/glossar_edit.html", row=dict(row))
 
 
@@ -3626,16 +3651,7 @@ def delete_glossar(gid):
     db.execute("DELETE FROM glossar_eintraege WHERE id = ?", (gid,))
     db.commit()
     flash("Glossar-Eintrag gelöscht.", "success")
-    return redirect(url_for("admin.index") + "#glossar")
-
-
-_GLOSSAR_TEXT_KEYS = [
-    "glossar_hintergrund_text",
-    "glossar_wesentlichkeit_titel",
-    "glossar_wesentlichkeit_einleitung",
-    "glossar_wesentlichkeit_kriterien",
-    "glossar_wesentlichkeit_schluss",
-]
+    return redirect(url_for("admin.glossar_overview"))
 
 
 @bp.route("/glossar/erklaerung", methods=["GET", "POST"])
@@ -3643,7 +3659,7 @@ _GLOSSAR_TEXT_KEYS = [
 def glossar_erklaerung():
     db = get_db()
     if request.method == "POST":
-        for key in _GLOSSAR_TEXT_KEYS:
+        for key in _GLOSSAR_TEXT_KEYS_OVERVIEW:
             value = request.form.get(key, "").strip()
             db.execute(
                 "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
@@ -3654,9 +3670,9 @@ def glossar_erklaerung():
         return redirect(url_for("admin.glossar_erklaerung"))
     rows = db.execute(
         "SELECT key, value FROM app_settings WHERE key IN ({})".format(
-            ",".join("?" * len(_GLOSSAR_TEXT_KEYS))
+            ",".join("?" * len(_GLOSSAR_TEXT_KEYS_OVERVIEW))
         ),
-        _GLOSSAR_TEXT_KEYS,
+        _GLOSSAR_TEXT_KEYS_OVERVIEW,
     ).fetchall()
     settings = {r["key"]: r["value"] for r in rows}
     return render_template("admin/glossar_erklaerung.html", settings=settings)

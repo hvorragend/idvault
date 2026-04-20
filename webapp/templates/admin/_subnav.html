@@ -37,5 +37,11 @@
         <i class="bi bi-speedometer2 me-1"></i>Rate-Limits
       </a>
     </li>
+    <li class="nav-item">
+      <a href="{{ url_for('admin.glossar_overview') }}"
+         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.glossar_overview','admin.new_glossar','admin.edit_glossar','admin.glossar_erklaerung') %}active{% endif %}">
+        <i class="bi bi-book me-1"></i>Glossar
+      </a>
+    </li>
   </ul>
 </nav>
