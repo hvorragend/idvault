@@ -49,7 +49,6 @@ def _form_lookups(db):
         "persons":            db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall(),
         "geschaeftsprozesse": db.execute("SELECT * FROM geschaeftsprozesse WHERE aktiv=1 ORDER BY gp_nummer").fetchall(),
         "plattformen":        db.execute("SELECT * FROM plattformen WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
-        "risikoklassen":      db.execute("SELECT * FROM risikoklassen ORDER BY sort_order").fetchall(),
         # Konfigurierbare Klassifizierungen
         "idv_typen":               get_klassifizierungen(db, "idv_typ"),
         "pruefintervalle":         get_klassifizierungen(db, "pruefintervall_monate"),
@@ -942,7 +941,6 @@ def _form_to_dict(form) -> dict:
         "entwicklungsart":           form.get("entwicklungsart", "arbeitshilfe"),
         "gp_id":                     _int_or_none(form.get("gp_id")),
         "gp_freitext":               form.get("gp_freitext") or None,
-        "risikoklasse_id":           _int_or_none(form.get("risikoklasse_id")),
         "org_unit_id":               _int_or_none(form.get("org_unit_id")),
         "fachverantwortlicher_id":   _int_or_none(form.get("fachverantwortlicher_id")),
         "idv_entwickler_id":         _int_or_none(form.get("idv_entwickler_id")),
@@ -971,7 +969,6 @@ def _form_to_dict(form) -> dict:
         "abloesung_durch":           form.get("abloesung_durch") or None,
         "interne_notizen":           form.get("interne_notizen") or None,
         # Neue Felder (außerhalb Wesentlichkeitsbeurteilung)
-        "gobd_relevant":             chk("gobd_relevant"),
         "erstellt_fuer":             form.get("erstellt_fuer") or None,
         "schnittstellen_beschr":     form.get("schnittstellen_beschr") or None,
     }

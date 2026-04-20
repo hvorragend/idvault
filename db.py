@@ -44,7 +44,20 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
     sql = schema_path.read_text(encoding="utf-8")
     conn.executescript(sql)
     conn.commit()
+    _migrate_risikoklasse(conn)
     return conn
+
+
+def _migrate_risikoklasse(conn: sqlite3.Connection) -> None:
+    """Entfernt risikoklasse_id und risikoklassen-Tabelle aus bestehenden Datenbanken."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(idv_register)").fetchall()}
+    if "risikoklasse_id" in cols:
+        conn.execute("ALTER TABLE idv_register DROP COLUMN risikoklasse_id")
+        conn.commit()
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    if "risikoklassen" in tables:
+        conn.execute("DROP TABLE risikoklassen")
+        conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +276,6 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "entwicklungsart":           data.get("entwicklungsart", "arbeitshilfe"),
         "gp_id":                     data.get("gp_id"),
         "gp_freitext":               data.get("gp_freitext"),
-        "risikoklasse_id":           data.get("risikoklasse_id"),
         "risiko_verfuegbarkeit":     data.get("risiko_verfuegbarkeit"),
         "risiko_integritaet":        data.get("risiko_integritaet"),
         "risiko_vertraulichkeit":    data.get("risiko_vertraulichkeit"),
@@ -294,7 +306,6 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "abloesung_zieldatum":       data.get("abloesung_zieldatum"),
         "abloesung_durch":           data.get("abloesung_durch"),
         # Neue Felder
-        "gobd_relevant":                 int(data.get("gobd_relevant", 0)),
         "erstellt_fuer":                 data.get("erstellt_fuer"),
         "schnittstellen_beschr":         data.get("schnittstellen_beschr"),
         "teststatus":                    data.get("teststatus", "Wertung ausstehend"),
@@ -350,8 +361,8 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
     # Änderungsprotokoll aufbauen
     tracked_fields = [
         "bezeichnung", "idv_typ", "entwicklungsart", "status",
-        "fachverantwortlicher_id", "gp_id", "risikoklasse_id",
-        "naechste_pruefung", "pruefintervall_monate", "gobd_relevant",
+        "fachverantwortlicher_id", "gp_id",
+        "naechste_pruefung", "pruefintervall_monate",
         "teststatus",
     ]
     changes = {}
@@ -364,7 +375,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
         "bezeichnung", "kurzbeschreibung", "version", "idv_typ",
         "entwicklungsart",
         "gp_id", "gp_freitext",
-        "risikoklasse_id", "risiko_verfuegbarkeit", "risiko_integritaet",
+        "risiko_verfuegbarkeit", "risiko_integritaet",
         "risiko_vertraulichkeit", "risiko_nachvollziehbarkeit",
         "org_unit_id", "fachverantwortlicher_id", "idv_entwickler_id",
         "idv_koordinator_id", "stellvertreter_id",
@@ -377,7 +388,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
         "zugriffsschutz", "zugriffsschutz_beschr", "vier_augen_prinzip",
         "abloesung_geplant", "abloesung_zieldatum", "abloesung_durch",
         "pruefintervall_monate", "naechste_pruefung", "interne_notizen", "tags",
-        "gobd_relevant", "erstellt_fuer", "schnittstellen_beschr",
+        "erstellt_fuer", "schnittstellen_beschr",
         "teststatus",
         "letzte_aenderungsart", "letzte_aenderungsbegruendung",
     ]}

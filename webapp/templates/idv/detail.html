@@ -233,62 +233,21 @@
     </div>
     {% endif %}
 
-    <!-- Technische Angaben -->
+    <!-- Technik & Betrieb -->
     <div class="form-section">
-      <div class="form-section-title">Technische Angaben</div>
+      <div class="form-section-title">Technik & Betrieb</div>
       <div class="row g-3">
         <div class="col-sm-4">
           <div class="detail-label">Programmiersprache</div>
           <div class="detail-value">{{ idv.programmiersprache or '–' }}</div>
         </div>
         <div class="col-sm-4">
-          <div class="detail-label">DB-Anbindung</div>
-          <div class="detail-value">{{ idv.datenbankanbindung|yesno }}</div>
-        </div>
-        <div class="col-sm-4">
-          <div class="detail-label">Netzwerkzugriff</div>
-          <div class="detail-value">{{ idv.netzwerkzugriff|yesno }}</div>
-        </div>
-        {% if idv.datenbankanbindung %}
-        <div class="col-12">
-          <div class="detail-label">DB-Beschreibung</div>
-          <div>{{ idv.datenbankanbindung_beschr or '–' }}</div>
-        </div>
-        {% endif %}
-        <div class="col-sm-4">
-          <div class="detail-label">Dokumentation</div>
-          <div class="detail-value">{{ idv.dokumentation_vorhanden|yesno }}</div>
-        </div>
-        <div class="col-sm-4">
-          <div class="detail-label">Testkonzept</div>
-          <div class="detail-value">{{ idv.testkonzept_vorhanden|yesno }}</div>
+          <div class="detail-label">Nutzungsfrequenz</div>
+          <div class="detail-value">{{ idv.nutzungsfrequenz or '–' }}</div>
         </div>
         <div class="col-sm-4">
           <div class="detail-label">4-Augen-Prinzip</div>
           <div class="detail-value">{{ idv.vier_augen_prinzip|yesno }}</div>
-        </div>
-        <div class="col-sm-4">
-          <div class="detail-label">Nutzungsfrequenz</div>
-          <div class="detail-value">{{ idv.nutzungsfrequenz or '–' }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Weitere Angaben -->
-    <div class="form-section">
-      <div class="form-section-title">Weitere Angaben</div>
-      <div class="row g-3">
-        <div class="col-sm-4">
-          <div class="detail-label">Risikoklasse</div>
-          <div class="detail-value">{{ idv.risikoklasse or '–' }}</div>
-        </div>
-        <div class="col-sm-4">
-          <div class="detail-label">GoBD-relevant</div>
-          <div class="detail-value">{{ idv.gobd_relevant|yesno }}</div>
-        </div>
-        <div class="col-sm-8">
-          <div class="detail-label">Erstellt für / Verwendungszweck</div>
-          <div>{{ idv.erstellt_fuer or '–' }}</div>
         </div>
         <div class="col-sm-6">
           <div class="detail-label">Datenquellen</div>
@@ -301,6 +260,10 @@
         <div class="col-sm-6">
           <div class="detail-label">Datenempfänger</div>
           <div>{{ idv.datenempfaenger or '–' }}</div>
+        </div>
+        <div class="col-sm-6">
+          <div class="detail-label">Erstellt für / Verwendungszweck</div>
+          <div>{{ idv.erstellt_fuer or '–' }}</div>
         </div>
       </div>
     </div>
