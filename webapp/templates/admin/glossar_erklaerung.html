@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Glossar – Erläuterungstexte bearbeiten{% endblock %}
+{% block page_title %}
+<i class="bi bi-book me-2"></i>Glossar – Erläuterungstexte
+{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-text-paragraph me-1"></i>Erläuterungstexte auf der Glossar-Seite
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info py-2 mb-4" style="font-size:.83rem">
+          <i class="bi bi-info-circle me-1"></i>
+          Diese Texte erscheinen auf der Hilfe-Seite <strong>/hilfe/glossar</strong>.
+          Leerzeilen werden ignoriert; für die Kriterienliste gilt: ein Kriterium pro Zeile.
+        </div>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <h6 class="fw-600 mb-2">Regulatorischer Hintergrund (Info-Box oben)</h6>
+          <div class="mb-4">
+            <textarea name="glossar_hintergrund_text" class="form-control" rows="4"
+                      placeholder="Text der Info-Box am Seitenanfang">{{ settings.get('glossar_hintergrund_text', '') }}</textarea>
+          </div>
+
+          <hr class="my-4">
+
+          <h6 class="fw-600 mb-3">Abschnitt: Übergang Arbeitshilfe → IDV</h6>
+
+          <div class="mb-3">
+            <label class="form-label fw-600">Abschnitts-Titel</label>
+            <input type="text" name="glossar_wesentlichkeit_titel" class="form-control"
+                   value="{{ settings.get('glossar_wesentlichkeit_titel', '') }}"
+                   placeholder="z.B. Wann wird aus einer Arbeitshilfe eine IDV?">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-600">Einleitungstext</label>
+            <textarea name="glossar_wesentlichkeit_einleitung" class="form-control" rows="3"
+                      placeholder="Einleitender Paragraph vor der Kriterienliste">{{ settings.get('glossar_wesentlichkeit_einleitung', '') }}</textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-600">Kriterien-Liste</label>
+            <div class="form-text mb-1">Ein Kriterium pro Zeile – wird als Aufzählungsliste dargestellt.</div>
+            <textarea name="glossar_wesentlichkeit_kriterien" class="form-control" rows="6"
+                      placeholder="rechnungsrelevant ist (HGB / GoBD)
+komplexe Berechnungslogik enthält
+…">{{ settings.get('glossar_wesentlichkeit_kriterien', '') }}</textarea>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-600">Schlusstext</label>
+            <textarea name="glossar_wesentlichkeit_schluss" class="form-control" rows="4"
+                      placeholder="Abschließender Paragraph nach der Kriterienliste">{{ settings.get('glossar_wesentlichkeit_schluss', '') }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-floppy me-1"></i>Speichern
+            </button>
+            <a href="{{ url_for('admin.glossar_overview') }}" class="btn btn-outline-secondary">Zurück</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
