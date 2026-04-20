@@ -274,6 +274,16 @@
                    class="btn btn-xs btn-outline-primary py-0 px-1" title="Bearbeiten / Details">
                   <i class="bi bi-pencil"></i>
                 </a>
+                {% if k.verwendungen == 0 %}
+                <form method="post"
+                      action="{{ url_for('admin.delete_wesentlichkeitskriterium', kid=k.id) }}"
+                      class="d-inline" data-confirm="Kriterium unwiderruflich löschen?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Löschen">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% else %}
                 <form method="post"
                       action="{{ url_for('admin.delete_wesentlichkeitskriterium', kid=k.id) }}"
                       class="d-inline" data-confirm="Kriterium deaktivieren? Vorhandene Antworten bleiben erhalten.">
@@ -282,6 +292,7 @@
                     <i class="bi bi-dash-circle"></i>
                   </button>
                 </form>
+                {% endif %}
               </td>
             </tr>
             {% else %}
