@@ -908,8 +908,9 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                 _check_and_handle_signals(signal_dir, logger)
                 _flush_log(logger)
 
-            if stats["total"] % 20 == 0:
+            if stats["total"] % 5 == 0:
                 conn.commit()
+            if stats["total"] % 20 == 0:
                 logger.info(f"  … {stats['total']} Dateien verarbeitet")
         except ScanCancelledError:
             raise
