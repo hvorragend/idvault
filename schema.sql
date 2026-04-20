@@ -195,9 +195,7 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('path_mappings',           '[]'),
     ('scanner_config',          '{}'),
     ('teams_config',            '{}'),
-    ('teams_client_secret_enc', '');
-
-INSERT OR IGNORE INTO app_settings (key, value) VALUES
+    ('teams_client_secret_enc', ''),
     ('glossar_hintergrund_text',
      'Regulatorischer Hintergrund. Im Umfeld von MaRisk AT 7.2, BAIT und DORA bestimmt die Entwicklungsart, welche Kontrollen (Testpflichten, Dokumentation, Funktionstrennung, Auslagerungsmanagement) greifen. Der Übergang Arbeitshilfe → IDV erfolgt automatisch über die Wesentlichkeitsprüfung.'),
     ('glossar_info_unten',
