@@ -1663,8 +1663,12 @@ def index():
             WHERE kriterium_id = ?
             ORDER BY sort_order, id
         """, (k["id"],)).fetchall()
+        verwendungen = db.execute(
+            "SELECT COUNT(*) FROM idv_wesentlichkeit WHERE kriterium_id=?", (k["id"],)
+        ).fetchone()[0]
         d = dict(k)
         d["details"] = [dict(r) for r in details]
+        d["verwendungen"] = verwendungen
         wesentlichkeitskriterien.append(d)
 
     return render_template("admin/index.html",
@@ -2640,9 +2644,17 @@ def edit_wesentlichkeitskriterium(kid):
 @admin_required
 def delete_wesentlichkeitskriterium(kid):
     db = get_db()
-    db.execute("UPDATE wesentlichkeitskriterien SET aktiv=0 WHERE id=?", (kid,))
-    db.commit()
-    flash("Kriterium deaktiviert. Vorhandene Antworten bleiben erhalten.", "success")
+    in_use = db.execute(
+        "SELECT 1 FROM idv_wesentlichkeit WHERE kriterium_id=? LIMIT 1", (kid,)
+    ).fetchone()
+    if in_use:
+        db.execute("UPDATE wesentlichkeitskriterien SET aktiv=0 WHERE id=?", (kid,))
+        db.commit()
+        flash("Kriterium deaktiviert. Vorhandene Antworten bleiben erhalten.", "success")
+    else:
+        db.execute("DELETE FROM wesentlichkeitskriterien WHERE id=?", (kid,))
+        db.commit()
+        flash("Kriterium gelöscht.", "success")
     return redirect(url_for("admin.index") + "#wesentlichkeit")
 
 
