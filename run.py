@@ -2,7 +2,18 @@
 idvault – Startpunkt
 ====================
 Entwicklung:  python run.py
-Produktion:   gunicorn "run:app" --workers 2 --bind 0.0.0.0:5000
+Produktion:   gunicorn "run:app" --workers 1 --bind 0.0.0.0:5000
+              (oder cheroot/waitress mit genau 1 Prozess; siehe unten)
+
+WICHTIG — Single-Process-Constraint:
+  Ab der Einfuehrung des db_writer-Threads (webapp/db_writer.py) darf die
+  App nur in *einem* Prozess laufen. Mehrere Worker-Prozesse haetten je
+  ihren eigenen Writer-Thread und damit wieder konkurrierende Writer, was
+  die database-is-locked-Race zurueckbringt.
+
+  - gunicorn: --workers 1
+  - waitress / cheroot: single-process (Default)
+  - uwsgi:   --processes 1  (Threads statt Prozesse verwenden)
 
 Konfiguration (config.json):
   Beim ersten Start wird config.json mit einem zufälligen SECRET_KEY
