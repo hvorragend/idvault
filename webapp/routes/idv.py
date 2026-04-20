@@ -23,6 +23,26 @@ _EXT_TO_TYP = {
 bp = Blueprint("idv", __name__, url_prefix="/idv")
 
 
+# Regulatorische Entwicklungsarten (MaRisk AT 7.2 / DORA / BAIT).
+# Reihenfolge: vom leichtgewichtigsten (Arbeitshilfe) zum regulierten.
+ENTWICKLUNGSARTEN = [
+    ("arbeitshilfe",
+     "Arbeitshilfe",
+     "Fachbereich, dezentral, unterhalb der Wesentlichkeitsschwelle."),
+    ("idv",
+     "IDV",
+     "Individuelle Datenverarbeitung – wesentlich, kontrollpflichtig (MaRisk AT 7.2)."),
+    ("eigenprogrammierung",
+     "Eigenprogrammierung",
+     "Interne IT, zentraler IT-Prozess – Code-Qualität, Funktionstrennung."),
+    ("auftragsprogrammierung",
+     "Auftragsprogrammierung",
+     "Externer Dienstleister – DORA-Drittparteien-Risikomanagement."),
+]
+
+ENTWICKLUNGSART_LABEL = {key: label for key, label, _desc in ENTWICKLUNGSARTEN}
+
+
 def _form_lookups(db):
     return {
         "org_units":          db.execute("SELECT * FROM org_units WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
@@ -36,6 +56,7 @@ def _form_lookups(db):
         "nutzungsfrequenzen":      get_klassifizierungen(db, "nutzungsfrequenz"),
         # Konfigurierbare Wesentlichkeitskriterien (inkl. Detail-Checkboxen)
         "wesentlichkeitskriterien": get_wesentlichkeitskriterien(db, nur_aktive=True),
+        "entwicklungsarten":       ENTWICKLUNGSARTEN,
     }
 
 
@@ -62,6 +83,9 @@ def list_idv():
     fv_id   = _int_or_none(request.args.get("fv_id"))
     owner_filt = request.args.get("owner", "").strip()
     share_root = request.args.get("share_root", "").strip()
+    entwicklungsart = request.args.get("entwicklungsart", "").strip()
+    if entwicklungsart not in ENTWICKLUNGSART_LABEL:
+        entwicklungsart = ""
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
@@ -109,6 +133,9 @@ def list_idv():
             "r.file_id IN (SELECT id FROM idv_files WHERE file_owner = ?)"
         )
         params.append(owner_filt)
+    if entwicklungsart:
+        where_parts.append("r.entwicklungsart = ?")
+        params.append(entwicklungsart)
 
     # Spezialfilter
     if filt in ("kritisch", "wesentlich"):
@@ -200,7 +227,10 @@ def list_idv():
                            valid_per_page=_VALID_PER_PAGE_IDV,
                            q=q, status=status, filt=filt,
                            oe_id=oe_id, fv_id=fv_id,
-                           share_root=share_root)
+                           share_root=share_root,
+                           entwicklungsart=entwicklungsart,
+                           entwicklungsarten=ENTWICKLUNGSARTEN,
+                           entwicklungsart_label=ENTWICKLUNGSART_LABEL)
 
 
 # ── Globale Schnellsuche (JSON) ────────────────────────────────────────────
@@ -485,6 +515,7 @@ def detail_idv(idv_db_id):
         technischer_test=technischer_test,
         fachlich_vorhanden=fachlich_vorhanden,
         technisch_vorhanden=technisch_vorhanden,
+        entwicklungsart_label=ENTWICKLUNGSART_LABEL,
         can_create=can_create())
 
 
@@ -908,6 +939,7 @@ def _form_to_dict(form) -> dict:
         "kurzbeschreibung":          form.get("kurzbeschreibung", "").strip() or None,
         "version":                   form.get("version", "1.0").strip(),
         "idv_typ":                   form.get("idv_typ", "unklassifiziert"),
+        "entwicklungsart":           form.get("entwicklungsart", "arbeitshilfe"),
         "gp_id":                     _int_or_none(form.get("gp_id")),
         "gp_freitext":               form.get("gp_freitext") or None,
         "risikoklasse_id":           _int_or_none(form.get("risikoklasse_id")),

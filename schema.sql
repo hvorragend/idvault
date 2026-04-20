@@ -298,7 +298,7 @@ CREATE TABLE IF NOT EXISTS idv_register (
     weitere_dateien         TEXT,                       -- JSON: ["\\server\...", ...]
 
     -- -------------------------------------------------------------------------
-    -- Klassifizierung IDV-Typ
+    -- Klassifizierung IDV-Typ (technische Kategorie)
     -- -------------------------------------------------------------------------
     idv_typ                 TEXT NOT NULL DEFAULT 'unklassifiziert',
     -- Zulässige Werte:
@@ -311,6 +311,20 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- 'Power-BI-Bericht'     PBIX mit Datentransformation
     -- 'Sonstige'
     -- 'unklassifiziert'      Noch nicht bewertet
+
+    -- -------------------------------------------------------------------------
+    -- Entwicklungsart (regulatorische Kategorie nach MaRisk / DORA / BAIT)
+    -- -------------------------------------------------------------------------
+    -- Grenzt den Datensatz begrifflich von den Notes-IdVault-Einträgen und den
+    -- zentral verwalteten Anwendungen ab. Der Übergang Arbeitshilfe → IDV wird
+    -- automatisch aus der Wesentlichkeitsprüfung abgeleitet.
+    entwicklungsart         TEXT NOT NULL DEFAULT 'arbeitshilfe'
+        CHECK (entwicklungsart IN
+            ('eigenprogrammierung','auftragsprogrammierung','idv','arbeitshilfe')),
+    -- 'eigenprogrammierung'   Interne IT, zentraler IT-Prozess (MaRisk AT 7.2)
+    -- 'auftragsprogrammierung' Externer Dienstleister, DORA-Drittparteienmgmt.
+    -- 'idv'                   Fachbereich, dezentral, wesentlich
+    -- 'arbeitshilfe'          Fachbereich, dezentral, unterhalb Wesentlichkeit
 
     -- -------------------------------------------------------------------------
     -- Wesentlichkeitsbeurteilung

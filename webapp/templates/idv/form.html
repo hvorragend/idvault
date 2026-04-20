@@ -101,6 +101,28 @@
         </select>
       </div>
 
+      <div class="col-md-6">
+        <label class="form-label">
+          Entwicklungsart <span class="required-star">*</span>
+          <a href="{{ url_for('info.glossar') }}" target="_blank"
+             class="text-decoration-none ms-1" title="Abgrenzung der Begriffe">
+            <i class="bi bi-info-circle"></i>
+          </a>
+        </label>
+        {% set current_art = idv.entwicklungsart if idv else 'arbeitshilfe' %}
+        <select name="entwicklungsart" class="form-select" required>
+          {% for key, label, desc in entwicklungsarten %}
+          <option value="{{ key }}" title="{{ desc }}" {{ 'selected' if current_art==key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">
+          Bei Wesentlichkeitsprüfung wechseln <em>Arbeitshilfe</em> und <em>IDV</em>
+          automatisch; <em>Eigen-</em> / <em>Auftragsprogrammierung</em> bleiben fix.
+        </div>
+      </div>
+
+      <div class="col-md-6"></div>
+
       <div class="col-12">
         <label class="form-label">Kurzbeschreibung</label>
         <textarea name="kurzbeschreibung" class="form-control" rows="3"
