@@ -373,19 +373,19 @@
     </a>
 
     {% if _can_create %}
-    <a href="{{ url_for('idv.new_idv') }}" class="nav-link">
+    <a href="{{ url_for('eigenentwicklung.new_idv') }}" class="nav-link">
       <i class="bi bi-plus-circle"></i> Neue Eintrag erfassen
     </a>
     {% endif %}
 
     <div class="nav-label">Register</div>
-    <a href="{{ url_for('idv.list_idv') }}"
-      class="nav-link {% if request.blueprint == 'idv' and request.endpoint != 'idv.nicht_wesentliche_idvs' %}active{% endif %}">
-      <i class="bi bi-table"></i> Wesentliche IDV
+    <a href="{{ url_for('eigenentwicklung.list_idv') }}"
+      class="nav-link {% if request.blueprint == 'eigenentwicklung' and request.endpoint != 'eigenentwicklung.nicht_wesentliche_idvs' %}active{% endif %}">
+      <i class="bi bi-table"></i> Wesentliche Eigenentwicklungen
     </a>
     {% if _is_admin or _is_koord %}
-    <a href="{{ url_for('idv.nicht_wesentliche_idvs') }}"
-      class="nav-link {% if request.endpoint == 'idv.nicht_wesentliche_idvs' %}active{% endif %}">
+    <a href="{{ url_for('eigenentwicklung.nicht_wesentliche_idvs') }}"
+      class="nav-link {% if request.endpoint == 'eigenentwicklung.nicht_wesentliche_idvs' %}active{% endif %}">
       <i class="bi bi-dash-circle"></i> Nicht wesentliche
     </a>
     {% endif %}
@@ -678,7 +678,7 @@
     <div style="padding:.6rem .9rem;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:.6rem;">
       <i class="bi bi-search text-muted"></i>
       <input id="qs-input" type="text" autocomplete="off" spellcheck="false"
-        placeholder="IDV-ID, Bezeichnung, Beschreibung …"
+        placeholder="ID, Bezeichnung, Beschreibung …"
         style="flex:1;border:none;outline:none;font-size:1rem;background:transparent;">
       <kbd data-action="closeSearch" style="cursor:pointer;font-size:.72rem;background:#f1f5f9;border:1px solid #cbd5e1;
                   border-radius:3px;padding:.1rem .35rem;color:#64748b;">Esc</kbd>
@@ -753,7 +753,7 @@
   </style>
   <script>
     (function () {
-      const SEARCH_URL = "{{ url_for('idv.quick_search') }}";
+      const SEARCH_URL = "{{ url_for('eigenentwicklung.quick_search') }}";
       const backdrop = document.getElementById('qs-backdrop');
       const modal = document.getElementById('qs-modal');
       const input = document.getElementById('qs-input');

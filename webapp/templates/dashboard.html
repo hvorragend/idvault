@@ -8,7 +8,7 @@
 <div class="row g-3 mb-4">
 
   {% set cards = [
-  ("gesamt_aktiv", "IDVs gesamt", "bi-archive", "#1a3a5c", ""),
+  ("gesamt_aktiv", "Eigenentwicklungen gesamt", "bi-archive", "#1a3a5c", ""),
   ("wesentlich", "Wesentlich", "bi-exclamation-triangle-fill","#842029",""),
   ("nicht_wesentlich", "Nicht wesentlich", "bi-check2-circle", "#166534", ""),
   ("genehmigt", "Freigegeben", "bi-check-circle", "#166534", ""),
@@ -86,7 +86,7 @@
           <span><i class="bi bi-arrow-repeat me-1 text-warning"></i>{{ letzter_scan.changed_files or 0 }} Geändert</span>
           {% if unverknuepfte_funde > 0 %}
           <a href="{{ url_for('funde.list_funde') }}" class="text-decoration-none"
-             title="Scanner-Funde ohne IDV-Zuordnung">
+             title="Scanner-Funde ohne Zuordnung zu einer Eigenentwicklung">
             <i class="bi bi-exclamation-circle me-1 text-danger"></i>{{ unverknuepfte_funde }} zu prüfen
           </a>
           {% else %}
@@ -109,18 +109,18 @@
 <!-- ── Zwei-Spalten-Layout ─────────────────────────────────────────── -->
 <div class="row g-4">
 
-  <!-- Kritische IDVs -->
+  <!-- Wesentliche Eigenentwicklungen -->
   <div class="col-lg-7">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Wesentliche IDVs</span>
-        <a href="{{ url_for('idv.list_idv') }}?filter=kritisch" class="btn btn-sm btn-outline-secondary">Alle</a>
+        <span><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Wesentliche Eigenentwicklungen</span>
+        <a href="{{ url_for('eigenentwicklung.list_idv') }}?filter=kritisch" class="btn btn-sm btn-outline-secondary">Alle</a>
       </div>
       <div class="card-body p-0">
         <table class="table table-hover mb-0 table-idv">
           <thead>
             <tr>
-              <th>IDV-ID</th>
+              <th>ID</th>
               <th>Bezeichnung</th>
               <th>Wesentlichkeit</th>
               <th>Status</th>
@@ -130,7 +130,7 @@
           <tbody>
             {% for r in kritische_idvs[:8] %}
             <tr>
-              <td><a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">{{
+              <td><a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">{{
                   r.idv_id }}</a></td>
               <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
               <td>
@@ -149,7 +149,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="5" class="text-center text-muted py-4">Keine kritischen IDVs gefunden.</td>
+              <td colspan="5" class="text-center text-muted py-4">Keine wesentlichen Eigenentwicklungen gefunden.</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -172,7 +172,7 @@
           {% for r in prueffaelligkeiten[:6] %}
           <li class="list-group-item d-flex justify-content-between align-items-center px-3 py-2">
             <div>
-              <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="text-decoration-none fw-500">{{ r.idv_id
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="text-decoration-none fw-500">{{ r.idv_id
                 }}</a>
               <div class="text-muted" style="font-size:.78rem">{{ r.bezeichnung|truncate(35) }}</div>
             </div>

@@ -185,15 +185,15 @@ if _upd:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # --scan Modus: Die exe startet als Scanner-Subprocess (PyInstaller-Kompatibilität).
-# Im Bundle existiert keine separate idv_scanner.py mehr – stattdessen ruft
+# Im Bundle existiert keine separate eigenentwicklung_scanner.py mehr – stattdessen ruft
 # admin.py den gleichen Executable mit --scan auf.
 if '--scan' in sys.argv:
     sys.argv = [a for a in sys.argv if a != '--scan']
     _crash_log = os.path.join(_PROJECT_ROOT, 'instance', 'logs', 'scanner_crash.log')
     os.makedirs(os.path.join(_PROJECT_ROOT, 'instance', 'logs'), exist_ok=True)
     try:
-        import idv_scanner
-        idv_scanner.main()
+        import eigenentwicklung_scanner
+        eigenentwicklung_scanner.main()
     except BaseException:
         import traceback
         _tb = traceback.format_exc()
@@ -262,7 +262,7 @@ def _seed_if_empty(app):
         db = get_db()
         count = db.execute("SELECT COUNT(*) FROM idv_register").fetchone()[0]
         if count == 0:
-            print("  → Keine IDVs gefunden – Demo-Daten werden eingefügt.")
+            print("  → Keine Eigenentwicklungen gefunden – Demo-Daten werden eingefügt.")
             insert_demo_data(db)
 
 
@@ -326,7 +326,7 @@ def _run_server(service_mode: bool = False):
 
     if not service_mode:
         print("=" * 55)
-        print("  idvault – IDV-Register")
+        print("  idvault – Register für Eigenentwicklungen")
         print(f"  {scheme}://localhost:{port}")
         print(f"  DB: {app.config['DATABASE']}")
         if ssl_context is not None:
@@ -402,8 +402,8 @@ def _make_service_class():
 
     class _IdvaultService(win32serviceutil.ServiceFramework):
         _svc_name_         = svc_name
-        _svc_display_name_ = 'idvault IDV-Register'
-        _svc_description_  = 'IDV-Register Web-Anwendung'
+        _svc_display_name_ = 'idvault – Register für Eigenentwicklungen'
+        _svc_description_  = 'idvault – Register für Eigenentwicklungen (Web-Anwendung)'
         # Argument, das der SCM beim Start an die EXE übergibt:
         _exe_args_         = '--service-run'
 

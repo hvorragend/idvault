@@ -20,7 +20,7 @@ _EXT_TO_TYP = {
     ".sql": "SQL-Skript", ".pbix": "Power-BI-Bericht", ".pbit": "Power-BI-Bericht",
 }
 
-bp = Blueprint("idv", __name__, url_prefix="/idv")
+bp = Blueprint("eigenentwicklung", __name__, url_prefix="/eigenentwicklung")
 
 
 # Regulatorische Entwicklungsarten (MaRisk AT 7.2 / DORA / BAIT).
@@ -216,7 +216,7 @@ def list_idv():
 
     from . import ROLE_ADMIN
     is_admin = (session.get("user_role") == ROLE_ADMIN)
-    return render_template("idv/list.html", idvs=idvs, can_write=can_write(),
+    return render_template("eigenentwicklung/list.html", idvs=idvs, can_write=can_write(),
                            is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
                            share_roots=share_roots,
@@ -264,7 +264,7 @@ def quick_search():
             "status":   row["status"],
             "typ":      row["idv_typ"] or "",
             "oe":       row["oe_bezeichnung"] or "",
-            "url":      url_for("idv.detail_idv", idv_db_id=row["id"]),
+            "url":      url_for("eigenentwicklung.detail_idv", idv_db_id=row["id"]),
         }
         for row in rows
     ])
@@ -275,7 +275,7 @@ def quick_search():
 @bp.route("/bulk-loeschen", methods=["POST"])
 @admin_required
 def bulk_loeschen():
-    """Löscht mehrere IDVs auf einmal (nur IDV-Administrator)."""
+    """Löscht mehrere Eigenentwicklungen auf einmal (nur IDV-Administrator)."""
     db        = get_db()
     person_id = session.get("person_id")
     raw_ids   = request.form.getlist("idv_ids")
@@ -283,12 +283,12 @@ def bulk_loeschen():
     try:
         idv_db_ids = [int(i) for i in raw_ids if i]
     except ValueError:
-        flash("Ungültige IDV-IDs.", "error")
-        return redirect(url_for("idv.list_idv"))
+        flash("Ungültige IDs.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     if not idv_db_ids:
-        flash("Keine IDVs ausgewählt.", "warning")
-        return redirect(url_for("idv.list_idv"))
+        flash("Keine Eigenentwicklungen ausgewählt.", "warning")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     deleted = 0
     for idv_db_id in idv_db_ids:
@@ -306,13 +306,13 @@ def bulk_loeschen():
         # Vorgänger-Verknüpfung in Nachfolgern aufheben
         db.execute("UPDATE idv_register SET vorgaenger_idv_id = NULL WHERE vorgaenger_idv_id = ?",
                    (idv_db_id,))
-        # IDV löschen (CASCADE für idv_freigaben, idv_file_links, idv_wesentlichkeit)
+        # Eigenentwicklung löschen (CASCADE für idv_freigaben, idv_file_links, idv_wesentlichkeit)
         db.execute("DELETE FROM idv_register WHERE id=?", (idv_db_id,))
         deleted += 1
 
     db.commit()
-    flash(f"{deleted} IDV(s) gelöscht.", "success")
-    return redirect(url_for("idv.list_idv"))
+    flash(f"{deleted} Eigenentwicklung(en) gelöscht.", "success")
+    return redirect(url_for("eigenentwicklung.list_idv"))
 
 
 # ── Bulk-Statusänderung (Admin + Koordinator) ─────────────────────────────
@@ -325,7 +325,7 @@ _BULK_STATUS_ERLAUBT = [
 @bp.route("/bulk-status", methods=["POST"])
 @write_access_required
 def bulk_status():
-    """Setzt den Status mehrerer IDVs auf einmal (Admin + Koordinator)."""
+    """Setzt den Status mehrerer Eigenentwicklungen auf einmal (Admin + Koordinator)."""
     db        = get_db()
     person_id = session.get("person_id")
     raw_ids   = request.form.getlist("idv_ids")
@@ -333,17 +333,17 @@ def bulk_status():
 
     if neuer_status not in _BULK_STATUS_ERLAUBT:
         flash("Bitte einen gültigen Zielstatus auswählen.", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     try:
         idv_db_ids = [int(i) for i in raw_ids if i]
     except ValueError:
-        flash("Ungültige IDV-IDs.", "error")
-        return redirect(url_for("idv.list_idv"))
+        flash("Ungültige IDs.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     if not idv_db_ids:
-        flash("Keine IDVs ausgewählt.", "warning")
-        return redirect(url_for("idv.list_idv"))
+        flash("Keine Eigenentwicklungen ausgewählt.", "warning")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     updated = errors = 0
     for idv_db_id in idv_db_ids:
@@ -357,15 +357,15 @@ def bulk_status():
             errors += 1
             from flask import current_app
             current_app.logger.warning(
-                "Bulk-Status-Änderung für IDV %s auf '%s' fehlgeschlagen: %s",
+                "Bulk-Status-Änderung für Eigenentwicklung %s auf '%s' fehlgeschlagen: %s",
                 idv_db_id, neuer_status, exc,
             )
 
-    msg = f'{updated} IDV(s) auf "{neuer_status}" gesetzt.'
+    msg = f'{updated} Eigenentwicklung(en) auf "{neuer_status}" gesetzt.'
     if errors:
         msg += f" {errors} konnten nicht geändert werden."
     flash(msg, "success" if not errors else "warning")
-    return redirect(url_for("idv.list_idv"))
+    return redirect(url_for("eigenentwicklung.list_idv"))
 
 
 # ── Detail ─────────────────────────────────────────────────────────────────
@@ -393,8 +393,8 @@ def detail_idv(idv_db_id):
     """, (idv_db_id,)).fetchone()
 
     if not idv:
-        flash("IDV nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        flash("Eigenentwicklung nicht gefunden.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     file = db.execute("SELECT * FROM idv_files WHERE id = ?", (idv["file_id"],)).fetchone() if idv["file_id"] else None
 
@@ -499,7 +499,7 @@ def detail_idv(idv_db_id):
     fachlich_vorhanden  = bool(fachliche_testfaelle)
     technisch_vorhanden = technischer_test is not None
 
-    return render_template("idv/detail.html",
+    return render_template("eigenentwicklung/detail.html",
         idv=idv, file=file, extra_files=extra_files, history=history, massnahmen=massnahmen,
         wesentlichkeit=wesentlichkeit,
         vorgaenger=vorgaenger, nachfolger=nachfolger,
@@ -551,10 +551,10 @@ def new_idv():
                         pass
             if extra_raw.strip():
                 db.commit()
-            flash("IDV erfolgreich angelegt.", "success")
+            flash("Eigenentwicklung erfolgreich angelegt.", "success")
             if request.form.get("save_action") == "save_and_new":
-                return redirect(url_for("idv.new_idv"))
-            return redirect(url_for("idv.detail_idv", idv_db_id=new_id))
+                return redirect(url_for("eigenentwicklung.new_idv"))
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=new_id))
         except Exception as e:
             flash(f"Fehler beim Speichern: {e}", "error")
 
@@ -606,7 +606,7 @@ def new_idv():
                     f"SELECT * FROM idv_files WHERE id IN ({ph})", ph_params
                 ).fetchall()
 
-    return render_template("idv/form.html", idv=None,
+    return render_template("eigenentwicklung/form.html", idv=None,
                            fund=fund, prefill=prefill,
                            extra_fonds=extra_fonds,
                            wesentlichkeit_antworten={},
@@ -624,8 +624,8 @@ def edit_idv(idv_db_id):
     ensure_can_write_idv(db, idv_db_id)
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
-        flash("IDV nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        flash("Eigenentwicklung nicht gefunden.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     if request.method == "POST":
         data = _form_to_dict(request.form)
@@ -633,8 +633,8 @@ def edit_idv(idv_db_id):
         try:
             update_idv(db, idv_db_id, data, geaendert_von_id=person_id)
             _save_wesentlichkeit_from_form(db, idv_db_id, request.form)
-            flash("IDV gespeichert.", "success")
-            return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+            flash("Eigenentwicklung gespeichert.", "success")
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
         except Exception as e:
             flash(f"Fehler: {e}", "error")
 
@@ -646,7 +646,7 @@ def edit_idv(idv_db_id):
             d["id"] for d in row.get("details") or [] if d.get("gewaehlt")
         ]
         wesentlichkeit_antworten[row["kriterium_id"]] = ant
-    return render_template("idv/form.html", idv=idv, fund=None, prefill={},
+    return render_template("eigenentwicklung/form.html", idv=idv, fund=None, prefill={},
                            wesentlichkeit_antworten=wesentlichkeit_antworten,
                            can_write=can_write(),
                            **_form_lookups(db))
@@ -667,7 +667,7 @@ def change_status_route(idv_db_id):
     if new_status:
         change_status(db, idv_db_id, new_status, geaendert_von_id=person_id)
         flash(f"Status geändert zu: {new_status}", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 _TESTSTATUS_WERTE = [
@@ -683,7 +683,7 @@ def change_teststatus(idv_db_id):
     val = request.form.get("teststatus", "")
     if val not in _TESTSTATUS_WERTE:
         flash("Ungültiger Teststatus.", "error")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
     person_id = session.get("person_id")
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
@@ -697,7 +697,7 @@ def change_teststatus(idv_db_id):
     )
     db.commit()
     flash(f"Teststatus geändert zu: {val}", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 @bp.route("/<int:idv_db_id>/datei-verknuepfung/<int:link_id>/loeschen", methods=["POST"])
@@ -712,7 +712,7 @@ def unlink_file(idv_db_id, link_id):
     ).fetchone()
     if not row:
         flash("Verknüpfung nicht gefunden.", "error")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
     db.execute("DELETE FROM idv_file_links WHERE id=?", (link_id,))
     db.execute(
         "UPDATE idv_files SET bearbeitungsstatus='Neu' WHERE id=? AND bearbeitungsstatus='Registriert'",
@@ -720,19 +720,19 @@ def unlink_file(idv_db_id, link_id):
     )
     db.commit()
     flash(f"Verknüpfung mit \"{row['file_name']}\" aufgehoben.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 @bp.route("/<int:idv_db_id>/dateien-verknuepfen", methods=["GET", "POST"])
 @own_write_required
 def link_files(idv_db_id):
-    """Direkte Datei-Verknüpfung: zeigt freie Scanner-Funde und verknüpft ausgewählte mit dem IDV."""
+    """Direkte Datei-Verknüpfung: zeigt freie Scanner-Funde und verknüpft ausgewählte mit der Eigenentwicklung."""
     db = get_db()
     ensure_can_write_idv(db, idv_db_id)
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
-        flash("IDV nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        flash("Eigenentwicklung nicht gefunden.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     if request.method == "POST":
         raw_ids = request.form.getlist("file_ids")
@@ -740,11 +740,11 @@ def link_files(idv_db_id):
             file_ids = [int(i) for i in raw_ids if i]
         except ValueError:
             flash("Ungültige Datei-IDs.", "error")
-            return redirect(url_for("idv.link_files", idv_db_id=idv_db_id))
+            return redirect(url_for("eigenentwicklung.link_files", idv_db_id=idv_db_id))
 
         if not file_ids:
             flash("Keine Dateien ausgewählt.", "warning")
-            return redirect(url_for("idv.link_files", idv_db_id=idv_db_id))
+            return redirect(url_for("eigenentwicklung.link_files", idv_db_id=idv_db_id))
 
         linked = 0
         for fid in file_ids:
@@ -761,8 +761,8 @@ def link_files(idv_db_id):
             except Exception:
                 pass
         db.commit()
-        flash(f"{linked} Datei(en) mit IDV {idv['idv_id']} verknüpft.", "success")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        flash(f"{linked} Datei(en) mit Eigenentwicklung {idv['idv_id']} verknüpft.", "success")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # GET – nur Gesamtanzahl ermitteln; Datei-Daten kommen per AJAX
     total_count = db.execute("""
@@ -776,7 +776,7 @@ def link_files(idv_db_id):
     """, (idv_db_id,)).fetchone()[0]
 
     return render_template(
-        "idv/datei_verknuepfen.html",
+        "eigenentwicklung/datei_verknuepfen.html",
         idv=idv,
         total_count=total_count,
     )
@@ -789,7 +789,7 @@ def link_files_search(idv_db_id):
     db = get_db()
     ensure_can_write_idv(db, idv_db_id)
     if not db.execute("SELECT 1 FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone():
-        return jsonify({"error": "IDV nicht gefunden"}), 404
+        return jsonify({"error": "Eigenentwicklung nicht gefunden"}), 404
 
     q = request.args.get("q", "").strip()
     try:
@@ -832,13 +832,13 @@ def link_files_search(idv_db_id):
 @bp.route("/<int:idv_db_id>/neue-version", methods=["POST"])
 @own_write_required
 def neue_version(idv_db_id):
-    """Erstellt eine neue Version einer IDV (Nachfolger-Dokument)."""
+    """Erstellt eine neue Version einer Eigenentwicklung (Nachfolger-Dokument)."""
     db  = get_db()
     ensure_can_write_idv(db, idv_db_id)
     src = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not src:
-        flash("IDV nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        flash("Eigenentwicklung nicht gefunden.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     # Versionsnummer inkrementieren: "1.0" → "1.1", "1.9" → "1.10"
     version_str = src["version"] or "1.0"
@@ -899,10 +899,10 @@ def neue_version(idv_db_id):
         db.commit()
 
         flash(f"Neue Version {new_version} angelegt.", "success")
-        return redirect(url_for("idv.detail_idv", idv_db_id=new_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=new_id))
     except Exception as e:
         flash(f"Fehler beim Anlegen der neuen Version: {e}", "error")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ── Excel-Export ───────────────────────────────────────────────────────────
@@ -918,22 +918,22 @@ def export_excel():
         out_path = f.name
     try:
         script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               "scanner", "idv_export.py")
+                               "scanner", "eigenentwicklung_export.py")
         result = subprocess.run(
             [sys.executable, script, "--db", db_path, "--output", out_path],
             check=True, capture_output=True, text=True
         )
         return send_file(out_path, as_attachment=True,
-                         download_name="IDV_Grundgesamtheit.xlsx",
+                         download_name="Eigenentwicklungen_Grundgesamtheit.xlsx",
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except subprocess.CalledProcessError as e:
         detail = (e.stderr or e.stdout or "").strip().splitlines()
         msg = detail[-1] if detail else str(e)
         flash(f"Export fehlgeschlagen: {msg}", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
     except Exception as e:
         flash(f"Export fehlgeschlagen: {e}", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
 
 # ── Hilfsfunktion: Formular → Dict ─────────────────────────────────────────
@@ -1007,12 +1007,12 @@ def _save_wesentlichkeit_from_form(db, idv_db_id: int, form) -> None:
         save_idv_wesentlichkeit(db, idv_db_id, antworten)
 
 
-# ── Nicht-wesentliche IDVs ─────────────────────────────────────────────────
+# ── Nicht-wesentliche Eigenentwicklungen ──────────────────────────────────
 
 @bp.route("/nicht-wesentlich")
 @login_required
 def nicht_wesentliche_idvs():
-    """Eigene Seite: Nicht-wesentliche IDVs aus dem Register."""
+    """Eigene Seite: Nicht-wesentliche Eigenentwicklungen aus dem Register."""
     db = get_db()
     q          = request.args.get("q", "").strip()
     share_root = request.args.get("share_root", "").strip()
@@ -1123,7 +1123,7 @@ def nicht_wesentliche_idvs():
         ).fetchall()
     ]
 
-    return render_template("idv/nicht_wesentlich.html",
+    return render_template("eigenentwicklung/nicht_wesentlich.html",
         nicht_wesentliche=nicht_wesentliche,
         total=total, total_pages=total_pages, page=page, per_page=per_page,
         org_units=org_units, persons_fv=persons_fv,

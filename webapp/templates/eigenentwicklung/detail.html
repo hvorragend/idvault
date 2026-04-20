@@ -25,7 +25,7 @@
     <span class="badge status-{{ idv.status|replace(' ', '-') }} fs-6">{{ idv.status }}</span>
   </div>
   <div class="d-flex gap-2">
-    <a href="{{ url_for('idv.edit_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary">
+    <a href="{{ url_for('eigenentwicklung.edit_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-pencil me-1"></i>Bearbeiten
     </a>
     <!-- Status-Workflow -->
@@ -38,7 +38,7 @@
         %}
         {% if s != idv.status %}
         <li>
-          <form method="post" action="{{ url_for('idv.change_status_route', idv_db_id=idv.id) }}">
+          <form method="post" action="{{ url_for('eigenentwicklung.change_status_route', idv_db_id=idv.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="status" value="{{ s }}">
             <button class="dropdown-item">→ {{ s }}</button>
@@ -48,7 +48,7 @@
         {% endfor %}
       </ul>
     </div>
-    <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary">
+    <a href="{{ url_for('eigenentwicklung.list_idv') }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-arrow-left me-1"></i>Zurück
     </a>
   </div>
@@ -81,7 +81,7 @@
         {% for s in teststatus_werte %}
         {% if s != ts %}
         <li>
-          <form method="post" action="{{ url_for('idv.change_teststatus', idv_db_id=idv.id) }}">
+          <form method="post" action="{{ url_for('eigenentwicklung.change_teststatus', idv_db_id=idv.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="teststatus" value="{{ s }}">
             <button class="dropdown-item">→ {{ s }}</button>
@@ -107,7 +107,7 @@
       <div class="form-section-title">Stammdaten</div>
       <div class="row g-3">
         <div class="col-sm-6">
-          <div class="detail-label">IDV-ID</div>
+          <div class="detail-label">ID</div>
           <div class="detail-value font-monospace">{{ idv.idv_id }}</div>
         </div>
         <div class="col-sm-6">
@@ -123,7 +123,7 @@
           <div>{{ idv.kurzbeschreibung or '–' }}</div>
         </div>
         <div class="col-sm-6">
-          <div class="detail-label">IDV-Typ</div>
+          <div class="detail-label">Typ</div>
           <div><span class="badge bg-light text-dark border">{{ idv.idv_typ }}</span></div>
         </div>
         <div class="col-sm-6">
@@ -330,7 +330,7 @@
               '' }}</span>
           </div>
           {% if can_create %}
-          <form method="post" action="{{ url_for('idv.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}" data-confirm="Verknüpfung mit {{ ef.file_name }} aufheben?">
+          <form method="post" action="{{ url_for('eigenentwicklung.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}" data-confirm="Verknüpfung mit {{ ef.file_name }} aufheben?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-xs btn-outline-danger" title="Verknüpfung aufheben">
               <i class="bi bi-x-lg"></i>
@@ -361,7 +361,7 @@
 
       {% if can_create %}
       <div class="mt-2">
-        <a href="{{ url_for('idv.link_files', idv_db_id=idv.id) }}" class="btn btn-xs btn-outline-secondary">
+        <a href="{{ url_for('eigenentwicklung.link_files', idv_db_id=idv.id) }}" class="btn btn-xs btn-outline-secondary">
           <i class="bi bi-plus-lg me-1"></i>Weitere Dateien verknüpfen
         </a>
       </div>
@@ -378,11 +378,11 @@
         <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
         <div>
           <strong>Noch keine Datei verknüpft.</strong><br>
-          Diese IDV-Version hat noch kein Dateipendant. Für die Nachvollziehbarkeit
+          Diese Version hat noch kein Dateipendant. Für die Nachvollziehbarkeit
           (MaRisk AT&nbsp;7.2&nbsp;/&nbsp;DORA) sollte jede Version mit der zugehörigen
           Datei verknüpft sein.
           <div class="mt-2">
-            <a href="{{ url_for('idv.link_files', idv_db_id=idv.id) }}" class="btn btn-sm btn-warning">
+            <a href="{{ url_for('eigenentwicklung.link_files', idv_db_id=idv.id) }}" class="btn btn-sm btn-warning">
               <i class="bi bi-folder2-open me-1"></i>Datei verknüpfen
             </a>
           </div>
@@ -421,7 +421,7 @@
         {% if vorgaenger %}
         <li class="list-group-item px-3 py-2">
           <div class="detail-label text-muted">Vorgänger</div>
-          <a href="{{ url_for('idv.detail_idv', idv_db_id=vorgaenger.id) }}" class="text-decoration-none fw-500">
+          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=vorgaenger.id) }}" class="text-decoration-none fw-500">
             <span class="font-monospace me-1" style="font-size:.8rem">{{ vorgaenger.idv_id }}</span>
             v{{ vorgaenger.version }}
           </a>
@@ -431,7 +431,7 @@
         <li class="list-group-item px-3 py-2 bg-light">
           <div class="detail-label text-muted">Aktuelle Version</div>
           <span class="fw-600">v{{ idv.version }}</span>
-          <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese IDV</span>
+          <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese Version</span>
           {% if idv.letzte_aenderungsart %}
             <span class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
                   style="font-size:.6rem"
@@ -443,7 +443,7 @@
         {% for nf in nachfolger %}
         <li class="list-group-item px-3 py-2">
           <div class="detail-label text-muted">Nachfolger</div>
-          <a href="{{ url_for('idv.detail_idv', idv_db_id=nf.id) }}" class="text-decoration-none fw-500">
+          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=nf.id) }}" class="text-decoration-none fw-500">
             <span class="font-monospace me-1" style="font-size:.8rem">{{ nf.idv_id }}</span>
             v{{ nf.version }}
           </a>
@@ -471,7 +471,7 @@
         </button>
         {% if ist_wesentlich %}
         <div class="mt-1 text-muted text-center" style="font-size:.75rem">
-          <i class="bi bi-info-circle me-1"></i>Wesentliche IDV: neue Version erfordert erneute Freigabe
+          <i class="bi bi-info-circle me-1"></i>Wesentliche Eigenentwicklung: neue Version erfordert erneute Freigabe
         </div>
         {% endif %}
       </div>
@@ -480,7 +480,7 @@
       <!-- Modal: Neue Version anlegen -->
       <div class="modal fade" id="modal-neue-version" tabindex="-1">
         <div class="modal-dialog">
-          <form method="post" action="{{ url_for('idv.neue_version', idv_db_id=idv.id) }}">
+          <form method="post" action="{{ url_for('eigenentwicklung.neue_version', idv_db_id=idv.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-content">
               <div class="modal-header">
@@ -507,7 +507,7 @@
                 </div>
                 <div class="alert alert-info py-2 mb-0 mt-2" style="font-size:.82rem">
                   <i class="bi bi-info-circle me-1"></i>
-                  Die aktuelle IDV wird als Vorgänger verknüpft. Eine <strong>wesentliche Änderung</strong>
+                  Die aktuelle Eigenentwicklung wird als Vorgänger verknüpft. Eine <strong>wesentliche Änderung</strong>
                   erfordert ein erneutes Test- und Freigabeverfahren.
                 </div>
               </div>

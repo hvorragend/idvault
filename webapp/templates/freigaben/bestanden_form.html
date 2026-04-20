@@ -27,7 +27,7 @@
 
     <!-- Aktionszeile oben -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
+      <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
          class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-arrow-left me-1"></i>Zurück
       </a>
@@ -138,7 +138,7 @@
       </div>
 
       <div class="d-flex justify-content-between align-items-center">
-        <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
+        <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) }}#freigabeverfahren"
            class="btn btn-outline-secondary">
           <i class="bi bi-arrow-left me-1"></i>Abbrechen
         </a>
@@ -156,11 +156,11 @@
   <div class="col-lg-4">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
-        <i class="bi bi-info-circle me-2"></i>IDV-Kontext
+        <i class="bi bi-info-circle me-2"></i>Eigenentwicklung
       </div>
       <ul class="list-group list-group-flush">
         <li class="list-group-item px-3 py-2">
-          <div class="detail-label">IDV-ID</div>
+          <div class="detail-label">ID</div>
           <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
         </li>
         <li class="list-group-item px-3 py-2">

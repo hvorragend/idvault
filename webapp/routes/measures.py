@@ -41,7 +41,7 @@ def new_measure(idv_db_id):
     ensure_can_write_idv(db, idv_db_id)
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
-        flash("IDV nicht gefunden.", "error")
+        flash("Eigenentwicklung nicht gefunden.", "error")
         return redirect(url_for("measures.list_measures"))
 
     if request.method == "POST":
@@ -63,7 +63,7 @@ def new_measure(idv_db_id):
         ))
         db.commit()
         flash("Maßnahme angelegt.", "success")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     persons = db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall()
     ist_wesentlich = bool(db.execute(
@@ -92,4 +92,4 @@ def complete_measure(m_id):
     """, (now, now, m_id))
     db.commit()
     flash("Maßnahme als erledigt markiert.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=row[0]))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=row[0]))

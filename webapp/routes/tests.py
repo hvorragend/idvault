@@ -57,7 +57,7 @@ def _save_test_upload(file):
 def _get_idv_or_404(db, idv_db_id):
     idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
     if not idv:
-        flash("IDV nicht gefunden.", "error")
+        flash("Eigenentwicklung nicht gefunden.", "error")
     return idv
 
 
@@ -90,7 +90,7 @@ def _require_phase1_schritt(db, idv_db_id: int, schritt: str):
             f"oder den Schritt wieder anlegen.",
             "warning"
         )
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
     return None
 
 
@@ -143,14 +143,14 @@ def _serve_test_nachweis(db, row):
 
 # ── Fachlicher Testfall: Neu ───────────────────────────────────────────────
 
-@bp.route("/idv/<int:idv_db_id>/fachlich/neu", methods=["GET", "POST"])
+@bp.route("/eigenentwicklung/<int:idv_db_id>/fachlich/neu", methods=["GET", "POST"])
 @own_write_required
 def new_fachlicher_testfall(idv_db_id):
     db  = get_db()
     ensure_can_write_idv(db, idv_db_id)
     idv = _get_idv_or_404(db, idv_db_id)
     if not idv:
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     # Zugriff nur, wenn der Phase-1-Schritt aktiv ist
     gate = _require_phase1_schritt(db, idv_db_id, "Fachlicher Test")
@@ -197,7 +197,7 @@ def new_fachlicher_testfall(idv_db_id):
                 # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Erledigt" gesetzt war
                 _reset_freigabe_schritt(db, idv_db_id, "Fachlicher Test")
                 flash("Test gespeichert.", "success")
-            return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     return render_template("tests/fachlich_form.html",
                            idv=idv, testfall=None,
@@ -215,12 +215,12 @@ def edit_fachlicher_testfall(testfall_id):
     testfall = get_fachlicher_testfall(db, testfall_id)
     if not testfall:
         flash("Testfall nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     ensure_can_write_idv(db, testfall["idv_id"])
     idv = _get_idv_or_404(db, testfall["idv_id"])
     if not idv:
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     # Zugriff nur, wenn der Phase-1-Schritt aktiv ist
     gate = _require_phase1_schritt(db, idv["id"], "Fachlicher Test")
@@ -258,7 +258,7 @@ def edit_fachlicher_testfall(testfall_id):
                 # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Erledigt" gesetzt war
                 _reset_freigabe_schritt(db, idv["id"], "Fachlicher Test")
                 flash("Test gespeichert.", "success")
-            return redirect(url_for("idv.detail_idv", idv_db_id=idv["id"]))
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv["id"]))
 
     return render_template("tests/fachlich_form.html",
                            idv=idv, testfall=testfall,
@@ -276,26 +276,26 @@ def delete_fachlicher_testfall_route(testfall_id):
     testfall = get_fachlicher_testfall(db, testfall_id)
     if not testfall:
         flash("Testfall nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
     idv_db_id = testfall["idv_id"]
     ensure_can_write_idv(db, idv_db_id)
     delete_fachlicher_testfall(db, testfall_id)
     # Freigabe-Schritt zurücksetzen, damit ein neuer Test angelegt werden kann
     _reset_freigabe_schritt(db, idv_db_id, "Fachlicher Test")
     flash("Test gelöscht.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ── Technischer Test: Anlegen / Bearbeiten ────────────────────────────────
 
-@bp.route("/idv/<int:idv_db_id>/technisch", methods=["GET", "POST"])
+@bp.route("/eigenentwicklung/<int:idv_db_id>/technisch", methods=["GET", "POST"])
 @own_write_required
 def edit_technischer_test(idv_db_id):
     db        = get_db()
     ensure_can_write_idv(db, idv_db_id)
     idv       = _get_idv_or_404(db, idv_db_id)
     if not idv:
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     # Zugriff nur, wenn der Phase-1-Schritt aktiv ist
     gate = _require_phase1_schritt(db, idv_db_id, "Technischer Test")
@@ -338,7 +338,7 @@ def edit_technischer_test(idv_db_id):
             # Freigabe-Schritt zurücksetzen, falls er zuvor auf "Erledigt" gesetzt war
             _reset_freigabe_schritt(db, idv_db_id, "Technischer Test")
             flash("Technischer Test gespeichert.", "success")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     return render_template("tests/technisch_form.html",
                            idv=idv, tech_test=tech_test,
@@ -349,19 +349,19 @@ def edit_technischer_test(idv_db_id):
 
 # ── Technischer Test: Löschen ─────────────────────────────────────────────
 
-@bp.route("/idv/<int:idv_db_id>/technisch/loeschen", methods=["POST"])
+@bp.route("/eigenentwicklung/<int:idv_db_id>/technisch/loeschen", methods=["POST"])
 @own_write_required
 def delete_technischer_test_route(idv_db_id):
     db  = get_db()
     ensure_can_write_idv(db, idv_db_id)
     idv = _get_idv_or_404(db, idv_db_id)
     if not idv:
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
     delete_technischer_test(db, idv_db_id)
     # Freigabe-Schritt zurücksetzen, damit ein neuer Test angelegt werden kann
     _reset_freigabe_schritt(db, idv_db_id, "Technischer Test")
     flash("Technischer Test gelöscht.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ── Hilfsfunktion ─────────────────────────────────────────────────────────

@@ -1,8 +1,15 @@
 # idvault – Dokumentation
 
-Vollständige Dokumentation der idvault-Anwendung zur Erfassung, Klassifizierung
-und Überwachung von **Individuellen Datenverarbeitungen (IDV)** nach
-**MaRisk AT 7.2**, **DORA (Art. 28, 30)** und **BAIT**.
+Vollständige Dokumentation der idvault-Anwendung zur Erfassung,
+Klassifizierung und Überwachung von **Eigenentwicklungen** (einschließlich
+**Individueller Datenverarbeitungen (IDV)** nach **MaRisk AT 7.2**),
+**DORA (Art. 28, 30)** und **BAIT**.
+
+> **Begriffsklärung:** „Eigenentwicklung" ist in dieser Anwendung der
+> Oberbegriff für alle erfassten Datenverarbeitungen (Arbeitshilfen,
+> IDVs, Eigenprogrammierungen, Auftragsprogrammierungen). „IDV"
+> bezeichnet ausschließlich das regulatorische Klassifikationsergebnis
+> einer Eigenentwicklung nach MaRisk AT 7.2.
 
 Diese Dokumentation ist so strukturiert, dass sie einer **aufsichtsrechtlichen
 Prüfung** durch die interne Revision, externe Wirtschaftsprüfer, die
@@ -18,7 +25,7 @@ IT-Anwendungen.
 
 | Dokument | Inhalt | Zielgruppe |
 |---|---|---|
-| [01 – Anwendungsdokumentation](01-anwendungsdokumentation.md) | Vollständiger Funktionsumfang, Workflows, Rollen, Bedienung | Fachbereich, IDV-Koordinator, Anwender |
+| [01 – Anwendungsdokumentation](01-anwendungsdokumentation.md) | Vollständiger Funktionsumfang, Workflows, Rollen, Bedienung | Fachbereich, Koordinator, Anwender |
 | [07 – Aufsichtsrechtliche Konformität](07-aufsichtsrecht.md) | Mapping MaRisk AT 7.2 · DORA · BAIT · MaGo · KAIT | Revision, Compliance, Prüfer |
 
 ### Entwicklung / Spezifikation
@@ -47,7 +54,7 @@ IT-Anwendungen.
 
 | Dokument | Inhalt | Zielgruppe |
 |---|---|---|
-| [10 – Scanner](10-scanner.md) | IDV-Scanner (Dateisystem, Teams/SharePoint) | Administratoren |
+| [10 – Scanner](10-scanner.md) | Scanner für Eigenentwicklungen (Dateisystem, Teams/SharePoint) | Administratoren |
 | [11 – Build &amp; Deployment](11-build-deployment.md) | Build-Pipeline, PyInstaller, Sidecar-Updates | Entwicklung, Betrieb |
 | [12 – Glossar](12-glossar.md) | Begriffe, Abkürzungen, Rollen | Alle |
 

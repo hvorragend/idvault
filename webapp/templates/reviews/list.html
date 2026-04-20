@@ -8,12 +8,12 @@
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0 table-idv">
-      <thead><tr><th>Datum</th><th>IDV</th><th>Art</th><th>Ergebnis</th><th>Prüfer</th><th>Nächste Prüfung</th></tr></thead>
+      <thead><tr><th>Datum</th><th>Eigenentwicklung</th><th>Art</th><th>Ergebnis</th><th>Prüfer</th><th>Nächste Prüfung</th></tr></thead>
       <tbody>
         {% for p in pruefungen %}
         <tr>
           <td>{{ p.pruefungsdatum|datefmt }}</td>
-          <td><a href="{{ url_for('idv.detail_idv', idv_db_id=p.idv_id) }}">{{ p.idv_id }}</a> {{ p.idv_bezeichnung|truncate(30) }}</td>
+          <td><a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=p.idv_id) }}">{{ p.idv_id }}</a> {{ p.idv_bezeichnung|truncate(30) }}</td>
           <td>{{ p.pruefungsart }}</td>
           <td><span class="badge {{ 'bg-success' if p.ergebnis == 'Ohne Befund' else 'bg-warning text-dark' if p.ergebnis == 'Mit Befund' else 'bg-danger' }}">{{ p.ergebnis }}</span></td>
           <td>{{ p.pruefer or '–' }}</td>

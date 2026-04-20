@@ -236,7 +236,7 @@ def _finalisiere_freigabe_wenn_komplett(db, idv_db_id: int, person_id: int) -> b
     db.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
         (idv_db_id, "freigabe_erteilt",
-         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – IDV freigegeben", person_id)
+         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id)
     )
     db.commit()
     _notify_freigabe_erteilt(db, idv_db_id)
@@ -316,7 +316,7 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
 # Phase 1 starten: Fachlicher Test + Technischer Test (parallel)
 # ---------------------------------------------------------------------------
 
-@bp.route("/idv/<int:idv_db_id>/starten", methods=["POST"])
+@bp.route("/eigenentwicklung/<int:idv_db_id>/starten", methods=["POST"])
 @own_write_required
 def starten(idv_db_id):
     """Startet Phase 1: Fachlicher Test + Technischer Test gleichzeitig."""
@@ -331,8 +331,8 @@ def starten(idv_db_id):
         if row and row["letzte_aenderungsart"] == "unwesentlich":
             flash("Kein Testverfahren erforderlich – Änderung wurde als unwesentlich eingestuft.", "info")
         else:
-            flash("Freigabeverfahren nur für wesentliche IDVs erforderlich.", "warning")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+            flash("Freigabeverfahren nur für wesentliche Eigenentwicklungen erforderlich.", "warning")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # Guard: Phase 1 darf noch nicht gestartet sein
     existing = db.execute(
@@ -341,7 +341,7 @@ def starten(idv_db_id):
     ).fetchone()
     if existing:
         flash("Phase 1 (Tests) wurde bereits gestartet.", "warning")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachlicher_test"))
     zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technischer_test"))
@@ -376,14 +376,14 @@ def starten(idv_db_id):
                      {_PHASE_1[0]: zugewiesen_fachlich, _PHASE_1[1]: zugewiesen_technisch})
 
     flash("Phase 1 gestartet: Fachlicher Test und Technischer Test laufen parallel.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ---------------------------------------------------------------------------
 # Phase 2 starten: Fachliche Abnahme + Technische Abnahme (parallel)
 # ---------------------------------------------------------------------------
 
-@bp.route("/idv/<int:idv_db_id>/abnahme-starten", methods=["POST"])
+@bp.route("/eigenentwicklung/<int:idv_db_id>/abnahme-starten", methods=["POST"])
 @own_write_required
 def abnahme_starten(idv_db_id):
     """Startet Phase 2: Fachliche Abnahme + Technische Abnahme – erst nach vollständiger Phase 1."""
@@ -394,7 +394,7 @@ def abnahme_starten(idv_db_id):
 
     if not _phase1_komplett_erledigt(db, idv_db_id):
         flash("Phase 2 kann erst gestartet werden, wenn beide Phase-1-Tests erledigt sind.", "warning")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # Guard: Phase 2 darf noch nicht gestartet sein
     existing = db.execute(
@@ -403,7 +403,7 @@ def abnahme_starten(idv_db_id):
     ).fetchone()
     if existing:
         flash("Phase 2 (Abnahmen) wurde bereits gestartet.", "warning")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachliche_abnahme"))
     zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technische_abnahme"))
@@ -427,7 +427,7 @@ def abnahme_starten(idv_db_id):
                      {_PHASE_2[0]: zugewiesen_fachlich, _PHASE_2[1]: zugewiesen_technisch})
 
     flash("Phase 2 gestartet: Fachliche Abnahme und Technische Abnahme laufen parallel.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ---------------------------------------------------------------------------
@@ -450,12 +450,12 @@ def erledigt_seite(freigabe_id):
     """, (freigabe_id,)).fetchone()
     if not freigabe:
         flash("Freigabe-Schritt nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
     ensure_can_read_idv(db, freigabe["idv_id"])
     idv = db.execute("SELECT * FROM idv_register WHERE id=?", (freigabe["idv_id"],)).fetchone()
     if not idv:
-        flash("IDV nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        flash("Eigenentwicklung nicht gefunden.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     # Phase-1-Schritte: immer zur spezialisierten Testmaske weiterleiten
     if freigabe["schritt"] == "Fachlicher Test":
@@ -500,17 +500,17 @@ def abschliessen(freigabe_id):
     ).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
         flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     idv_db_id = freigabe["idv_id"]
     ensure_can_write_idv(db, idv_db_id)
 
     if not _funktionstrennung_ok(db, idv_db_id, person_id):
         flash(
-            "Funktionstrennung: Sie sind als Entwickler dieser IDV eingetragen "
+            "Funktionstrennung: Sie sind als Entwickler dieser Eigenentwicklung eingetragen "
             "und dürfen keine Freigabe-Schritte abschließen.", "error"
         )
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     kommentar = request.form.get("kommentar", "").strip() or None
     # VULN-C: Quill-Rich-Text vor dem Speichern entschärfen (bleach).
@@ -546,7 +546,7 @@ def abschliessen(freigabe_id):
             db.commit()
         freigegeben = _finalisiere_freigabe_wenn_komplett(db, idv_db_id, person_id)
         if freigegeben:
-            flash("Alle Freigabe-Schritte erledigt – IDV ist jetzt freigegeben.", "success")
+            flash("Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben.", "success")
         else:
             flash(
                 f"'{schritt}' erledigt – Phase 2 vollständig. "
@@ -558,7 +558,7 @@ def abschliessen(freigabe_id):
     else:
         flash(f"'{schritt}' als Erledigt markiert.", "success")
 
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ---------------------------------------------------------------------------
@@ -578,7 +578,7 @@ def ablehnen(freigabe_id):
     ).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
         flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     idv_db_id = freigabe["idv_id"]
     ensure_can_write_idv(db, idv_db_id)
@@ -588,7 +588,7 @@ def ablehnen(freigabe_id):
             "Funktionstrennung: Sie sind als Entwickler eingetragen "
             "und dürfen keine Freigabe-Schritte ablehnen.", "error"
         )
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     befunde   = request.form.get("befunde", "").strip() or None
     kommentar = request.form.get("kommentar", "").strip() or None
@@ -624,14 +624,14 @@ def ablehnen(freigabe_id):
     db.commit()
 
     flash(f"'{freigabe['schritt']}' nicht erledigt.", "warning")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ---------------------------------------------------------------------------
 # Admin: Verfahren abbrechen
 # ---------------------------------------------------------------------------
 
-@bp.route("/idv/<int:idv_db_id>/abbrechen", methods=["POST"])
+@bp.route("/eigenentwicklung/<int:idv_db_id>/abbrechen", methods=["POST"])
 @admin_required
 def abbrechen(idv_db_id):
     """Admin bricht das laufende Freigabeverfahren ab."""
@@ -648,7 +648,7 @@ def abbrechen(idv_db_id):
 
     if not offene:
         flash("Kein laufendes Freigabeverfahren gefunden.", "warning")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     for row in offene:
         db.execute("""
@@ -671,14 +671,14 @@ def abbrechen(idv_db_id):
     db.commit()
 
     flash("Freigabeverfahren wurde abgebrochen.", "warning")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ---------------------------------------------------------------------------
 # Einzelnen Freigabe-Schritt wieder anlegen (nach Löschung)
 # ---------------------------------------------------------------------------
 
-@bp.route("/idv/<int:idv_db_id>/schritt-anlegen", methods=["POST"])
+@bp.route("/eigenentwicklung/<int:idv_db_id>/schritt-anlegen", methods=["POST"])
 @own_write_required
 def schritt_anlegen(idv_db_id):
     """Legt einen einzelnen Freigabe-Schritt wieder an, wenn er zuvor
@@ -691,17 +691,17 @@ def schritt_anlegen(idv_db_id):
 
     if schritt not in _SCHRITTE:
         flash("Unbekannter Freigabe-Schritt.", "error")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # Für Phase 2 ist erforderlich, dass Phase 1 komplett erledigt ist
     if schritt in _PHASE_2 and not _phase1_komplett_erledigt(db, idv_db_id):
         flash("Phase-2-Schritte können erst nach kompletter Phase 1 angelegt werden.", "warning")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # Für Phase 3 (Archivierung) ist erforderlich, dass Phase 2 komplett erledigt ist
     if schritt in _PHASE_3 and not _phase2_komplett_erledigt(db, idv_db_id):
         flash("Archivierungs-Schritt kann erst nach kompletter Phase 2 angelegt werden.", "warning")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # Duplikats-Guard: Schritt darf nicht bereits existieren
     existing = db.execute(
@@ -710,7 +710,7 @@ def schritt_anlegen(idv_db_id):
     ).fetchone()
     if existing:
         flash(f"'{schritt}' existiert bereits.", "info")
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     zugewiesen = _int_or_none(request.form.get("zugewiesen_an_id"))
     db.execute("""
@@ -731,7 +731,7 @@ def schritt_anlegen(idv_db_id):
 
     _notify_schritte(db, idv_db_id, [schritt], {schritt: zugewiesen})
     flash(f"'{schritt}' wurde angelegt.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ---------------------------------------------------------------------------
@@ -747,7 +747,7 @@ def loeschen(freigabe_id):
     freigabe  = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
     if not freigabe:
         flash("Freigabe-Schritt nicht gefunden.", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
     idv_db_id = freigabe["idv_id"]
     schritt   = freigabe["schritt"]
     db.execute("DELETE FROM idv_freigaben WHERE id=?", (freigabe_id,))
@@ -757,7 +757,7 @@ def loeschen(freigabe_id):
     )
     db.commit()
     flash(f"'{schritt}' wurde gelöscht.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 # ---------------------------------------------------------------------------
@@ -790,17 +790,17 @@ def archivieren(freigabe_id):
             or freigabe["schritt"] not in _PHASE_3
             or freigabe["status"] != "Ausstehend"):
         flash("Archivierungs-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
-        return redirect(url_for("idv.list_idv"))
+        return redirect(url_for("eigenentwicklung.list_idv"))
 
     idv_db_id = freigabe["idv_id"]
     ensure_can_write_idv(db, idv_db_id)
 
     if not _funktionstrennung_ok(db, idv_db_id, person_id):
         flash(
-            "Funktionstrennung: Sie sind als Entwickler dieser IDV eingetragen "
+            "Funktionstrennung: Sie sind als Entwickler dieser Eigenentwicklung eingetragen "
             "und dürfen die Archivierung nicht abschließen.", "error"
         )
-        return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     quelle = (request.form.get("archiv_quelle") or "upload").strip().lower()
     if quelle not in ("upload", "scanner", "nicht_verfuegbar"):
@@ -901,7 +901,7 @@ def archivieren(freigabe_id):
         # ist – sonst dürfte ein Nutzer beliebige Scanner-Funde kopieren.
         verfuegbar = {f["id"] for f in _verfuegbare_scanner_dateien(db, idv_db_id)}
         if scanner_file_id not in verfuegbar:
-            flash("Die ausgewählte Datei ist nicht mit dieser IDV verknüpft.", "error")
+            flash("Die ausgewählte Datei ist nicht mit dieser Eigenentwicklung verknüpft.", "error")
             return redirect(url_for("freigaben.erledigt_seite",
                                     freigabe_id=freigabe_id))
 
@@ -1036,10 +1036,10 @@ def archivieren(freigabe_id):
 
     freigegeben = _finalisiere_freigabe_wenn_komplett(db, idv_db_id, person_id)
     if freigegeben:
-        flash("Archivierung abgeschlossen – IDV ist jetzt freigegeben.", "success")
+        flash("Archivierung abgeschlossen – Eigenentwicklung ist jetzt freigegeben.", "success")
     else:
         flash("Archivierungs-Schritt als Erledigt markiert.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 @bp.route("/archiv/<int:freigabe_id>")
