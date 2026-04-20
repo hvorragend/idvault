@@ -417,6 +417,21 @@ def _make_service_class():
             except Exception:
                 pass
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+
+            # Writer-Queue drainen, damit keine Writes bei Prozessende
+            # verloren gehen. Muss *vor* dem Event-Signal passieren, weil
+            # SvcDoRun() sofort nach dem Signal os._exit(0) ruft.
+            try:
+                from webapp.db_writer import stop_writer
+                stop_writer()
+            except Exception:
+                try:
+                    servicemanager.LogErrorMsg(
+                        "idvault: db_writer-Drain fehlgeschlagen (siehe Crash-Log)"
+                    )
+                except Exception:
+                    pass
+
             win32event.SetEvent(self._stop_evt)
 
         def SvcDoRun(self):
