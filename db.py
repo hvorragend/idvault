@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from db_pragmas import apply_pragmas
+from db_write_tx import write_tx
 
 
 def _resource_path(relative: str) -> Path:
@@ -173,62 +174,65 @@ def save_idv_wesentlichkeit(conn: sqlite3.Connection, idv_db_id: int,
     commit=False erlaubt mehrere Operationen in einer Transaktion.
     """
     now = datetime.now(timezone.utc).isoformat()
-    touched_kids = []
-    for a in antworten:
-        kid = a["kriterium_id"]
-        touched_kids.append(kid)
-        conn.execute("""
-            INSERT INTO idv_wesentlichkeit
-                        (idv_db_id, kriterium_id, erfuellt, begruendung, geaendert_am)
-            VALUES      (?, ?, ?, ?, ?)
-            ON CONFLICT(idv_db_id, kriterium_id) DO UPDATE SET
-                erfuellt     = excluded.erfuellt,
-                begruendung  = excluded.begruendung,
-                geaendert_am = excluded.geaendert_am
-        """, (idv_db_id, kid, int(a.get("erfuellt", 0)),
-              a.get("begruendung") or None, now))
 
-        # Details dieses Kriteriums aktualisieren: alle alten Detail-Auswahlen
-        # für die Kriterium-Details dieses Kriteriums löschen, neue eintragen.
-        conn.execute("""
-            DELETE FROM idv_wesentlichkeit_detail
-            WHERE idv_db_id = ?
-              AND detail_id IN (
-                SELECT id FROM wesentlichkeitskriterium_details
-                WHERE kriterium_id = ?
-              )
-        """, (idv_db_id, kid))
-        for did in a.get("detail_ids", []) or []:
-            try:
-                conn.execute("""
-                    INSERT OR IGNORE INTO idv_wesentlichkeit_detail
-                        (idv_db_id, detail_id) VALUES (?, ?)
-                """, (idv_db_id, int(did)))
-            except (ValueError, TypeError):
-                continue
+    def _body():
+        for a in antworten:
+            kid = a["kriterium_id"]
+            conn.execute("""
+                INSERT INTO idv_wesentlichkeit
+                            (idv_db_id, kriterium_id, erfuellt, begruendung, geaendert_am)
+                VALUES      (?, ?, ?, ?, ?)
+                ON CONFLICT(idv_db_id, kriterium_id) DO UPDATE SET
+                    erfuellt     = excluded.erfuellt,
+                    begruendung  = excluded.begruendung,
+                    geaendert_am = excluded.geaendert_am
+            """, (idv_db_id, kid, int(a.get("erfuellt", 0)),
+                  a.get("begruendung") or None, now))
 
-    # Entwicklungsart aus Wesentlichkeit ableiten:
-    # 'idv' ↔ 'arbeitshilfe' wird automatisch umgeschaltet, sobald mindestens
-    # ein aktives Kriterium erfüllt ist. Manuell gesetzte 'eigenprogrammierung'
-    # oder 'auftragsprogrammierung' bleiben unangetastet.
-    wesentlich = conn.execute("""
-        SELECT EXISTS (
-            SELECT 1 FROM idv_wesentlichkeit w
-            JOIN wesentlichkeitskriterien k ON k.id = w.kriterium_id
-            WHERE w.idv_db_id = ? AND w.erfuellt = 1 AND k.aktiv = 1
-        )
-    """, (idv_db_id,)).fetchone()[0]
-    neue_art = "idv" if wesentlich else "arbeitshilfe"
-    conn.execute("""
-        UPDATE idv_register
-        SET entwicklungsart = ?, aktualisiert_am = ?
-        WHERE id = ?
-          AND entwicklungsart IN ('idv', 'arbeitshilfe')
-          AND entwicklungsart != ?
-    """, (neue_art, now, idv_db_id, neue_art))
+            # Details dieses Kriteriums aktualisieren: alle alten Detail-Auswahlen
+            # für die Kriterium-Details dieses Kriteriums löschen, neue eintragen.
+            conn.execute("""
+                DELETE FROM idv_wesentlichkeit_detail
+                WHERE idv_db_id = ?
+                  AND detail_id IN (
+                    SELECT id FROM wesentlichkeitskriterium_details
+                    WHERE kriterium_id = ?
+                  )
+            """, (idv_db_id, kid))
+            for did in a.get("detail_ids", []) or []:
+                try:
+                    conn.execute("""
+                        INSERT OR IGNORE INTO idv_wesentlichkeit_detail
+                            (idv_db_id, detail_id) VALUES (?, ?)
+                    """, (idv_db_id, int(did)))
+                except (ValueError, TypeError):
+                    continue
+
+        # Entwicklungsart aus Wesentlichkeit ableiten:
+        # 'idv' ↔ 'arbeitshilfe' wird automatisch umgeschaltet, sobald mindestens
+        # ein aktives Kriterium erfüllt ist. Manuell gesetzte 'eigenprogrammierung'
+        # oder 'auftragsprogrammierung' bleiben unangetastet.
+        wesentlich = conn.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM idv_wesentlichkeit w
+                JOIN wesentlichkeitskriterien k ON k.id = w.kriterium_id
+                WHERE w.idv_db_id = ? AND w.erfuellt = 1 AND k.aktiv = 1
+            )
+        """, (idv_db_id,)).fetchone()[0]
+        neue_art = "idv" if wesentlich else "arbeitshilfe"
+        conn.execute("""
+            UPDATE idv_register
+            SET entwicklungsart = ?, aktualisiert_am = ?
+            WHERE id = ?
+              AND entwicklungsart IN ('idv', 'arbeitshilfe')
+              AND entwicklungsart != ?
+        """, (neue_art, now, idv_db_id, neue_art))
 
     if commit:
-        conn.commit()
+        with write_tx(conn):
+            _body()
+    else:
+        _body()
 
 
 # ---------------------------------------------------------------------------
@@ -319,26 +323,32 @@ def create_idv(conn: sqlite3.Connection, data: dict,
 
     placeholders = ", ".join(f":{k}" for k in fields)
     cols         = ", ".join(fields.keys())
-    cur = conn.execute(
-        f"INSERT INTO idv_register ({cols}) VALUES ({placeholders})", fields
-    )
-    new_id = cur.lastrowid
 
-    # Historien-Eintrag
-    conn.execute("""
-        INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
-        VALUES (?, 'erstellt', ?, ?)
-    """, (new_id, f"IDV {idv_id} erstellt", erfasser_id))
-
-    # Scanner-Datei als registriert markieren
-    if data.get("file_id"):
-        conn.execute(
-            "UPDATE idv_files SET bearbeitungsstatus = 'Registriert' WHERE id = ?",
-            (data["file_id"],)
+    def _body():
+        cur = conn.execute(
+            f"INSERT INTO idv_register ({cols}) VALUES ({placeholders})", fields
         )
+        new_id = cur.lastrowid
+
+        # Historien-Eintrag
+        conn.execute("""
+            INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
+            VALUES (?, 'erstellt', ?, ?)
+        """, (new_id, f"IDV {idv_id} erstellt", erfasser_id))
+
+        # Scanner-Datei als registriert markieren
+        if data.get("file_id"):
+            conn.execute(
+                "UPDATE idv_files SET bearbeitungsstatus = 'Registriert' WHERE id = ?",
+                (data["file_id"],)
+            )
+        return new_id
 
     if commit:
-        conn.commit()
+        with write_tx(conn):
+            new_id = _body()
+    else:
+        new_id = _body()
     return new_id
 
 
@@ -388,18 +398,17 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
     update_fields["aktualisiert_am"] = now
 
     set_clause = ", ".join(f"{k} = :{k}" for k in update_fields)
-    conn.execute(
-        f"UPDATE idv_register SET {set_clause} WHERE id = :__id",
-        {**update_fields, "__id": idv_db_id}
-    )
+    with write_tx(conn):
+        conn.execute(
+            f"UPDATE idv_register SET {set_clause} WHERE id = :__id",
+            {**update_fields, "__id": idv_db_id}
+        )
 
-    if changes:
-        conn.execute("""
-            INSERT INTO idv_history (idv_id, aktion, geaenderte_felder, durchgefuehrt_von_id)
-            VALUES (?, 'geaendert', ?, ?)
-        """, (idv_db_id, json.dumps(changes, ensure_ascii=False), geaendert_von_id))
-
-    conn.commit()
+        if changes:
+            conn.execute("""
+                INSERT INTO idv_history (idv_id, aktion, geaenderte_felder, durchgefuehrt_von_id)
+                VALUES (?, 'geaendert', ?, ?)
+            """, (idv_db_id, json.dumps(changes, ensure_ascii=False), geaendert_von_id))
     return True
 
 
@@ -408,11 +417,8 @@ def change_status(conn: sqlite3.Connection, idv_db_id: int,
                   geaendert_von_id: Optional[int] = None):
     """Ändert den Workflow-Status eines IDV-Eintrags."""
     now = datetime.now(timezone.utc).isoformat()
-    conn.execute("""
-        UPDATE idv_register
-        SET status = ?, status_geaendert_am = ?, status_geaendert_von_id = ?, aktualisiert_am = ?
-        WHERE id = ?
-    """, (new_status, now, geaendert_von_id, now, idv_db_id))
+    # Kommentar-Suffix (Datei-Hash) außerhalb der Transaktion ermitteln,
+    # damit BEGIN IMMEDIATE möglichst kurz gehalten wird.
     if new_status == "Freigegeben":
         row = conn.execute(
             "SELECT f.file_hash FROM idv_register r "
@@ -422,11 +428,16 @@ def change_status(conn: sqlite3.Connection, idv_db_id: int,
         if row and row["file_hash"]:
             kommentar = (kommentar or "") + f" [Datei-Hash: {row['file_hash'][:16]}...]"
 
-    conn.execute("""
-        INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
-        VALUES (?, 'status_geaendert', ?, ?)
-    """, (idv_db_id, f"Status → {new_status}. {kommentar}", geaendert_von_id))
-    conn.commit()
+    with write_tx(conn):
+        conn.execute("""
+            UPDATE idv_register
+            SET status = ?, status_geaendert_am = ?, status_geaendert_von_id = ?, aktualisiert_am = ?
+            WHERE id = ?
+        """, (new_status, now, geaendert_von_id, now, idv_db_id))
+        conn.execute("""
+            INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
+            VALUES (?, 'status_geaendert', ?, ?)
+        """, (idv_db_id, f"Status → {new_status}. {kommentar}", geaendert_von_id))
 
 
 # ---------------------------------------------------------------------------
