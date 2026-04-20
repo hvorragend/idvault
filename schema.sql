@@ -360,7 +360,6 @@ CREATE TABLE IF NOT EXISTS idv_register (
     datenbankanbindung      INTEGER NOT NULL DEFAULT 0, -- externe DB-Verbindung?
     datenbankanbindung_beschr TEXT,
     netzwerkzugriff         INTEGER NOT NULL DEFAULT 0, -- Netzwerkzugriff / API-Calls?
-    schnittstellen          TEXT,                       -- JSON-Array Schnittstellen
     datenquellen            TEXT,                       -- Freitext: woher kommen die Daten?
     datenempfaenger         TEXT,                       -- Freitext: wohin gehen die Daten?
 
@@ -369,16 +368,13 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- -------------------------------------------------------------------------
     enthaelt_personendaten  INTEGER NOT NULL DEFAULT 0,
     datenschutz_kategorie   TEXT,                       -- "keine" | "allgemein" | "besonders sensibel"
-    datenschutz_kommentar   TEXT,
 
     -- -------------------------------------------------------------------------
     -- Nutzung & Betrieb
     -- -------------------------------------------------------------------------
     nutzungsfrequenz        TEXT,                       -- "täglich" | "wöchentlich" | "monatlich" | "quartalsweise" | "anlassbezogen"
     nutzeranzahl            INTEGER,                    -- Anzahl aktiver Nutzer
-    nutzungsumfang          TEXT,                       -- Freitext
     produktiv_seit          TEXT,                       -- Datum ISO 8601
-    letzte_aenderung_fachlich TEXT,                     -- Fachlich relevante Änderung
 
     -- -------------------------------------------------------------------------
     -- Dokumentation & Qualitätssicherung
@@ -397,7 +393,6 @@ CREATE TABLE IF NOT EXISTS idv_register (
     abloesung_geplant       INTEGER NOT NULL DEFAULT 0,
     abloesung_zieldatum     TEXT,
     abloesung_durch         TEXT,                       -- "OSPlus-Erweiterung", "Eigenentwicklung neu", etc.
-    abloesung_kommentar     TEXT,
 
     -- -------------------------------------------------------------------------
     -- Workflow / Freigabestatus
@@ -432,7 +427,6 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- -------------------------------------------------------------------------
     -- Erweiterte Felder (Betrieb / Workflow / Versioning)
     -- -------------------------------------------------------------------------
-    gobd_relevant               INTEGER NOT NULL DEFAULT 0,
     erstellt_fuer               TEXT,
     schnittstellen_beschr       TEXT,
     teststatus                  TEXT NOT NULL DEFAULT 'Wertung ausstehend',
