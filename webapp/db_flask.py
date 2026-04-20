@@ -3,12 +3,14 @@ Flask-SQLite Datenbankschicht für idvault.
 Wrapped die db.py Funktionen für den Flask-Request-Context.
 """
 
+import atexit
 import sqlite3
 import sys
 import os
 from flask import current_app, g
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from db import init_register_db, get_connection, get_dashboard_stats, search_idv  # noqa
+from webapp.db_writer import start_writer, stop_writer, get_writer  # noqa
 
 
 def get_db() -> sqlite3.Connection:
@@ -44,3 +46,9 @@ def init_app_db(app):
 
     with app.app_context():
         init_register_db(app.config["DATABASE"])
+
+    # Writer-Thread starten und atexit drainen. Idempotent — beliebig oft
+    # aufrufbar. Wird im Service-Modus zusaetzlich in run.py:SvcStop
+    # explizit angestossen, damit die Queue vor Prozessende leerlaeuft.
+    start_writer(app.config["DATABASE"])
+    atexit.register(stop_writer)
