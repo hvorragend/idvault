@@ -255,7 +255,7 @@
 <div class="alert alert-secondary py-2 mb-3">
   <i class="bi bi-info-circle me-1"></i>
   Archivierte Dateien wurden beim letzten Scan nicht mehr gefunden (verschoben, umbenannt oder gelöscht).
-  Die Verknüpfung zum IDV-Register bleibt erhalten.
+  Die Verknüpfung zum Register bleibt erhalten.
 </div>
 {% endif %}
 
@@ -346,13 +346,13 @@
       </button>
       <button type="submit" name="aktion" value="nicht_wesentlich"
               class="btn btn-sm btn-outline-secondary"
-              title="Als nicht wesentliche IDV einstufen (kein weiterer Handlungsbedarf)">
+              title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
         <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
       </button>
       <button type="submit" name="aktion" value="zusammenfassen"
               class="btn btn-sm btn-outline-primary"
-              title="Ausgewählte Dateien als IDV-Projekt zusammenfassen oder mit bestehendem IDV verknüpfen">
-        <i class="bi bi-diagram-3 me-1"></i>Zu IDV-Projekt zusammenfassen
+              title="Ausgewählte Dateien als Eigenentwicklungs-Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu Eigenentwicklungs-Projekt zusammenfassen
       </button>
       <button type="submit" name="aktion" value="bewertung_anfordern"
               class="btn btn-sm btn-outline-primary"
@@ -368,7 +368,7 @@
       <button type="submit" name="aktion" value="loeschen"
               class="btn btn-sm btn-outline-danger"
               data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
-              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne IDV-Verknüpfung)">
+              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Eigenentwicklungs-Verknüpfung)">
         <i class="bi bi-trash me-1"></i>Löschen
       </button>
       {% endif %}
@@ -409,7 +409,7 @@
             <th class="text-center">Formeln</th>
             <th class="text-center">Schutz</th>
             <th>Status</th>
-            <th>IDV</th>
+            <th>Eigenentwicklung</th>
             <th></th>
           </tr>
         </thead>
@@ -516,13 +516,13 @@
                 </td>
                 <td>
                   {% if f.reg_idv_id %}
-                  <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
                      class="badge bg-success text-decoration-none">{{ f.reg_idv_id }}</a>
                   {% else %}<span class="badge bg-warning text-dark">–</span>{% endif %}
                 </td>
                 <td class="text-nowrap">
                   {% if not f.reg_idv_id %}
-                  <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
+                  <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
                      class="btn btn-xs btn-primary text-nowrap">
                     <i class="bi bi-plus-lg me-1"></i>Registrieren
                   </a>
@@ -596,7 +596,7 @@
               {% endif %}
             </td>
 
-            <!-- IDV-Typ-Vorschlag -->
+            <!-- Typ-Vorschlag -->
             <td>
               {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
               <span class="badge bg-light text-dark border">{{ typ }}</span>
@@ -698,10 +698,10 @@
               {% endif %}
             </td>
 
-            <!-- IDV-Verknüpfung -->
+            <!-- Eigenentwicklungs-Verknüpfung -->
             <td>
               {% if f.reg_idv_id %}
-                <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
                    class="badge bg-success text-decoration-none">
                   {{ f.reg_idv_id }}
                 </a>
@@ -713,12 +713,12 @@
             <td class="text-nowrap">
               {% if filt != 'archiv' %}
                 {% if not f.reg_idv_id %}
-                <a href="{{ url_for('idv.new_idv', file_id=f.id) }}"
+                <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
                    class="btn btn-xs btn-primary text-nowrap">
                   <i class="bi bi-plus-lg me-1"></i>Registrieren
                 </a>
                 {% else %}
-                <a href="{{ url_for('idv.detail_idv', idv_db_id=f.reg_db_id) }}"
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
                    class="btn btn-xs btn-outline-secondary">
                   <i class="bi bi-eye"></i>
                 </a>
@@ -843,7 +843,7 @@ window.deleteScannerfund = deleteScannerfund;
     bulkCount.textContent = n;
     bulkBar.classList.toggle('d-none', n === 0);
 
-    // "Ignorieren" nur aktiv wenn alle Selektierten keine Formeln haben und keine IDV haben
+    // "Ignorieren" nur aktiv wenn alle Selektierten keine Formeln haben und keiner Eigenentwicklung zugeordnet sind
     if (btnIgn) {
       const allNoFormula = [...checked].every(cb => {
         const row = cb.closest('tr');

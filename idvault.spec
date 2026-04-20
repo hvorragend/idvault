@@ -53,8 +53,8 @@ datas = [
 # ---------------------------------------------------------------------------
 hiddenimports = [
     # Scanner-Module (liegen in scanner/, werden über pathex gefunden)
-    'idv_scanner',
-    'idv_export',
+    'eigenentwicklung_scanner',
+    'eigenentwicklung_export',
     # Eigene Module
     'ssl_utils',
     'webapp',
@@ -64,7 +64,7 @@ hiddenimports = [
     'webapp.routes',
     'webapp.routes.auth',
     'webapp.routes.dashboard',
-    'webapp.routes.idv',
+    'webapp.routes.eigenentwicklung',
     'webapp.routes.reviews',
     'webapp.routes.measures',
     'webapp.routes.admin',
@@ -114,7 +114,7 @@ hiddenimports = [
 # ---------------------------------------------------------------------------
 a = Analysis(
     ['run.py'],
-    pathex=['.', 'scanner'],  # scanner/ damit idv_scanner.py gefunden wird
+    pathex=['.', 'scanner'],  # scanner/ damit eigenentwicklung_scanner.py gefunden wird
     binaries=[*flask_b, *jinja2_b, *werkzeug_b, *openpyxl_b, *cryptography_b, *ldap3_b],
     datas=datas,
     hiddenimports=hiddenimports,

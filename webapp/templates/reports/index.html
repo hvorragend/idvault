@@ -33,7 +33,7 @@
   <div class="tab-pane fade show active" id="tab-oe">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
-        <i class="bi bi-diagram-3 me-2"></i>IDV-Register nach Organisationseinheit
+        <i class="bi bi-diagram-3 me-2"></i>Register nach Organisationseinheit
         <span class="badge bg-secondary ms-2">{{ by_oe|length }} OEs</span>
       </div>
       <div class="table-responsive">
@@ -76,9 +76,9 @@
               </td>
               <td>
                 {% if r.oe_id %}
-                <a href="{{ url_for('idv.list_idv', oe_id=r.oe_id) }}"
-                   class="btn btn-xs btn-outline-secondary" title="IDVs dieser OE anzeigen">
-                  <i class="bi bi-eye me-1"></i>IDVs
+                <a href="{{ url_for('eigenentwicklung.list_idv', oe_id=r.oe_id) }}"
+                   class="btn btn-xs btn-outline-secondary" title="Eigenentwicklungen dieser OE anzeigen">
+                  <i class="bi bi-eye me-1"></i>Eigenentwicklungen
                 </a>
                 {% endif %}
               </td>
@@ -109,7 +109,7 @@
   <div class="tab-pane fade" id="tab-fv">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
-        <i class="bi bi-person me-2"></i>IDV-Register nach Fachverantwortlichem
+        <i class="bi bi-person me-2"></i>Register nach Fachverantwortlichem
         <span class="badge bg-secondary ms-2">{{ by_fv|length }} Personen</span>
       </div>
       <div class="table-responsive">
@@ -148,9 +148,9 @@
               </td>
               <td>
                 {% if r.person_id %}
-                <a href="{{ url_for('idv.list_idv', fv_id=r.person_id) }}"
+                <a href="{{ url_for('eigenentwicklung.list_idv', fv_id=r.person_id) }}"
                    class="btn btn-xs btn-outline-secondary">
-                  <i class="bi bi-eye me-1"></i>IDVs
+                  <i class="bi bi-eye me-1"></i>Eigenentwicklungen
                 </a>
                 {% endif %}
               </td>
@@ -219,9 +219,9 @@
                    class="btn btn-xs btn-outline-secondary" title="Scanner-Funde">
                   <i class="bi bi-radar me-1"></i>Funde
                 </a>
-                <a href="{{ url_for('idv.list_idv', share_root=r.share_root) }}"
-                   class="btn btn-xs btn-outline-primary ms-1" title="IDVs aus diesem Pfad">
-                  <i class="bi bi-table me-1"></i>IDVs
+                <a href="{{ url_for('eigenentwicklung.list_idv', share_root=r.share_root) }}"
+                   class="btn btn-xs btn-outline-primary ms-1" title="Eigenentwicklungen aus diesem Pfad">
+                  <i class="bi bi-table me-1"></i>Eigenentwicklungen
                 </a>
               </td>
             </tr>

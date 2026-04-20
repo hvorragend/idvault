@@ -472,8 +472,8 @@ def als_idv_registrieren(bericht_id: int):
         return redirect(url_for("cognos.list_berichte"))
 
     if bericht["idv_register_id"]:
-        flash("Dieser Bericht ist bereits als IDV registriert.", "warning")
-        return redirect(url_for("idv.detail_idv", idv_db_id=bericht["idv_register_id"]))
+        flash("Dieser Bericht ist bereits als Eigenentwicklung registriert.", "warning")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=bericht["idv_register_id"]))
 
     now    = datetime.now(timezone.utc).isoformat()
     idv_id = generate_idv_id(db)
@@ -553,8 +553,8 @@ def als_idv_registrieren(bericht_id: int):
 
     db.commit()
 
-    flash(f"IDV {idv_id} wurde angelegt. Bitte jetzt vervollständigen.", "success")
-    return redirect(url_for("idv.detail_idv", idv_db_id=new_id))
+    flash(f"Eigenentwicklung {idv_id} wurde angelegt. Bitte jetzt vervollständigen.", "success")
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=new_id))
 
 
 @bp.route("/<int:bericht_id>/ignorieren", methods=["POST"])
@@ -629,14 +629,14 @@ def zusammenfassen():
             try:
                 idv_db_id = int(idv_db_id)
             except (ValueError, TypeError):
-                flash("Ungültige IDV-Auswahl.", "error")
+                flash("Ungültige Auswahl der Eigenentwicklung.", "error")
                 return redirect(url_for("cognos.list_berichte"))
 
             idv_row = db.execute(
                 "SELECT id, idv_id FROM idv_register WHERE id=?", (idv_db_id,)
             ).fetchone()
             if not idv_row:
-                flash("IDV nicht gefunden.", "error")
+                flash("Eigenentwicklung nicht gefunden.", "error")
                 return redirect(url_for("cognos.list_berichte"))
 
             linked = 0
@@ -652,7 +652,7 @@ def zusammenfassen():
                     pass
             db.commit()
             flash(f"{linked} Bericht(e) mit IDV {idv_row['idv_id']} verknüpft.", "success")
-            return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
         flash("Unbekannte Aktion.", "error")
         return redirect(url_for("cognos.list_berichte"))

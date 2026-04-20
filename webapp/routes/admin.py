@@ -51,7 +51,7 @@ def _scanner_dir():
 
 
 def _scanner_script_path():
-    return os.path.join(_scanner_dir(), "idv_scanner.py")
+    return os.path.join(_scanner_dir(), "eigenentwicklung_scanner.py")
 
 
 _DEFAULT_SCANNER_EXTENSIONS = [
@@ -1879,7 +1879,7 @@ def delete_person_hard(pid):
         flash("Person gelöscht.", "success")
     except Exception:
         db.rollback()
-        flash("Person konnte nicht gelöscht werden (noch IDVs zugeordnet) – bitte zuerst deaktivieren.", "warning")
+        flash("Person konnte nicht gelöscht werden (noch Eigenentwicklungen zugeordnet) – bitte zuerst deaktivieren.", "warning")
     return redirect(url_for("admin.index"))
 
 
@@ -2240,11 +2240,11 @@ def _resolve_scanner_log_path() -> str:
     """Liefert den absoluten Pfad zur Scanner-Log-Datei.
 
     Der Scanner-Subprozess leitet den Log-Pfad aus ``--db-path`` ab
-    (``<db_parent>/logs/idv_scanner.log``). Die Webapp nutzt dieselbe
-    Logik, damit Scanner-Log-Viewer und Subprozess auf dieselbe Datei
-    zeigen.
+    (``<db_parent>/logs/eigenentwicklung_scanner.log``). Die Webapp nutzt
+    dieselbe Logik, damit Scanner-Log-Viewer und Subprozess auf dieselbe
+    Datei zeigen.
     """
-    return os.path.join(_instance_logs_dir(), "idv_scanner.log")
+    return os.path.join(_instance_logs_dir(), "eigenentwicklung_scanner.log")
 
 
 def _resolve_scanner_output_log_path() -> str:
@@ -2265,8 +2265,8 @@ def _resolve_app_log_path() -> str:
 def _resolve_scanner_crash_log_path() -> str:
     """Liefert den Pfad zur Crash-Log-Datei des Scanner-Subprocess.
 
-    Wird von run.py geschrieben, wenn ``import idv_scanner`` oder
-    ``idv_scanner.main()`` mit einer unbehandelten Ausnahme abbricht –
+    Wird von run.py geschrieben, wenn ``import eigenentwicklung_scanner`` oder
+    ``eigenentwicklung_scanner.main()`` mit einer unbehandelten Ausnahme abbricht –
     also bevor stdout/stderr umgeleitet wurden.
     """
     return os.path.join(_instance_logs_dir(), "scanner_crash.log")
@@ -3227,7 +3227,7 @@ def _zip_strip_prefix(members: list[str]) -> str:
 # Top-Level-Importnamen, die im Bundle aus dem scanner/-Verzeichnis stammen
 # (idvault.spec: pathex=['.', 'scanner']). Sie müssen flach unter updates/
 # abgelegt werden, damit der Sidecar-Finder in run.py sie findet.
-_SCANNER_TOPLEVEL_MODULES = frozenset({"idv_scanner", "idv_export"})
+_SCANNER_TOPLEVEL_MODULES = frozenset({"eigenentwicklung_scanner", "eigenentwicklung_export"})
 
 
 def _zip_remap(rel: str) -> str:
@@ -3238,7 +3238,7 @@ def _zip_remap(rel: str) -> str:
     - GitHub-ZIPs enthalten Templates unter ``webapp/templates/`` —
       der ChoiceLoader in ``run.py`` erwartet sie jedoch direkt unter
       ``updates/templates/``.
-    - Scanner-Module (``idv_scanner``, ``idv_export``) werden im
+    - Scanner-Module (``eigenentwicklung_scanner``, ``eigenentwicklung_export``) werden im
       PyInstaller-Bundle als Top-Level-Module importiert
       (``pathex=['.', 'scanner']`` in ``idvault.spec``). Damit der
       Sidecar-Finder in ``run.py`` sie überhaupt findet, müssen sie
@@ -3247,7 +3247,7 @@ def _zip_remap(rel: str) -> str:
     if rel.startswith('webapp/templates/'):
         return rel[len('webapp/'):]   # → templates/...
     if rel.startswith('scanner/') and rel.endswith('.py'):
-        # scanner/idv_scanner.py → idv_scanner.py, sofern das
+        # scanner/eigenentwicklung_scanner.py → eigenentwicklung_scanner.py, sofern das
         # Modul als Top-Level bekannt ist (Whitelist vermeidet
         # Kollisionen mit anderen Dateien im scanner/-Verzeichnis).
         module_name = os.path.splitext(rel[len('scanner/'):])[0]

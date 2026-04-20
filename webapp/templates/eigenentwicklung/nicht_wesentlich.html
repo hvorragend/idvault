@@ -7,7 +7,7 @@
 <p class="text-muted mb-4" style="font-size:.87rem">
   Eigenentwicklungen, die als <strong>nicht wesentlich</strong> eingestuft wurden.
   Diese unterliegen keiner vollständigen Freigabepflicht gemäß MaRisk AT 7.2,
-  sind aber dennoch im IDV-Register erfasst.
+  sind aber dennoch im Register erfasst.
 </p>
 
 <!-- ── Filter-Leiste ──────────────────────────────────────────────── -->
@@ -18,7 +18,7 @@
     <div class="col-md-8">
       <label class="form-label form-label-sm">Suche</label>
       <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm"
-        placeholder="IDV-ID, Name, Beschreibung …">
+        placeholder="ID, Name, Beschreibung …">
     </div>
 
     <div class="col-md-2">
@@ -33,7 +33,7 @@
 
     <div class="col-md-2 d-flex gap-1 align-items-end">
       <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
-      <a href="{{ url_for('idv.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary"
+      <a href="{{ url_for('eigenentwicklung.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary"
         title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
 
@@ -95,7 +95,7 @@
 <!-- ── Pagination oben ────────────────────────────────────────────── -->
 {% set url_extra = {'q': q, 'status': status, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root, 'owner':
 owner_filt} %}
-{% set endpoint = 'idv.nicht_wesentliche_idvs' %}
+{% set endpoint = 'eigenentwicklung.nicht_wesentliche_idvs' %}
 {% include 'funde/_pagination.html' %}
 
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
@@ -110,16 +110,16 @@ owner_filt} %}
       {% endif %}
     </span>
     <div class="d-flex gap-2">
-      <a href="{{ url_for('idv.export_excel') }}" class="btn btn-sm btn-outline-success">
+      <a href="{{ url_for('eigenentwicklung.export_excel') }}" class="btn btn-sm btn-outline-success">
         <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
       </a>
       {% if can_write %}
-      <a href="{{ url_for('idv.new_idv') }}" class="btn btn-sm btn-primary">
-        <i class="bi bi-plus-lg me-1"></i>Neue IDV
+      <a href="{{ url_for('eigenentwicklung.new_idv') }}" class="btn btn-sm btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Neue Eigenentwicklung
       </a>
       {% endif %}
-      <a href="{{ url_for('idv.list_idv', filter='nicht_wesentlich') }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-box-arrow-up-right me-1"></i>In IDV-Liste öffnen
+      <a href="{{ url_for('eigenentwicklung.list_idv', filter='nicht_wesentlich') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-box-arrow-up-right me-1"></i>In Liste öffnen
       </a>
     </div>
   </div>
@@ -127,7 +127,7 @@ owner_filt} %}
     <table class="table table-hover mb-0 table-idv" id="nw-table" style="font-size:.82rem">
       <thead>
         <tr>
-          <th class="sortable">IDV-ID</th>
+          <th class="sortable">ID</th>
           <th class="sortable">Bezeichnung</th>
           <th class="sortable">OE</th>
           <th class="sortable">Typ</th>
@@ -144,7 +144,7 @@ owner_filt} %}
         {% for r in nicht_wesentliche %}
         <tr>
           <td>
-            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none font-monospace"
+            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none font-monospace"
               style="font-size:.82rem">
               {{ r.idv_id }}
             </a>
@@ -154,7 +154,7 @@ owner_filt} %}
           </td>
           <td style="font-size:.78rem;white-space:nowrap">
             {% if r.org_einheit %}
-            <a href="{{ url_for('idv.nicht_wesentliche_idvs', oe_id=r.org_unit_id, status=status, q=q) }}"
+            <a href="{{ url_for('eigenentwicklung.nicht_wesentliche_idvs', oe_id=r.org_unit_id, status=status, q=q) }}"
               class="text-decoration-none text-muted" title="Nach dieser OE filtern">
               {{ r.org_einheit }}
             </a>
@@ -165,7 +165,7 @@ owner_filt} %}
           </td>
           <td style="white-space:nowrap;font-size:.78rem">
             {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
-            <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige IDV"></i>
+            <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige Eigenentwicklung"></i>
             {% endif %}
             <span class="text-muted">v{{ r.version or '1.0' }}</span>
             {% if r.datei_anzahl %}
@@ -202,7 +202,7 @@ owner_filt} %}
             {% endif %}
           </td>
           <td>
-            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
+            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
               title="Detail">
               <i class="bi bi-eye"></i>
             </a>
@@ -212,7 +212,7 @@ owner_filt} %}
         <tr>
           <td colspan="11" class="text-center text-muted py-5">
             <i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>
-            Keine nicht wesentlichen IDVs gefunden.
+            Keine nicht wesentlichen Eigenentwicklungen gefunden.
           </td>
         </tr>
         {% endfor %}

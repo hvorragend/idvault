@@ -423,7 +423,7 @@ def create_app(db_path: str = None) -> Flask:
     # Blueprints registrieren
     from .routes.auth       import bp as auth_bp
     from .routes.dashboard  import bp as dash_bp
-    from .routes.idv        import bp as idv_bp
+    from .routes.eigenentwicklung import bp as eigenentwicklung_bp
     from .routes.reviews    import bp as rev_bp
     from .routes.measures   import bp as meas_bp
     from .routes.admin      import bp as admin_bp
@@ -436,7 +436,7 @@ def create_app(db_path: str = None) -> Flask:
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
-    app.register_blueprint(idv_bp)
+    app.register_blueprint(eigenentwicklung_bp)
     app.register_blueprint(rev_bp)
     app.register_blueprint(meas_bp)
     app.register_blueprint(admin_bp)

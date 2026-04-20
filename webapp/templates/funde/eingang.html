@@ -376,13 +376,13 @@
       </button>
       <button type="submit" name="aktion" value="nicht_wesentlich"
               class="btn btn-sm btn-outline-secondary"
-              title="Als nicht wesentliche IDV einstufen (kein weiterer Handlungsbedarf)">
+              title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
         <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
       </button>
       <button type="submit" name="aktion" value="zusammenfassen"
               class="btn btn-sm btn-outline-primary"
-              title="Ausgewählte Dateien als IDV-Projekt zusammenfassen oder mit bestehendem IDV verknüpfen">
-        <i class="bi bi-diagram-3 me-1"></i>Zu IDV-Projekt zusammenfassen
+              title="Ausgewählte Dateien als Eigenentwicklungs-Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu Eigenentwicklungs-Projekt zusammenfassen
       </button>
       <button type="submit" name="aktion" value="bewertung_anfordern" class="btn btn-sm btn-outline-primary"
               title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
@@ -397,7 +397,7 @@
       <button type="submit" name="aktion" value="loeschen"
               class="btn btn-sm btn-outline-danger"
               data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
-              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne IDV-Verknüpfung)">
+              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Eigenentwicklungs-Verknüpfung)">
         <i class="bi bi-trash me-1"></i>Löschen
       </button>
       {% endif %}
@@ -477,7 +477,7 @@
               {% endif %}
             </td>
 
-            <!-- IDV-Typ-Vorschlag -->
+            <!-- Typ-Vorschlag -->
             <td>
               {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
               <span class="badge bg-light text-dark border">{{ typ }}</span>
@@ -549,8 +549,8 @@
 
             <!-- Aktionen -->
             <td class="text-end text-nowrap">
-              <a href="{{ url_for('idv.new_idv', file_id=f.id) }}" class="btn btn-xs btn-primary"
-                title="Als IDV registrieren">
+              <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}" class="btn btn-xs btn-primary"
+                title="Als Eigenentwicklung registrieren">
                 <i class="bi bi-plus-circle me-1"></i>Registrieren
               </a>
               {% if is_admin %}

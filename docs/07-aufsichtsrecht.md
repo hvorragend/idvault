@@ -173,7 +173,7 @@ bereitgestellt werden:
 
 | Artefakt | Bezugsquelle | Format |
 |---|---|---|
-| IDV-Grundgesamtheit | `/idv/export/excel` | XLSX |
+| Grundgesamtheit Eigenentwicklungen | `/eigenentwicklung/export/excel` | XLSX |
 | Prüfungsübersicht | Administrationsbereich | XLSX |
 | Maßnahmenübersicht | Administrationsbereich | XLSX |
 | Login-Protokoll | `/admin/login-log` + Download | Textdatei |

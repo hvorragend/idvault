@@ -68,7 +68,7 @@
   <div class="col-sm-3">
     <div class="card border-0 shadow-sm stat-card p-3 text-center">
       <div class="stat-val text-success">{{ stats.registriert or 0 }}</div>
-      <div class="stat-lbl">Als IDV registriert</div>
+      <div class="stat-lbl">Als Eigenentwicklung registriert</div>
     </div>
   </div>
   <div class="col-sm-3">
@@ -219,7 +219,7 @@
       </span>
       <button type="submit" name="aktion" value="ignorieren"
               class="btn btn-sm btn-outline-secondary" id="btn-ignorieren"
-              title="Nur für Berichte ohne IDV-Verknüpfung verfügbar">
+              title="Nur für Berichte ohne Eigenentwicklungs-Verknüpfung verfügbar">
         <i class="bi bi-eye-slash me-1"></i>Ignorieren
       </button>
       <button type="submit" name="aktion" value="nicht_mehr_ignorieren"
@@ -233,13 +233,13 @@
       </button>
       <button type="submit" name="aktion" value="nicht_wesentlich"
               class="btn btn-sm btn-outline-secondary"
-              title="Als nicht wesentliche IDV einstufen (kein weiterer Handlungsbedarf)">
+              title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
         <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
       </button>
       <button type="submit" name="aktion" value="zusammenfassen"
               class="btn btn-sm btn-outline-primary"
-              title="Ausgewählte Berichte als IDV-Projekt zusammenfassen oder mit bestehendem IDV verknüpfen">
-        <i class="bi bi-diagram-3 me-1"></i>Zu IDV-Projekt zusammenfassen
+              title="Ausgewählte Berichte als Eigenentwicklungs-Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu Eigenentwicklungs-Projekt zusammenfassen
       </button>
       <button type="submit" name="aktion" value="bewertung_anfordern"
               class="btn btn-sm btn-outline-primary"
@@ -383,9 +383,9 @@
             <td>
               {% if b.bearbeitungsstatus == 'Registriert' %}
                 <span class="badge bg-success">
-                  <i class="bi bi-check-circle me-1"></i>IDV
+                  <i class="bi bi-check-circle me-1"></i>Eigenentwicklung
                   {% if b.idv_id_str %}
-                    <a href="{{ url_for('idv.detail_idv', idv_db_id=b.idv_register_id) }}"
+                    <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=b.idv_register_id) }}"
                        class="text-white text-decoration-none ms-1">{{ b.idv_id_str }}</a>
                   {% endif %}
                 </span>
@@ -404,7 +404,7 @@
                         formaction="{{ url_for('cognos.als_idv_registrieren', bericht_id=b.id) }}"
                         formmethod="post"
                         class="btn btn-outline-primary btn-xs"
-                        title="Als IDV registrieren">
+                        title="Als Eigenentwicklung registrieren">
                   <i class="bi bi-plus-circle"></i>
                 </button>
                 <button type="submit"
@@ -423,8 +423,8 @@
                   <i class="bi bi-eye"></i>
                 </button>
               {% elif b.bearbeitungsstatus == 'Registriert' and b.idv_register_id %}
-                <a href="{{ url_for('idv.detail_idv', idv_db_id=b.idv_register_id) }}"
-                   class="btn btn-outline-success btn-xs" title="IDV öffnen">
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=b.idv_register_id) }}"
+                   class="btn btn-outline-success btn-xs" title="Eigenentwicklung öffnen">
                   <i class="bi bi-box-arrow-up-right"></i>
                 </a>
               {% endif %}

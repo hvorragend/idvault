@@ -1,8 +1,14 @@
 # idvault
 
-Register für **Individuelle Datenverarbeitungen (IDV)** nach
-**MaRisk AT 7.2**, **DORA** und **BAIT** — entwickelt für Volksbanken,
-Sparkassen und sonstige beaufsichtigte Kreditinstitute.
+Register für **Eigenentwicklungen** (inkl. IDVs nach **MaRisk AT 7.2**),
+**DORA** und **BAIT** — entwickelt für Volksbanken, Sparkassen und sonstige
+beaufsichtigte Kreditinstitute.
+
+> **Begriffsklärung:** „Eigenentwicklung" ist in diesem System der
+> Oberbegriff für alle erfassten Datenverarbeitungen (Arbeitshilfen,
+> IDVs, Eigenprogrammierungen, Auftragsprogrammierungen). „IDV" bezeichnet
+> ausschließlich das regulatorische Klassifikationsergebnis einer
+> Eigenentwicklung nach MaRisk AT 7.2.
 
 ---
 
@@ -10,13 +16,13 @@ Sparkassen und sonstige beaufsichtigte Kreditinstitute.
 
 idvault ist eine in sich geschlossene Webanwendung zur vollständigen,
 aufsichtsrechtlich konformen Erfassung, Klassifizierung, Prüfung und
-Überwachung aller Individuellen Datenverarbeitungen der Bank:
+Überwachung aller Eigenentwicklungen der Bank:
 
-- **Scanner** identifiziert IDV-Kandidaten auf Netzlaufwerken und in Microsoft Teams
-- **IDV-Register** dokumentiert Wesentlichkeit, Risiko, DORA-Kritikalität, Verantwortliche
+- **Scanner** identifiziert Kandidaten für Eigenentwicklungen auf Netzlaufwerken und in Microsoft Teams
+- **Register der Eigenentwicklungen** dokumentiert Wesentlichkeit, Risiko, DORA-Kritikalität, Verantwortliche
 - **Workflow** bildet Entwurf → Prüfung → Genehmigung → Archiv ab (inklusive 4-Augen-Prinzip)
 - **Prüfungen & Maßnahmen** verfolgen Regelprüfungen und deren Befunde
-- **Test-, Freigabe- und Archivierungsverfahren** mit 5 Schritten in 3 Phasen für wesentliche IDVs (inkl. revisionssicherer Archivierung der Originaldatei mit SHA-256-Prüfsumme; dokumentierte Nicht-Verfügbarkeit z.B. bei Cognos-Berichten)
+- **Test-, Freigabe- und Archivierungsverfahren** mit 5 Schritten in 3 Phasen für wesentliche Eigenentwicklungen (inkl. revisionssicherer Archivierung der Originaldatei mit SHA-256-Prüfsumme; dokumentierte Nicht-Verfügbarkeit z.B. bei Cognos-Berichten)
 - **LDAP-Integration** gegen Active Directory mit Gruppen-Rollen-Mapping
 - **Audit-Trail** auf Tabellen- und Login-Ebene
 - **Export** nach Excel für Revision und Aufsicht
@@ -149,7 +155,7 @@ Bereits umgesetzte Hardening-Maßnahmen (Details: [docs/09-schwachstellenanalyse
 
 - ✅ Stored-XSS-Schutz: `nachweise_text` aus QuillJS wird mit `bleach` sanitiert (strikte Tag-/Attribut-Whitelist)
 - ✅ Path-Traversal/IDOR am Nachweis-Download behoben — Downloads werden per ID + Ownership-Check ausgeliefert
-- ✅ Broken Access Control behoben — `ensure_can_read_idv` / `ensure_can_write_idv` in allen schreibenden IDV-/Tests-/Reviews-/Measures-/Freigaben-Routen
+- ✅ Broken Access Control behoben — `ensure_can_read_idv` / `ensure_can_write_idv` in allen schreibenden Eigenentwicklungs-/Tests-/Reviews-/Measures-/Freigaben-Routen
 - ✅ Upload-Magic-Byte-Validierung — verhindert polyglot-Uploads (z.B. SVG getarnt als PNG)
 - ✅ Admin-RCE-Vektor (Sidecar-ZIP-Update) über `Administration → Update` deaktivierbar (app_settings-Schalter)
 - ✅ SMTP-Passwort Fernet-verschlüsselt in der Datenbank

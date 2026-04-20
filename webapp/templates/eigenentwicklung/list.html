@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Wesentliche IDV{% endblock %}
-{% block page_title %}<i class="bi bi-table me-2"></i>Wesentliche IDV{% endblock %}
+{% block title %}Wesentliche Eigenentwicklungen{% endblock %}
+{% block page_title %}<i class="bi bi-table me-2"></i>Wesentliche Eigenentwicklungen{% endblock %}
 
 {% block content %}
 
@@ -12,7 +12,7 @@
     <div class="col-md-4">
       <label class="form-label form-label-sm">Suche</label>
       <input type="text" name="q" value="{{ request.args.get('q','') }}" class="form-control form-control-sm"
-        placeholder="IDV-ID, Name, Beschreibung …">
+        placeholder="ID, Name, Beschreibung …">
     </div>
     <div class="col-md-2">
       <label class="form-label form-label-sm">Status</label>
@@ -26,16 +26,16 @@
     <div class="col-md-4">
       <label class="form-label form-label-sm">Filter</label>
       <select name="filter" class="form-select form-select-sm">
-        <option value="" {{ 'selected' if filt=='' }}>– Alle IDVs –</option>
-        <option value="wesentlich" {{ 'selected' if filt in ('wesentlich','kritisch') }}>Wesentliche IDVs</option>
-        <option value="nicht_wesentlich" {{ 'selected' if filt=='nicht_wesentlich' }}>Nicht wesentliche IDVs</option>
+        <option value="" {{ 'selected' if filt=='' }}>– Alle –</option>
+        <option value="wesentlich" {{ 'selected' if filt in ('wesentlich','kritisch') }}>Wesentliche Eigenentwicklungen</option>
+        <option value="nicht_wesentlich" {{ 'selected' if filt=='nicht_wesentlich' }}>Nicht wesentliche Eigenentwicklungen</option>
         <option value="ueberfaellig" {{ 'selected' if filt=='ueberfaellig' }}>Prüfung überfällig</option>
         <option value="unvollstaendig" {{ 'selected' if filt=='unvollstaendig' }}>Unvollständig</option>
       </select>
     </div>
     <div class="col-md-2 d-flex gap-1 align-items-end">
       <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
-      <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i
+      <a href="{{ url_for('eigenentwicklung.list_idv') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i
           class="bi bi-x"></i></a>
     </div>
 
@@ -108,11 +108,11 @@
 <!-- ── Pagination ─────────────────────────────────────────────────── -->
 {% set url_extra = {'q': q, 'status': status, 'filter': filt, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root,
 'owner': owner_filt, 'entwicklungsart': entwicklungsart} %}
-{% set endpoint = 'idv.list_idv' %}
+{% set endpoint = 'eigenentwicklung.list_idv' %}
 {% include 'funde/_pagination.html' %}
 
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
-<form id="bulk-form" method="post" action="{{ url_for('idv.list_idv') }}">
+<form id="bulk-form" method="post" action="{{ url_for('eigenentwicklung.list_idv') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="card border-0 shadow-sm mt-2">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -138,22 +138,22 @@
           {% endfor %}
         </select>
         <button type="submit" id="btn-bulk-status" class="btn btn-sm btn-outline-primary d-none"
-          formaction="{{ url_for('idv.bulk_status') }}" data-submit-validate="confirmBulkStatus">
+          formaction="{{ url_for('eigenentwicklung.bulk_status') }}" data-submit-validate="confirmBulkStatus">
           <i class="bi bi-arrow-repeat me-1"></i>Status ändern
         </button>
         {% endif %}
         {% if is_admin %}
         <button type="submit" id="btn-bulk-delete" class="btn btn-sm btn-danger d-none"
-          formaction="{{ url_for('idv.bulk_loeschen') }}" data-submit-validate="confirmBulkDelete">
+          formaction="{{ url_for('eigenentwicklung.bulk_loeschen') }}" data-submit-validate="confirmBulkDelete">
           <i class="bi bi-trash me-1"></i>Löschen
         </button>
         {% endif %}
-        <a href="{{ url_for('idv.export_excel') }}" class="btn btn-sm btn-outline-success">
+        <a href="{{ url_for('eigenentwicklung.export_excel') }}" class="btn btn-sm btn-outline-success">
           <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
         </a>
         {% if can_write %}
-        <a href="{{ url_for('idv.new_idv') }}" class="btn btn-sm btn-primary">
-          <i class="bi bi-plus-lg me-1"></i>Neue IDV
+        <a href="{{ url_for('eigenentwicklung.new_idv') }}" class="btn btn-sm btn-primary">
+          <i class="bi bi-plus-lg me-1"></i>Neue Eigenentwicklung
         </a>
         {% endif %}
       </div>
@@ -164,7 +164,7 @@
           <tr>
             {% if can_write %}<th style="width:36px"><input type="checkbox" id="select-all" class="form-check-input"
                 title="Alle auswählen"></th>{% endif %}
-            <th class="sortable">IDV-ID</th>
+            <th class="sortable">ID</th>
             <th class="sortable">Bezeichnung</th>
             <th class="sortable">OE</th>
             <th class="sortable">Typ</th>
@@ -186,7 +186,7 @@
             <td><input type="checkbox" name="idv_ids" value="{{ r.id }}" class="form-check-input row-check"></td>
             {% endif %}
             <td>
-              <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
                 class="fw-500 text-decoration-none font-monospace" style="font-size:.82rem">
                 {{ r.idv_id }}
               </a>
@@ -196,7 +196,7 @@
             </td>
             <td style="font-size:.78rem;white-space:nowrap">
               {% if r.org_einheit %}
-              <a href="{{ url_for('idv.list_idv', oe_id=r.org_unit_id, status=request.args.get('status',''), filter=request.args.get('filter','')) }}"
+              <a href="{{ url_for('eigenentwicklung.list_idv', oe_id=r.org_unit_id, status=request.args.get('status',''), filter=request.args.get('filter','')) }}"
                 class="text-decoration-none text-muted" title="Nach dieser OE filtern">
                 {{ r.org_einheit }}
               </a>
@@ -217,7 +217,7 @@
             <td style="white-space:nowrap;font-size:.78rem">
               {# Versionskette: Icon wenn Vorgänger oder Nachfolger existiert #}
               {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
-              <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige IDV"></i>
+              <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige Eigenentwicklung"></i>
               {% endif %}
               <span class="text-muted">v{{ r.version or '1.0' }}</span>
               {% if r.datei_anzahl %}
@@ -262,12 +262,12 @@
             </td>
             <td>
               <div class="d-flex gap-1">
-                <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
                   title="Detail">
                   <i class="bi bi-eye"></i>
                 </a>
                 {% if can_write %}
-                <a href="{{ url_for('idv.edit_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-primary"
+                <a href="{{ url_for('eigenentwicklung.edit_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-primary"
                   title="Bearbeiten">
                   <i class="bi bi-pencil"></i>
                 </a>
@@ -279,8 +279,8 @@
           <tr>
             <td colspan="{{ 14 if can_write else 13 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-              Keine IDVs gefunden.
-              {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}
+              Keine Eigenentwicklungen gefunden.
+              {% if can_write %}<a href="{{ url_for('eigenentwicklung.new_idv') }}">Erste Eigenentwicklung erfassen →</a>{% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -365,14 +365,14 @@
 
     window.confirmBulkDelete = function () {
       const n = [...rowChecks()].filter(c => c.checked).length;
-      return confirm(`${n} IDV(s) unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`);
+      return confirm(`${n} Eigenentwicklung(en) unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`);
     };
 
     window.confirmBulkStatus = function () {
       const sel = document.getElementById('bulk-status-select');
       if (!sel || !sel.value) { alert('Bitte zuerst einen Zielstatus wählen.'); return false; }
       const n = [...rowChecks()].filter(c => c.checked).length;
-      return confirm(`Status von ${n} IDV(s) auf „${sel.value}" setzen?`);
+      return confirm(`Status von ${n} Eigenentwicklung(en) auf „${sel.value}" setzen?`);
     };
   })();
 </script>

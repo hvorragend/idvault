@@ -21,12 +21,12 @@ pip install pywin32
 
 ```cmd
 REM 1. Beispiel-Konfiguration erzeugen
-python idv_scanner.py --init-config
+python eigenentwicklung_scanner.py --init-config
 
 REM 2. config.json anpassen (Scan-Pfade, db_path)
 
 REM 3. Scan starten
-python idv_scanner.py --config config.json
+python eigenentwicklung_scanner.py --config config.json
 ```
 
 ---
@@ -39,7 +39,7 @@ python idv_scanner.py --config config.json
 | `extensions` | Liste | `.xlsx`, `.xlsm`, `.py` … | Erfasste Dateierweiterungen |
 | `exclude_paths` | Liste | `["~$", ".tmp", …]` | Pfadmuster, die ausgeschlossen werden |
 | `db_path` | String | `"idv_register.db"` | Pfad zur SQLite-Datenbank |
-| `log_path` | String | `"idv_scanner.log"` | Pfad zur Logdatei |
+| `log_path` | String | `"eigenentwicklung_scanner.log"` | Pfad zur Logdatei |
 | `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |
 | `max_workers` | Integer | `4` | Reserviert (zukünftige Parallelisierung) |
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (s.u.) |
@@ -60,8 +60,8 @@ aufgeteilt werden. Dazu einfach pro Lauf einen eigenen `scan_paths`-Eintrag verw
 ```
 
 ```cmd
-python idv_scanner.py --config config_share1.json
-python idv_scanner.py --config config_share2.json
+python eigenentwicklung_scanner.py --config config_share1.json
+python eigenentwicklung_scanner.py --config config_share2.json
 ```
 
 **Warum das funktioniert:**
@@ -289,7 +289,7 @@ Nach jedem Scan wird ein Protokoll-Eintrag in `scan_runs` gespeichert:
 ## Excel-Export
 
 ```cmd
-python idv_export.py --db idv_register.db --output IDV_Export.xlsx
+python eigenentwicklung_export.py --db idv_register.db --output IDV_Export.xlsx
 ```
 
 ---
@@ -343,7 +343,7 @@ echo. > C:\idvault\scanner\scanner_cancel.signal
 ```cmd
 idvault.exe --scan --config C:\idvault\scanner\config.json --resume
 REM oder:
-python idv_scanner.py --config config.json --resume
+python eigenentwicklung_scanner.py --config config.json --resume
 ```
 
 ### Granularität des Checkpoints
@@ -429,7 +429,7 @@ Datei auch den Scanner-Modus:
 **Option B – Python-Skript (Quellinstallation)**
 
 1. Aufgabenplanung öffnen
-2. Neue Aufgabe: `python C:\IDV-Scanner\idv_scanner.py --config C:\IDV-Scanner\config.json`
+2. Neue Aufgabe: `python C:\IDV-Scanner\eigenentwicklung_scanner.py --config C:\IDV-Scanner\config.json`
 3. Trigger: wöchentlich (z.B. Montag 06:00 Uhr)
 4. Ausführen als: Dienstkonto mit Lesezugriff auf alle Shares
 

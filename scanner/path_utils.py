@@ -1,7 +1,7 @@
 """
 Pfad-Hilfsfunktionen: Mapping, Blacklist, Whitelist
 ====================================================
-Wird von idv_scanner.py, teams_scanner.py und der Webapp genutzt.
+Wird von eigenentwicklung_scanner.py, teams_scanner.py und der Webapp genutzt.
 """
 
 import re

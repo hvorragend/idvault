@@ -759,7 +759,7 @@ def ignorierte_loeschen():
     if geloescht:
         flash(f"{geloescht} Einträge gelöscht.", "success")
     if uebersprungen:
-        flash(f"{uebersprungen} Einträge übersprungen (mit IDV verknüpft).", "warning")
+        flash(f"{uebersprungen} Einträge übersprungen (mit Eigenentwicklung verknüpft).", "warning")
     if not geloescht and not uebersprungen:
         flash("Keine passenden Einträge gefunden.", "warning")
 
@@ -815,7 +815,7 @@ def zusammenfassen():
             # Primärdatei + zusätzliche IDs an IDV-Neuanlage übergeben
             primary_id  = request.form.get("primary_file_id", "")
             extra_ids   = [str(i) for i in file_ids if str(i) != primary_id]
-            url = url_for("idv.new_idv",
+            url = url_for("eigenentwicklung.new_idv",
                           file_id=primary_id,
                           extra_file_ids=",".join(extra_ids))
             return redirect(url)
@@ -825,14 +825,14 @@ def zusammenfassen():
             try:
                 idv_db_id = int(idv_db_id)
             except (ValueError, TypeError):
-                flash("Ungültige IDV-Auswahl.", "error")
+                flash("Ungültige Auswahl der Eigenentwicklung.", "error")
                 return redirect(url_for("funde.list_funde"))
 
             idv_row = db.execute(
                 "SELECT id, idv_id FROM idv_register WHERE id=?", (idv_db_id,)
             ).fetchone()
             if not idv_row:
-                flash("IDV nicht gefunden.", "error")
+                flash("Eigenentwicklung nicht gefunden.", "error")
                 return redirect(url_for("funde.list_funde"))
 
             linked = 0
@@ -854,7 +854,7 @@ def zusammenfassen():
                 f"{linked} Datei(en) mit IDV {idv_row['idv_id']} verknüpft.",
                 "success"
             )
-            return redirect(url_for("idv.detail_idv", idv_db_id=idv_db_id))
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
         flash("Unbekannte Aktion.", "error")
         return redirect(url_for("funde.list_funde"))
@@ -1074,7 +1074,7 @@ def bulk_aktion():
             if geloescht:
                 flash(f"{geloescht} Fund/Funde dauerhaft gelöscht.", "success")
             if uebersprungen:
-                flash(f"{uebersprungen} Fund/Funde übersprungen (mit IDV-Eintrag verknüpft).", "warning")
+                flash(f"{uebersprungen} Fund/Funde übersprungen (mit Eigenentwicklung verknüpft).", "warning")
             if not geloescht and not uebersprungen:
                 flash("Keine Einträge gefunden.", "warning")
 

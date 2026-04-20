@@ -516,7 +516,7 @@ Fehlschlägen, die im Log nicht sichtbar wurden.
 - `webapp/routes/freigaben.py`: E-Mail-Benachrichtigungsfehler werden
   als `Warning` ins App-Log geschrieben (`_notify_schritte`,
   `_notify_freigabe_erteilt`), blockieren aber den Workflow nicht.
-- `webapp/routes/idv.py`: Bulk-Statusänderung loggt Einzel-Fehler.
+- `webapp/routes/eigenentwicklung.py`: Bulk-Statusänderung loggt Einzel-Fehler.
 
 **Restrisiko**: Es existieren weitere ~20 `except Exception:`-Blöcke in
 unkritischen Pfaden (Read-only-Queries mit Defaults, JSON-Parsing von

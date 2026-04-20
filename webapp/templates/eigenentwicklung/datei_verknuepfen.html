@@ -2,7 +2,7 @@
 {% block title %}Dateien verknüpfen – {{ idv.idv_id }}{% endblock %}
 {% block page_title %}
   <i class="bi bi-link-45deg me-2"></i>Dateien verknüpfen –
-  <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}" class="text-decoration-none">{{ idv.idv_id }}</a>
+  <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) }}" class="text-decoration-none">{{ idv.idv_id }}</a>
   <span class="text-muted fw-400 ms-2" style="font-size:.85rem">{{ idv.bezeichnung }}</span>
 {% endblock %}
 
@@ -24,7 +24,7 @@
       <button type="submit" class="btn btn-sm btn-primary" id="submitBtn" disabled>
         <i class="bi bi-link me-1"></i>Verknüpfen
       </button>
-      <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-secondary">
+      <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-x me-1"></i>Abbrechen
       </a>
     </div>
@@ -36,7 +36,7 @@
       Verfügbare Scanner-Funde
       <span class="badge bg-secondary ms-1" id="totalBadge">{{ total_count }}</span>
       <span class="text-muted fw-400 ms-2" style="font-size:.8rem">
-        — Dateien, die noch keinem IDV zugeordnet sind
+        — Dateien, die noch keiner Eigenentwicklung zugeordnet sind
       </span>
     </div>
 
@@ -45,15 +45,15 @@
       <i class="bi bi-folder2-open fs-1 mb-3 d-block" style="opacity:.3"></i>
       <strong>Keine freien Scanner-Funde vorhanden.</strong>
       <div class="mt-2" style="font-size:.88rem">
-        Alle bekannten Dateien sind bereits einem IDV zugeordnet, oder es wurde
+        Alle bekannten Dateien sind bereits einer Eigenentwicklung zugeordnet, oder es wurde
         noch kein Scan durchgeführt.
       </div>
       <div class="mt-3">
         <a href="{{ url_for('admin.scanner_einstellungen') }}" class="btn btn-sm btn-outline-primary me-2">
           <i class="bi bi-gear-wide-connected me-1"></i>Scanner starten
         </a>
-        <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-arrow-left me-1"></i>Zurück zur IDV
+        <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Zurück zur Eigenentwicklung
         </a>
       </div>
     </div>
@@ -90,7 +90,7 @@
 <script>
 (function () {
   const LIMIT      = 50;
-  const searchUrl  = {{ url_for('idv.link_files_search', idv_db_id=idv.id)|tojson }};
+  const searchUrl  = {{ url_for('eigenentwicklung.link_files_search', idv_db_id=idv.id)|tojson }};
 
   const searchInput  = document.getElementById('fileSearch');
   const checkAll     = document.getElementById('checkAll');

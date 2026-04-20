@@ -3,7 +3,7 @@
 Scannt Microsoft Teams-Kanäle und SharePoint Online-Dokumentbibliotheken nach
 IDV-Eigenentwicklungen (Excel, Access, Python, SQL, Power BI u.a.), erhebt
 Metadaten über die Microsoft Graph API und speichert Ergebnisse in derselben
-SQLite-Datenbank wie der Netzlaufwerk-Scanner (`idv_scanner.py`).
+SQLite-Datenbank wie der Netzlaufwerk-Scanner (`eigenentwicklung_scanner.py`).
 
 > **Hintergrund:** Teams-Dateien liegen intern in SharePoint Online. Jeder
 > Teams-Kanal hat eine entsprechende SharePoint-Dokumentbibliothek. Der
@@ -122,7 +122,7 @@ Das Clientgeheimnis liegt getrennt davon verschlüsselt in
 | `client_secret` | String | – | Clientgeheimnis (Fernet-verschlüsselt in `teams_client_secret_enc`) |
 | `hash_size_limit_mb` | Integer | `100` | Dateien größer als dieser Wert werden nicht heruntergeladen |
 | `download_for_ooxml` | Boolean | `true` | Dateien für OOXML-Analyse herunterladen (Makros, Formeln etc.) |
-| `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (identisch zu `idv_scanner.py`) |
+| `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (identisch zu `eigenentwicklung_scanner.py`) |
 | `extensions` | Liste | (s.o.) | Erfasste Dateierweiterungen |
 | `teams` | Liste | `[]` | Zu scannende Teams oder SharePoint-Sites |
 
@@ -247,7 +247,7 @@ Microsoft bereitgestellt), andernfalls als `HASH_ERROR` gesetzt.
 
 ## Vergleich: Netzlaufwerk-Scanner vs. Teams-Scanner
 
-| Merkmal | `idv_scanner.py` | `teams_scanner.py` |
+| Merkmal | `eigenentwicklung_scanner.py` | `teams_scanner.py` |
 |---|---|---|
 | Dateiablage | Netzlaufwerke / UNC-Pfade | Teams-Kanäle / SharePoint Online |
 | Authentifizierung | Windows-Dienstkonto | Azure AD App-Registrierung |

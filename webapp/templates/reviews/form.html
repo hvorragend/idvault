@@ -13,7 +13,7 @@
         <div class="row g-3">
 
           <div class="col-md-4">
-            <label class="form-label">IDV</label>
+            <label class="form-label">Eigenentwicklung</label>
             <input type="text" class="form-control" value="{{ idv.idv_id }} – {{ idv.bezeichnung }}" disabled>
           </div>
 
@@ -59,7 +59,7 @@
           <div class="col-md-6">
             <label class="form-label">Nächste Prüfung</label>
             <input type="date" name="naechste_pruefung" class="form-control">
-            <div class="form-text">Wird ins IDV-Register übernommen.</div>
+            <div class="form-text">Wird ins Register übernommen.</div>
           </div>
 
           <div class="col-12">
@@ -71,7 +71,7 @@
       </div>
 
       <div class="d-flex justify-content-between">
-        <a href="{{ url_for('idv.detail_idv', idv_db_id=idv.id) }}" class="btn btn-outline-secondary">
+        <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) }}" class="btn btn-outline-secondary">
           <i class="bi bi-arrow-left me-1"></i>Abbrechen
         </a>
         <button type="submit" class="btn btn-primary">
@@ -84,10 +84,10 @@
     <!-- Kontext-Box -->
     <div class="col-lg-4">
       <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white fw-600"><i class="bi bi-info-circle me-2"></i>IDV-Kontext</div>
+        <div class="card-header bg-white fw-600"><i class="bi bi-info-circle me-2"></i>Eigenentwicklung</div>
         <ul class="list-group list-group-flush">
           <li class="list-group-item px-3 py-2">
-            <div class="detail-label">IDV-ID</div>
+            <div class="detail-label">ID</div>
             <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
           </li>
           <li class="list-group-item px-3 py-2">

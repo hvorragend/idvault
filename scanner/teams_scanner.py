@@ -1,8 +1,8 @@
 """
-IDV Teams-Scanner – Microsoft Teams / SharePoint Online Discovery via Graph API
-================================================================================
-Scannt Teams-Kanäle und SharePoint-Dokumentbibliotheken nach IDV-Dateien und
-speichert Metadaten in derselben SQLite-Datenbank wie der idv_scanner.py.
+Eigenentwicklung Teams-Scanner – Microsoft Teams / SharePoint Online Discovery via Graph API
+============================================================================================
+Scannt Teams-Kanäle und SharePoint-Dokumentbibliotheken nach Eigenentwicklungs-Dateien und
+speichert Metadaten in derselben SQLite-Datenbank wie der eigenentwicklung_scanner.py.
 
 Voraussetzungen:
     pip install msal requests
@@ -41,10 +41,10 @@ from typing import Optional
 from urllib.parse import urlparse
 
 # ---------------------------------------------------------------------------
-# Shared utilities aus idv_scanner importieren
+# Shared utilities aus eigenentwicklung_scanner importieren
 # ---------------------------------------------------------------------------
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from idv_scanner import (
+from eigenentwicklung_scanner import (
     analyze_ooxml,
     upsert_file,
     mark_deleted_files,

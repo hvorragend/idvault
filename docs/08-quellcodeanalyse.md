@@ -35,9 +35,9 @@ eingesetzten Software.
 | Modul | Zeilen (ca.) | Bewertung |
 |---|---:|---|
 | `webapp/routes/admin.py` | 2.163 | **Hoch** – Aufspaltung empfohlen |
-| `scanner/idv_scanner.py` | 1.200 | Akzeptabel für Scanner-Kernlogik |
+| `scanner/eigenentwicklung_scanner.py` | 1.200 | Akzeptabel für Scanner-Kernlogik |
 | `db.py` | 846 | Angemessen |
-| `webapp/routes/idv.py` | 869 | Angemessen |
+| `webapp/routes/eigenentwicklung.py` | 869 | Angemessen |
 | `webapp/routes/funde.py` | 923 | Angemessen |
 | `webapp/email_service.py` | 550 | Angemessen |
 | `webapp/routes/freigaben.py` | 500 | Angemessen |
@@ -171,8 +171,8 @@ Aufnahme der Ergebnisse in das IT-Sicherheits-Reporting.
 Beobachtete Konventionen:
 
 - **Sprache im Code**: Deutsch (Variablennamen, Kommentare, DB-Spalten); konsistent beibehalten
-- **Dateiname = Blueprint-Name**: `webapp/routes/idv.py` ⇒ `idv`-Blueprint
-- **Templates spiegeln Blueprints**: `webapp/templates/idv/*.html`
+- **Dateiname = Blueprint-Name**: `webapp/routes/eigenentwicklung.py` ⇒ `eigenentwicklung`-Blueprint
+- **Templates spiegeln Blueprints**: `webapp/templates/eigenentwicklung/*.html`
 - **Datum/Zeit**: ISO 8601 UTC in der DB; Darstellung via Jinja-Filter
 - **Boolean-Kodierung**: INTEGER 0/1 in SQLite (SQLite hat keinen nativen BOOL-Typ)
 
@@ -243,7 +243,7 @@ Maßnahmen vor Go-Live umgesetzt werden.
 | `webapp/routes/__init__.py` | 100 | Autorisierungs-Decorators |
 | `webapp/routes/auth.py` | 161 | Login, Logout |
 | `webapp/routes/dashboard.py` | 90 | Kennzahlen-Dashboard |
-| `webapp/routes/idv.py` | 869 | IDV-CRUD, Export |
+| `webapp/routes/eigenentwicklung.py` | 869 | Eigenentwicklung-CRUD, Export |
 | `webapp/routes/admin.py` | 2.163 | Administration (Refaktorierung empfohlen) |
 | `webapp/routes/funde.py` | 923 | Scanner-Eingang |
 | `webapp/routes/freigaben.py` | 500 | Test- und Abnahmeverfahren |
@@ -251,6 +251,6 @@ Maßnahmen vor Go-Live umgesetzt werden.
 | `webapp/routes/reports.py` | 110 | Reports |
 | `webapp/routes/reviews.py` | 90 | Prüfungen |
 | `webapp/routes/tests.py` | 230 | Test-Fälle |
-| `scanner/idv_scanner.py` | ~1.200 | Dateisystem-Scanner |
+| `scanner/eigenentwicklung_scanner.py` | ~1.200 | Dateisystem-Scanner |
 | `scanner/teams_scanner.py` | ~800 | Teams/Graph-Scanner |
-| `scanner/idv_export.py` | 280 | Standalone-Excel-Export |
+| `scanner/eigenentwicklung_export.py` | 280 | Standalone-Excel-Export |

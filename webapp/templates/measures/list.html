@@ -20,7 +20,7 @@
     <table class="table table-hover mb-0 table-idv">
       <thead>
         <tr>
-          <th>IDV</th><th>Titel</th><th>Typ</th><th>Priorität</th>
+          <th>Eigenentwicklung</th><th>Titel</th><th>Typ</th><th>Priorität</th>
           <th>Verantwortlicher</th><th>Fällig am</th><th>Status</th><th></th>
         </tr>
       </thead>
@@ -28,7 +28,7 @@
         {% for m in massnahmen %}
         <tr class="{{ 'table-danger' if m.faelligkeitsstatus == 'ÜBERFÄLLIG' else '' }}">
           <td>
-            <a href="{{ url_for('idv.detail_idv', idv_db_id=m.idv_id) }}"
+            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=m.idv_id) }}"
                class="text-decoration-none fw-500 font-monospace" style="font-size:.82rem">
               {{ m.idv_id }}
             </a>

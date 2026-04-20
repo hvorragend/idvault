@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ 'IDV bearbeiten' if idv else 'Neue Eigenentwicklung erfassen' }}{% endblock %}
+{% block title %}{{ 'Eigenentwicklung bearbeiten' if idv else 'Neue Eigenentwicklung erfassen' }}{% endblock %}
 {% block page_title %}
 <i class="bi bi-{{ 'pencil' if idv else 'plus-circle' }} me-2"></i>
 {{ 'Eintrag bearbeiten: ' + idv.bezeichnung if idv else 'Neue Eigenentwicklung erfassen' }}
@@ -56,7 +56,7 @@
 
   <!-- ── Buttons oben ─────────────────────────────────────────── -->
   <div class="d-flex justify-content-between mb-3">
-    <a href="{{ url_for('idv.list_idv') }}" class="btn btn-outline-secondary">
+    <a href="{{ url_for('eigenentwicklung.list_idv') }}" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left me-1"></i>Abbrechen
     </a>
     <div class="d-flex gap-2">
@@ -109,7 +109,7 @@
       </div>
 
       <div class="col-md-4">
-        <label class="form-label">IDV-Typ <span class="required-star">*</span></label>
+        <label class="form-label">Typ <span class="required-star">*</span></label>
         {% set current_typ = idv.idv_typ if idv else prefill.get('idv_typ', 'unklassifiziert') %}
         <select name="idv_typ" class="form-select" required>
           {% for t in idv_typen %}
@@ -357,7 +357,7 @@
 
       clearBtn.addEventListener('click', clearSelection);
 
-      // ── Init: pre-fill when editing an existing IDV ────────────────
+      // ── Init: pre-fill when editing an existing Eigenentwicklung ────────────────
       document.addEventListener('DOMContentLoaded', function () {
         var existingId = parseInt(hiddenId.value, 10);
         if (existingId) {
@@ -481,7 +481,7 @@
         <label class="form-label">Schnittstellen zu anderen Anwendungen</label>
         <input type="text" name="schnittstellen_beschr" class="form-control"
           value="{{ (idv.schnittstellen_beschr or '') if idv else '' }}">
-        <div class="form-text">Schnittstellen zu anderen Systemen oder IDVs</div>
+        <div class="form-text">Schnittstellen zu anderen Systemen oder Eigenentwicklungen</div>
       </div>
 
       <div class="col-md-6">
@@ -551,7 +551,7 @@
 
   <!-- ── Speichern ─────────────────────────────────────────────── -->
   <div class="d-flex justify-content-between">
-    <a href="{{ url_for('idv.list_idv') }}" class="btn btn-outline-secondary">
+    <a href="{{ url_for('eigenentwicklung.list_idv') }}" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left me-1"></i>Abbrechen
     </a>
     <div class="d-flex gap-2">

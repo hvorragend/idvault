@@ -20,7 +20,7 @@ Container-Infrastruktur) zu ermöglichen.
 ┌───────────────────────┴───────────────────────────────────────┐
 │                     Presentation Layer                        │
 │               Flask / Jinja2 / Blueprints                     │
-│  auth · dashboard · idv · admin · funde · freigaben · ...     │
+│  auth · dashboard · eigenentwicklung · admin · funde · ...    │
 └───────────────────────┬───────────────────────────────────────┘
                         │
 ┌───────────────────────┴───────────────────────────────────────┐
@@ -40,7 +40,7 @@ Container-Infrastruktur) zu ermöglichen.
 ┌──────┴──────┐            ┌───────┴───────┐           ┌───────┴──────┐
 │  Scheduler  │            │  Dateisystem  │           │  Active      │
 │  (Windows   │            │  Scanner      │           │  Directory   │
-│   Task)     │            │  idv_scanner  │           │  (LDAPS)     │
+│   Task)     │            │               │           │  (LDAPS)     │
 └─────────────┘            └───────────────┘           └──────────────┘
 ```
 
@@ -85,7 +85,7 @@ idvault/
 │   │   ├── __init__.py            Decorators (login/admin/write_access_required)
 │   │   ├── auth.py                Login/Logout
 │   │   ├── dashboard.py           Kennzahlen-Übersicht
-│   │   ├── idv.py                 IDV-CRUD, Liste, Detail, Export
+│   │   ├── eigenentwicklung.py    Eigenentwicklung-CRUD, Liste, Detail, Export
 │   │   ├── admin.py               Administration (50+ Routen)
 │   │   ├── funde.py               Scanner-Eingang
 │   │   ├── freigaben.py           Test- und Abnahmeverfahren
@@ -95,9 +95,9 @@ idvault/
 │   │   └── tests.py               Test-Fälle
 │   └── templates/                 Jinja2-Templates
 └── scanner/
-    ├── idv_scanner.py             Dateisystem-Scanner
+    ├── eigenentwicklung_scanner.py             Dateisystem-Scanner
     ├── teams_scanner.py           Microsoft-Teams-Scanner (optional)
-    ├── idv_export.py              Standalone-Export
+    ├── eigenentwicklung_export.py              Standalone-Export
     ├── config.json                Scanner-Konfiguration
     └── requirements.txt           Scanner-Abhängigkeiten
 ```
@@ -116,7 +116,7 @@ idvault/
 | **E-Mail-Service** | SMTP-Versand, Template-Rendering | `webapp/email_service.py` |
 | **Autorisierungs-Decorators** | login_required, admin_required, write_access_required, own_write_required | `webapp/routes/__init__.py` |
 | **Blueprints** | Modulare Routing-Einheiten pro Funktionsbereich | `webapp/routes/*.py` |
-| **Scanner (FS)** | SHA-256-Hash, Move-Detection, Excel-Analyse | `scanner/idv_scanner.py` |
+| **Scanner (FS)** | SHA-256-Hash, Move-Detection, Excel-Analyse | `scanner/eigenentwicklung_scanner.py` |
 | **Scanner (Teams)** | Graph-API-Abfragen, Delta-Tokens | `scanner/teams_scanner.py` |
 
 ## 4 Laufzeitmodelle
@@ -169,7 +169,7 @@ gunicorn -w 4 -b 0.0.0.0:8000 "webapp:create_app()"
 ```
 Windows Task Scheduler (wöchentlich)
     → idvault.exe --scan --config C:\idvault\scanner\config.json
-        → scanner/idv_scanner.py::main()
+        → scanner/eigenentwicklung_scanner.py::main()
         → scan_paths durchlaufen, Hashes berechnen
         → Ergebnisse in idv_files/idv_file_history schreiben
         → scan_runs-Eintrag erzeugen
@@ -217,20 +217,20 @@ Windows Task Scheduler (wöchentlich)
 
 ```
 1. Scanner-Task läuft
-     └─ scanner/idv_scanner.py → idv_files (Bearbeitungsstatus=Neu)
+     └─ scanner/eigenentwicklung_scanner.py → idv_files (Bearbeitungsstatus=Neu)
 
 2. Koordinator öffnet /funde/eingang
      └─ Template listet neue Dateien
 
-3. Klick "Als IDV registrieren"
-     └─ POST /idv/neu?file_id=…
+3. Klick "Als Eigenentwicklung registrieren"
+     └─ POST /eigenentwicklung/neu?file_id=…
      └─ db.py::create_idv()
           ├─ INSERT idv_register
           ├─ INSERT idv_history (aktion=erstellt)
           └─ UPDATE idv_files SET bearbeitungsstatus='Registriert'
 
 4. Statuswechsel Entwurf→Genehmigt
-     └─ POST /idv/<id>/status
+     └─ POST /eigenentwicklung/<id>/status
      └─ db.py::change_status()
           └─ INSERT idv_history (aktion=status_geaendert)
 
@@ -309,7 +309,7 @@ Architekturrelevante Eckpunkte:
 | `idvault.log` | `instance/` | 1 MB × 7 | Anwendungs-Log (WARNING+) |
 | `login.log` | `instance/` | 2 MB × 10 | Audit-Log für Logins |
 | `idvault_crash.log` | `instance/` | 2 MB × 1 | Python-Traceback bei Start-Fehlern |
-| `idv_scanner.log` | `scanner/` (konfigurierbar) | je Scanner-Run | Scan-Verlauf, Hash-Fehler |
+| `eigenentwicklung_scanner.log` | `scanner/` (konfigurierbar) | je Scanner-Run | Scan-Verlauf, Hash-Fehler |
 
 ## 10 Ausfallverhalten
 
