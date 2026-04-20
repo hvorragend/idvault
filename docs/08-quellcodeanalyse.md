@@ -35,7 +35,7 @@ eingesetzten Software.
 | Modul | Zeilen (ca.) | Bewertung |
 |---|---:|---|
 | `webapp/routes/admin.py` | 2.163 | **Hoch** – Aufspaltung empfohlen |
-| `scanner/eigenentwicklung_scanner.py` | 1.200 | Akzeptabel für Scanner-Kernlogik |
+| `scanner/network_scanner.py` | 1.200 | Akzeptabel für Scanner-Kernlogik |
 | `db.py` | 846 | Angemessen |
 | `webapp/routes/eigenentwicklung.py` | 869 | Angemessen |
 | `webapp/routes/funde.py` | 923 | Angemessen |
@@ -251,6 +251,6 @@ Maßnahmen vor Go-Live umgesetzt werden.
 | `webapp/routes/reports.py` | 110 | Reports |
 | `webapp/routes/reviews.py` | 90 | Prüfungen |
 | `webapp/routes/tests.py` | 230 | Test-Fälle |
-| `scanner/eigenentwicklung_scanner.py` | ~1.200 | Dateisystem-Scanner |
+| `scanner/network_scanner.py` | ~1.200 | Dateisystem-Scanner |
 | `scanner/teams_scanner.py` | ~800 | Teams/Graph-Scanner |
-| `scanner/eigenentwicklung_export.py` | 280 | Standalone-Excel-Export |
+| `scanner/excel_export.py` | 280 | Standalone-Excel-Export |

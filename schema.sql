@@ -14,7 +14,7 @@ PRAGMA foreign_keys = ON;
 PRAGMA journal_mode  = WAL;
 
 -- -----------------------------------------------------------------------------
--- Scanner-Tabellen (Stub – wird vom eigenentwicklung_scanner.py befüllt;
+-- Scanner-Tabellen (Stub – wird vom network_scanner.py befüllt;
 -- kann in derselben oder einer separaten DB liegen.)
 -- -----------------------------------------------------------------------------
 

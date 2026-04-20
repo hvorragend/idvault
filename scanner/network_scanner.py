@@ -1684,7 +1684,7 @@ def main():
             print(f"DB nicht gefunden: {db_path}", file=sys.stderr)
             sys.exit(1)
         config = _load_config_from_db(db_path)
-        log_path = os.path.join(os.path.dirname(db_path), "logs", "eigenentwicklung_scanner.log")
+        log_path = os.path.join(os.path.dirname(db_path), "logs", "network_scanner.log")
         config["log_path"] = log_path
         signal_dir = args.signal_dir if args.signal_dir else os.path.dirname(db_path)
     else:
@@ -1710,7 +1710,7 @@ def main():
             sys.exit(2)
         if not config.get("log_path"):
             config["log_path"] = os.path.join(
-                os.path.dirname(config["db_path"]), "logs", "eigenentwicklung_scanner.log"
+                os.path.dirname(config["db_path"]), "logs", "network_scanner.log"
             )
         signal_dir = args.signal_dir if args.signal_dir else _config_dir
 

@@ -185,15 +185,15 @@ if _upd:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # --scan Modus: Die exe startet als Scanner-Subprocess (PyInstaller-Kompatibilität).
-# Im Bundle existiert keine separate eigenentwicklung_scanner.py mehr – stattdessen ruft
+# Im Bundle existiert keine separate network_scanner.py mehr – stattdessen ruft
 # admin.py den gleichen Executable mit --scan auf.
 if '--scan' in sys.argv:
     sys.argv = [a for a in sys.argv if a != '--scan']
     _crash_log = os.path.join(_PROJECT_ROOT, 'instance', 'logs', 'scanner_crash.log')
     os.makedirs(os.path.join(_PROJECT_ROOT, 'instance', 'logs'), exist_ok=True)
     try:
-        import eigenentwicklung_scanner
-        eigenentwicklung_scanner.main()
+        import network_scanner
+        network_scanner.main()
     except BaseException:
         import traceback
         _tb = traceback.format_exc()
