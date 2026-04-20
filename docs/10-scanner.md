@@ -7,7 +7,7 @@
 idvault umfasst zwei unabhängige Scanner-Komponenten zur Identifikation
 von IDV-Kandidaten:
 
-1. **Dateisystem-Scanner** (`scanner/eigenentwicklung_scanner.py`) – für
+1. **Dateisystem-Scanner** (`scanner/network_scanner.py`) – für
    Netzlaufwerke, UNC-Pfade und lokale Verzeichnisse
 2. **Teams-Scanner** (`scanner/teams_scanner.py`) – für Microsoft Teams /
    SharePoint über die Microsoft Graph API (optional)
@@ -52,7 +52,7 @@ Die Scanner-Einstellungen liegen im `"scanner"`-Abschnitt der gemeinsamen
 | `extensions` | Liste | `.xlsx`, `.xlsm`, `.py`, `.sql`, … | Erfasste Dateierweiterungen |
 | `exclude_paths` | Liste | `["~$", ".tmp", …]` | Pfadmuster, die ausgeschlossen werden |
 | `db_path` | String | `"instance/idvault.db"` | Pfad zur SQLite-Datenbank |
-| `log_path` | String | `"scanner/eigenentwicklung_scanner.log"` | Pfad zur Logdatei |
+| `log_path` | String | `"scanner/network_scanner.log"` | Pfad zur Logdatei |
 | `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |
 | `max_workers` | Integer | `4` | Reserviert (zukünftige Parallelisierung) |
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung |
@@ -211,7 +211,7 @@ Aufgabenplanung → Neue Aufgabe
 Alternativ mit Python:
 
 ```
-python C:\IDV-Scanner\eigenentwicklung_scanner.py --config C:\IDV-Scanner\config.json
+python C:\IDV-Scanner\network_scanner.py --config C:\IDV-Scanner\config.json
 ```
 
 ### 2.14 Startdatum-Filter (`scan_since`)
@@ -293,7 +293,7 @@ und setzt bei jedem Scan genau dort auf.
 ### 4.4 Überwachung
 
 - `scan_runs`-Tabelle anzeigen: Admin → Scanner → Scan-Läufe
-- Log-Datei `eigenentwicklung_scanner.log` prüfen
+- Log-Datei `network_scanner.log` prüfen
 - Bei ungewöhnlicher Zunahme archivierter Dateien: manuelle Prüfung
 
 ## 5 Datenmodell des Scanners

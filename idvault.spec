@@ -53,8 +53,8 @@ datas = [
 # ---------------------------------------------------------------------------
 hiddenimports = [
     # Scanner-Module (liegen in scanner/, werden über pathex gefunden)
-    'eigenentwicklung_scanner',
-    'eigenentwicklung_export',
+    'network_scanner',
+    'excel_export',
     # Eigene Module
     'ssl_utils',
     'webapp',
@@ -114,7 +114,7 @@ hiddenimports = [
 # ---------------------------------------------------------------------------
 a = Analysis(
     ['run.py'],
-    pathex=['.', 'scanner'],  # scanner/ damit eigenentwicklung_scanner.py gefunden wird
+    pathex=['.', 'scanner'],  # scanner/ damit network_scanner.py gefunden wird
     binaries=[*flask_b, *jinja2_b, *werkzeug_b, *openpyxl_b, *cryptography_b, *ldap3_b],
     datas=datas,
     hiddenimports=hiddenimports,

@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from eigenentwicklung_scanner import SCHEMA
+from network_scanner import SCHEMA
 
 
 def _ensure_schema(conn: sqlite3.Connection) -> None:

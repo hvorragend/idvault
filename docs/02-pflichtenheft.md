@@ -299,7 +299,7 @@ Anforderungen sind durchnummeriert und referenzierbar. Prioritäten:
 |---|---|
 | Quellcode | Python 3.10+ (Flask, Jinja2, SQLite) |
 | Datenbankschema | `schema.sql` |
-| Scanner-Modul | `scanner/eigenentwicklung_scanner.py`, `scanner/teams_scanner.py` |
+| Scanner-Modul | `scanner/network_scanner.py`, `scanner/teams_scanner.py` |
 | Build-Artefakt | `idvault.exe` (PyInstaller, Windows) |
 | Dokumentation | Dieser `docs/`-Ordner |
 | Installationsanleitung | [06 – Betriebshandbuch](06-betriebshandbuch.md) |

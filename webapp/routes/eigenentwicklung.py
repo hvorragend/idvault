@@ -918,7 +918,7 @@ def export_excel():
         out_path = f.name
     try:
         script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               "scanner", "eigenentwicklung_export.py")
+                               "scanner", "excel_export.py")
         result = subprocess.run(
             [sys.executable, script, "--db", db_path, "--output", out_path],
             check=True, capture_output=True, text=True

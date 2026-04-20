@@ -95,9 +95,9 @@ idvault/
 │   │   └── tests.py               Test-Fälle
 │   └── templates/                 Jinja2-Templates
 └── scanner/
-    ├── eigenentwicklung_scanner.py             Dateisystem-Scanner
+    ├── network_scanner.py             Dateisystem-Scanner
     ├── teams_scanner.py           Microsoft-Teams-Scanner (optional)
-    ├── eigenentwicklung_export.py              Standalone-Export
+    ├── excel_export.py              Standalone-Export
     ├── config.json                Scanner-Konfiguration
     └── requirements.txt           Scanner-Abhängigkeiten
 ```
@@ -116,7 +116,7 @@ idvault/
 | **E-Mail-Service** | SMTP-Versand, Template-Rendering | `webapp/email_service.py` |
 | **Autorisierungs-Decorators** | login_required, admin_required, write_access_required, own_write_required | `webapp/routes/__init__.py` |
 | **Blueprints** | Modulare Routing-Einheiten pro Funktionsbereich | `webapp/routes/*.py` |
-| **Scanner (FS)** | SHA-256-Hash, Move-Detection, Excel-Analyse | `scanner/eigenentwicklung_scanner.py` |
+| **Scanner (FS)** | SHA-256-Hash, Move-Detection, Excel-Analyse | `scanner/network_scanner.py` |
 | **Scanner (Teams)** | Graph-API-Abfragen, Delta-Tokens | `scanner/teams_scanner.py` |
 
 ## 4 Laufzeitmodelle
@@ -169,7 +169,7 @@ gunicorn -w 4 -b 0.0.0.0:8000 "webapp:create_app()"
 ```
 Windows Task Scheduler (wöchentlich)
     → idvault.exe --scan --config C:\idvault\scanner\config.json
-        → scanner/eigenentwicklung_scanner.py::main()
+        → scanner/network_scanner.py::main()
         → scan_paths durchlaufen, Hashes berechnen
         → Ergebnisse in idv_files/idv_file_history schreiben
         → scan_runs-Eintrag erzeugen
@@ -217,7 +217,7 @@ Windows Task Scheduler (wöchentlich)
 
 ```
 1. Scanner-Task läuft
-     └─ scanner/eigenentwicklung_scanner.py → idv_files (Bearbeitungsstatus=Neu)
+     └─ scanner/network_scanner.py → idv_files (Bearbeitungsstatus=Neu)
 
 2. Koordinator öffnet /funde/eingang
      └─ Template listet neue Dateien
@@ -309,7 +309,7 @@ Architekturrelevante Eckpunkte:
 | `idvault.log` | `instance/` | 1 MB × 7 | Anwendungs-Log (WARNING+) |
 | `login.log` | `instance/` | 2 MB × 10 | Audit-Log für Logins |
 | `idvault_crash.log` | `instance/` | 2 MB × 1 | Python-Traceback bei Start-Fehlern |
-| `eigenentwicklung_scanner.log` | `scanner/` (konfigurierbar) | je Scanner-Run | Scan-Verlauf, Hash-Fehler |
+| `network_scanner.log` | `scanner/` (konfigurierbar) | je Scanner-Run | Scan-Verlauf, Hash-Fehler |
 
 ## 10 Ausfallverhalten
 
