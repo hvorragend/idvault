@@ -3,15 +3,9 @@
 {% block page_title %}<i class="bi bi-speedometer2 me-2"></i>Rate-Limits{% endblock %}
 
 {% block content %}
+{% include 'admin/_subnav.html' %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <span class="text-muted" style="font-size:.88rem">
-    Flask-Limiter-Schwellwerte für Login- und Upload-Endpunkte
-  </span>
-  <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-arrow-left me-1"></i>Zurück zur Administration
-  </a>
-</div>
+<p class="text-muted" style="font-size:.88rem">Flask-Limiter-Schwellwerte für Login- und Upload-Endpunkte</p>
 
 <div class="card border-0 shadow-sm">
   <div class="card-body">
