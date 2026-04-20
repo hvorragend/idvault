@@ -67,27 +67,10 @@
   {% endfor %}
 </div>
 
-{% if wesentlichkeit_titel or wesentlichkeit_einleitung or wesentlichkeit_kriterien or wesentlichkeit_schluss %}
+{% if info_unten %}
 <div class="card border-0 shadow-sm">
-  {% if wesentlichkeit_titel %}
-  <div class="card-header bg-white fw-600">
-    <i class="bi bi-arrow-right-circle me-1"></i>{{ wesentlichkeit_titel }}
-  </div>
-  {% endif %}
   <div class="card-body">
-    {% if wesentlichkeit_einleitung %}
-    <p>{{ wesentlichkeit_einleitung }}</p>
-    {% endif %}
-    {% if wesentlichkeit_kriterien %}
-    <ul>
-      {% for kriterium in wesentlichkeit_kriterien %}
-      <li>{{ kriterium }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-    {% if wesentlichkeit_schluss %}
-    <p class="mb-0">{{ wesentlichkeit_schluss }}</p>
-    {% endif %}
+    <p class="mb-0" style="white-space: pre-wrap">{{ info_unten }}</p>
   </div>
 </div>
 {% endif %}

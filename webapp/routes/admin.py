@@ -3555,10 +3555,7 @@ def update_log():
 
 _GLOSSAR_TEXT_KEYS_OVERVIEW = [
     "glossar_hintergrund_text",
-    "glossar_wesentlichkeit_titel",
-    "glossar_wesentlichkeit_einleitung",
-    "glossar_wesentlichkeit_kriterien",
-    "glossar_wesentlichkeit_schluss",
+    "glossar_info_unten",
 ]
 
 

@@ -86,21 +86,15 @@
       </div>
       <div class="card-body">
         <div class="row g-3">
-          <div class="col-12">
-            <label class="form-label fw-600 mb-1" style="font-size:.83rem">Regulatorischer Hintergrund (Info-Box)</label>
+          <div class="col-md-6">
+            <label class="form-label fw-600 mb-1" style="font-size:.83rem">Info-Box oben</label>
             <div class="form-control bg-light" style="min-height:3rem;font-size:.83rem;color:#495057">
               {{ settings.get('glossar_hintergrund_text') or '–' }}
             </div>
           </div>
           <div class="col-md-6">
-            <label class="form-label fw-600 mb-1" style="font-size:.83rem">Abschnitts-Titel</label>
-            <div class="form-control bg-light" style="font-size:.83rem;color:#495057">
-              {{ settings.get('glossar_wesentlichkeit_titel') or '–' }}
-            </div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-600 mb-1" style="font-size:.83rem">Kriterien</label>
-            <div class="form-control bg-light" style="min-height:3rem;font-size:.83rem;color:#495057;white-space:pre-wrap">{{ settings.get('glossar_wesentlichkeit_kriterien') or '–' }}</div>
+            <label class="form-label fw-600 mb-1" style="font-size:.83rem">Info-Box unten</label>
+            <div class="form-control bg-light" style="min-height:3rem;font-size:.83rem;color:#495057;white-space:pre-wrap">{{ (settings.get('glossar_info_unten') or '–') | truncate(200) }}</div>
           </div>
         </div>
       </div>

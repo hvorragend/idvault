@@ -12,20 +12,12 @@ from . import login_required, get_db
 
 bp = Blueprint("info", __name__, url_prefix="/hilfe")
 
-_GLOSSAR_SETTINGS_KEYS = [
-    "glossar_hintergrund_text",
-    "glossar_wesentlichkeit_titel",
-    "glossar_wesentlichkeit_einleitung",
-    "glossar_wesentlichkeit_kriterien",
-    "glossar_wesentlichkeit_schluss",
-]
+_GLOSSAR_SETTINGS_KEYS = ["glossar_hintergrund_text", "glossar_info_unten"]
 
 
 def _load_glossar_settings(db) -> dict:
     rows = db.execute(
-        "SELECT key, value FROM app_settings WHERE key IN ({})".format(
-            ",".join("?" * len(_GLOSSAR_SETTINGS_KEYS))
-        ),
+        "SELECT key, value FROM app_settings WHERE key IN (?,?)",
         _GLOSSAR_SETTINGS_KEYS,
     ).fetchall()
     return {r["key"]: r["value"] for r in rows}
@@ -42,17 +34,9 @@ def glossar():
         ORDER BY sort_order, id
     """).fetchall()
     settings = _load_glossar_settings(db)
-    kriterien = [
-        line.strip()
-        for line in (settings.get("glossar_wesentlichkeit_kriterien") or "").splitlines()
-        if line.strip()
-    ]
     return render_template(
         "info/glossar.html",
         glossar=[dict(r) for r in rows],
         hintergrund_text=settings.get("glossar_hintergrund_text", ""),
-        wesentlichkeit_titel=settings.get("glossar_wesentlichkeit_titel", ""),
-        wesentlichkeit_einleitung=settings.get("glossar_wesentlichkeit_einleitung", ""),
-        wesentlichkeit_kriterien=kriterien,
-        wesentlichkeit_schluss=settings.get("glossar_wesentlichkeit_schluss", ""),
+        info_unten=settings.get("glossar_info_unten", ""),
     )
