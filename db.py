@@ -556,20 +556,7 @@ def insert_demo_data(conn: sqlite3.Connection):
         ]
     )
 
-    # Plattformen
-    conn.executemany(
-        "INSERT OR IGNORE INTO plattformen (bezeichnung, typ, hersteller) VALUES (?,?,?)",
-        [
-            ("Microsoft Excel",    "Desktop", "Microsoft"),
-            ("Microsoft Access",   "Desktop", "Microsoft"),
-            ("HCL Notes",   "Desktop", "HCL"),
-            ("Business Intelligence",        "Desktop", "BI"),
-            ("Shell-Skripte",        "Konsole", "Bank"),
-            ("UiPath Studio",        "IDE", "UiPath"),
-            ("Power BI Desktop",        "Desktop", "Microsoft"),
-            ("Python 3.11",             "Server",  "PSF"),
-        ]
-    )
+    # Plattformen werden als Baseline-Vorgaben direkt via schema.sql eingespielt.
 
     stats = get_dashboard_stats(conn)
     print("\nDashboard-Statistik nach Demo-Import:")

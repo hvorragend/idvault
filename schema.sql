@@ -153,6 +153,17 @@ CREATE TABLE IF NOT EXISTS plattformen (
     aktiv       INTEGER NOT NULL DEFAULT 1
 );
 
+-- Standard-Einträge Plattformen
+INSERT OR IGNORE INTO plattformen (bezeichnung, typ, hersteller) VALUES
+    ('Microsoft Excel',     'Desktop', 'Microsoft'),
+    ('Microsoft Access',    'Desktop', 'Microsoft'),
+    ('Power BI Desktop',    'Desktop', 'Microsoft'),
+    ('HCL Notes',           'Desktop', 'HCL'),
+    ('Business Intelligence','Desktop','BI'),
+    ('Shell-Skripte',       'Konsole', ''),
+    ('UiPath Studio',       'IDE',     'UiPath'),
+    ('Python 3.11',         'Server',  'PSF');
+
 -- Risikoklassen (konfigurierbar)
 CREATE TABLE IF NOT EXISTS risikoklassen (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
