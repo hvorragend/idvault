@@ -1671,12 +1671,17 @@ def index():
         d["verwendungen"] = verwendungen
         wesentlichkeitskriterien.append(d)
 
+    glossar_eintraege = db.execute("""
+        SELECT * FROM glossar_eintraege ORDER BY sort_order, id
+    """).fetchall()
+
     return render_template("admin/index.html",
         org_units=org_units,
         geschaeftsprozesse=geschaeftsprozesse, plattformen=plattformen,
         klassifizierungen=klassifizierungen,
         klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE,
-        wesentlichkeitskriterien=wesentlichkeitskriterien)
+        wesentlichkeitskriterien=wesentlichkeitskriterien,
+        glossar_eintraege=glossar_eintraege)
 
 
 @bp.route("/mitarbeiter")
@@ -3549,3 +3554,76 @@ def update_log():
     except Exception as exc:
         content = f"Fehler beim Lesen der Log-Datei: {exc}"
     return Response(content, mimetype='text/plain; charset=utf-8')
+
+
+# ── Glossar-Verwaltung ───────────────────────────────────────────────────────
+
+@bp.route("/glossar/neu", methods=["GET", "POST"])
+@admin_required
+def new_glossar():
+    db = get_db()
+    if request.method == "POST":
+        db.execute("""
+            INSERT INTO glossar_eintraege
+                (begriff, entwickler, ort, fokus, beschreibung, im_register, sort_order, aktiv)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        """, (
+            request.form["begriff"].strip(),
+            request.form.get("entwickler", "").strip(),
+            request.form.get("ort", "").strip(),
+            request.form.get("fokus", "").strip(),
+            request.form.get("beschreibung", "").strip(),
+            1 if request.form.get("im_register") else 0,
+            int(request.form.get("sort_order") or 0),
+        ))
+        db.commit()
+        flash("Glossar-Eintrag angelegt.", "success")
+        return redirect(url_for("admin.index") + "#glossar")
+    return render_template("admin/glossar_edit.html", row=None)
+
+
+@bp.route("/glossar/<int:gid>/bearbeiten", methods=["GET", "POST"])
+@admin_required
+def edit_glossar(gid):
+    db = get_db()
+    row = db.execute("SELECT * FROM glossar_eintraege WHERE id = ?", (gid,)).fetchone()
+    if not row:
+        flash("Eintrag nicht gefunden.", "error")
+        return redirect(url_for("admin.index") + "#glossar")
+    if request.method == "POST":
+        db.execute("""
+            UPDATE glossar_eintraege
+            SET begriff      = ?,
+                entwickler   = ?,
+                ort          = ?,
+                fokus        = ?,
+                beschreibung = ?,
+                im_register  = ?,
+                sort_order   = ?,
+                aktiv        = ?
+            WHERE id = ?
+        """, (
+            request.form["begriff"].strip(),
+            request.form.get("entwickler", "").strip(),
+            request.form.get("ort", "").strip(),
+            request.form.get("fokus", "").strip(),
+            request.form.get("beschreibung", "").strip(),
+            1 if request.form.get("im_register") else 0,
+            int(request.form.get("sort_order") or 0),
+            1 if request.form.get("aktiv") else 0,
+            gid,
+        ))
+        db.commit()
+        flash("Glossar-Eintrag gespeichert.", "success")
+        return redirect(url_for("admin.index") + "#glossar")
+    return render_template("admin/glossar_edit.html", row=dict(row))
+
+
+@bp.route("/glossar/<int:gid>/loeschen", methods=["POST"])
+@admin_required
+def delete_glossar(gid):
+    db = get_db()
+    db.execute("DELETE FROM glossar_eintraege WHERE id = ?", (gid,))
+    db.commit()
+    flash("Glossar-Eintrag gelöscht.", "success")
+    return redirect(url_for("admin.index") + "#glossar")

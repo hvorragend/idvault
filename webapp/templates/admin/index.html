@@ -343,6 +343,77 @@
     </div>
   </div>
 
+  <!-- ── Glossar-Einträge (konfigurierbar) ───────────────────────────────── -->
+  <div class="col-12" id="glossar">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-book me-2"></i>Glossar: Entwicklungsarten
+        <span class="badge bg-secondary ms-2" style="font-weight:400;font-size:.75rem">konfigurierbar</span>
+        <span class="text-muted ms-2" style="font-weight:400;font-size:.78rem">
+          — im Hilfe-Bereich angezeigt
+        </span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:40px">#</th>
+              <th>Begriff</th>
+              <th>Wer entwickelt?</th>
+              <th>Wo?</th>
+              <th>Fokus</th>
+              <th style="width:100px">Im Register</th>
+              <th style="width:80px">Aktiv</th>
+              <th style="width:80px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in glossar_eintraege %}
+            <tr class="{{ '' if g.aktiv else 'text-muted' }}">
+              <td class="text-muted" style="font-size:.78rem">{{ g.sort_order }}</td>
+              <td class="fw-500">{{ g.begriff }}</td>
+              <td style="font-size:.83rem">{{ g.entwickler or '–' }}</td>
+              <td style="font-size:.83rem">{{ g.ort or '–' }}</td>
+              <td style="font-size:.78rem;color:#6c757d">{{ g.fokus or '–' }}</td>
+              <td class="text-center">
+                {% if g.im_register %}<span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
+                {% else %}<span class="badge bg-light text-muted border">Oberbegriff</span>{% endif %}
+              </td>
+              <td class="text-center">
+                {% if g.aktiv %}<span class="badge bg-success">Ja</span>
+                {% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('admin.edit_glossar', gid=g.id) }}"
+                   class="btn btn-xs btn-outline-primary py-0 px-1" title="Bearbeiten">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post"
+                      action="{{ url_for('admin.delete_glossar', gid=g.id) }}"
+                      class="d-inline" data-confirm="Glossar-Eintrag endgültig löschen?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" title="Löschen">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted py-3" style="font-size:.83rem">
+              Keine Glossar-Einträge vorhanden.
+            </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="p-3 border-top bg-light">
+          <a href="{{ url_for('admin.new_glossar') }}" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus-circle me-1"></i>Neuen Eintrag anlegen
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Klassifizierungskriterien ────────────────────────────────────────── -->
   <div class="col-12">
     <div class="card border-0 shadow-sm">
