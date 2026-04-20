@@ -1131,4 +1131,5 @@ def nicht_wesentliche_idvs():
         owner_list=owner_list, owner_filt=owner_filt,
         q=q, status=status, oe_id=oe_id, fv_id=fv_id,
         valid_per_page=_VALID_PER_PAGE_IDV,
+        can_write=can_write(),
     )
