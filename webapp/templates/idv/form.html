@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}{{ 'IDV bearbeiten' if idv else 'Neue IDV erfassen' }}{% endblock %}
+{% block title %}{{ 'IDV bearbeiten' if idv else 'Neue Eigenentwicklung erfassen' }}{% endblock %}
 {% block page_title %}
 <i class="bi bi-{{ 'pencil' if idv else 'plus-circle' }} me-2"></i>
-{{ 'IDV bearbeiten: ' + idv.bezeichnung if idv else 'Neue IDV erfassen' }}
+{{ 'Eintrag bearbeiten: ' + idv.bezeichnung if idv else 'Neue Eigenentwicklung erfassen' }}
 {% endblock %}
 
 {% block content %}
