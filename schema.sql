@@ -202,6 +202,21 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('teams_config',            '{}'),
     ('teams_client_secret_enc', '');
 
+INSERT OR IGNORE INTO app_settings (key, value) VALUES
+    ('glossar_hintergrund_text',
+     'Regulatorischer Hintergrund. Im Umfeld von MaRisk AT 7.2, BAIT und DORA bestimmt die Entwicklungsart, welche Kontrollen (Testpflichten, Dokumentation, Funktionstrennung, Auslagerungsmanagement) greifen. Der Übergang Arbeitshilfe → IDV erfolgt automatisch über die Wesentlichkeitsprüfung.'),
+    ('glossar_wesentlichkeit_titel',
+     'Wann wird aus einer Arbeitshilfe eine IDV?'),
+    ('glossar_wesentlichkeit_einleitung',
+     'Eine einfache Arbeitshilfe – etwa eine Excel-Tabelle zur Formatierung – unterliegt nur geringen Kontrollen. Sobald die Tabelle jedoch'),
+    ('glossar_wesentlichkeit_kriterien',
+     'rechnungsrelevant ist (HGB / GoBD)
+komplexe Berechnungslogik enthält
+zur Risikosteuerung oder zur Meldeerstellung genutzt wird
+auf personenbezogene oder besonders sensible Daten zugreift'),
+    ('glossar_wesentlichkeit_schluss',
+     'wird sie zur IDV und unterliegt dem vollständigen Rahmenwerk (Dokumentation, Test, Freigabe, Vier-Augen-Prinzip). Die im Register hinterlegten Wesentlichkeitskriterien entscheiden automatisch: bei mindestens einem erfüllten aktiven Kriterium wechselt die Entwicklungsart auf IDV, andernfalls auf Arbeitshilfe. Manuell gesetzte Werte (Eigenprogrammierung, Auftragsprogrammierung) bleiben unverändert.');
+
 -- SMTP-Versandlog (letzte Sendevorgänge, max. 200 Einträge)
 CREATE TABLE IF NOT EXISTS smtp_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

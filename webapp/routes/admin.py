@@ -3627,3 +3627,36 @@ def delete_glossar(gid):
     db.commit()
     flash("Glossar-Eintrag gelöscht.", "success")
     return redirect(url_for("admin.index") + "#glossar")
+
+
+_GLOSSAR_TEXT_KEYS = [
+    "glossar_hintergrund_text",
+    "glossar_wesentlichkeit_titel",
+    "glossar_wesentlichkeit_einleitung",
+    "glossar_wesentlichkeit_kriterien",
+    "glossar_wesentlichkeit_schluss",
+]
+
+
+@bp.route("/glossar/erklaerung", methods=["GET", "POST"])
+@admin_required
+def glossar_erklaerung():
+    db = get_db()
+    if request.method == "POST":
+        for key in _GLOSSAR_TEXT_KEYS:
+            value = request.form.get(key, "").strip()
+            db.execute(
+                "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+        db.commit()
+        flash("Erläuterungstexte gespeichert.", "success")
+        return redirect(url_for("admin.glossar_erklaerung"))
+    rows = db.execute(
+        "SELECT key, value FROM app_settings WHERE key IN ({})".format(
+            ",".join("?" * len(_GLOSSAR_TEXT_KEYS))
+        ),
+        _GLOSSAR_TEXT_KEYS,
+    ).fetchall()
+    settings = {r["key"]: r["value"] for r in rows}
+    return render_template("admin/glossar_erklaerung.html", settings=settings)
