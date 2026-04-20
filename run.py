@@ -289,7 +289,7 @@ def _run_server(service_mode: bool = False):
     # kann hier nicht mehr zuschlagen.
     _build_app()
 
-    from ssl_utils import build_ssl_context, https_enabled
+    from ssl_utils import build_ssl_context, https_enabled, resolve_ssl_paths
     from webapp import config_store
 
     debug = config_store.get_bool("DEBUG", False)
@@ -368,12 +368,46 @@ def _run_server(service_mode: bool = False):
             )
 
     _seed_if_empty(app)
-    if service_mode:
-        app.logger.warning("[startup] Werkzeug-Server bindet an %s:%s …", "0.0.0.0", port)
-    # use_reloader=False: Im EXE-Bundle gibt es keine .py-Dateien zum Beobachten;
-    # der Reloader würde nutzlos einen zweiten Prozess spawnen.
-    app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context,
-            use_reloader=not getattr(sys, 'frozen', False))
+
+    # Produktiv-Pfad: cheroot (pure Python, threaded, nativer SSL-Support,
+    # PyInstaller-kompatibel). In DEBUG bzw. wenn cheroot nicht verfuegbar
+    # ist, faellt die Funktion auf den Werkzeug-Dev-Server zurueck.
+    try:
+        from cheroot.wsgi import Server as CherootWSGI
+        use_cheroot = not debug
+    except ImportError:
+        CherootWSGI = None
+        use_cheroot = False
+
+    if use_cheroot:
+        num_threads = config_store.get_int("IDV_WSGI_THREADS", 16) or 16
+        server = CherootWSGI(
+            ("0.0.0.0", port), app,
+            numthreads=num_threads, server_name="idvault",
+        )
+        ssl_paths = resolve_ssl_paths(_instance_path) if https_enabled() else None
+        if ssl_paths is not None:
+            from cheroot.ssl.builtin import BuiltinSSLAdapter
+            cert_path, key_path = ssl_paths
+            server.ssl_adapter = BuiltinSSLAdapter(
+                certificate=cert_path, private_key=key_path
+            )
+        if service_mode:
+            app.logger.warning(
+                "[startup] cheroot bindet an 0.0.0.0:%s (threads=%d, ssl=%s)",
+                port, num_threads, ssl_paths is not None,
+            )
+        try:
+            server.start()          # blockierend
+        finally:
+            server.stop()           # graceful drain
+    else:
+        if service_mode:
+            app.logger.warning("[startup] Werkzeug-Server bindet an %s:%s …", "0.0.0.0", port)
+        # use_reloader=False: Im EXE-Bundle gibt es keine .py-Dateien zum Beobachten;
+        # der Reloader würde nutzlos einen zweiten Prozess spawnen.
+        app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context,
+                use_reloader=not getattr(sys, 'frozen', False))
 
 
 # ── Windows-Dienst-Framework (nur als EXE auf Windows) ──────────────────────
