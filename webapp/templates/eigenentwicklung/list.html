@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Wesentliche Eigenentwicklungen{% endblock %}
-{% block page_title %}<i class="bi bi-table me-2"></i>Wesentliche Eigenentwicklungen{% endblock %}
+{% set _page_label = 'Alle Eigenentwicklungen' if filt == 'alle' else 'Wesentliche Eigenentwicklungen' %}
+{% block title %}{{ _page_label }}{% endblock %}
+{% block page_title %}<i class="bi bi-table me-2"></i>{{ _page_label }}{% endblock %}
 
 {% block content %}
 
@@ -26,7 +27,7 @@
     <div class="col-md-4">
       <label class="form-label form-label-sm">Filter</label>
       <select name="filter" class="form-select form-select-sm">
-        <option value="" {{ 'selected' if filt=='' }}>– Alle –</option>
+        <option value="alle" {{ 'selected' if filt in ('alle','') }}>Alle Eigenentwicklungen</option>
         <option value="wesentlich" {{ 'selected' if filt in ('wesentlich','kritisch') }}>Wesentliche Eigenentwicklungen</option>
         <option value="nicht_wesentlich" {{ 'selected' if filt=='nicht_wesentlich' }}>Nicht wesentliche Eigenentwicklungen</option>
         <option value="ueberfaellig" {{ 'selected' if filt=='ueberfaellig' }}>Prüfung überfällig</option>

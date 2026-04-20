@@ -378,15 +378,19 @@
     </a>
     {% endif %}
 
-    <div class="nav-label">Register</div>
+    <div class="nav-label">Eigenentwicklungen</div>
+    <a href="{{ url_for('eigenentwicklung.list_idv', filter='alle') }}"
+      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' and request.args.get('filter') == 'alle' %}active{% endif %}">
+      <i class="bi bi-list-ul"></i> Alle
+    </a>
     <a href="{{ url_for('eigenentwicklung.list_idv') }}"
-      class="nav-link {% if request.blueprint == 'eigenentwicklung' and request.endpoint != 'eigenentwicklung.nicht_wesentliche_idvs' %}active{% endif %}">
-      <i class="bi bi-table"></i> Wesentliche Eigenentwicklungen
+      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' and request.args.get('filter') != 'alle' %}active{% endif %}">
+      <i class="bi bi-table"></i> Wesentlich
     </a>
     {% if _is_admin or _is_koord %}
     <a href="{{ url_for('eigenentwicklung.nicht_wesentliche_idvs') }}"
       class="nav-link {% if request.endpoint == 'eigenentwicklung.nicht_wesentliche_idvs' %}active{% endif %}">
-      <i class="bi bi-dash-circle"></i> Nicht wesentliche
+      <i class="bi bi-dash-circle"></i> Nicht wesentlich
     </a>
     {% endif %}
 
