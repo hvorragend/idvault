@@ -105,14 +105,17 @@ def export_to_excel(db_path: str, output_path: str, only_active: bool = True):
     """).fetchall()
 
     # --- Delta-Info (letzte Änderungen) ---
-    delta = conn.execute("""
-        SELECT h.*, f.full_path, f.file_name
-        FROM idv_file_history h
-        JOIN idv_files f ON h.file_id = f.id
-        WHERE h.change_type IN ('new', 'changed', 'deleted')
-        ORDER BY h.changed_at DESC
-        LIMIT 500
-    """).fetchall()
+    try:
+        delta = conn.execute("""
+            SELECT h.*, f.full_path, f.file_name
+            FROM idv_file_history h
+            JOIN idv_files f ON h.file_id = f.id
+            WHERE h.change_type IN ('new', 'changed', 'deleted')
+            ORDER BY h.changed_at DESC
+            LIMIT 500
+        """).fetchall()
+    except Exception:
+        delta = []
 
     conn.close()
 
