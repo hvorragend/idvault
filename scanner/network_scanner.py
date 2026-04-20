@@ -215,11 +215,19 @@ CREATE INDEX IF NOT EXISTS idx_history_file    ON idv_file_history(file_id);
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, timeout=30)
+    # Scanner-Subprozess teilt sich dieselben PRAGMAs wie die Webapp,
+    # insbesondere busy_timeout=60000 — siehe db_pragmas.apply_pragmas.
+    try:
+        from db_pragmas import apply_pragmas
+    except ImportError:  # pragma: no cover — defensiv, falls Sidecar
+        import sys as _sys
+        import os as _os
+        _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+        from db_pragmas import apply_pragmas
+
+    conn = sqlite3.connect(db_path, timeout=60)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = NORMAL")
-    conn.execute("PRAGMA busy_timeout = 30000")
+    apply_pragmas(conn, role="writer")
     conn.executescript(SCHEMA)
     conn.commit()
     return conn

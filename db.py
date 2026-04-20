@@ -13,6 +13,8 @@ from datetime import datetime, timezone, date
 from pathlib import Path
 from typing import Optional
 
+from db_pragmas import apply_pragmas
+
 
 def _resource_path(relative: str) -> Path:
     """Gibt den korrekten Pfad zurück – auch im PyInstaller-Bundle."""
@@ -25,13 +27,10 @@ def _resource_path(relative: str) -> Path:
 # Verbindung & Initialisierung
 # ---------------------------------------------------------------------------
 
-def get_connection(db_path: str) -> sqlite3.Connection:
+def get_connection(db_path: str, *, role: str = "reader") -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False, timeout=60)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = NORMAL")
-    conn.execute("PRAGMA busy_timeout = 60000")
+    apply_pragmas(conn, role=role)
     return conn
 
 
