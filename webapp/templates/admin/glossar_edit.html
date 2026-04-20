@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Glossar-Eintrag {{ 'bearbeiten' if row else 'anlegen' }}{% endblock %}
+{% block page_title %}
+<i class="bi bi-book me-2"></i>Glossar-Eintrag {{ 'bearbeiten' if row else 'anlegen' }}
+{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        {{ row.begriff if row else 'Neuer Eintrag' }}
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-600">Begriff <span class="text-danger">*</span></label>
+              <input type="text" name="begriff" class="form-control"
+                     value="{{ row.begriff if row else '' }}" required
+                     placeholder="z.B. IDV (Individuelle Datenverarbeitung)">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-600">Wer entwickelt?</label>
+              <input type="text" name="entwickler" class="form-control"
+                     value="{{ row.entwickler if row else '' }}"
+                     placeholder="z.B. Fachbereich">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-600">Wo findet es statt?</label>
+              <input type="text" name="ort" class="form-control"
+                     value="{{ row.ort if row else '' }}"
+                     placeholder="z.B. Dezentral">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-600">Fokus der Regulatorik</label>
+              <input type="text" name="fokus" class="form-control"
+                     value="{{ row.fokus if row else '' }}"
+                     placeholder="z.B. Schatten-IT vermeiden, Kontrollen">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-600">Beschreibung</label>
+              <textarea name="beschreibung" class="form-control" rows="4"
+                        placeholder="Ausführliche Erläuterung des Begriffs">{{ row.beschreibung if row else '' }}</textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-600">Reihenfolge</label>
+              <input type="number" name="sort_order" class="form-control"
+                     value="{{ row.sort_order if row else 0 }}" min="0">
+            </div>
+            <div class="col-md-8 d-flex align-items-center gap-4 pt-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="im_register" value="1"
+                       id="g_imreg" {{ 'checked' if (not row or row.im_register) else '' }}>
+                <label class="form-check-label" for="g_imreg">Im Register erfasst</label>
+              </div>
+              {% if row %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" value="1"
+                       id="g_aktiv" {{ 'checked' if row.aktiv else '' }}>
+                <label class="form-check-label" for="g_aktiv">Eintrag aktiv</label>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-floppy me-1"></i>Speichern
+            </button>
+            <a href="{{ url_for('admin.index') }}#glossar" class="btn btn-outline-secondary">Zurück</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -995,3 +995,53 @@ CREATE TABLE IF NOT EXISTS cognos_berichte (
 CREATE INDEX IF NOT EXISTS idx_cognos_berichte_anwendung ON cognos_berichte(anwendung);
 CREATE INDEX IF NOT EXISTS idx_cognos_berichte_bank_id   ON cognos_berichte(bank_id);
 CREATE INDEX IF NOT EXISTS idx_cognos_berichte_status    ON cognos_berichte(bearbeitungsstatus);
+
+-- -----------------------------------------------------------------------------
+-- 14. GLOSSAR-EINTRÄGE (konfigurierbar)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS glossar_eintraege (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    begriff      TEXT NOT NULL UNIQUE,
+    entwickler   TEXT NOT NULL DEFAULT '',
+    ort          TEXT NOT NULL DEFAULT '',
+    fokus        TEXT NOT NULL DEFAULT '',
+    beschreibung TEXT NOT NULL DEFAULT '',
+    im_register  INTEGER NOT NULL DEFAULT 1,
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    aktiv        INTEGER NOT NULL DEFAULT 1
+);
+
+INSERT OR IGNORE INTO glossar_eintraege
+    (begriff, entwickler, ort, fokus, beschreibung, im_register, sort_order)
+VALUES
+    ('Anwendungsentwicklung',
+     'IT-Abt. / Extern',
+     'Zentraler IT-Prozess',
+     'Gesamter Lebenszyklus (SDLC)',
+     'Oberbegriff für den gesamten Prozess: Anforderung, Konzept, Programmierung, Test, Rollout und Betrieb. Unterliegt MaRisk AT 7.2 (Trennprinzip) und DORA (Software-Entwicklungssicherheit).',
+     0, 1),
+    ('Eigenprogrammierung',
+     'Interne IT',
+     'Zentraler IT-Prozess',
+     'Code-Qualität, Funktionstrennung',
+     'Das Schreiben des Quellcodes durch internes Personal der IT-Abteilung. Schutzziele (Vertraulichkeit, Integrität, Verfügbarkeit) müssen je Eigenentwicklung nachweisbar sein.',
+     1, 2),
+    ('Auftragsprogrammierung',
+     'Externer Dienstleister',
+     'Extern',
+     'Auslagerungsmanagement, DORA',
+     'Externe Code-Erstellung im Rahmen des IKT-Drittparteien-Risikomanagements. Verantwortung verbleibt beim Institut – detaillierte Abnahme und Sicherheitsüberprüfung (Code-Reviews) sind verpflichtend.',
+     1, 3),
+    ('IDV (Individuelle Datenverarbeitung)',
+     'Fachbereich',
+     'Dezentral',
+     'Schatten-IT vermeiden, Kontrollen',
+     'Durch den Fachbereich entwickelte, wesentliche Anwendungen – z. B. komplexe Excel-Makros, Access-Datenbanken, SQL-Skripte. Unterliegt dem IDV-Rahmenwerk nach MaRisk AT 7.2 / BAIT (Dokumentation, Funktionstrennung, Freigabe).',
+     1, 4),
+    ('Arbeitshilfe',
+     'Fachbereich',
+     'Dezentral (End-User)',
+     'Wesentlichkeitsprüfung',
+     'Einfache Werkzeuge zur Unterstützung täglicher Aufgaben. Sobald eine Arbeitshilfe rechnungsrelevant wird, komplexe Logik enthält oder zur Risikosteuerung dient, wird sie über die Wesentlichkeitsprüfung zur IDV.',
+     1, 5);
