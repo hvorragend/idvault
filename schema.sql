@@ -153,22 +153,6 @@ CREATE TABLE IF NOT EXISTS plattformen (
     aktiv       INTEGER NOT NULL DEFAULT 1
 );
 
--- Risikoklassen (konfigurierbar)
-CREATE TABLE IF NOT EXISTS risikoklassen (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    bezeichnung     TEXT NOT NULL UNIQUE, -- z.B. "Kritisch", "Hoch", "Mittel", "Gering"
-    farbe_hex       TEXT,                 -- z.B. "#FF0000"
-    sort_order      INTEGER NOT NULL DEFAULT 0,
-    beschreibung    TEXT
-);
-
--- Standard-Einträge Risikoklassen
-INSERT OR IGNORE INTO risikoklassen (bezeichnung, farbe_hex, sort_order) VALUES
-    ('Kritisch', '#C00000', 1),
-    ('Hoch',     '#FF0000', 2),
-    ('Mittel',   '#FFA500', 3),
-    ('Gering',   '#00B050', 4);
-
 -- Standard-Eintrag für unbekannte / nicht zugeordnete OE
 INSERT OR IGNORE INTO org_units (id, bezeichnung) VALUES
     (1, '(unbekannt / nicht zugeordnet)');
@@ -339,17 +323,6 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- -------------------------------------------------------------------------
     gp_id                   INTEGER REFERENCES geschaeftsprozesse(id),
     gp_freitext             TEXT,                       -- Falls GP noch nicht im Katalog
-
-    -- -------------------------------------------------------------------------
-    -- Risikobewertung
-    -- -------------------------------------------------------------------------
-    risikoklasse_id         INTEGER REFERENCES risikoklassen(id),
-    -- Risikodimensionen (je 1–5, 5=höchstes Risiko)
-    risiko_verfuegbarkeit   INTEGER CHECK(risiko_verfuegbarkeit BETWEEN 1 AND 5),
-    risiko_integritaet      INTEGER CHECK(risiko_integritaet BETWEEN 1 AND 5),
-    risiko_vertraulichkeit  INTEGER CHECK(risiko_vertraulichkeit BETWEEN 1 AND 5),
-    risiko_nachvollziehbarkeit INTEGER CHECK(risiko_nachvollziehbarkeit BETWEEN 1 AND 5),
-    risiko_kommentar        TEXT,
 
     -- -------------------------------------------------------------------------
     -- Verantwortlichkeiten
@@ -585,7 +558,8 @@ CREATE TABLE IF NOT EXISTS dokumente (
 -- -----------------------------------------------------------------------------
 
 -- Vollständige IDV-Übersicht
-CREATE VIEW IF NOT EXISTS v_idv_uebersicht AS
+DROP VIEW IF EXISTS v_idv_uebersicht;
+CREATE VIEW v_idv_uebersicht AS
 SELECT
     r.id                        AS idv_db_id,
     r.idv_id,
@@ -596,7 +570,6 @@ SELECT
         SELECT 1 FROM idv_wesentlichkeit iw
         WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
     ) THEN 'Ja' ELSE 'Nein' END AS ist_wesentlich,
-    rk.bezeichnung              AS risikoklasse,
     gp.gp_nummer,
     gp.bezeichnung              AS geschaeftsprozess,
     ou.bezeichnung              AS org_einheit,
@@ -616,7 +589,6 @@ SELECT
     r.erstellt_am,
     r.aktualisiert_am
 FROM idv_register r
-LEFT JOIN risikoklassen        rk  ON r.risikoklasse_id = rk.id
 LEFT JOIN geschaeftsprozesse   gp  ON r.gp_id = gp.id
 LEFT JOIN org_units            ou  ON r.org_unit_id = ou.id
 LEFT JOIN persons              p_fv ON r.fachverantwortlicher_id = p_fv.id
@@ -625,10 +597,11 @@ LEFT JOIN idv_files            f   ON r.file_id = f.id
 WHERE r.status NOT IN ('Archiviert');
 
 -- Wesentliche IDVs (mindestens ein Wesentlichkeitskriterium erfüllt)
-CREATE VIEW IF NOT EXISTS v_kritische_idvs AS
+DROP VIEW IF EXISTS v_kritische_idvs;
+CREATE VIEW v_kritische_idvs AS
 SELECT * FROM v_idv_uebersicht
 WHERE ist_wesentlich = 'Ja'
-ORDER BY risikoklasse;
+ORDER BY bezeichnung;
 
 -- Offene Maßnahmen mit Fälligkeit
 CREATE VIEW IF NOT EXISTS v_offene_massnahmen AS
@@ -654,7 +627,8 @@ WHERE m.status IN ('Offen', 'In Bearbeitung')
 ORDER BY m.faellig_am ASC;
 
 -- IDVs ohne vollständige Klassifizierung (Qualitätssicherung)
-CREATE VIEW IF NOT EXISTS v_unvollstaendige_idvs AS
+DROP VIEW IF EXISTS v_unvollstaendige_idvs;
+CREATE VIEW v_unvollstaendige_idvs AS
 SELECT
     r.idv_id,
     r.bezeichnung,
@@ -669,7 +643,6 @@ SELECT
           AND k.begruendung_pflicht = 1
           AND (iw.begruendung IS NULL OR iw.begruendung = '')
     ) THEN 1 ELSE 0 END AS fehlt_wesentlichkeitsbegruendung,
-    CASE WHEN r.risikoklasse_id IS NULL THEN 1 ELSE 0 END AS fehlt_risikoklasse,
     r.erstellt_am,
     r.aktualisiert_am
 FROM idv_register r
@@ -678,7 +651,6 @@ WHERE r.status NOT IN ('Archiviert')
     r.fachverantwortlicher_id IS NULL
     OR (r.gp_id IS NULL AND r.gp_freitext IS NULL)
     OR r.idv_typ = 'unklassifiziert'
-    OR r.risikoklasse_id IS NULL
     OR EXISTS (
         SELECT 1 FROM idv_wesentlichkeit iw
         JOIN wesentlichkeitskriterien k ON k.id = iw.kriterium_id
@@ -750,7 +722,7 @@ CREATE INDEX IF NOT EXISTS idx_wkd_idv ON idv_wesentlichkeit_detail(idv_db_id);
 INSERT INTO wesentlichkeitskriterien
     (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
 SELECT 'Rechnungslegungs-Relevanz (GoB)',
-       'Anwendung verarbeitet automatisierte Daten, die nach der Verarbeitung Eingang in die Buchführung finden, z. B. Generierung von Buchungsbelegen/ -listen, Import aus Schnittstellen etc. oder wenn anhand von Anwendungen Bilanznachweise (z. B. Berechnung von Rückstellungen) erstellt werden; allerdings nur, falls keine weiteren Nachweise vorhanden sind (s.a. IDW RS FAIT 1)',
+       'Anwendung verarbeitet automatisierte Daten, die nach der Verarbeitung Eingang in die Buchführung finden, z. B. Generierung von Buchungsbelegen/ -listen, Import aus Schnittstellen etc. oder wenn anhand von Anwendungen Bilanznachweise (z. B. Berechnung von Rückstellungen) erstellt werden; allerdings nur, falls keine weiteren Nachweise vorhanden sind (s.a. IDW RS FAIT 1). Die Anwendung unterliegt den GoBD-Anforderungen (Buchführungspflicht, steuerrechtliche Aufbewahrungspflicht).',
        1, 1, 1
 WHERE NOT EXISTS (SELECT 1 FROM wesentlichkeitskriterien
                   WHERE bezeichnung = 'Rechnungslegungs-Relevanz (GoB)');
@@ -996,7 +968,6 @@ CREATE INDEX IF NOT EXISTS idx_cognos_berichte_anwendung ON cognos_berichte(anwe
 CREATE INDEX IF NOT EXISTS idx_cognos_berichte_bank_id   ON cognos_berichte(bank_id);
 CREATE INDEX IF NOT EXISTS idx_cognos_berichte_status    ON cognos_berichte(bearbeitungsstatus);
 
--- -----------------------------------------------------------------------------
 -- 14. GLOSSAR-EINTRÄGE (konfigurierbar)
 -- -----------------------------------------------------------------------------
 
@@ -1045,3 +1016,11 @@ VALUES
      'Wesentlichkeitsprüfung',
      'Einfache Werkzeuge zur Unterstützung täglicher Aufgaben. Sobald eine Arbeitshilfe rechnungsrelevant wird, komplexe Logik enthält oder zur Risikosteuerung dient, wird sie über die Wesentlichkeitsprüfung zur IDV.',
      1, 5);
+
+-- -----------------------------------------------------------------------------
+-- MIGRATION: Risikoklasse entfernen (rückstandslos)
+-- Die risikoklassen-Tabelle und die Spalte risikoklasse_id werden über die
+-- Python-Funktion _migrate_risikoklasse() in db.py aus bestehenden Datenbanken
+-- entfernt. Die Reihenfolge (erst FK-Spalte, dann Tabelle) wird dort korrekt
+-- sichergestellt.
+-- -----------------------------------------------------------------------------
