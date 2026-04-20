@@ -11,50 +11,61 @@
     <!-- Zeile 1: Suche + Status + Filter + Buttons -->
     <div class="col-md-4">
       <label class="form-label form-label-sm">Suche</label>
-      <input type="text" name="q" value="{{ request.args.get('q','') }}"
-             class="form-control form-control-sm" placeholder="IDV-ID, Name, Beschreibung …">
+      <input type="text" name="q" value="{{ request.args.get('q','') }}" class="form-control form-control-sm"
+        placeholder="IDV-ID, Name, Beschreibung …">
     </div>
     <div class="col-md-2">
       <label class="form-label form-label-sm">Status</label>
       <select name="status" class="form-select form-select-sm">
         <option value="">Alle</option>
         {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt'] %}
-        <option {{ 'selected' if request.args.get('status') == s }}>{{ s }}</option>
+        <option {{ 'selected' if request.args.get('status')==s }}>{{ s }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="col-md-4">
       <label class="form-label form-label-sm">Filter</label>
       <select name="filter" class="form-select form-select-sm">
-        <option value=""               {{ 'selected' if filt == '' }}>– Alle IDVs –</option>
-        <option value="wesentlich"     {{ 'selected' if filt in ('wesentlich','kritisch') }}>Wesentliche IDVs</option>
-        <option value="nicht_wesentlich" {{ 'selected' if filt == 'nicht_wesentlich' }}>Nicht wesentliche IDVs</option>
-        <option value="ueberfaellig"   {{ 'selected' if filt == 'ueberfaellig' }}>Prüfung überfällig</option>
-        <option value="unvollstaendig" {{ 'selected' if filt == 'unvollstaendig' }}>Unvollständig</option>
+        <option value="" {{ 'selected' if filt=='' }}>– Alle IDVs –</option>
+        <option value="wesentlich" {{ 'selected' if filt in ('wesentlich','kritisch') }}>Wesentliche IDVs</option>
+        <option value="nicht_wesentlich" {{ 'selected' if filt=='nicht_wesentlich' }}>Nicht wesentliche IDVs</option>
+        <option value="ueberfaellig" {{ 'selected' if filt=='ueberfaellig' }}>Prüfung überfällig</option>
+        <option value="unvollstaendig" {{ 'selected' if filt=='unvollstaendig' }}>Unvollständig</option>
       </select>
     </div>
     <div class="col-md-2 d-flex gap-1 align-items-end">
       <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
-      <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+      <a href="{{ url_for('idv.list_idv') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i
+          class="bi bi-x"></i></a>
     </div>
 
     <!-- Zeile 2: Scan-Verzeichnis – volle Breite, Live-Suche -->
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
-      {% set field_name    = "share_root" %}
+      {% set field_name = "share_root" %}
       {% set field_options = share_roots %}
-      {% set field_value   = share_root %}
-      {% set input_id      = "share-root-search" %}
+      {% set field_value = share_root %}
+      {% set input_id = "share-root-search" %}
       {% include 'funde/_dir_search.html' %}
     </div>
 
+    <div class="col-md-12">
+      <label class="form-label form-label-sm"><i class="bi bi-tag me-1"></i>Entwicklungsart</label>
+      <select name="entwicklungsart" class="form-select form-select-sm">
+        <option value="">– Alle –</option>
+        {% for key, label, desc in entwicklungsarten %}
+        <option value="{{ key }}" title="{{ desc }}" {{ 'selected' if entwicklungsart==key }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
     <!-- Zeile 3: OE + Fachverantwortlicher -->
-    <div class="col-md-6">
+    <div class="col-md-4">
       <label class="form-label form-label-sm"><i class="bi bi-diagram-3 me-1"></i>Organisationseinheit</label>
       <select name="oe_id" class="form-select form-select-sm">
         <option value="">– Alle OEs –</option>
         {% for ou in org_units %}
-        <option value="{{ ou.id }}" {{ 'selected' if request.args.get('oe_id','') == ou.id|string }}>
+        <option value="{{ ou.id }}" {{ 'selected' if request.args.get('oe_id','')==ou.id|string }}>
           {{ ou.bezeichnung }}
         </option>
         {% endfor %}
@@ -65,28 +76,19 @@
       <select name="fv_id" class="form-select form-select-sm">
         <option value="">– Alle –</option>
         {% for p in persons_fv %}
-        <option value="{{ p.id }}" {{ 'selected' if request.args.get('fv_id','') == p.id|string }}>
+        <option value="{{ p.id }}" {{ 'selected' if request.args.get('fv_id','')==p.id|string }}>
           {{ p.nachname }}, {{ p.vorname }}
         </option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-4">
-      <label class="form-label form-label-sm"><i class="bi bi-tag me-1"></i>Entwicklungsart</label>
-      <select name="entwicklungsart" class="form-select form-select-sm">
-        <option value="">– Alle –</option>
-        {% for key, label, desc in entwicklungsarten %}
-        <option value="{{ key }}" title="{{ desc }}"
-                {{ 'selected' if entwicklungsart == key }}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
+
     <div class="col-md-4">
       <label class="form-label form-label-sm"><i class="bi bi-person-badge me-1"></i>Eigentümer (Datei)</label>
       <select name="owner" class="form-select form-select-sm">
         <option value="">– Alle –</option>
         {% for o in owner_list %}
-        <option value="{{ o }}" {{ 'selected' if request.args.get('owner','') == o }}>{{ o }}</option>
+        <option value="{{ o }}" {{ 'selected' if request.args.get('owner','')==o }}>{{ o }}</option>
         {% endfor %}
       </select>
     </div>
@@ -104,315 +106,336 @@
 </form>
 
 <!-- ── Pagination ─────────────────────────────────────────────────── -->
-{% set url_extra = {'q': q, 'status': status, 'filter': filt, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root, 'owner': owner_filt, 'entwicklungsart': entwicklungsart} %}
+{% set url_extra = {'q': q, 'status': status, 'filter': filt, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root,
+'owner': owner_filt, 'entwicklungsart': entwicklungsart} %}
 {% set endpoint = 'idv.list_idv' %}
 {% include 'funde/_pagination.html' %}
 
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
 <form id="bulk-form" method="post" action="{{ url_for('idv.list_idv') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<div class="card border-0 shadow-sm mt-2">
-  <div class="card-header bg-white d-flex justify-content-between align-items-center">
-    <span class="fw-600">
-      <i class="bi bi-list-ul me-2"></i>
-      {% if total > per_page %}
-      {{ idvs|length }} von {{ total }} Einträgen (Seite {{ page }})
-      {% else %}
-      {{ total }} Einträge
-      {% endif %}
-    </span>
-    <div class="d-flex gap-2 align-items-center flex-wrap">
-      {% if can_write %}
-      <span id="bulk-info" class="text-muted me-1" style="font-size:.82rem;display:none">
-        <span id="bulk-count">0</span> ausgewählt —
+  <div class="card border-0 shadow-sm mt-2">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <span class="fw-600">
+        <i class="bi bi-list-ul me-2"></i>
+        {% if total > per_page %}
+        {{ idvs|length }} von {{ total }} Einträgen (Seite {{ page }})
+        {% else %}
+        {{ total }} Einträge
+        {% endif %}
       </span>
-      <select name="neuer_status" id="bulk-status-select"
-              class="form-select form-select-sm d-none" style="width:auto;min-width:160px">
-        <option value="">Status wählen …</option>
-        {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
-        <option value="{{ s }}">{{ s }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit" id="btn-bulk-status"
-              class="btn btn-sm btn-outline-primary d-none"
-              formaction="{{ url_for('idv.bulk_status') }}"
-              data-submit-validate="confirmBulkStatus">
-        <i class="bi bi-arrow-repeat me-1"></i>Status ändern
-      </button>
-      {% endif %}
-      {% if is_admin %}
-      <button type="submit" id="btn-bulk-delete"
-              class="btn btn-sm btn-danger d-none"
-              formaction="{{ url_for('idv.bulk_loeschen') }}"
-              data-submit-validate="confirmBulkDelete">
-        <i class="bi bi-trash me-1"></i>Löschen
-      </button>
-      {% endif %}
-      <a href="{{ url_for('idv.export_excel') }}" class="btn btn-sm btn-outline-success">
-        <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
-      </a>
-      {% if can_write %}
-      <a href="{{ url_for('idv.new_idv') }}" class="btn btn-sm btn-primary">
-        <i class="bi bi-plus-lg me-1"></i>Neue IDV
-      </a>
-      {% endif %}
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        {% if can_write %}
+        <span id="bulk-info" class="text-muted me-1" style="font-size:.82rem;display:none">
+          <span id="bulk-count">0</span> ausgewählt —
+        </span>
+        <select name="neuer_status" id="bulk-status-select" class="form-select form-select-sm d-none"
+          style="width:auto;min-width:160px">
+          <option value="">Status wählen …</option>
+          {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit
+          Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
+          <option value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" id="btn-bulk-status" class="btn btn-sm btn-outline-primary d-none"
+          formaction="{{ url_for('idv.bulk_status') }}" data-submit-validate="confirmBulkStatus">
+          <i class="bi bi-arrow-repeat me-1"></i>Status ändern
+        </button>
+        {% endif %}
+        {% if is_admin %}
+        <button type="submit" id="btn-bulk-delete" class="btn btn-sm btn-danger d-none"
+          formaction="{{ url_for('idv.bulk_loeschen') }}" data-submit-validate="confirmBulkDelete">
+          <i class="bi bi-trash me-1"></i>Löschen
+        </button>
+        {% endif %}
+        <a href="{{ url_for('idv.export_excel') }}" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
+        </a>
+        {% if can_write %}
+        <a href="{{ url_for('idv.new_idv') }}" class="btn btn-sm btn-primary">
+          <i class="bi bi-plus-lg me-1"></i>Neue IDV
+        </a>
+        {% endif %}
+      </div>
     </div>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0 table-idv" id="idv-table">
-      <thead>
-        <tr>
-          {% if can_write %}<th style="width:36px"><input type="checkbox" id="select-all" class="form-check-input" title="Alle auswählen"></th>{% endif %}
-          <th class="sortable">IDV-ID</th>
-          <th class="sortable">Bezeichnung</th>
-          <th class="sortable">OE</th>
-          <th class="sortable">Typ</th>
-          <th class="sortable" title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">Art</th>
-          <th class="sortable">Version / Dateien</th>
-          <th class="sortable">Wesentlichkeit</th>
-          <th class="sortable">Status</th>
-          <th class="sortable">Fachverantwortlicher</th>
-          <th class="sortable">Eigentümer</th>
-          <th class="sortable">Geändert</th>
-          <th class="sortable">Nächste Prüfung</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in idvs %}
-        <tr>
-          {% if can_write %}
-          <td><input type="checkbox" name="idv_ids" value="{{ r.id }}" class="form-check-input row-check"></td>
-          {% endif %}
-          <td>
-            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
-               class="fw-500 text-decoration-none font-monospace" style="font-size:.82rem">
-              {{ r.idv_id }}
-            </a>
-          </td>
-          <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">
-            {{ r.bezeichnung }}
-          </td>
-          <td style="font-size:.78rem;white-space:nowrap">
-            {% if r.org_einheit %}
-            <a href="{{ url_for('idv.list_idv', oe_id=r.org_unit_id, status=request.args.get('status',''), filter=request.args.get('filter','')) }}"
-               class="text-decoration-none text-muted" title="Nach dieser OE filtern">
-              {{ r.org_einheit }}
-            </a>
-            {% else %}–{% endif %}
-          </td>
-          <td>
-            <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
-          </td>
-          <td>
-            {% set _art = r.entwicklungsart or 'arbeitshilfe' %}
-            {% set _art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
-                                 'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
-            <span class="badge {{ _art_color.get(_art, 'bg-secondary') }}"
-                  title="{{ entwicklungsart_label.get(_art, _art) }}">
-              {{ entwicklungsart_label.get(_art, _art) }}
-            </span>
-          </td>
-          <td style="white-space:nowrap;font-size:.78rem">
-            {# Versionskette: Icon wenn Vorgänger oder Nachfolger existiert #}
-            {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
-              <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige IDV"></i>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 table-idv" id="idv-table">
+        <thead>
+          <tr>
+            {% if can_write %}<th style="width:36px"><input type="checkbox" id="select-all" class="form-check-input"
+                title="Alle auswählen"></th>{% endif %}
+            <th class="sortable">IDV-ID</th>
+            <th class="sortable">Bezeichnung</th>
+            <th class="sortable">OE</th>
+            <th class="sortable">Typ</th>
+            <th class="sortable" title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">Art</th>
+            <th class="sortable">Version / Dateien</th>
+            <th class="sortable">Wesentlichkeit</th>
+            <th class="sortable">Status</th>
+            <th class="sortable">Fachverantwortlicher</th>
+            <th class="sortable">Eigentümer</th>
+            <th class="sortable">Geändert</th>
+            <th class="sortable">Nächste Prüfung</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in idvs %}
+          <tr>
+            {% if can_write %}
+            <td><input type="checkbox" name="idv_ids" value="{{ r.id }}" class="form-check-input row-check"></td>
             {% endif %}
-            <span class="text-muted">v{{ r.version or '1.0' }}</span>
-            {% if r.datei_anzahl %}
+            <td>
+              <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
+                class="fw-500 text-decoration-none font-monospace" style="font-size:.82rem">
+                {{ r.idv_id }}
+              </a>
+            </td>
+            <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">
+              {{ r.bezeichnung }}
+            </td>
+            <td style="font-size:.78rem;white-space:nowrap">
+              {% if r.org_einheit %}
+              <a href="{{ url_for('idv.list_idv', oe_id=r.org_unit_id, status=request.args.get('status',''), filter=request.args.get('filter','')) }}"
+                class="text-decoration-none text-muted" title="Nach dieser OE filtern">
+                {{ r.org_einheit }}
+              </a>
+              {% else %}–{% endif %}
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
+            </td>
+            <td>
+              {% set _art = r.entwicklungsart or 'arbeitshilfe' %}
+              {% set _art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
+              'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
+              <span class="badge {{ _art_color.get(_art, 'bg-secondary') }}"
+                title="{{ entwicklungsart_label.get(_art, _art) }}">
+                {{ entwicklungsart_label.get(_art, _art) }}
+              </span>
+            </td>
+            <td style="white-space:nowrap;font-size:.78rem">
+              {# Versionskette: Icon wenn Vorgänger oder Nachfolger existiert #}
+              {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
+              <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige IDV"></i>
+              {% endif %}
+              <span class="text-muted">v{{ r.version or '1.0' }}</span>
+              {% if r.datei_anzahl %}
               <span class="badge bg-secondary ms-1" title="{{ r.datei_anzahl }} verknüpfte Datei(en)">
                 <i class="bi bi-file-earmark me-1"></i>{{ r.datei_anzahl }}
               </span>
-            {% endif %}
-            {% if r.file_has_macros %}
-              <span class="badge bg-danger ms-1" title="VBA-Makros vorhanden">VBA</span>
-            {% endif %}
-            {% if r.file_has_sheet_protection %}
-              <span class="badge bg-warning text-dark ms-1" title="Blattschutz aktiv"><i class="bi bi-lock-fill"></i></span>
-            {% endif %}
-            {% if r.file_formula_count %}
-              <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{ r.file_formula_count }}</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if r.wesentlich_flag %}
-            <span class="badge bg-danger">Ja</span>
-            {% else %}
-            <span class="text-muted" style="font-size:.82rem">–</span>
-            {% endif %}
-          </td>
-          <td>
-            <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
-          </td>
-          <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
-          <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
-          <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}</td>
-          <td style="font-size:.82rem">
-            {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
-              <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
-            {% elif r.pruefstatus == 'BALD FÄLLIG' %}
-              <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
-            {% else %}
-              {{ r.naechste_pruefung|datefmt }}
-            {% endif %}
-          </td>
-          <td>
-            <div class="d-flex gap-1">
-              <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
-                 class="btn btn-xs btn-outline-secondary" title="Detail">
-                <i class="bi bi-eye"></i>
-              </a>
-              {% if can_write %}
-              <a href="{{ url_for('idv.edit_idv', idv_db_id=r.id) }}"
-                 class="btn btn-xs btn-outline-primary" title="Bearbeiten">
-                <i class="bi bi-pencil"></i>
-              </a>
               {% endif %}
-            </div>
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="{{ 14 if can_write else 13 }}" class="text-center text-muted py-5">
-            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-            Keine IDVs gefunden.
-            {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+              {% if r.file_has_macros %}
+              <span class="badge bg-danger ms-1" title="VBA-Makros vorhanden">VBA</span>
+              {% endif %}
+              {% if r.file_has_sheet_protection %}
+              <span class="badge bg-warning text-dark ms-1" title="Blattschutz aktiv"><i
+                  class="bi bi-lock-fill"></i></span>
+              {% endif %}
+              {% if r.file_formula_count %}
+              <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{
+                r.file_formula_count }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if r.wesentlich_flag %}
+              <span class="badge bg-danger">Ja</span>
+              {% else %}
+              <span class="text-muted" style="font-size:.82rem">–</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
+            </td>
+            <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+            <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
+            <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–'
+              }}</td>
+            <td style="font-size:.82rem">
+              {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
+              <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
+              {% elif r.pruefstatus == 'BALD FÄLLIG' %}
+              <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
+              {% else %}
+              {{ r.naechste_pruefung|datefmt }}
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
+                  title="Detail">
+                  <i class="bi bi-eye"></i>
+                </a>
+                {% if can_write %}
+                <a href="{{ url_for('idv.edit_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-primary"
+                  title="Bearbeiten">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{{ 14 if can_write else 13 }}" class="text-center text-muted py-5">
+              <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+              Keine IDVs gefunden.
+              {% if can_write %}<a href="{{ url_for('idv.new_idv') }}">Erste IDV erfassen →</a>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
-</div>
 </form>
 
 <!-- ── Pagination unten ───────────────────────────────────────────── -->
 {% include 'funde/_pagination.html' %}
 
 <style>
-.btn-xs { padding: .15rem .4rem; font-size: .75rem; }
-.fw-600 { font-weight: 600; }
-.fw-500 { font-weight: 500; }
-th.sortable {
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-th.sortable::after {
-  content: ' \2195';
-  opacity: .35;
-  font-size: .7em;
-}
-th.sortable.asc::after  { content: ' \2191'; opacity: .8; }
-th.sortable.desc::after { content: ' \2193'; opacity: .8; }
+  .btn-xs {
+    padding: .15rem .4rem;
+    font-size: .75rem;
+  }
+
+  .fw-600 {
+    font-weight: 600;
+  }
+
+  .fw-500 {
+    font-weight: 500;
+  }
+
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  th.sortable::after {
+    content: ' \2195';
+    opacity: .35;
+    font-size: .7em;
+  }
+
+  th.sortable.asc::after {
+    content: ' \2191';
+    opacity: .8;
+  }
+
+  th.sortable.desc::after {
+    content: ' \2193';
+    opacity: .8;
+  }
 </style>
 
 {% if can_write %}
 <script>
-(function() {
-  const selectAll    = document.getElementById('select-all');
-  const rowChecks    = () => document.querySelectorAll('.row-check');
-  const btnDelete    = document.getElementById('btn-bulk-delete');
-  const btnStatus    = document.getElementById('btn-bulk-status');
-  const statusSelect = document.getElementById('bulk-status-select');
-  const bulkInfo     = document.getElementById('bulk-info');
-  const bulkCount    = document.getElementById('bulk-count');
+  (function () {
+    const selectAll = document.getElementById('select-all');
+    const rowChecks = () => document.querySelectorAll('.row-check');
+    const btnDelete = document.getElementById('btn-bulk-delete');
+    const btnStatus = document.getElementById('btn-bulk-status');
+    const statusSelect = document.getElementById('bulk-status-select');
+    const bulkInfo = document.getElementById('bulk-info');
+    const bulkCount = document.getElementById('bulk-count');
 
-  function updateBulkUI() {
-    const n = [...rowChecks()].filter(c => c.checked).length;
-    bulkCount.textContent = n;
-    const show = n > 0;
-    bulkInfo.style.display  = show ? ''       : 'none';
-    if (statusSelect) { statusSelect.classList.toggle('d-none', !show); }
-    if (btnStatus)    { btnStatus.classList.toggle('d-none',    !show); }
-    if (btnDelete)    { btnDelete.classList.toggle('d-none',    !show); }
-    if (selectAll) {
-      selectAll.indeterminate = n > 0 && n < rowChecks().length;
-      selectAll.checked = n > 0 && n === rowChecks().length;
+    function updateBulkUI() {
+      const n = [...rowChecks()].filter(c => c.checked).length;
+      bulkCount.textContent = n;
+      const show = n > 0;
+      bulkInfo.style.display = show ? '' : 'none';
+      if (statusSelect) { statusSelect.classList.toggle('d-none', !show); }
+      if (btnStatus) { btnStatus.classList.toggle('d-none', !show); }
+      if (btnDelete) { btnDelete.classList.toggle('d-none', !show); }
+      if (selectAll) {
+        selectAll.indeterminate = n > 0 && n < rowChecks().length;
+        selectAll.checked = n > 0 && n === rowChecks().length;
+      }
     }
-  }
 
-  if (selectAll) {
-    selectAll.addEventListener('change', () => {
-      rowChecks().forEach(c => c.checked = selectAll.checked);
-      updateBulkUI();
-    });
-  }
-  rowChecks().forEach(c => c.addEventListener('change', updateBulkUI));
+    if (selectAll) {
+      selectAll.addEventListener('change', () => {
+        rowChecks().forEach(c => c.checked = selectAll.checked);
+        updateBulkUI();
+      });
+    }
+    rowChecks().forEach(c => c.addEventListener('change', updateBulkUI));
 
-  window.confirmBulkDelete = function() {
-    const n = [...rowChecks()].filter(c => c.checked).length;
-    return confirm(`${n} IDV(s) unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`);
-  };
+    window.confirmBulkDelete = function () {
+      const n = [...rowChecks()].filter(c => c.checked).length;
+      return confirm(`${n} IDV(s) unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`);
+    };
 
-  window.confirmBulkStatus = function() {
-    const sel = document.getElementById('bulk-status-select');
-    if (!sel || !sel.value) { alert('Bitte zuerst einen Zielstatus wählen.'); return false; }
-    const n = [...rowChecks()].filter(c => c.checked).length;
-    return confirm(`Status von ${n} IDV(s) auf „${sel.value}" setzen?`);
-  };
-})();
+    window.confirmBulkStatus = function () {
+      const sel = document.getElementById('bulk-status-select');
+      if (!sel || !sel.value) { alert('Bitte zuerst einen Zielstatus wählen.'); return false; }
+      const n = [...rowChecks()].filter(c => c.checked).length;
+      return confirm(`Status von ${n} IDV(s) auf „${sel.value}" setzen?`);
+    };
+  })();
 </script>
 {% endif %}
 
 <script>
-(function() {
-  const STORE_KEY = 'idv_list_sort';
-  const table = document.getElementById('idv-table');
-  if (!table) return;
-  const tbody = table.querySelector('tbody');
-  const headers = [...table.querySelectorAll('thead th.sortable')];
-  const allThs  = [...table.querySelectorAll('thead tr th')];
+  (function () {
+    const STORE_KEY = 'idv_list_sort';
+    const table = document.getElementById('idv-table');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const headers = [...table.querySelectorAll('thead th.sortable')];
+    const allThs = [...table.querySelectorAll('thead tr th')];
 
-  function sortBy(th, dir) {
-    const colIdx = allThs.indexOf(th);
-    headers.forEach(h => h.classList.remove('asc', 'desc'));
-    th.classList.toggle('asc',  dir ===  1);
-    th.classList.toggle('desc', dir === -1);
+    function sortBy(th, dir) {
+      const colIdx = allThs.indexOf(th);
+      headers.forEach(h => h.classList.remove('asc', 'desc'));
+      th.classList.toggle('asc', dir === 1);
+      th.classList.toggle('desc', dir === -1);
 
-    const rows = [...tbody.querySelectorAll('tr')];
-    rows.sort((a, b) => {
-      const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
-      const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
-      const da = parseDate(ta), db = parseDate(tb);
-      if (da !== null && db !== null) return dir * (da - db);
-      return dir * ta.localeCompare(tb, 'de');
-    });
-    rows.forEach(r => tbody.appendChild(r));
+      const rows = [...tbody.querySelectorAll('tr')];
+      rows.sort((a, b) => {
+        const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
+        const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
+        const da = parseDate(ta), db = parseDate(tb);
+        if (da !== null && db !== null) return dir * (da - db);
+        return dir * ta.localeCompare(tb, 'de');
+      });
+      rows.forEach(r => tbody.appendChild(r));
 
-    // Sortierung in sessionStorage merken
-    try {
-      sessionStorage.setItem(STORE_KEY, JSON.stringify({
-        colText: th.innerText.trim(),
-        dir: dir
-      }));
-    } catch(e) {}
-  }
-
-  headers.forEach(th => {
-    let dir = 0;
-    th.addEventListener('click', () => {
-      dir = dir === 1 ? -1 : 1;
-      sortBy(th, dir);
-    });
-  });
-
-  // Letzte Sortierung beim Laden wiederherstellen
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
-    if (saved) {
-      const th = headers.find(h => h.innerText.trim() === saved.colText);
-      if (th) sortBy(th, saved.dir);
+      // Sortierung in sessionStorage merken
+      try {
+        sessionStorage.setItem(STORE_KEY, JSON.stringify({
+          colText: th.innerText.trim(),
+          dir: dir
+        }));
+      } catch (e) { }
     }
-  } catch(e) {}
 
-  function parseDate(s) {
-    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (m) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
-    m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-    if (m) return new Date(+m[3], +m[2]-1, +m[1]).getTime();
-    return null;
-  }
-})();
+    headers.forEach(th => {
+      let dir = 0;
+      th.addEventListener('click', () => {
+        dir = dir === 1 ? -1 : 1;
+        sortBy(th, dir);
+      });
+    });
+
+    // Letzte Sortierung beim Laden wiederherstellen
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+      if (saved) {
+        const th = headers.find(h => h.innerText.trim() === saved.colText);
+        if (th) sortBy(th, saved.dir);
+      }
+    } catch (e) { }
+
+    function parseDate(s) {
+      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+      m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+      if (m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
+      return null;
+    }
+  })();
 </script>
 {% endblock %}

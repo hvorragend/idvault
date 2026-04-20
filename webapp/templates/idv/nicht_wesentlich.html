@@ -15,32 +15,37 @@
   <div class="row g-2 align-items-end">
 
     <!-- Zeile 1: Suche + Status + Buttons -->
-    <div class="col-md-4">
+    <div class="col-md-8">
       <label class="form-label form-label-sm">Suche</label>
-      <input type="text" name="q" value="{{ q }}"
-             class="form-control form-control-sm" placeholder="IDV-ID, Name, Beschreibung …">
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm"
+        placeholder="IDV-ID, Name, Beschreibung …">
     </div>
+
     <div class="col-md-2">
       <label class="form-label form-label-sm">Status</label>
       <select name="status" class="form-select form-select-sm">
         <option value="">Alle</option>
         {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt'] %}
-        <option {{ 'selected' if status == s }}>{{ s }}</option>
+        <option {{ 'selected' if status==s }}>{{ s }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-4">
-      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
-      {% set field_name    = "share_root" %}
-      {% set field_options = share_roots %}
-      {% set field_value   = share_root %}
-      {% set input_id      = "share-root-search" %}
-      {% include 'funde/_dir_search.html' %}
-    </div>
+
     <div class="col-md-2 d-flex gap-1 align-items-end">
       <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
-      <a href="{{ url_for('idv.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
+      <a href="{{ url_for('idv.nicht_wesentliche_idvs') }}" class="btn btn-sm btn-outline-secondary"
+        title="Filter zurücksetzen"><i class="bi bi-x"></i></a>
     </div>
+
+    <div class="col-md-12">
+      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
+      {% set field_name = "share_root" %}
+      {% set field_options = share_roots %}
+      {% set field_value = share_root %}
+      {% set input_id = "share-root-search" %}
+      {% include 'funde/_dir_search.html' %}
+    </div>
+
 
     <!-- Zeile 2: OE + Fachverantwortlicher + Eigentümer -->
     <div class="col-md-4">
@@ -48,7 +53,7 @@
       <select name="oe_id" class="form-select form-select-sm">
         <option value="">– Alle OEs –</option>
         {% for ou in org_units %}
-        <option value="{{ ou.id }}" {{ 'selected' if oe_id == ou.id }}>
+        <option value="{{ ou.id }}" {{ 'selected' if oe_id==ou.id }}>
           {{ ou.bezeichnung }}
         </option>
         {% endfor %}
@@ -59,7 +64,7 @@
       <select name="fv_id" class="form-select form-select-sm">
         <option value="">– Alle –</option>
         {% for p in persons_fv %}
-        <option value="{{ p.id }}" {{ 'selected' if fv_id == p.id }}>
+        <option value="{{ p.id }}" {{ 'selected' if fv_id==p.id }}>
           {{ p.nachname }}, {{ p.vorname }}
         </option>
         {% endfor %}
@@ -70,7 +75,7 @@
       <select name="owner" class="form-select form-select-sm">
         <option value="">– Alle –</option>
         {% for o in owner_list %}
-        <option value="{{ o }}" {{ 'selected' if owner_filt == o }}>{{ o }}</option>
+        <option value="{{ o }}" {{ 'selected' if owner_filt==o }}>{{ o }}</option>
         {% endfor %}
       </select>
     </div>
@@ -88,7 +93,8 @@
 </form>
 
 <!-- ── Pagination oben ────────────────────────────────────────────── -->
-{% set url_extra = {'q': q, 'status': status, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root, 'owner': owner_filt} %}
+{% set url_extra = {'q': q, 'status': status, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root, 'owner':
+owner_filt} %}
 {% set endpoint = 'idv.nicht_wesentliche_idvs' %}
 {% include 'funde/_pagination.html' %}
 
@@ -103,8 +109,7 @@
       {{ total }} Einträge
       {% endif %}
     </span>
-    <a href="{{ url_for('idv.list_idv', filter='nicht_wesentlich') }}"
-       class="btn btn-sm btn-outline-secondary">
+    <a href="{{ url_for('idv.list_idv', filter='nicht_wesentlich') }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-box-arrow-up-right me-1"></i>In IDV-Liste öffnen
     </a>
   </div>
@@ -129,8 +134,8 @@
         {% for r in nicht_wesentliche %}
         <tr>
           <td>
-            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
-               class="fw-500 text-decoration-none font-monospace" style="font-size:.82rem">
+            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none font-monospace"
+              style="font-size:.82rem">
               {{ r.idv_id }}
             </a>
           </td>
@@ -140,7 +145,7 @@
           <td style="font-size:.78rem;white-space:nowrap">
             {% if r.org_einheit %}
             <a href="{{ url_for('idv.nicht_wesentliche_idvs', oe_id=r.org_unit_id, status=status, q=q) }}"
-               class="text-decoration-none text-muted" title="Nach dieser OE filtern">
+              class="text-decoration-none text-muted" title="Nach dieser OE filtern">
               {{ r.org_einheit }}
             </a>
             {% else %}–{% endif %}
@@ -150,22 +155,24 @@
           </td>
           <td style="white-space:nowrap;font-size:.78rem">
             {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
-              <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige IDV"></i>
+            <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige IDV"></i>
             {% endif %}
             <span class="text-muted">v{{ r.version or '1.0' }}</span>
             {% if r.datei_anzahl %}
-              <span class="badge bg-secondary ms-1" title="{{ r.datei_anzahl }} verknüpfte Datei(en)">
-                <i class="bi bi-file-earmark me-1"></i>{{ r.datei_anzahl }}
-              </span>
+            <span class="badge bg-secondary ms-1" title="{{ r.datei_anzahl }} verknüpfte Datei(en)">
+              <i class="bi bi-file-earmark me-1"></i>{{ r.datei_anzahl }}
+            </span>
             {% endif %}
             {% if r.file_has_macros %}
-              <span class="badge bg-danger ms-1" title="VBA-Makros vorhanden">VBA</span>
+            <span class="badge bg-danger ms-1" title="VBA-Makros vorhanden">VBA</span>
             {% endif %}
             {% if r.file_has_sheet_protection %}
-              <span class="badge bg-warning text-dark ms-1" title="Blattschutz aktiv"><i class="bi bi-lock-fill"></i></span>
+            <span class="badge bg-warning text-dark ms-1" title="Blattschutz aktiv"><i
+                class="bi bi-lock-fill"></i></span>
             {% endif %}
             {% if r.file_formula_count %}
-              <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{ r.file_formula_count }}</span>
+            <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{
+              r.file_formula_count }}</span>
             {% endif %}
           </td>
           <td>
@@ -173,19 +180,20 @@
           </td>
           <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
           <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
-          <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}</td>
+          <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}
+          </td>
           <td style="font-size:.82rem">
             {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
-              <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
+            <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
             {% elif r.pruefstatus == 'BALD FÄLLIG' %}
-              <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
+            <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
             {% else %}
-              {{ r.naechste_pruefung|datefmt if r.naechste_pruefung else '–' }}
+            {{ r.naechste_pruefung|datefmt if r.naechste_pruefung else '–' }}
             {% endif %}
           </td>
           <td>
-            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}"
-               class="btn btn-xs btn-outline-secondary" title="Detail">
+            <a href="{{ url_for('idv.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
+              title="Detail">
               <i class="bi bi-eye"></i>
             </a>
           </td>
@@ -207,60 +215,79 @@
 {% include 'funde/_pagination.html' %}
 
 <style>
-.btn-xs { padding: .15rem .4rem; font-size: .75rem; }
-.fw-600 { font-weight: 600; }
-.fw-500 { font-weight: 500; }
-th.sortable {
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-th.sortable::after {
-  content: ' \2195';
-  opacity: .35;
-  font-size: .7em;
-}
-th.sortable.asc::after  { content: ' \2191'; opacity: .8; }
-th.sortable.desc::after { content: ' \2193'; opacity: .8; }
+  .btn-xs {
+    padding: .15rem .4rem;
+    font-size: .75rem;
+  }
+
+  .fw-600 {
+    font-weight: 600;
+  }
+
+  .fw-500 {
+    font-weight: 500;
+  }
+
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  th.sortable::after {
+    content: ' \2195';
+    opacity: .35;
+    font-size: .7em;
+  }
+
+  th.sortable.asc::after {
+    content: ' \2191';
+    opacity: .8;
+  }
+
+  th.sortable.desc::after {
+    content: ' \2193';
+    opacity: .8;
+  }
 </style>
 
 <script>
-(function() {
-  const table = document.getElementById('nw-table');
-  if (!table) return;
-  const tbody = table.querySelector('tbody');
-  const headers = [...table.querySelectorAll('thead th.sortable')];
-  const allThs = [...table.querySelectorAll('thead tr th')];
+  (function () {
+    const table = document.getElementById('nw-table');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const headers = [...table.querySelectorAll('thead th.sortable')];
+    const allThs = [...table.querySelectorAll('thead tr th')];
 
-  headers.forEach(th => {
-    const colIdx = allThs.indexOf(th);
-    let dir = 0;
+    headers.forEach(th => {
+      const colIdx = allThs.indexOf(th);
+      let dir = 0;
 
-    th.addEventListener('click', () => {
-      headers.forEach(h => { if (h !== th) { h.classList.remove('asc','desc'); } });
-      dir = dir === 1 ? -1 : 1;
-      th.classList.toggle('asc',  dir ===  1);
-      th.classList.toggle('desc', dir === -1);
+      th.addEventListener('click', () => {
+        headers.forEach(h => { if (h !== th) { h.classList.remove('asc', 'desc'); } });
+        dir = dir === 1 ? -1 : 1;
+        th.classList.toggle('asc', dir === 1);
+        th.classList.toggle('desc', dir === -1);
 
-      const rows = [...tbody.querySelectorAll('tr')];
-      rows.sort((a, b) => {
-        const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
-        const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
-        const da = parseDate(ta), db = parseDate(tb);
-        if (da !== null && db !== null) return dir * (da - db);
-        return dir * ta.localeCompare(tb, 'de');
+        const rows = [...tbody.querySelectorAll('tr')];
+        rows.sort((a, b) => {
+          const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
+          const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
+          const da = parseDate(ta), db = parseDate(tb);
+          if (da !== null && db !== null) return dir * (da - db);
+          return dir * ta.localeCompare(tb, 'de');
+        });
+        rows.forEach(r => tbody.appendChild(r));
       });
-      rows.forEach(r => tbody.appendChild(r));
     });
-  });
 
-  function parseDate(s) {
-    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (m) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
-    m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-    if (m) return new Date(+m[3], +m[2]-1, +m[1]).getTime();
-    return null;
-  }
-})();
+    function parseDate(s) {
+      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+      m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+      if (m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
+      return null;
+    }
+  })();
 </script>
 {% endblock %}

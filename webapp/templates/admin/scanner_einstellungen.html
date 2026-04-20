@@ -20,163 +20,154 @@
   <div class="col-12">
     <form method="post" action="{{ url_for('admin.scanner_einstellungen') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-600">
-        <i class="bi bi-folder2-open me-2"></i>Scan-Konfiguration
-      </div>
-      <div class="card-body">
-        <div class="row g-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-600">
+          <i class="bi bi-folder2-open me-2"></i>Scan-Konfiguration
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
 
-          <!-- Scan-Pfade -->
-          <div class="col-12">
-            <label class="form-label fw-600">Scan-Pfade
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">
-                — ein Pfad pro Zeile, z.&thinsp;B. <code>\\\\server01\\freigabe</code>
-              </span>
-            </label>
-            <textarea name="scan_paths" class="form-control font-monospace"
-                      rows="4" style="font-size:.84rem"
-                      placeholder="\\\\server01\share1&#10;\\\\server02\abteilung_a"
-            >{{ cfg.scan_paths | join('\n') }}</textarea>
-          </div>
+            <!-- Scan-Pfade -->
+            <div class="col-md-6">
+              <label class="form-label fw-600">Scan-Pfade
+                <span class="text-muted fw-normal ms-1" style="font-size:.82rem">
+                  — ein Pfad pro Zeile, z.&thinsp;B. <code>\\\\server01\\freigabe</code>
+                </span>
+              </label>
+              <textarea name="scan_paths" class="form-control font-monospace" rows="10" style="font-size:.84rem"
+                placeholder="\\\\server01\share1&#10;\\\\server02\abteilung_a">{{ cfg.scan_paths | join('\n') }}</textarea>
+            </div>
 
-          <!-- Dateiendungen -->
-          <div class="col-md-6">
-            <label class="form-label fw-600">Überwachte Dateiendungen
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— eine pro Zeile</span>
-            </label>
-            <textarea name="extensions" class="form-control font-monospace"
-                      rows="10" style="font-size:.82rem"
-            >{{ cfg.extensions | join('\n') }}</textarea>
-          </div>
+            <!-- Dateiendungen -->
+            <div class="col-md-6">
+              <label class="form-label fw-600">Überwachte Dateiendungen
+                <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— eine pro Zeile</span>
+              </label>
+              <textarea name="extensions" class="form-control font-monospace" rows="10"
+                style="font-size:.82rem">{{ cfg.extensions | join('\n') }}</textarea>
+            </div>
 
-          <!-- Ausschluss-Muster -->
-          <div class="col-md-6">
-            <label class="form-label fw-600">Ausschluss-Muster
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— Regex oder Substring, eine Regel pro Zeile</span>
-            </label>
-            <textarea name="blacklist_paths" class="form-control font-monospace"
-                      rows="10" style="font-size:.82rem"
-                      placeholder="z.B. \\Archiv\\ oder (?i)temp"
-            >{{ cfg.blacklist_paths | join('\n') if cfg.blacklist_paths else '' }}</textarea>
-            <div class="form-text">Dateien und Verzeichnisse, deren Pfad einem Muster entspricht, werden übersprungen. Hat Vorrang vor der Whitelist.</div>
-          </div>
+            <!-- Ausschluss-Muster -->
+            <div class="col-md-6">
+              <label class="form-label fw-600">Blacklist
+                <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— Regex oder Substring, eine Regel pro
+                  Zeile</span>
+              </label>
+              <textarea name="blacklist_paths" class="form-control font-monospace" rows="10" style="font-size:.82rem"
+                placeholder="z.B. \\Archiv\\ oder (?i)temp">{{ cfg.blacklist_paths | join('\n') if cfg.blacklist_paths else '' }}</textarea>
+              <div class="form-text">Dateien und Verzeichnisse, deren Pfad einem Muster entspricht, werden übersprungen.
+                Hat Vorrang vor der Whitelist.</div>
+            </div>
 
-          <!-- Whitelist -->
-          <div class="col-md-6">
-            <label class="form-label fw-600">Whitelist
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— optional, Regex oder Substring</span>
-            </label>
-            <textarea name="whitelist_paths" class="form-control font-monospace"
-                      rows="10" style="font-size:.82rem"
-                      placeholder="z.B. \\IDV\\ oder (?i)controlling"
-            >{{ cfg.whitelist_paths | join('\n') if cfg.whitelist_paths else '' }}</textarea>
-            <div class="form-text">Wenn nicht leer: nur Dateien und Verzeichnisse verarbeiten, deren Pfad mindestens einem Muster entspricht.</div>
-          </div>
+            <!-- Whitelist -->
+            <div class="col-md-6">
+              <label class="form-label fw-600">Whitelist
+                <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— optional, Regex oder Substring</span>
+              </label>
+              <textarea name="whitelist_paths" class="form-control font-monospace" rows="10" style="font-size:.82rem"
+                placeholder="z.B. \\IDV\\ oder (?i)controlling">{{ cfg.whitelist_paths | join('\n') if cfg.whitelist_paths else '' }}</textarea>
+              <div class="form-text">Wenn nicht leer: nur Dateien und Verzeichnisse verarbeiten, deren Pfad mindestens
+                einem Muster entspricht.</div>
+            </div>
 
-          <!-- Parameter-Zeile -->
-          <div class="col-md-3">
-            <label class="form-label fw-600">Hash-Limit (MB)</label>
-            <input type="number" name="hash_size_limit_mb" class="form-control"
-                   value="{{ cfg.hash_size_limit_mb or 500 }}" min="1" max="10000">
-            <div class="form-text">Dateien über diesem Schwellenwert werden nicht gehasht.</div>
-          </div>
+            <!-- Parameter-Zeile -->
+            <div class="col-md-3">
+              <label class="form-label fw-600">Hash-Limit (MB)</label>
+              <input type="number" name="hash_size_limit_mb" class="form-control"
+                value="{{ cfg.hash_size_limit_mb or 500 }}" min="1" max="10000">
+              <div class="form-text">Dateien über diesem Schwellenwert werden nicht gehasht.</div>
+            </div>
 
-          <div class="col-md-3">
-            <label class="form-label fw-600">Parallele Threads</label>
-            <input type="number" name="max_workers" class="form-control"
-                   value="{{ cfg.max_workers or 4 }}" min="1" max="32">
-          </div>
+            <div class="col-md-3">
+              <label class="form-label fw-600">Parallele Threads</label>
+              <input type="number" name="max_workers" class="form-control" value="{{ cfg.max_workers or 4 }}" min="1"
+                max="32">
+            </div>
 
-          <div class="col-md-3">
-            <label class="form-label fw-600">Move-Detection</label>
-            <select name="move_detection" class="form-select">
-              {% for val, label in [
-                ('hash_only',     'Nur Hash (Standard)'),
+            <div class="col-md-3">
+              <label class="form-label fw-600">Move-Detection</label>
+              <select name="move_detection" class="form-select">
+                {% for val, label in [
+                ('hash_only', 'Nur Hash (Standard)'),
                 ('name_and_hash', 'Name + Hash'),
-                ('disabled',      'Deaktiviert'),
-              ] %}
-              <option value="{{ val }}" {{ 'selected' if cfg.move_detection == val }}>{{ label }}</option>
-              {% endfor %}
-            </select>
-          </div>
+                ('disabled', 'Deaktiviert'),
+                ] %}
+                <option value="{{ val }}" {{ 'selected' if cfg.move_detection==val }}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
 
-          <div class="col-md-3">
-            <label class="form-label fw-600">Scan-Startdatum
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— optional</span>
-            </label>
-            <input type="date" name="scan_since" class="form-control"
-                   value="{{ cfg.scan_since or '' }}">
-            <div class="form-text">Nur Dateien verarbeiten, die ab diesem Datum geändert wurden.</div>
-          </div>
+            <div class="col-md-3">
+              <label class="form-label fw-600">Scan-Startdatum
+                <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— optional</span>
+              </label>
+              <input type="date" name="scan_since" class="form-control" value="{{ cfg.scan_since or '' }}">
+              <div class="form-text">Nur Dateien verarbeiten, die ab diesem Datum geändert wurden.</div>
+            </div>
 
-          <div class="col-md-3 d-flex flex-column justify-content-center">
-            <label class="form-label fw-600">Dateibesitzer auslesen</label>
-            <div class="form-check form-switch mt-1">
-              <input class="form-check-input" type="checkbox" role="switch"
-                     name="read_file_owner" id="read_file_owner" value="1"
-                     {{ 'checked' if cfg.get('read_file_owner', True) }}>
-              <label class="form-check-label" for="read_file_owner">Aktiviert</label>
+            <div class="col-md-3 d-flex flex-column justify-content-center">
+              <label class="form-label fw-600">Dateibesitzer auslesen</label>
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" role="switch" name="read_file_owner"
+                  id="read_file_owner" value="1" {{ 'checked' if cfg.get('read_file_owner', True) }}>
+                <label class="form-check-label" for="read_file_owner">Aktiviert</label>
+              </div>
+              <div class="form-text">
+                Windows-API (<code>pywin32</code>) pro Datei aufrufen.
+                Bei Netzlaufwerken kann dies den Scan verlangsamen oder zum Absturz führen
+                → bei Problemen deaktivieren.
+              </div>
             </div>
-            <div class="form-text">
-              Windows-API (<code>pywin32</code>) pro Datei aufrufen.
-              Bei Netzlaufwerken kann dies den Scan verlangsamen oder zum Absturz führen
-              → bei Problemen deaktivieren.
-            </div>
-          </div>
 
-          <div class="col-md-3 d-flex flex-column justify-content-center">
-            <label class="form-label fw-600">Excel ohne Formeln ignorieren</label>
-            <div class="form-check form-switch mt-1">
-              <input class="form-check-input" type="checkbox" role="switch"
-                     name="auto_ignore_no_formula" id="auto_ignore_no_formula" value="1"
-                     {{ 'checked' if auto_ignore_no_formula == '1' }}>
-              <label class="form-check-label" for="auto_ignore_no_formula">Aktiviert</label>
+            <div class="col-md-3 d-flex flex-column justify-content-center">
+              <label class="form-label fw-600">Excel ohne Formeln ignorieren</label>
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" role="switch" name="auto_ignore_no_formula"
+                  id="auto_ignore_no_formula" value="1" {{ 'checked' if auto_ignore_no_formula=='1' }}>
+                <label class="form-check-label" for="auto_ignore_no_formula">Aktiviert</label>
+              </div>
+              <div class="form-text">
+                Excel-Dateien ohne Formeln und ohne Makros werden während des Scans
+                sofort auf <em>Ignoriert</em> gesetzt (auch für bereits vorhandene Einträge).
+              </div>
             </div>
-            <div class="form-text">
-              Excel-Dateien ohne Formeln und ohne Makros werden während des Scans
-              sofort auf <em>Ignoriert</em> gesetzt (auch für bereits vorhandene Einträge).
-            </div>
-          </div>
 
-          <div class="col-md-3 d-flex flex-column justify-content-center">
-            <label class="form-label fw-600">Excel ohne Formeln verwerfen</label>
-            <div class="form-check form-switch mt-1">
-              <input class="form-check-input" type="checkbox" role="switch"
-                     name="discard_no_formula" id="discard_no_formula" value="1"
-                     {{ 'checked' if discard_no_formula == '1' }}>
-              <label class="form-check-label" for="discard_no_formula">Aktiviert</label>
+            <div class="col-md-3 d-flex flex-column justify-content-center">
+              <label class="form-label fw-600">Excel ohne Formeln verwerfen</label>
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" role="switch" name="discard_no_formula"
+                  id="discard_no_formula" value="1" {{ 'checked' if discard_no_formula=='1' }}>
+                <label class="form-check-label" for="discard_no_formula">Aktiviert</label>
+              </div>
+              <div class="form-text">
+                Neue Excel-Dateien ohne Formeln und ohne Makros werden gar nicht erst
+                in die Datenbank aufgenommen. Stärker als <em>Ignorieren</em> –
+                bestehende Einträge bleiben erhalten.
+              </div>
             </div>
-            <div class="form-text">
-              Neue Excel-Dateien ohne Formeln und ohne Makros werden gar nicht erst
-              in die Datenbank aufgenommen. Stärker als <em>Ignorieren</em> –
-              bestehende Einträge bleiben erhalten.
-            </div>
-          </div>
 
-          <div class="col-md-3 d-flex flex-column justify-content-center">
-            <label class="form-label fw-600">Klassifizierung nach Dateiname</label>
-            <div class="form-check form-switch mt-1">
-              <input class="form-check-input" type="checkbox" role="switch"
-                     name="auto_classify_by_filename" id="auto_classify_by_filename" value="1"
-                     {{ 'checked' if auto_classify_by_filename != '0' }}>
-              <label class="form-check-label" for="auto_classify_by_filename">Aktiviert</label>
+            <div class="col-md-3 d-flex flex-column justify-content-center">
+              <label class="form-label fw-600">Klassifizierung nach Dateiname</label>
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" role="switch" name="auto_classify_by_filename"
+                  id="auto_classify_by_filename" value="1" {{ 'checked' if auto_classify_by_filename !='0' }}>
+                <label class="form-check-label" for="auto_classify_by_filename">Aktiviert</label>
+              </div>
+              <div class="form-text">
+                Dateien mit Präfix/Suffix <strong>AH</strong> (Arbeitshilfe) werden automatisch
+                als <em>Nicht wesentlich</em> eingestuft, Dateien mit Präfix/Suffix
+                <strong>IDV</strong> als <em>Zur Registrierung</em> vorgemerkt.
+              </div>
             </div>
-            <div class="form-text">
-              Dateien mit Präfix/Suffix <strong>AH</strong> (Arbeitshilfe) werden automatisch
-              als <em>Nicht wesentlich</em> eingestuft, Dateien mit Präfix/Suffix
-              <strong>IDV</strong> als <em>Zur Registrierung</em> vorgemerkt.
-            </div>
-          </div>
 
-        </div><!-- /row -->
+          </div><!-- /row -->
+        </div>
+        <div class="card-footer bg-white d-flex justify-content-end gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-floppy me-1"></i>Konfiguration speichern
+          </button>
+        </div>
       </div>
-      <div class="card-footer bg-white d-flex justify-content-end gap-2">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-floppy me-1"></i>Konfiguration speichern
-        </button>
-      </div>
-    </div>
     </form>
   </div>
 
@@ -186,49 +177,49 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="path_mappings_json" id="pm-json-field">
       {# Alle anderen Scanner-Felder werden NICHT mit gesendet – nur die Mappings.
-         Da der POST-Handler alle Felder aus request.form liest und fehlende als
-         leer/default behandelt, würde das die Scanner-Config überschreiben.
-         Deshalb: Mappings als eigenständiges Formular mit versteckten Kopier-Feldern. #}
+      Da der POST-Handler alle Felder aus request.form liest und fehlende als
+      leer/default behandelt, würde das die Scanner-Config überschreiben.
+      Deshalb: Mappings als eigenständiges Formular mit versteckten Kopier-Feldern. #}
       <input type="hidden" name="_only_path_mappings" value="1">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-600">
-        <i class="bi bi-arrow-left-right me-2"></i>Pfad-Mappings (UNC → Laufwerksbuchstaben)
-      </div>
-      <div class="card-body pb-2">
-        <p class="text-muted mb-3" style="font-size:.86rem">
-          UNC-Pfade (oder beliebige Präfixe) in Laufwerksbuchstaben oder andere Bezeichnungen umwandeln –
-          sowohl beim Speichern in der Datenbank (Scanner) als auch in der Anzeige (Web-UI).<br>
-          <strong>Einfach</strong>: Präfix-Ersetzen, Groß-/Kleinschreibung ignoriert.
-          <strong>Regex</strong>: Python <code>re.sub</code>, Gruppen-Referenzen erlaubt;
-          Flags: <code>i</code> = IGNORECASE, <code>m</code> = MULTILINE.
-          Regeln werden der Reihe nach angewendet.
-        </p>
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-600">
+          <i class="bi bi-arrow-left-right me-2"></i>Pfad-Mappings (UNC → Laufwerksbuchstaben)
+        </div>
+        <div class="card-body pb-2">
+          <p class="text-muted mb-3" style="font-size:.86rem">
+            UNC-Pfade (oder beliebige Präfixe) in Laufwerksbuchstaben oder andere Bezeichnungen umwandeln –
+            sowohl beim Speichern in der Datenbank (Scanner) als auch in der Anzeige (Web-UI).<br>
+            <strong>Einfach</strong>: Präfix-Ersetzen, Groß-/Kleinschreibung ignoriert.
+            <strong>Regex</strong>: Python <code>re.sub</code>, Gruppen-Referenzen erlaubt;
+            Flags: <code>i</code> = IGNORECASE, <code>m</code> = MULTILINE.
+            Regeln werden der Reihe nach angewendet.
+          </p>
 
-        <table class="table table-sm align-middle mb-2" id="pm-table">
-          <thead class="table-light">
-            <tr>
-              <th>Muster (pattern)</th>
-              <th style="width:140px">Ersatz (replacement)</th>
-              <th style="width:90px" class="text-center">Regex</th>
-              <th style="width:90px">Flags</th>
-              <th style="width:40px"></th>
-            </tr>
-          </thead>
-          <tbody id="pm-tbody">
-            <!-- Wird per JS gerendert -->
-          </tbody>
-        </table>
+          <table class="table table-sm align-middle mb-2" id="pm-table">
+            <thead class="table-light">
+              <tr>
+                <th>Muster (pattern)</th>
+                <th style="width:140px">Ersatz (replacement)</th>
+                <th style="width:90px" class="text-center">Regex</th>
+                <th style="width:90px">Flags</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="pm-tbody">
+              <!-- Wird per JS gerendert -->
+            </tbody>
+          </table>
 
-        <button type="button" class="btn btn-sm btn-outline-primary" data-action="addPmRow">
-          <i class="bi bi-plus-circle me-1"></i>Regel hinzufügen
-        </button>
+          <button type="button" class="btn btn-sm btn-outline-primary" data-action="addPmRow">
+            <i class="bi bi-plus-circle me-1"></i>Regel hinzufügen
+          </button>
+        </div>
+        <div class="card-footer bg-white d-flex justify-content-end">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-floppy me-1"></i>Mappings speichern
+          </button>
+        </div>
       </div>
-      <div class="card-footer bg-white d-flex justify-content-end">
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-floppy me-1"></i>Mappings speichern
-        </button>
-      </div>
-    </div>
     </form>
   </div>
 
@@ -263,8 +254,7 @@
           </div>
           {% endif %}
 
-          <div id="runas-module-warning" class="alert alert-warning py-2 mb-3"
-               style="display:none; font-size:.84rem">
+          <div id="runas-module-warning" class="alert alert-warning py-2 mb-3" style="display:none; font-size:.84rem">
             <i class="bi bi-exclamation-triangle me-1"></i>
             <strong>Credential-Test eingeschränkt:</strong>
             Im aktuellen EXE-Build fehlen pywin32-Module
@@ -278,20 +268,20 @@
           <div class="row g-3">
             <div class="col-md-3">
               <label class="form-label fw-600">Domain</label>
-              <input type="text" name="runas_domain" class="form-control font-monospace"
-                     value="{{ runas.domain }}" placeholder="IHRE-DOMAIN">
+              <input type="text" name="runas_domain" class="form-control font-monospace" value="{{ runas.domain }}"
+                placeholder="IHRE-DOMAIN">
               <div class="form-text">NetBIOS-Domänenname, z.&thinsp;B. <code>BANK</code></div>
             </div>
             <div class="col-md-4">
               <label class="form-label fw-600">Benutzername</label>
-              <input type="text" name="runas_username" class="form-control font-monospace"
-                     value="{{ runas.username }}" placeholder="svc-idvault-scan">
+              <input type="text" name="runas_username" class="form-control font-monospace" value="{{ runas.username }}"
+                placeholder="svc-idvault-scan">
               <div class="form-text">sAMAccountName (ohne Domain-Präfix)</div>
             </div>
             <div class="col-md-5">
               <label class="form-label fw-600">Kennwort</label>
               <input type="password" name="runas_password" class="form-control"
-                     placeholder="{{ 'Leer lassen = unverändert' if runas.password_enc else 'Kennwort eingeben' }}">
+                placeholder="{{ 'Leer lassen = unverändert' if runas.password_enc else 'Kennwort eingeben' }}">
               <div class="form-text">
                 Wird verschlüsselt gespeichert.
                 {% if runas.password_enc %}
@@ -326,13 +316,13 @@
   </div>
 
   <script>
-  (function () {
-    const btnTest   = document.getElementById('btnRunasTest');
-    const btnRemove = document.getElementById('btnRunasRemove');
+    (function () {
+      const btnTest = document.getElementById('btnRunasTest');
+      const btnRemove = document.getElementById('btnRunasRemove');
 
-    // Beim Laden Run-As-Status abfragen; Warnbanner zeigen wenn
-    // pywin32-Module im EXE-Build fehlen.
-    fetch({{ url_for('admin.scanner_runas_status') | tojson }})
+      // Beim Laden Run-As-Status abfragen; Warnbanner zeigen wenn
+      // pywin32-Module im EXE-Build fehlen.
+      fetch({{ url_for('admin.scanner_runas_status') | tojson }})
       .then(r => r.json())
       .then(data => {
         if (data.configured && data.platform_ok && !data.modules_ok) {
@@ -353,8 +343,8 @@
         fetch('{{ url_for("admin.scanner_runas_testen") }}', { method: 'POST' })
           .then(r => r.json())
           .then(data => {
-            const box   = document.getElementById('runas-test-result');
-            const alrt  = document.getElementById('runas-test-alert');
+            const box = document.getElementById('runas-test-result');
+            const alrt = document.getElementById('runas-test-alert');
             box.style.display = '';
             alrt.className = 'alert mb-0 py-2 alert-' + (data.ok ? 'success' : 'danger');
             alrt.innerHTML = (data.ok
@@ -379,12 +369,12 @@
         if (!confirm('Technischen Scanner-Benutzer wirklich entfernen?')) return;
         const form = btnRemove.closest('form');
         form.querySelector('[name="runas_username"]').value = '';
-        form.querySelector('[name="runas_domain"]').value   = '';
+        form.querySelector('[name="runas_domain"]').value = '';
         form.querySelector('[name="runas_password"]').value = '';
         form.submit();
       });
     }
-  })();
+  }) ();
   </script>
 
   <!-- ── Teams-Scanner ──────────────────────────────────────────── -->
@@ -399,8 +389,7 @@
           über die Microsoft Graph API. Erfordert eine Azure AD App-Registrierung mit
           <code>Files.Read.All</code> und <code>Sites.Read.All</code>.
         </p>
-        <a href="{{ url_for('admin.teams_einstellungen') }}"
-           class="btn btn-outline-primary btn-sm text-nowrap">
+        <a href="{{ url_for('admin.teams_einstellungen') }}" class="btn btn-outline-primary btn-sm text-nowrap">
           <i class="bi bi-gear me-1"></i>Teams-Scanner konfigurieren
         </a>
       </div>
@@ -418,9 +407,8 @@
 
           <div class="col-12">
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch"
-                     name="scan_schedule_enabled" id="scan_schedule_enabled" value="1"
-                     {{ 'checked' if schedule.scan_schedule_enabled == '1' }}>
+              <input class="form-check-input" type="checkbox" role="switch" name="scan_schedule_enabled"
+                id="scan_schedule_enabled" value="1" {{ 'checked' if schedule.scan_schedule_enabled=='1' }}>
               <label class="form-check-label fw-600" for="scan_schedule_enabled">
                 Automatischen Scan aktivieren
               </label>
@@ -434,18 +422,17 @@
           <div class="col-md-3">
             <label class="form-label fw-600">Intervall</label>
             <select name="scan_schedule_type" id="scan_schedule_type" class="form-select">
-              <option value="daily"  {{ 'selected' if schedule.scan_schedule_type == 'daily' }}>Täglich</option>
-              <option value="weekly" {{ 'selected' if schedule.scan_schedule_type == 'weekly' }}>Wöchentlich</option>
+              <option value="daily" {{ 'selected' if schedule.scan_schedule_type=='daily' }}>Täglich</option>
+              <option value="weekly" {{ 'selected' if schedule.scan_schedule_type=='weekly' }}>Wöchentlich</option>
             </select>
           </div>
 
           <div class="col-md-3" id="schedule_weekday_col"
-               style="{{ '' if schedule.scan_schedule_type == 'weekly' else 'display:none' }}">
+            style="{{ '' if schedule.scan_schedule_type == 'weekly' else 'display:none' }}">
             <label class="form-label fw-600">Wochentag</label>
             <select name="scan_schedule_weekday" class="form-select">
               {% for wd_idx in range(7) %}
-              <option value="{{ wd_idx }}"
-                      {{ 'selected' if schedule.scan_schedule_weekday == wd_idx|string }}>
+              <option value="{{ wd_idx }}" {{ 'selected' if schedule.scan_schedule_weekday==wd_idx|string }}>
                 {{ weekday_names[wd_idx] }}
               </option>
               {% endfor %}
@@ -454,8 +441,7 @@
 
           <div class="col-md-3">
             <label class="form-label fw-600">Uhrzeit (Ortszeit)</label>
-            <input type="time" name="scan_schedule_time" class="form-control"
-                   value="{{ schedule.scan_schedule_time }}">
+            <input type="time" name="scan_schedule_time" class="form-control" value="{{ schedule.scan_schedule_time }}">
           </div>
 
           {% if schedule_next %}
@@ -473,15 +459,15 @@
   </div>
 
   <script>
-  (function () {
-    const typeSelect   = document.getElementById("scan_schedule_type");
-    const weekdayCol   = document.getElementById("schedule_weekday_col");
-    if (typeSelect && weekdayCol) {
-      typeSelect.addEventListener("change", function () {
-        weekdayCol.style.display = this.value === "weekly" ? "" : "none";
-      });
-    }
-  })();
+    (function () {
+      const typeSelect = document.getElementById("scan_schedule_type");
+      const weekdayCol = document.getElementById("schedule_weekday_col");
+      if (typeSelect && weekdayCol) {
+        typeSelect.addEventListener("change", function () {
+          weekdayCol.style.display = this.value === "weekly" ? "" : "none";
+        });
+      }
+    })();
   </script>
 
   <!-- ── Scan-Lauf auslösen ──────────────────────────────────────── -->
@@ -496,7 +482,7 @@
         <p class="mb-2 text-muted" style="font-size:.88rem">
           Startet den Scanner für folgende Pfade:
           {% for p in cfg.scan_paths %}
-            <code class="d-block ms-3">{{ p }}</code>
+          <code class="d-block ms-3">{{ p }}</code>
           {% endfor %}
         </p>
         {% else %}
@@ -512,17 +498,16 @@
           </div>
         </div>
 
-        <button id="btn-scan-start" type="button" class="btn btn-success"
-                {{ 'disabled' if scan_running or not cfg.scan_paths }}>
+        <button id="btn-scan-start" type="button" class="btn btn-success" {{ 'disabled' if scan_running or not
+          cfg.scan_paths }}>
           {% if scan_running %}
-            <span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft …
+          <span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft …
           {% else %}
-            <i class="bi bi-play-fill me-1"></i>Scan jetzt starten
+          <i class="bi bi-play-fill me-1"></i>Scan jetzt starten
           {% endif %}
         </button>
-        <a href="{{ url_for('admin.scanner_log') }}"
-           class="btn btn-outline-secondary ms-2"
-           target="_blank" rel="noopener">
+        <a href="{{ url_for('admin.scanner_log') }}" class="btn btn-outline-secondary ms-2" target="_blank"
+          rel="noopener">
           <i class="bi bi-journal-code me-1"></i>Scan-Log anzeigen
         </a>
         <span class="text-muted ms-3" style="font-size:.82rem">
@@ -555,7 +540,8 @@
           werden <strong>nicht</strong> gelöscht — auch wenn sie älter als N Tage sind.
         </div>
 
-        <form method="post" action="{{ url_for('admin.scanner_bereinigen') }}" data-confirm="Alte Scan-Daten wirklich löschen?">
+        <form method="post" action="{{ url_for('admin.scanner_bereinigen') }}"
+          data-confirm="Alte Scan-Daten wirklich löschen?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="d-flex align-items-center gap-3">
             <div>
@@ -580,68 +566,68 @@
 </div><!-- /row -->
 
 <script>
-(function () {
-  const btn    = document.getElementById("btn-scan-start");
-  const box    = document.getElementById("scan-status-box");
-  const alert  = document.getElementById("scan-alert");
-  const msg    = document.getElementById("scan-msg");
+  (function () {
+    const btn = document.getElementById("btn-scan-start");
+    const box = document.getElementById("scan-status-box");
+    const alert = document.getElementById("scan-alert");
+    const msg = document.getElementById("scan-msg");
 
-  function showAlert(text, type) {
-    alert.className = "alert py-2 mb-0 alert-" + type;
-    msg.textContent  = text;
-    box.style.display = "";
-  }
+    function showAlert(text, type) {
+      alert.className = "alert py-2 mb-0 alert-" + type;
+      msg.textContent = text;
+      box.style.display = "";
+    }
 
-  function setRunning(running) {
-    btn.disabled = running;
-    btn.innerHTML = running
-      ? '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft …'
-      : '<i class="bi bi-play-fill me-1"></i>Scan jetzt starten';
-  }
+    function setRunning(running) {
+      btn.disabled = running;
+      btn.innerHTML = running
+        ? '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Scan läuft …'
+        : '<i class="bi bi-play-fill me-1"></i>Scan jetzt starten';
+    }
 
-  // Beim Laden Status prüfen
-  {% if scan_running %}
-  setRunning(true);
-  pollStatus();
-  {% endif %}
+    // Beim Laden Status prüfen
+    {% if scan_running %}
+    setRunning(true);
+    pollStatus();
+    {% endif %}
 
-  btn.addEventListener("click", function () {
-    btn.disabled = true;
-    // X-CSRFToken wird vom globalen fetch-Wrapper in base.html gesetzt.
-    fetch("{{ url_for('admin.scanner_starten') }}", { method: "POST" })
-    .then(r => r.json())
-    .then(data => {
-      if (data.ok) {
-        showAlert(data.msg, "success");
-        setRunning(true);
-        pollStatus();
-      } else {
-        showAlert(data.msg, "danger");
-        btn.disabled = false;
-      }
-    })
-    .catch(err => {
-      showAlert("Netzwerkfehler: " + err, "danger");
-      btn.disabled = false;
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      // X-CSRFToken wird vom globalen fetch-Wrapper in base.html gesetzt.
+      fetch("{{ url_for('admin.scanner_starten') }}", { method: "POST" })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            showAlert(data.msg, "success");
+            setRunning(true);
+            pollStatus();
+          } else {
+            showAlert(data.msg, "danger");
+            btn.disabled = false;
+          }
+        })
+        .catch(err => {
+          showAlert("Netzwerkfehler: " + err, "danger");
+          btn.disabled = false;
+        });
     });
-  });
 
-  function pollStatus() {
-    setTimeout(function check() {
-      fetch("{{ url_for('admin.scanner_status') }}")
-      .then(r => r.json())
-      .then(data => {
-        if (data.running) {
-          setTimeout(check, 3000);
-        } else {
-          setRunning(false);
-          showAlert("Scan abgeschlossen. Ergebnisse unter Scanner → Scan-Läufe.", "success");
-        }
-      })
-      .catch(() => setTimeout(check, 5000));
-    }, 3000);
-  }
-})();
+    function pollStatus() {
+      setTimeout(function check() {
+        fetch("{{ url_for('admin.scanner_status') }}")
+          .then(r => r.json())
+          .then(data => {
+            if (data.running) {
+              setTimeout(check, 3000);
+            } else {
+              setRunning(false);
+              showAlert("Scan abgeschlossen. Ergebnisse unter Scanner → Scan-Läufe.", "success");
+            }
+          })
+          .catch(() => setTimeout(check, 5000));
+      }, 3000);
+    }
+  })();
 </script>
 
 <!-- ══════════════════════════════════════════════════════════════
@@ -665,7 +651,8 @@
       <strong>Typischer Ablauf:</strong>
       <ol class="mb-0 mt-1 ps-3">
         <li>Scanner auf Rechner B mit eigenem <code>db_path</code> laufen lassen, z.&nbsp;B.
-            <code>scan_B.db</code></li>
+          <code>scan_B.db</code>
+        </li>
         <li><code>scan_B.db</code> auf den Server kopieren (z.&nbsp;B. per USB / Netzwerk)</li>
         <li>Hier den Pfad zur kopierten Datei angeben und importieren</li>
       </ol>
@@ -677,10 +664,8 @@
         <label class="form-label form-label-sm fw-600" for="src-db-path">
           Pfad zur Scanner-Datenbank
         </label>
-        <input type="text" class="form-control form-control-sm font-monospace"
-               id="src-db-path" name="src_db_path"
-               placeholder="z.B. C:\Scans\scan_B.db oder \\server\share\scan_B.db"
-               required>
+        <input type="text" class="form-control form-control-sm font-monospace" id="src-db-path" name="src_db_path"
+          placeholder="z.B. C:\Scans\scan_B.db oder \\server\share\scan_B.db" required>
         <div class="form-text">Vollständiger Pfad zur SQLite-Datei des anderen Scanners.</div>
       </div>
       <button type="submit" class="btn btn-primary btn-sm">
@@ -691,20 +676,23 @@
 </div>
 
 <style>
-.fw-600 { font-weight: 600; }
+  .fw-600 {
+    font-weight: 600;
+  }
 </style>
 
 <script>
-(function () {
-  // ── Pfad-Mappings-Tabelle ───────────────────────────────────────────────
-  let mappings = {{ path_mappings | tojson }};
+  (function () {
+    // ── Pfad-Mappings-Tabelle ───────────────────────────────────────────────
+    let mappings = {{ path_mappings | tojson
+  }};
 
   function renderMappings() {
     const tbody = document.getElementById("pm-tbody");
     if (!tbody) return;
     tbody.innerHTML = "";
     mappings.forEach(function (m, i) {
-      const isRegex  = !!m.regex;
+      const isRegex = !!m.regex;
       const flagsVal = m.flags || "";
       tbody.insertAdjacentHTML("beforeend", `
         <tr data-pm-idx="${i}">
@@ -755,10 +743,10 @@
   function readMappings() {
     const rows = document.querySelectorAll("#pm-tbody tr[data-pm-idx]");
     mappings = Array.from(rows).map(function (row) {
-      const pat  = row.querySelector('[data-pm-field="pattern"]').value;
-      const rep  = row.querySelector('[data-pm-field="replacement"]').value;
-      const rex  = row.querySelector('[data-pm-field="regex"]').checked;
-      const flg  = row.querySelector('[data-pm-field="flags"]').value;
+      const pat = row.querySelector('[data-pm-field="pattern"]').value;
+      const rep = row.querySelector('[data-pm-field="replacement"]').value;
+      const rex = row.querySelector('[data-pm-field="regex"]').checked;
+      const flg = row.querySelector('[data-pm-field="flags"]').value;
       const obj = { pattern: pat, replacement: rep, regex: rex };
       if (rex && flg) obj.flags = flg;
       return obj;
@@ -803,6 +791,6 @@
 
   // Initialer Render
   renderMappings();
-})();
+}) ();
 </script>
 {% endblock %}

@@ -90,6 +90,25 @@
       </div>
 
       <div class="col-md-4">
+        <label class="form-label">
+          Entwicklungsart <span class="required-star">*</span>
+          <a href="{{ url_for('info.glossar') }}" target="_blank" class="text-decoration-none ms-1"
+            title="Abgrenzung der Begriffe">
+            <i class="bi bi-info-circle"></i>
+          </a>
+        </label>
+        {% set current_art = idv.entwicklungsart if idv else 'arbeitshilfe' %}
+        <select name="entwicklungsart" class="form-select" required>
+          {% for key, label, desc in entwicklungsarten %}
+          <option value="{{ key }}" title="{{ desc }}" {{ 'selected' if current_art==key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">
+          Bei Wesentlichkeitsprüfung wechseln <em>Arbeitshilfe</em> und <em>IDV</em> automatisch
+        </div>
+      </div>
+
+      <div class="col-md-4">
         <label class="form-label">IDV-Typ <span class="required-star">*</span></label>
         {% set current_typ = idv.idv_typ if idv else prefill.get('idv_typ', 'unklassifiziert') %}
         <select name="idv_typ" class="form-select" required>
@@ -105,31 +124,13 @@
           value="{{ idv.produktiv_seit[:10] if idv and idv.produktiv_seit else '' }}">
       </div>
 
-      <div class="col-md-6">
-        <label class="form-label">
-          Entwicklungsart <span class="required-star">*</span>
-          <a href="{{ url_for('info.glossar') }}" target="_blank"
-             class="text-decoration-none ms-1" title="Abgrenzung der Begriffe">
-            <i class="bi bi-info-circle"></i>
-          </a>
-        </label>
-        {% set current_art = idv.entwicklungsart if idv else 'arbeitshilfe' %}
-        <select name="entwicklungsart" class="form-select" required>
-          {% for key, label, desc in entwicklungsarten %}
-          <option value="{{ key }}" title="{{ desc }}" {{ 'selected' if current_art==key }}>{{ label }}</option>
-          {% endfor %}
-        </select>
-        <div class="form-text">
-          Bei Wesentlichkeitsprüfung wechseln <em>Arbeitshilfe</em> und <em>IDV</em>
-          automatisch; <em>Eigen-</em> / <em>Auftragsprogrammierung</em> bleiben fix.
-        </div>
-      </div>
 
       <div class="col-md-6"></div>
 
       <div class="col-12">
         <label class="form-label">Kurzbeschreibung</label>
-        <textarea name="kurzbeschreibung" class="form-control" rows="3">{{ (idv.kurzbeschreibung or '') if idv else '' }}</textarea>
+        <textarea name="kurzbeschreibung" class="form-control"
+          rows="3">{{ (idv.kurzbeschreibung or '') if idv else '' }}</textarea>
       </div>
 
     </div>
@@ -145,27 +146,23 @@
     <div class="mb-3">
       <label class="form-label fw-500" for="gp_search">Geschäftsprozess</label>
       <!-- Hidden field stores the selected gp_id for form submission -->
-      <input type="hidden" name="gp_id" id="gp_id_val"
-             value="{{ idv.gp_id if idv and idv.gp_id else '' }}">
+      <input type="hidden" name="gp_id" id="gp_id_val" value="{{ idv.gp_id if idv and idv.gp_id else '' }}">
       <!-- Combobox -->
       <div class="position-relative" id="gp_combobox">
         <div class="input-group input-group-sm">
           <span class="input-group-text text-muted" style="font-size:.8rem">
             <i class="bi bi-search"></i>
           </span>
-          <input type="text" id="gp_search" class="form-control"
-                 placeholder="Prozess-ID oder Bezeichnung suchen…"
-                 autocomplete="off" spellcheck="false"
-                 role="combobox" aria-haspopup="listbox" aria-expanded="false"
-                 aria-controls="gp_listbox" aria-autocomplete="list">
-          <button type="button" class="btn btn-outline-secondary" id="gp_clear_btn"
-                  title="Auswahl zurücksetzen" style="display:none" tabindex="-1">
+          <input type="text" id="gp_search" class="form-control" placeholder="Prozess-ID oder Bezeichnung suchen…"
+            autocomplete="off" spellcheck="false" role="combobox" aria-haspopup="listbox" aria-expanded="false"
+            aria-controls="gp_listbox" aria-autocomplete="list">
+          <button type="button" class="btn btn-outline-secondary" id="gp_clear_btn" title="Auswahl zurücksetzen"
+            style="display:none" tabindex="-1">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
         <!-- Dropdown list -->
-        <div id="gp_listbox" role="listbox"
-             style="display:none; position:absolute; z-index:1050; left:0; right:0; top:100%;
+        <div id="gp_listbox" role="listbox" style="display:none; position:absolute; z-index:1050; left:0; right:0; top:100%;
                     max-height:260px; overflow-y:auto; background:#fff;
                     border:1px solid #ced4da; border-top:none; border-radius:0 0 .375rem .375rem;
                     box-shadow:0 4px 12px rgba(0,0,0,.1);">
@@ -182,26 +179,28 @@
       </div>
     </div>
     <script>
-    (function () {
-      // ── Data ───────────────────────────────────────────────────────
-      var _gpList = [
-        {% for gp in geschaeftsprozesse %}
-        { id: {{ gp.id }},
-          nr: "{{ gp.gp_nummer | e }}",
+      (function () {
+        // ── Data ───────────────────────────────────────────────────────
+        var _gpList = [
+          {% for gp in geschaeftsprozesse %}
+        {
+        id: { { gp.id } },
+        nr: "{{ gp.gp_nummer | e }}",
           bez: "{{ gp.bezeichnung | e }}",
-          kritisch: {{ 1 if gp.ist_kritisch else 0 }},
-          wesentlich: {{ 1 if gp.ist_wesentlich else 0 }} },
-        {% endfor %}
+            kritisch: { { 1 if gp.ist_kritisch else 0 } },
+        wesentlich: { { 1 if gp.ist_wesentlich else 0 } }
+      },
+      {% endfor %}
       ];
       var _gpSchutz = {
         {% for gp in geschaeftsprozesse %}
-        {{ gp.id }}:{a:"{{ gp.schutzbedarf_a or '' }}",c:"{{ gp.schutzbedarf_c or '' }}",i:"{{ gp.schutzbedarf_i or '' }}",n:"{{ gp.schutzbedarf_n or '' }}"},
-        {% endfor %}
+      { { gp.id } }: { a: "{{ gp.schutzbedarf_a or '' }}", c: "{{ gp.schutzbedarf_c or '' }}", i: "{{ gp.schutzbedarf_i or '' }}", n: "{{ gp.schutzbedarf_n or '' }}" },
+      {% endfor %}
       };
 
       // ── Elements ───────────────────────────────────────────────────
-      var input    = document.getElementById('gp_search');
-      var listbox  = document.getElementById('gp_listbox');
+      var input = document.getElementById('gp_search');
+      var listbox = document.getElementById('gp_listbox');
       var hiddenId = document.getElementById('gp_id_val');
       var clearBtn = document.getElementById('gp_clear_btn');
 
@@ -242,7 +241,7 @@
             'padding:.4rem .75rem; cursor:pointer; font-size:.875rem; line-height:1.4;' +
             'border-bottom:1px solid #f0f0f0;';
           var badges = '';
-          if (gp.kritisch)   badges += ' <span class="badge bg-danger" style="font-size:.65rem">DORA kritisch</span>';
+          if (gp.kritisch) badges += ' <span class="badge bg-danger" style="font-size:.65rem">DORA kritisch</span>';
           if (gp.wesentlich) badges += ' <span class="badge bg-warning text-dark" style="font-size:.65rem">wesentlich</span>';
           row.innerHTML =
             '<span style="font-weight:500; color:#212529">' + escHtml(gp.nr) + '</span>' +
@@ -280,7 +279,7 @@
       // ── Select a GP ───────────────────────────────────────────────
       function selectGP(gp) {
         hiddenId.value = gp.id;
-        input.value    = gp.nr + ' – ' + gp.bez;
+        input.value = gp.nr + ' – ' + gp.bez;
         clearBtn.style.display = '';
         closeList();
         updateSchutzbedarf(gp.id);
@@ -288,7 +287,7 @@
 
       function clearSelection() {
         hiddenId.value = '';
-        input.value    = '';
+        input.value = '';
         clearBtn.style.display = 'none';
         closeList();
         updateSchutzbedarf(null);
@@ -301,7 +300,7 @@
         q = q.toLowerCase();
         return _gpList.filter(function (gp) {
           return gp.nr.toLowerCase().indexOf(q) !== -1 ||
-                 gp.bez.toLowerCase().indexOf(q) !== -1;
+            gp.bez.toLowerCase().indexOf(q) !== -1;
         });
       }
 
@@ -370,7 +369,7 @@
           updateSchutzbedarf(existingId);
         }
       });
-    })();
+    }) ();
     </script>
 
     <!-- Konfigurierbare Wesentlichkeitskriterien (Administration) -->
@@ -399,12 +398,10 @@
             </div>
             {% for d in k.details %}
             <div class="form-check">
-              <input class="form-check-input" type="checkbox"
-                     name="kriterium_detail_{{ k.id }}" value="{{ d.id }}"
-                     id="det_{{ k.id }}_{{ d.id }}"
-                     {{ 'checked' if d.id in gewaehlte_details }}>
-              <label class="form-check-label" for="det_{{ k.id }}_{{ d.id }}"
-                     style="font-size:.8rem">{{ d.bezeichnung }}</label>
+              <input class="form-check-input" type="checkbox" name="kriterium_detail_{{ k.id }}" value="{{ d.id }}"
+                id="det_{{ k.id }}_{{ d.id }}" {{ 'checked' if d.id in gewaehlte_details }}>
+              <label class="form-check-label" for="det_{{ k.id }}_{{ d.id }}" style="font-size:.8rem">{{ d.bezeichnung
+                }}</label>
             </div>
             {% endfor %}
           </div>
@@ -543,7 +540,8 @@
         <select name="idv_entwickler_id" class="form-select">
           <option value="">–</option>
           {% for p in persons %}
-          <option value="{{ p.id }}" {{ 'selected' if (idv and idv.idv_entwickler_id==p.id) or (not idv and prefill.get('idv_entwickler_id')==p.id) }}>{{ p.nachname }}, {{
+          <option value="{{ p.id }}" {{ 'selected' if (idv and idv.idv_entwickler_id==p.id) or (not idv and
+            prefill.get('idv_entwickler_id')==p.id) }}>{{ p.nachname }}, {{
             p.vorname }}</option>
           {% endfor %}
         </select>
