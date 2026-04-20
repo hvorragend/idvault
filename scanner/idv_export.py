@@ -8,9 +8,18 @@ Benötigt: pip install openpyxl
 """
 
 import sqlite3
+import sys
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from idv_scanner import SCHEMA
+
+
+def _ensure_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(SCHEMA)
+    conn.commit()
 
 try:
     import openpyxl
@@ -91,6 +100,7 @@ def export_to_excel(db_path: str, output_path: str, only_active: bool = True):
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA busy_timeout = 15000")
+    _ensure_schema(conn)
 
     # --- Übersicht Scan-Runs ---
     runs = conn.execute(
@@ -105,8 +115,7 @@ def export_to_excel(db_path: str, output_path: str, only_active: bool = True):
     """).fetchall()
 
     # --- Delta-Info (letzte Änderungen) ---
-    try:
-        delta = conn.execute("""
+    delta = conn.execute("""
             SELECT h.*, f.full_path, f.file_name
             FROM idv_file_history h
             JOIN idv_files f ON h.file_id = f.id
@@ -114,8 +123,6 @@ def export_to_excel(db_path: str, output_path: str, only_active: bool = True):
             ORDER BY h.changed_at DESC
             LIMIT 500
         """).fetchall()
-    except Exception:
-        delta = []
 
     conn.close()
 
