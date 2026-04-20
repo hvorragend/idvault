@@ -210,9 +210,12 @@ def export_to_excel(db_path: str, output_path: str, only_active: bool = True):
     change_colors = {"new": COL_NEW, "changed": COL_CHANGED, "deleted": COL_DELETED}
     for row_idx, d in enumerate(delta, start=2):
         bg = change_colors.get(d["change_type"])
+        keys = d.keys()
         values = [
             d["changed_at"], d["change_type"], d["file_name"],
-            d["full_path"], d["old_hash"], d["new_hash"]
+            d["full_path"],
+            d["old_hash"] if "old_hash" in keys else None,
+            d["new_hash"] if "new_hash" in keys else None,
         ]
         for col_idx, v in enumerate(values, start=1):
             cell = ws3.cell(row=row_idx, column=col_idx, value=v)
@@ -232,7 +235,7 @@ def export_to_excel(db_path: str, output_path: str, only_active: bool = True):
         ("", ""),
         ("GESAMTÜBERSICHT", ""),
         ("Dateien aktiv", len([f for f in files if f["status"] == "active"])),
-        ("Dateien gelöscht (markiert)", len([f for f in files if f["status"] == "deleted"])),
+        ("Dateien archiviert (markiert)", len([f for f in files if f["status"] == "archiviert"])),
         ("", ""),
         ("NACH DATEITYP", ""),
     ]

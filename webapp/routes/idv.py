@@ -919,10 +919,18 @@ def export_excel():
     try:
         script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                                "scanner", "idv_export.py")
-        subprocess.run([sys.executable, script, "--db", db_path, "--output", out_path], check=True)
+        result = subprocess.run(
+            [sys.executable, script, "--db", db_path, "--output", out_path],
+            check=True, capture_output=True, text=True
+        )
         return send_file(out_path, as_attachment=True,
                          download_name="IDV_Grundgesamtheit.xlsx",
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    except subprocess.CalledProcessError as e:
+        detail = (e.stderr or e.stdout or "").strip().splitlines()
+        msg = detail[-1] if detail else str(e)
+        flash(f"Export fehlgeschlagen: {msg}", "error")
+        return redirect(url_for("idv.list_idv"))
     except Exception as e:
         flash(f"Export fehlgeschlagen: {e}", "error")
         return redirect(url_for("idv.list_idv"))
