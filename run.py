@@ -411,13 +411,25 @@ def _run_server(service_mode: bool = False):
             pass
         finally:
             server.stop()           # graceful drain
+            try:
+                from webapp.process_lock import release as _lock_release
+                _lock_release()
+            except Exception:
+                pass
     else:
         if service_mode:
             app.logger.warning("[startup] Werkzeug-Server bindet an %s:%s …", "0.0.0.0", port)
         # use_reloader=False: Im EXE-Bundle gibt es keine .py-Dateien zum Beobachten;
         # der Reloader würde nutzlos einen zweiten Prozess spawnen.
-        app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context,
-                use_reloader=not getattr(sys, 'frozen', False))
+        try:
+            app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context,
+                    use_reloader=not getattr(sys, 'frozen', False))
+        finally:
+            try:
+                from webapp.process_lock import release as _lock_release
+                _lock_release()
+            except Exception:
+                pass
 
 
 # ── Windows-Dienst-Framework (nur als EXE auf Windows) ──────────────────────

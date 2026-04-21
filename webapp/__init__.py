@@ -300,6 +300,12 @@ def create_app(db_path: str = None) -> Flask:
     os.makedirs(upload_folder, exist_ok=True)
     os.makedirs(os.path.join(_instance_path, 'logs'), exist_ok=True)
 
+    # A7: Prozess-Lock – verhindert parallele App-Instanzen auf derselben DB.
+    # Im Test-Modus deaktiviert, damit pytest mehrere App-Kontexte aufbauen kann.
+    if not app.testing:
+        from .process_lock import acquire as _lock_acquire
+        _lock_acquire(_instance_path)
+
     # Login-Logger einrichten (instance/logs/login.log)
     from .login_logger import setup_login_logger
     setup_login_logger(_instance_path)
