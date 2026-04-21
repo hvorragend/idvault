@@ -26,6 +26,8 @@ from flask import (Blueprint, request, flash, redirect, url_for, abort,
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 from . import login_required, own_write_required, admin_required, get_db, current_person_id
+from ..db_writer import get_writer
+from db_write_tx import write_tx
 from ..security import (sanitize_html, validate_upload_mime,
                         ensure_can_read_idv, ensure_can_write_idv,
                         in_clause)
@@ -185,25 +187,25 @@ def _phase3_komplett_erledigt(db, idv_db_id: int) -> bool:
     return set(_PHASE_3).issubset(done)
 
 
-def _ensure_archiv_schritt(db, idv_db_id: int, person_id: int) -> bool:
+def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int) -> bool:
     """Legt den Archivierungs-Schritt (Phase 3) an, sofern er noch nicht existiert.
 
-    Wird aufgerufen, nachdem beide Phase-2-Schritte erledigt sind. Idempotent:
-    ein bereits vorhandener Schritt wird nicht erneut angelegt.
+    Idempotent und commit-frei: der Aufrufer muss bereits innerhalb einer
+    write_tx(conn)-Transaktion arbeiten.
     """
-    existing = db.execute(
+    existing = conn.execute(
         "SELECT id FROM idv_freigaben WHERE idv_id=? AND schritt=? LIMIT 1",
         (idv_db_id, _PHASE_3[0])
     ).fetchone()
     if existing:
         return False
     now = datetime.now(timezone.utc).isoformat()
-    db.execute("""
+    conn.execute("""
         INSERT INTO idv_freigaben
             (idv_id, schritt, status, beauftragt_von_id, beauftragt_am)
         VALUES (?, ?, 'Ausstehend', ?, ?)
     """, (idv_db_id, _PHASE_3[0], person_id, now))
-    db.execute(
+    conn.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
         (idv_db_id, "archivierung_beauftragt",
          "Phase 3 – Archivierung Originaldatei beauftragt (nach Abschluss Phase 2)",
@@ -212,34 +214,33 @@ def _ensure_archiv_schritt(db, idv_db_id: int, person_id: int) -> bool:
     return True
 
 
-def _finalisiere_freigabe_wenn_komplett(db, idv_db_id: int, person_id: int) -> bool:
+def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int) -> bool:
     """Setzt `teststatus = 'Freigegeben'`, sobald Phase 2 UND Phase 3 komplett sind.
 
-    Gibt True zurück, wenn die Gesamtfreigabe in diesem Aufruf erteilt wurde.
-    Ruft zusätzlich die E-Mail-Benachrichtigung auf.
+    Commit-frei: muss innerhalb einer umschliessenden write_tx(conn)-
+    Transaktion aufgerufen werden. E-Mail-Benachrichtigung wird nicht
+    mehr hier ausgeloest (wuerde den Writer-Thread auf SMTP blockieren);
+    der Aufrufer muss sie nach erfolgreichem submit() separat anstossen.
     """
-    if not (_phase2_komplett_erledigt(db, idv_db_id)
-            and _phase3_komplett_erledigt(db, idv_db_id)):
+    if not (_phase2_komplett_erledigt(conn, idv_db_id)
+            and _phase3_komplett_erledigt(conn, idv_db_id)):
         return False
-    # Nur einmal setzen: prüfen, ob teststatus bereits 'Freigegeben' ist.
-    row = db.execute(
+    row = conn.execute(
         "SELECT teststatus FROM idv_register WHERE id=?", (idv_db_id,)
     ).fetchone()
     if row and row["teststatus"] == "Freigegeben":
         return False
     now = datetime.now(timezone.utc).isoformat()
-    db.execute("""
+    conn.execute("""
         UPDATE idv_register
         SET teststatus='Freigegeben', dokumentation_vorhanden=1, aktualisiert_am=?
         WHERE id=?
     """, (now, idv_db_id))
-    db.execute(
+    conn.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
         (idv_db_id, "freigabe_erteilt",
          "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id)
     )
-    db.commit()
-    _notify_freigabe_erteilt(db, idv_db_id)
     return True
 
 
@@ -250,30 +251,32 @@ def _int_or_none(val):
         return None
 
 
-def _ensure_test_eintraege(db, idv_db_id: int) -> None:
+def _ensure_test_eintraege(conn, idv_db_id: int) -> None:
     """Legt leere fachliche_testfaelle- und technischer_test-Einträge an,
-    sofern noch keine existieren. Dadurch kann der Tester nach Phase-1-Start
-    die Test-Seiten direkt öffnen, lesen, bearbeiten und löschen."""
+    sofern noch keine existieren.
+
+    Commit-frei: muss innerhalb einer umschliessenden write_tx(conn)-
+    Transaktion aufgerufen werden.
+    """
     now = datetime.now(timezone.utc).isoformat()
-    fachlich_exists = db.execute(
+    fachlich_exists = conn.execute(
         "SELECT 1 FROM fachliche_testfaelle WHERE idv_id=? LIMIT 1", (idv_db_id,)
     ).fetchone()
     if not fachlich_exists:
-        db.execute("""
+        conn.execute("""
             INSERT INTO fachliche_testfaelle
                 (idv_id, testfall_nr, beschreibung, bewertung, erstellt_am, aktualisiert_am)
             VALUES (?, 1, NULL, 'Offen', ?, ?)
         """, (idv_db_id, now, now))
-    tech_exists = db.execute(
+    tech_exists = conn.execute(
         "SELECT 1 FROM technischer_test WHERE idv_id=? LIMIT 1", (idv_db_id,)
     ).fetchone()
     if not tech_exists:
-        db.execute("""
+        conn.execute("""
             INSERT INTO technischer_test
                 (idv_id, ergebnis, erstellt_am, aktualisiert_am)
             VALUES (?, 'Offen', ?, ?)
         """, (idv_db_id, now, now))
-    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -283,33 +286,50 @@ def _ensure_test_eintraege(db, idv_db_id: int) -> None:
 def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
                                nachweise: str = None, kommentar: str = None) -> None:
     """Markiert einen ausstehenden Freigabe-Schritt als Erledigt und aktualisiert
-    Phase-Status sowie IDV-Teststatus. Wird aus tests.py nach Speichern des Tests aufgerufen."""
-    now      = datetime.now(timezone.utc).isoformat()
-    freigabe = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
+    Phase-Status sowie IDV-Teststatus. Wird aus tests.py nach Speichern des Tests aufgerufen.
+
+    Lauft ueber den Writer-Thread, damit die Schreibsequenz serialisiert
+    wird. Read-Preflight auf `db` (Request-Reader) ist ein Mikro-Optimum;
+    die finale Pruefung `status='Ausstehend'` erfolgt erneut innerhalb
+    der Transaktion, damit Races zwischen zwei Abschluss-Klicks nicht zu
+    doppelten Erledigt-Markierungen fuehren.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    freigabe = db.execute(
+        "SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)
+    ).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
         return
 
     idv_db_id = freigabe["idv_id"]
-    schritt   = freigabe["schritt"]
+    schritt = freigabe["schritt"]
 
-    db.execute("""
-        UPDATE idv_freigaben
-        SET status='Erledigt', durchgefuehrt_von_id=?, durchgefuehrt_am=?,
-            kommentar=?, nachweise_text=?
-        WHERE id=?
-    """, (person_id, now, kommentar, nachweise, freigabe_id))
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id)
-    )
-    db.commit()
+    def _do(c):
+        row = c.execute(
+            "SELECT status FROM idv_freigaben WHERE id=?", (freigabe_id,)
+        ).fetchone()
+        if not row or row["status"] != "Ausstehend":
+            return False
+        with write_tx(c):
+            c.execute("""
+                UPDATE idv_freigaben
+                SET status='Erledigt', durchgefuehrt_von_id=?, durchgefuehrt_am=?,
+                    kommentar=?, nachweise_text=?
+                WHERE id=?
+            """, (person_id, now, kommentar, nachweise, freigabe_id))
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id),
+            )
+            freigegeben = False
+            if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
+                _ensure_archiv_schritt(c, idv_db_id, person_id)
+                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)
+        return freigegeben
 
-    if schritt in _PHASE_2 and _phase2_komplett_erledigt(db, idv_db_id):
-        # Nach Phase 2 Archivierungs-Schritt (Phase 3) automatisch anlegen,
-        # damit die Originaldatei revisionssicher abgelegt werden kann.
-        if _ensure_archiv_schritt(db, idv_db_id, person_id):
-            db.commit()
-        _finalisiere_freigabe_wenn_komplett(db, idv_db_id, person_id)
+    freigegeben = get_writer().submit(_do, wait=True)
+    if freigegeben:
+        _notify_freigabe_erteilt(db, idv_db_id)
 
 
 # ---------------------------------------------------------------------------
@@ -346,31 +366,30 @@ def starten(idv_db_id):
     zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachlicher_test"))
     zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technischer_test"))
 
-    # Beide Phase-1-Schritte gleichzeitig anlegen
-    for schritt, zugewiesen in [(_PHASE_1[0], zugewiesen_fachlich),
-                                 (_PHASE_1[1], zugewiesen_technisch)]:
-        db.execute("""
-            INSERT INTO idv_freigaben
-                (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
-            VALUES (?, ?, 'Ausstehend', ?, ?, ?)
-        """, (idv_db_id, schritt, person_id, now, zugewiesen))
+    def _do(c):
+        with write_tx(c):
+            for schritt, zugewiesen in [(_PHASE_1[0], zugewiesen_fachlich),
+                                         (_PHASE_1[1], zugewiesen_technisch)]:
+                c.execute("""
+                    INSERT INTO idv_freigaben
+                        (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
+                    VALUES (?, ?, 'Ausstehend', ?, ?, ?)
+                """, (idv_db_id, schritt, person_id, now, zugewiesen))
 
-    # Leere Test-Einträge automatisch mit anlegen, damit der Tester sofort
-    # bearbeiten kann. Wenn bereits vorhanden (z.B. nach Verfahrens-Reset),
-    # bleibt der bestehende Eintrag erhalten.
-    _ensure_test_eintraege(db, idv_db_id)
+            _ensure_test_eintraege(c, idv_db_id)
 
-    db.execute(
-        "UPDATE idv_register SET teststatus='Freigabe ausstehend', aktualisiert_am=? WHERE id=?",
-        (now, idv_db_id)
-    )
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "freigabe_gestartet",
-         "Freigabeverfahren gestartet – Phase 1: Fachlicher Test + Technischer Test (parallel)",
-         person_id)
-    )
-    db.commit()
+            c.execute(
+                "UPDATE idv_register SET teststatus='Freigabe ausstehend', aktualisiert_am=? WHERE id=?",
+                (now, idv_db_id),
+            )
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "freigabe_gestartet",
+                 "Freigabeverfahren gestartet – Phase 1: Fachlicher Test + Technischer Test (parallel)",
+                 person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
 
     _notify_schritte(db, idv_db_id, _PHASE_1,
                      {_PHASE_1[0]: zugewiesen_fachlich, _PHASE_1[1]: zugewiesen_technisch})
@@ -408,20 +427,23 @@ def abnahme_starten(idv_db_id):
     zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachliche_abnahme"))
     zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technische_abnahme"))
 
-    for schritt, zugewiesen in [(_PHASE_2[0], zugewiesen_fachlich),
-                                 (_PHASE_2[1], zugewiesen_technisch)]:
-        db.execute("""
-            INSERT INTO idv_freigaben
-                (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
-            VALUES (?, ?, 'Ausstehend', ?, ?, ?)
-        """, (idv_db_id, schritt, person_id, now, zugewiesen))
+    def _do(c):
+        with write_tx(c):
+            for schritt, zugewiesen in [(_PHASE_2[0], zugewiesen_fachlich),
+                                         (_PHASE_2[1], zugewiesen_technisch)]:
+                c.execute("""
+                    INSERT INTO idv_freigaben
+                        (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
+                    VALUES (?, ?, 'Ausstehend', ?, ?, ?)
+                """, (idv_db_id, schritt, person_id, now, zugewiesen))
 
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "freigabe_phase2_gestartet",
-         "Phase 2 gestartet: Fachliche Abnahme + Technische Abnahme (parallel)", person_id)
-    )
-    db.commit()
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "freigabe_phase2_gestartet",
+                 "Phase 2 gestartet: Fachliche Abnahme + Technische Abnahme (parallel)", person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
 
     _notify_schritte(db, idv_db_id, _PHASE_2,
                      {_PHASE_2[0]: zugewiesen_fachlich, _PHASE_2[1]: zugewiesen_technisch})
@@ -525,35 +547,45 @@ def abschliessen(freigabe_id):
         else:
             flash("Ungültiges Dateiformat für Nachweis-Upload.", "warning")
 
-    db.execute("""
-        UPDATE idv_freigaben
-        SET status='Erledigt', durchgefuehrt_von_id=?, durchgefuehrt_am=?,
-            kommentar=?, nachweise_text=?, nachweis_datei_pfad=?, nachweis_datei_name=?
-        WHERE id=?
-    """, (person_id, now, kommentar, nachweise, nachweis_pfad, nachweis_name, freigabe_id))
-
     schritt = freigabe["schritt"]
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id)
-    )
-    db.commit()
 
-    # Prüfen ob Phase 2 jetzt vollständig abgeschlossen ist → Archivierung starten
-    if schritt in _PHASE_2 and _phase2_komplett_erledigt(db, idv_db_id):
-        neu_angelegt = _ensure_archiv_schritt(db, idv_db_id, person_id)
-        if neu_angelegt:
-            db.commit()
-        freigegeben = _finalisiere_freigabe_wenn_komplett(db, idv_db_id, person_id)
-        if freigegeben:
-            flash("Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben.", "success")
-        else:
-            flash(
-                f"'{schritt}' erledigt – Phase 2 vollständig. "
-                "Bitte nun die Originaldatei revisionssicher archivieren "
-                "(Phase 3).", "success"
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                UPDATE idv_freigaben
+                SET status='Erledigt', durchgefuehrt_von_id=?, durchgefuehrt_am=?,
+                    kommentar=?, nachweise_text=?, nachweis_datei_pfad=?, nachweis_datei_name=?
+                WHERE id=?
+            """, (person_id, now, kommentar, nachweise, nachweis_pfad, nachweis_name, freigabe_id))
+
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id),
             )
-    elif schritt in _PHASE_1 and _phase1_komplett_erledigt(db, idv_db_id):
+
+            phase2_done = False
+            phase1_done = False
+            freigegeben = False
+            if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
+                phase2_done = True
+                _ensure_archiv_schritt(c, idv_db_id, person_id)
+                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)
+            elif schritt in _PHASE_1 and _phase1_komplett_erledigt(c, idv_db_id):
+                phase1_done = True
+        return phase2_done, phase1_done, freigegeben
+
+    phase2_done, phase1_done, freigegeben = get_writer().submit(_do, wait=True)
+
+    if freigegeben:
+        _notify_freigabe_erteilt(db, idv_db_id)
+        flash("Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben.", "success")
+    elif phase2_done:
+        flash(
+            f"'{schritt}' erledigt – Phase 2 vollständig. "
+            "Bitte nun die Originaldatei revisionssicher archivieren "
+            "(Phase 3).", "success"
+        )
+    elif phase1_done:
         flash(f"'{schritt}' erledigt – Phase 1 vollständig. Bitte Phase 2 starten.", "success")
     else:
         flash(f"'{schritt}' als Erledigt markiert.", "success")
@@ -602,28 +634,32 @@ def ablehnen(freigabe_id):
         if saved:
             nachweis_pfad, nachweis_name = saved, orig
 
-    db.execute("""
-        UPDATE idv_freigaben
-        SET status='Nicht erledigt', durchgefuehrt_von_id=?, durchgefuehrt_am=?,
-            befunde=?, kommentar=?, nachweise_text=?,
-            nachweis_datei_pfad=?, nachweis_datei_name=?
-        WHERE id=?
-    """, (person_id, now, befunde, kommentar, nachweise,
-          nachweis_pfad, nachweis_name, freigabe_id))
+    schritt_name = freigabe["schritt"]
 
-    # Bearbeitungsstatus zurücksetzen
-    db.execute(
-        "UPDATE idv_register SET teststatus='In Bearbeitung', aktualisiert_am=? WHERE id=?",
-        (now, idv_db_id)
-    )
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "freigabe_abgelehnt",
-         f"{freigabe['schritt']} nicht erledigt. Befunde: {befunde}", person_id)
-    )
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                UPDATE idv_freigaben
+                SET status='Nicht erledigt', durchgefuehrt_von_id=?, durchgefuehrt_am=?,
+                    befunde=?, kommentar=?, nachweise_text=?,
+                    nachweis_datei_pfad=?, nachweis_datei_name=?
+                WHERE id=?
+            """, (person_id, now, befunde, kommentar, nachweise,
+                  nachweis_pfad, nachweis_name, freigabe_id))
 
-    flash(f"'{freigabe['schritt']}' nicht erledigt.", "warning")
+            c.execute(
+                "UPDATE idv_register SET teststatus='In Bearbeitung', aktualisiert_am=? WHERE id=?",
+                (now, idv_db_id),
+            )
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "freigabe_abgelehnt",
+                 f"{schritt_name} nicht erledigt. Befunde: {befunde}", person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
+
+    flash(f"'{schritt_name}' nicht erledigt.", "warning")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
@@ -650,25 +686,30 @@ def abbrechen(idv_db_id):
         flash("Kein laufendes Freigabeverfahren gefunden.", "warning")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
-    for row in offene:
-        db.execute("""
-            UPDATE idv_freigaben
-            SET status='Abgebrochen', abgebrochen_von_id=?, abgebrochen_am=?, abbruch_kommentar=?
-            WHERE id=?
-        """, (person_id, now, kommentar, row["id"]))
+    offene_ids = [row["id"] for row in offene]
 
-    db.execute(
-        "UPDATE idv_register SET teststatus='In Bearbeitung', aktualisiert_am=? WHERE id=?",
-        (now, idv_db_id)
-    )
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "freigabe_abgebrochen",
-         "Freigabeverfahren durch Administrator abgebrochen."
-         + (f" Grund: {kommentar}" if kommentar else ""),
-         person_id)
-    )
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            for fid in offene_ids:
+                c.execute("""
+                    UPDATE idv_freigaben
+                    SET status='Abgebrochen', abgebrochen_von_id=?, abgebrochen_am=?, abbruch_kommentar=?
+                    WHERE id=?
+                """, (person_id, now, kommentar, fid))
+
+            c.execute(
+                "UPDATE idv_register SET teststatus='In Bearbeitung', aktualisiert_am=? WHERE id=?",
+                (now, idv_db_id),
+            )
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "freigabe_abgebrochen",
+                 "Freigabeverfahren durch Administrator abgebrochen."
+                 + (f" Grund: {kommentar}" if kommentar else ""),
+                 person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
 
     flash("Freigabeverfahren wurde abgebrochen.", "warning")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
@@ -713,21 +754,24 @@ def schritt_anlegen(idv_db_id):
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     zugewiesen = _int_or_none(request.form.get("zugewiesen_an_id"))
-    db.execute("""
-        INSERT INTO idv_freigaben
-            (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
-        VALUES (?, ?, 'Ausstehend', ?, ?, ?)
-    """, (idv_db_id, schritt, person_id, now, zugewiesen))
 
-    # Für Phase-1-Schritte auch den Test-Eintrag sicherstellen
-    if schritt in _PHASE_1:
-        _ensure_test_eintraege(db, idv_db_id)
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO idv_freigaben
+                    (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
+                VALUES (?, ?, 'Ausstehend', ?, ?, ?)
+            """, (idv_db_id, schritt, person_id, now, zugewiesen))
 
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "freigabe_schritt_angelegt", f"{schritt} erneut angelegt", person_id)
-    )
-    db.commit()
+            if schritt in _PHASE_1:
+                _ensure_test_eintraege(c, idv_db_id)
+
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_angelegt", f"{schritt} erneut angelegt", person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
 
     _notify_schritte(db, idv_db_id, [schritt], {schritt: zugewiesen})
     flash(f"'{schritt}' wurde angelegt.", "success")
@@ -750,12 +794,16 @@ def loeschen(freigabe_id):
         return redirect(url_for("eigenentwicklung.list_idv"))
     idv_db_id = freigabe["idv_id"]
     schritt   = freigabe["schritt"]
-    db.execute("DELETE FROM idv_freigaben WHERE id=?", (freigabe_id,))
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "freigabe_schritt_geloescht", f"{schritt} gelöscht", person_id)
-    )
-    db.commit()
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM idv_freigaben WHERE id=?", (freigabe_id,))
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_geloescht", f"{schritt} gelöscht", person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
     flash(f"'{schritt}' wurde gelöscht.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -1000,18 +1048,6 @@ def archivieren(freigabe_id):
                                     freigabe_id=freigabe_id))
         befunde = begruendung
 
-    db.execute("""
-        UPDATE idv_freigaben
-        SET status='Erledigt',
-            durchgefuehrt_von_id=?, durchgefuehrt_am=?,
-            kommentar=?, befunde=?,
-            datei_verfuegbar=?,
-            archiv_datei_pfad=?, archiv_datei_name=?, archiv_datei_sha256=?
-        WHERE id=?
-    """, (person_id, now, kommentar, befunde,
-          datei_verfuegbar,
-          archiv_pfad, archiv_name, archiv_sha256, freigabe_id))
-
     if datei_verfuegbar:
         aktion = "originaldatei_archiviert"
         quelle_text = (
@@ -1028,14 +1064,32 @@ def archivieren(freigabe_id):
             "Originaldatei nicht verfügbar (z.B. Cognos / agree21Analysen). "
             f"Begründung: {befunde}"
         )
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, aktion, hist_kom, person_id)
-    )
-    db.commit()
 
-    freigegeben = _finalisiere_freigabe_wenn_komplett(db, idv_db_id, person_id)
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                UPDATE idv_freigaben
+                SET status='Erledigt',
+                    durchgefuehrt_von_id=?, durchgefuehrt_am=?,
+                    kommentar=?, befunde=?,
+                    datei_verfuegbar=?,
+                    archiv_datei_pfad=?, archiv_datei_name=?, archiv_datei_sha256=?
+                WHERE id=?
+            """, (person_id, now, kommentar, befunde,
+                  datei_verfuegbar,
+                  archiv_pfad, archiv_name, archiv_sha256, freigabe_id))
+
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, aktion, hist_kom, person_id),
+            )
+
+            freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)
+        return freigegeben
+
+    freigegeben = get_writer().submit(_do, wait=True)
     if freigegeben:
+        _notify_freigabe_erteilt(db, idv_db_id)
         flash("Archivierung abgeschlossen – Eigenentwicklung ist jetzt freigegeben.", "success")
     else:
         flash("Archivierungs-Schritt als Erledigt markiert.", "success")
