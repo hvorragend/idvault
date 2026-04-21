@@ -3,6 +3,10 @@ IDV-Register Datenbankschicht
 =============================
 Initialisierung, Migration und Basisfunktionen für das IDV-Register.
 Wird von Scanner und Web-Frontend gemeinsam genutzt.
+
+Schema-Änderungen werden über Alembic-Migrationen verwaltet
+(siehe ``alembic/versions/``); ``init_register_db()`` ruft beim Start
+``alembic upgrade head`` auf.
 """
 
 import sys
@@ -35,38 +39,41 @@ def get_connection(db_path: str, *, role: str = "reader") -> sqlite3.Connection:
     return conn
 
 
+def _alembic_config(db_path: str):
+    """Erzeugt eine Alembic-Config, die auf ``db_path`` zeigt.
+
+    Import lokal gehalten, damit Module, die ``db.get_connection`` nutzen
+    (Scanner-Subprozess, Writer-Thread), nicht unnötig alembic/sqlalchemy
+    laden müssen.
+    """
+    from alembic.config import Config
+
+    ini_path = _resource_path("alembic.ini")
+    if not ini_path.exists():
+        raise FileNotFoundError(f"alembic.ini nicht gefunden: {ini_path}")
+
+    cfg = Config(str(ini_path))
+    # script_location absolut setzen: PyInstaller legt alembic/ unter
+    # _MEIPASS/alembic ab, nicht am CWD.
+    cfg.set_main_option("script_location", str(_resource_path("alembic")))
+    # SQLite-URL für den aktuellen DB-Pfad – der alembic.ini-Default
+    # (instance/idvault.db) ist nur ein Platzhalter für Offline-Aufrufe.
+    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
+    return cfg
+
+
 def init_register_db(db_path: str) -> sqlite3.Connection:
-    """Initialisiert die Datenbank anhand von schema.sql."""
-    conn = get_connection(db_path)
-    schema_path = _resource_path("schema.sql")
-    if not schema_path.exists():
-        raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
-    sql = schema_path.read_text(encoding="utf-8")
-    conn.executescript(sql)
-    conn.commit()
-    _migrate_risikoklasse(conn)
-    _migrate_bearbeiter_name(conn)
-    return conn
+    """Initialisiert die Datenbank über Alembic und liefert eine Connection.
 
+    - Legt das Verzeichnis für die SQLite-Datei bei Bedarf an.
+    - Fährt ``alembic upgrade head`` (idempotent).
+    - Gibt eine Anwendungs-Connection (mit den Standard-PRAGMAs) zurück.
+    """
+    from alembic import command
 
-def _migrate_bearbeiter_name(conn: sqlite3.Connection) -> None:
-    """Fügt bearbeiter_name zu idv_history hinzu (Revisionssicherheit auch für Config-User)."""
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(idv_history)").fetchall()}
-    if "bearbeiter_name" not in cols:
-        conn.execute("ALTER TABLE idv_history ADD COLUMN bearbeiter_name TEXT")
-        conn.commit()
-
-
-def _migrate_risikoklasse(conn: sqlite3.Connection) -> None:
-    """Entfernt risikoklasse_id und risikoklassen-Tabelle aus bestehenden Datenbanken."""
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(idv_register)").fetchall()}
-    if "risikoklasse_id" in cols:
-        conn.execute("ALTER TABLE idv_register DROP COLUMN risikoklasse_id")
-        conn.commit()
-    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    if "risikoklassen" in tables:
-        conn.execute("DROP TABLE risikoklassen")
-        conn.commit()
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    command.upgrade(_alembic_config(db_path), "head")
+    return get_connection(db_path)
 
 
 # ---------------------------------------------------------------------------

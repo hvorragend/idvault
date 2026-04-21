@@ -400,14 +400,19 @@ Performance-relevante Indizes auf häufig gefilterte Spalten:
 
 ## 11 Migrationsstrategie
 
-idvault verwendet **keine** versionierten Migrationen. Das Schema wird
-ausschließlich über `schema.sql` verwaltet:
+idvault nutzt **Alembic** als Migrationsframework (`alembic/versions/`):
 
-- `db.py::init_register_db()` spielt `schema.sql` bei jedem Start ein.
-- Alle `CREATE TABLE`/`CREATE VIEW`/`CREATE INDEX`-Statements nutzen
-  `IF NOT EXISTS`; Default-Seeds werden mit `INSERT OR IGNORE` eingespielt.
-- Schemaänderungen werden ausschließlich in `schema.sql` gepflegt; die
-  Datenbank wird bei Major-Upgrades gezielt neu erzeugt.
+- `db.py::init_register_db()` startet beim App-Start `alembic upgrade head`.
+- `0001_initial_schema` liest `schema.sql` und spielt die enthaltenen
+  idempotenten Statements (`CREATE TABLE IF NOT EXISTS`,
+  `CREATE INDEX IF NOT EXISTS`, `INSERT OR IGNORE`) als einzelne
+  SQL-Anweisungen ein. `schema.sql` dient damit gleichzeitig als Quelle
+  der Initial-Revision und als menschenlesbare Gesamtübersicht des
+  Zielschemas.
+- **Neue Schemaänderungen** werden als nummerierte Alembic-Revisions in
+  `alembic/versions/` gepflegt; `schema.sql` wird dabei im gleichen Commit
+  aktualisiert, damit es den aktuellen Zielzustand für neue Installationen
+  beschreibt.
 
 ## 12 Datenklassifikation
 

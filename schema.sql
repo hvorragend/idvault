@@ -466,6 +466,7 @@ CREATE TABLE IF NOT EXISTS idv_history (
     geaenderte_felder TEXT,         -- JSON: {"field": {"alt": ..., "neu": ...}}
     kommentar       TEXT,
     durchgefuehrt_von_id INTEGER REFERENCES persons(id),
+    bearbeiter_name TEXT,           -- Klartextname (auch für Config-User ohne persons-Eintrag)
     durchgefuehrt_am TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );
 
@@ -1066,11 +1067,3 @@ CREATE TABLE IF NOT EXISTS notification_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notif_log_sent_date ON notification_log(sent_date);
-
--- -----------------------------------------------------------------------------
--- MIGRATION: Risikoklasse entfernen (rückstandslos)
--- Die risikoklassen-Tabelle und die Spalte risikoklasse_id werden über die
--- Python-Funktion _migrate_risikoklasse() in db.py aus bestehenden Datenbanken
--- entfernt. Die Reihenfolge (erst FK-Spalte, dann Tabelle) wird dort korrekt
--- sichergestellt.
--- -----------------------------------------------------------------------------
