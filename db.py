@@ -1324,6 +1324,125 @@ def apply_scanner_upsert_file(conn: sqlite3.Connection, payload: dict) -> None:
             )
 
 
+def apply_scanner_upsert_file_batch(conn: sqlite3.Connection, payloads: list) -> None:
+    """Verarbeitet einen Batch von upsert_file-Events in einer einzigen Transaktion.
+
+    Statt jede Datei einzeln zu committen, werden bis zu UPSERT_BATCH_SIZE
+    Eintraege gebuendelt. INSERT-Payloads landen per Einzelaufruf (fuer
+    ``lastrowid``), die History-Zeilen dann per ``executemany``. UPDATE- und
+    MOVE-Payloads nutzen ``executemany`` sowohl fuer idv_files als auch fuer
+    idv_file_history.
+    """
+    if not payloads:
+        return
+
+    inserts = [p for p in payloads if p.get("action") == "insert"]
+    moves   = [p for p in payloads if p.get("action") == "move"]
+    updates = [p for p in payloads if p.get("action") not in ("insert", "move")]
+
+    with write_tx(conn):
+        if inserts:
+            hist_rows: list = []
+            for p in inserts:
+                data   = p["data"]
+                now    = p["now"]
+                run_id = p["scan_run_id"]
+                source = data.get("source") or "filesystem"
+                row = {
+                    **{col: data.get(col) for col in _IDV_FILES_COLUMNS},
+                    "first_seen_at":      now,
+                    "last_seen_at":       now,
+                    "last_scan_run_id":   run_id,
+                    "source":             source,
+                    "sharepoint_item_id": data.get("sharepoint_item_id"),
+                }
+                cols = ", ".join(row.keys()) + ", status"
+                plh  = ", ".join(f":{k}" for k in row.keys()) + ", 'active'"
+                cur  = conn.execute(f"INSERT INTO idv_files ({cols}) VALUES ({plh})", row)
+                hist_rows.append((cur.lastrowid, run_id, data.get("file_hash"), now))
+            conn.executemany(
+                "INSERT INTO idv_file_history "
+                "(file_id, scan_run_id, change_type, new_hash, changed_at) "
+                "VALUES (?, ?, 'new', ?, ?)",
+                hist_rows,
+            )
+
+        if moves:
+            move_hist: list = []
+            for p in moves:
+                file_id = p["file_id"]
+                data    = p["data"]
+                now     = p["now"]
+                run_id  = p["scan_run_id"]
+                source  = data.get("source") or "filesystem"
+                conn.execute(
+                    "UPDATE idv_files SET "
+                    "full_path = :fp, share_root = :sr, relative_path = :rp, "
+                    "source = :src, sharepoint_item_id = :spid, "
+                    "last_seen_at = :now, last_scan_run_id = :rid "
+                    "WHERE id = :id",
+                    {
+                        "fp":   data["full_path"],
+                        "sr":   data.get("share_root"),
+                        "rp":   data.get("relative_path"),
+                        "src":  source,
+                        "spid": data.get("sharepoint_item_id"),
+                        "now":  now,
+                        "rid":  run_id,
+                        "id":   file_id,
+                    },
+                )
+                move_hist.append((
+                    file_id, run_id,
+                    data.get("file_hash"), data.get("file_hash"),
+                    now, p.get("details"),
+                ))
+            conn.executemany(
+                "INSERT INTO idv_file_history "
+                "(file_id, scan_run_id, change_type, old_hash, new_hash, changed_at, details) "
+                "VALUES (?, ?, 'moved', ?, ?, ?, ?)",
+                move_hist,
+            )
+
+        if updates:
+            set_sql   = ", ".join(f"{col} = :{col}" for col in _IDV_FILES_COLUMNS)
+            upd_rows:  list = []
+            hist_rows2: list = []
+            for p in updates:
+                data        = p["data"]
+                now         = p["now"]
+                run_id      = p["scan_run_id"]
+                file_id     = p["file_id"]
+                change_type = p.get("change_type") or p["action"]
+                source      = data.get("source") or "filesystem"
+                row = {col: data.get(col) for col in _IDV_FILES_COLUMNS}
+                row.update({
+                    "now":                now,
+                    "run_id":             run_id,
+                    "id":                 file_id,
+                    "source":             source,
+                    "sharepoint_item_id": data.get("sharepoint_item_id"),
+                })
+                upd_rows.append(row)
+                hist_rows2.append((
+                    file_id, run_id, change_type,
+                    p.get("old_hash"), data.get("file_hash"), now,
+                ))
+            conn.executemany(
+                f"UPDATE idv_files SET {set_sql}, "
+                "source = :source, sharepoint_item_id = :sharepoint_item_id, "
+                "last_seen_at = :now, last_scan_run_id = :run_id, status = 'active' "
+                "WHERE id = :id",
+                upd_rows,
+            )
+            conn.executemany(
+                "INSERT INTO idv_file_history "
+                "(file_id, scan_run_id, change_type, old_hash, new_hash, changed_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                hist_rows2,
+            )
+
+
 def apply_scanner_history(conn: sqlite3.Connection, payload: dict) -> None:
     """Standalone-History-Eintrag (z. B. 'archiviert' fuer einzelne Dateien).
 
