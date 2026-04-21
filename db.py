@@ -480,7 +480,7 @@ def get_dashboard_stats(conn: sqlite3.Connection, person_id: Optional[int] = Non
 
     return {
         "gesamt_aktiv":         scalar("SELECT COUNT(*) FROM idv_register WHERE status NOT IN ('Archiviert')"),
-        "genehmigt":            scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Freigegeben'"),
+        "genehmigt":            scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Genehmigt'"),
         "entwurf":              scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Entwurf'"),
         "in_pruefung":          scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'In Prüfung'"),
         "wesentlich":           scalar("""
@@ -941,6 +941,10 @@ def insert_demo_data(conn: sqlite3.Connection):
         " ?, ?, ?)",
         [(idv, krit, erf, begr, now) for (idv, krit, erf, begr) in wesentlichkeit_rows],
     )
+
+    # Commit before returning so the caller's set_setting() (writer thread)
+    # doesn't deadlock against this connection's open write transaction.
+    conn.commit()
 
     stats = get_dashboard_stats(conn)
     print("\nDashboard-Statistik nach Demo-Import:")
