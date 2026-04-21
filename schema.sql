@@ -380,7 +380,6 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- -------------------------------------------------------------------------
     -- Datenschutz / Datenkategorien
     -- -------------------------------------------------------------------------
-    enthaelt_personendaten  INTEGER NOT NULL DEFAULT 0,
     datenschutz_kategorie   TEXT,                       -- "keine" | "allgemein" | "besonders sensibel"
 
     -- -------------------------------------------------------------------------
@@ -397,9 +396,9 @@ CREATE TABLE IF NOT EXISTS idv_register (
     dokumentation_pfad      TEXT,
     testkonzept_vorhanden   INTEGER NOT NULL DEFAULT 0,
     versionskontrolle       INTEGER NOT NULL DEFAULT 0, -- Git o.ä.
-    zugriffsschutz          INTEGER NOT NULL DEFAULT 0, -- Passwortschutz / Rechteverwaltung
-    zugriffsschutz_beschr   TEXT,
-    vier_augen_prinzip      INTEGER NOT NULL DEFAULT 0,
+    anwenderdokumentation   INTEGER NOT NULL DEFAULT 0,
+    datenschutz_beachtet    INTEGER NOT NULL DEFAULT 0,
+    zellschutz_formeln      INTEGER NOT NULL DEFAULT 0,
 
     -- -------------------------------------------------------------------------
     -- Ablösung / Lebenszyklus
