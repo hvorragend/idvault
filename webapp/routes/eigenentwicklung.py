@@ -497,7 +497,10 @@ def detail_idv(idv_db_id):
     phase3_erledigt   = (
         {f["schritt"] for f in phase3_schritte if f["status"] == "Erledigt"} == set(_PHASE_3)
     )
-    hat_offenen_schritt = any(f["status"] == "Ausstehend" for f in freigaben)
+    hat_offenen_schritt = any(
+        f["status"] == "Ausstehend" and f["schritt"] not in _PHASE_3
+        for f in freigaben
+    )
 
     fachliche_testfaelle = get_fachliche_testfaelle(db, idv_db_id)
     technischer_test     = get_technischer_test(db, idv_db_id)

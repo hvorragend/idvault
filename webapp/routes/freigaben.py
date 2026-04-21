@@ -208,7 +208,7 @@ def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int) -> bool:
     conn.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
         (idv_db_id, "archivierung_beauftragt",
-         "Phase 3 – Archivierung Originaldatei beauftragt (nach Abschluss Phase 2)",
+         "Archivierung Originaldatei beauftragt.",
          person_id)
     )
     return True
@@ -677,9 +677,10 @@ def abbrechen(idv_db_id):
 
     kommentar = request.form.get("abbruch_kommentar", "").strip() or None
 
+    ph, ph_params = in_clause(_PHASE_3)
     offene = db.execute(
-        "SELECT id FROM idv_freigaben WHERE idv_id=? AND status='Ausstehend'",
-        (idv_db_id,)
+        f"SELECT id FROM idv_freigaben WHERE idv_id=? AND status='Ausstehend' AND schritt NOT IN ({ph})",
+        [idv_db_id] + list(ph_params)
     ).fetchall()
 
     if not offene:
