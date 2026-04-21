@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block content %}
-<form method="post" novalidate>
+<form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <!-- ── Scannerfund-Banner ───────────────────────────────────── -->
@@ -407,7 +407,8 @@
           </div>
           {% endif %}
           <textarea name="kriterium_begr_{{ k.id }}" class="form-control form-control-sm mt-1" rows="2"
-            placeholder="Begründung{% if k.begruendung_pflicht %} (Pflicht wenn aktiv){% endif %}">{{ ant.get('begruendung', '') or '' }}</textarea>
+            placeholder="Begründung{% if k.begruendung_pflicht %} (Pflicht wenn aktiv){% endif %}"
+            {% if k.begruendung_pflicht and ant.get('erfuellt') %}required{% endif %}>{{ ant.get('begruendung', '') or '' }}</textarea>
         </div>
       </div>
       {% endfor %}
@@ -418,6 +419,19 @@
       Administration anlegen.
     </div>
     {% endif %}
+
+    {% for k in wesentlichkeitskriterien %}{% if k.begruendung_pflicht %}
+    <script>
+    (function(){
+      var cb = document.getElementById('sw_k{{ k.id }}');
+      var ta = document.querySelector('textarea[name="kriterium_begr_{{ k.id }}"]');
+      if (!cb || !ta) return;
+      function sync(){ ta.required = cb.checked; if(!cb.checked) ta.setCustomValidity(''); }
+      cb.addEventListener('change', sync);
+      sync();
+    })();
+    </script>
+    {% endif %}{% endfor %}
 
   </div>
 
@@ -505,16 +519,6 @@
   <div class="form-section">
     <div class="form-section-title">4. Verantwortliche</div>
     <div class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label">Prüfintervall (Monate)</label>
-        <select name="pruefintervall_monate" class="form-select">
-          {% for p in pruefintervalle %}
-          {% set m = p.wert|int %}
-          <option value="{{ p.wert }}" {{ 'selected' if (idv and idv.pruefintervall_monate==m) or (not idv and m==12)
-            }}>{{ p.bezeichnung }}</option>
-          {% endfor %}
-        </select>
-      </div>
       <div class="col-md-6">
         <label class="form-label">Organisationseinheit <span class="required-star">*</span></label>
         <select name="org_unit_id" class="form-select" required>
@@ -522,6 +526,16 @@
           {% for ou in org_units %}
           <option value="{{ ou.id }}" {{ 'selected' if idv and idv.org_unit_id==ou.id }}>{{
             ou.bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Prüfintervall (Monate)</label>
+        <select name="pruefintervall_monate" class="form-select">
+          {% for p in pruefintervalle %}
+          {% set m = p.wert|int %}
+          <option value="{{ p.wert }}" {{ 'selected' if (idv and idv.pruefintervall_monate==m) or (not idv and m==12)
+            }}>{{ p.bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
