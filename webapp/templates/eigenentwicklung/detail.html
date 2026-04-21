@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% block title %}{{ idv.idv_id }} – {{ idv.bezeichnung }}{% endblock %}
+{% block title %}{{ idv.bezeichnung }} – {{ idv.idv_id }}{% endblock %}
 {% block page_title %}
-<span class="font-monospace text-muted me-2" style="font-size:.85rem">{{ idv.idv_id }}</span>
 {{ idv.bezeichnung }}
+<span class="text-muted fw-400 ms-2" style="font-size:.8rem">v{{ idv.version or '1.0' }}</span>
+<span class="font-monospace text-muted ms-2" style="font-size:.7rem">{{ idv.idv_id }}</span>
 {% endblock %}
 
 {% block content %}
@@ -870,12 +871,11 @@
             {% endfor %}
           </div>
         </div>
-        {% elif phase2_erledigt and can_create %}
-        {# Phase 3 wurde gelöscht, aber Phase 2 ist komplett → Archivierung erneut anlegbar #}
+        {% elif can_create %}
         <div class="mb-2">
-          <div class="alert alert-warning py-2 mb-0" style="font-size:.82rem">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            <strong>Archivierung der Originaldatei ausstehend.</strong>
+          <div class="alert alert-info py-2 mb-0" style="font-size:.82rem">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Archivierung der Originaldatei.</strong>
             Die Originaldatei einer wesentlichen Eigenentwicklung ist
             revisionssicher abzulegen (MaRisk AT 7.2). Ist die Datei nicht
             verfügbar (z.B. Cognos-Bericht), kann dies als Statusschritt
@@ -884,7 +884,7 @@
               class="d-inline ms-2">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="schritt" value="Archivierung Originaldatei">
-              <button type="submit" class="btn btn-xs btn-warning">
+              <button type="submit" class="btn btn-xs btn-outline-primary">
                 <i class="bi bi-archive me-1"></i>Archivierung anlegen
               </button>
             </form>
