@@ -1,4 +1,4 @@
-"""Test- und Freigabeverfahren Blueprint (MaRisk AT 7.2 / BAIT / DORA)
+"""Test- und Freigabeverfahren Blueprint (MaRisk AT 7.2 / DORA)
 
 Drei Phasen:
   Phase 1 (parallel): Fachlicher Test + Technischer Test

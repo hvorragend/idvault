@@ -29,11 +29,13 @@
         <tr class="{{ 'table-danger' if m.faelligkeitsstatus == 'ÜBERFÄLLIG' else '' }}">
           <td>
             <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=m.idv_id) }}"
-               class="text-decoration-none fw-500 font-monospace" style="font-size:.82rem">
-              {{ m.idv_id }}
+               class="text-decoration-none fw-500" style="font-size:.82rem">
+              {{ m.idv_bezeichnung|truncate(30) }}
             </a>
           </td>
-          <td class="text-truncate" style="max-width:200px" title="{{ m.titel }}">{{ m.titel }}</td>
+          <td class="text-truncate" style="max-width:200px" title="{{ m.titel }}">
+            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=m.idv_id) }}" class="text-decoration-none">{{ m.titel }}</a>
+          </td>
           <td><span class="badge bg-light text-dark border">{{ m.massnahmentyp or '–' }}</span></td>
           <td>
             <span class="badge bg-{{ 'danger' if m.prioritaet == 'Kritisch' else 'warning text-dark' if m.prioritaet == 'Hoch' else 'secondary' }}">

@@ -1,7 +1,7 @@
 # idvault
 
-Register für **Eigenentwicklungen** (inkl. IDVs nach **MaRisk AT 7.2**),
-**DORA** und **BAIT** — entwickelt für Volksbanken, Sparkassen und sonstige
+Register für **Eigenentwicklungen** (inkl. IDVs nach **MaRisk AT 7.2**)
+und **DORA** — entwickelt für Volksbanken, Sparkassen und sonstige
 beaufsichtigte Kreditinstitute.
 
 > **Begriffsklärung:** „Eigenentwicklung" ist in diesem System der
@@ -65,6 +65,16 @@ python -c "from werkzeug.security import generate_password_hash; \
            print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))"
 ```
 
+Für eine Testinstallation mit Beispieldaten `IDV_DEMO_DATA` auf `true` setzen:
+
+```jsonc
+"IDV_DEMO_DATA": true
+```
+
+Beim ersten Start werden dann Stammdaten (Personen, OEs, Geschäftsprozesse,
+Beispiel-IDVs, Prüfungen, Maßnahmen) einmalig eingespielt. Im Produktivbetrieb
+bleibt der Wert auf `false`.
+
 Vollständiges Beispiel: [`config.json.example`](config.json.example).
 Ohne lokalen Benutzer und ohne LDAP ist nach dem Start kein Login
 möglich — bewusst, um Default-Credentials auszuschließen.
@@ -124,7 +134,6 @@ Siehe [docs/03-architektur.md](docs/03-architektur.md) für Details.
 idvault unterstützt die Umsetzung folgender Anforderungen:
 
 - **MaRisk AT 7.2 Tz. 7** – IDV-Register, Klassifizierung, Prüfungen, Freigabeverfahren
-- **BAIT Kap. 4 und 10** – Berechtigungsverwaltung, IDV-Behandlung
 - **DORA Art. 8 / 17** – Identifikation kritischer Funktionen, Incident-Management
 - **DSGVO Art. 32** – Technisch-organisatorische Maßnahmen
 - **HGB § 239 / § 257** – Ordnungsmäßigkeit und Aufbewahrung

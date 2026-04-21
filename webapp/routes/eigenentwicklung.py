@@ -25,7 +25,7 @@ _EXT_TO_TYP = {
 bp = Blueprint("eigenentwicklung", __name__, url_prefix="/eigenentwicklung")
 
 
-# Regulatorische Entwicklungsarten (MaRisk AT 7.2 / DORA / BAIT).
+# Regulatorische Entwicklungsarten (MaRisk AT 7.2 / DORA).
 # Reihenfolge: vom leichtgewichtigsten (Arbeitshilfe) zum regulierten.
 ENTWICKLUNGSARTEN = [
     ("arbeitshilfe",

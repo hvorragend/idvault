@@ -20,7 +20,7 @@
     {% set art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
     'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
     <span class="badge {{ art_color.get(art, 'bg-secondary') }} fs-6"
-      title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA / BAIT)">
+      title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">
       {{ entwicklungsart_label.get(art, art) }}
     </span>
     <span class="badge status-{{ idv.status|replace(' ', '-') }} fs-6">{{ idv.status }}</span>
@@ -1087,17 +1087,20 @@
 
     <!-- Änderungshistorie -->
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-600"><i class="bi bi-clock-history me-2"></i>Letzte Änderungen</div>
-      <ul class="list-group list-group-flush">
-        {% for h in history[:6] %}
+      <div class="card-header bg-white fw-600"><i class="bi bi-clock-history me-2"></i>Änderungshistorie</div>
+      <ul class="list-group list-group-flush" style="max-height:380px;overflow-y:auto">
+        {% for h in history %}
         <li class="list-group-item px-3 py-2">
           <div class="d-flex gap-2">
             <div class="timeline-dot mt-1"></div>
             <div>
               <div style="font-size:.82rem;font-weight:500">{{ h.aktion }}</div>
-              {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(50) }}</div>
+              {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(60) }}</div>
               {% endif %}
-              <div class="text-muted" style="font-size:.75rem">{{ h.durchgefuehrt_am|datefmt('%d.%m.%Y %H:%M') }}</div>
+              <div class="text-muted" style="font-size:.75rem">
+                {{ h.durchgefuehrt_am|datefmt('%d.%m.%Y %H:%M') }}
+                {% if h.person %}<span class="ms-1">· {{ h.person }}</span>{% endif %}
+              </div>
             </div>
           </div>
         </li>
