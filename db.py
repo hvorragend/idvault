@@ -556,34 +556,391 @@ def _add_months(d: date, months: int) -> date:
 # ---------------------------------------------------------------------------
 
 def insert_demo_data(conn: sqlite3.Connection):
-    """Legt Beispiel-Stammdaten und einen Demo-IDV an."""
-    now = datetime.now(timezone.utc).isoformat()
+    """Legt umfassende Demo-Stammdaten und einen Beispiel-IDV-Bestand an.
 
-    # Personen
+    Alle Inserts sind idempotent (INSERT OR IGNORE) und referenzieren
+    Fremdschlüssel über Subselects auf natürliche Schlüssel. Die Funktion
+    kann daher gefahrlos mehrfach aufgerufen werden.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    today = date.today()
+    iso_today = today.isoformat()
+
+    # -----------------------------------------------------------------------
+    # 1. Organisationseinheiten: Vorstand + 8 Fachabteilungen (Hierarchie)
+    # -----------------------------------------------------------------------
+    conn.execute(
+        "INSERT OR IGNORE INTO org_units (bezeichnung, parent_id) VALUES (?, NULL)",
+        ("Vorstand",),
+    )
     conn.executemany(
-        "INSERT OR IGNORE INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id) "
-        "VALUES (?,?,?,?,?, (SELECT id FROM org_units WHERE bezeichnung=?))",
+        "INSERT OR IGNORE INTO org_units (bezeichnung, parent_id) "
+        "VALUES (?, (SELECT id FROM org_units WHERE bezeichnung=?))",
         [
-            ("IDV-KO", "Mustermann", "Max", "m.mustermann@volksbank.de", "IDV-Koordinator",     "IT & IT-Sicherheit"),
-            ("FV-BWK", "Beispiel",   "Anna","a.beispiel@volksbank.de",   "Fachverantwortlicher","Betriebswirtschaft/Controlling"),
-            ("FV-KRE", "Schmidt",    "Klaus","k.schmidt@volksbank.de",   "Fachverantwortlicher","Kreditabteilung"),
-        ]
+            ("Betriebswirtschaft/Controlling", "Vorstand"),
+            ("Rechnungswesen",                 "Vorstand"),
+            ("Kreditabteilung",                "Vorstand"),
+            ("Meldewesen",                     "Vorstand"),
+            ("Risikocontrolling",              "Vorstand"),
+            ("IT & IT-Sicherheit",             "Vorstand"),
+            ("Revision",                       "Vorstand"),
+            ("Marktfolge Aktiv",               "Kreditabteilung"),
+        ],
     )
 
-    # Geschäftsprozesse
+    # -----------------------------------------------------------------------
+    # 2. Personen
+    # -----------------------------------------------------------------------
+    conn.executemany(
+        "INSERT OR IGNORE INTO persons "
+        "(kuerzel, nachname, vorname, email, rolle, org_unit_id) "
+        "VALUES (?,?,?,?,?, (SELECT id FROM org_units WHERE bezeichnung=?))",
+        [
+            ("IDV-KO",  "Mustermann", "Max",     "m.mustermann@volksbank.de", "IDV-Koordinator",     "IT & IT-Sicherheit"),
+            ("FV-BWK",  "Beispiel",   "Anna",    "a.beispiel@volksbank.de",   "Fachverantwortlicher","Betriebswirtschaft/Controlling"),
+            ("FV-KRE",  "Schmidt",    "Klaus",   "k.schmidt@volksbank.de",    "Fachverantwortlicher","Kreditabteilung"),
+            ("FV-MEL",  "Meier",      "Lisa",    "l.meier@volksbank.de",      "Fachverantwortlicher","Meldewesen"),
+            ("FV-RIS",  "Berger",     "Tobias",  "t.berger@volksbank.de",     "Fachverantwortlicher","Risikocontrolling"),
+            ("IT-SI",   "Winter",     "Sabine",  "s.winter@volksbank.de",     "IT-Sicherheit",       "IT & IT-Sicherheit"),
+            ("REV",     "Krüger",     "Hans",    "h.krueger@volksbank.de",    "Revision",            "Revision"),
+            ("IDV-ENT", "Keller",     "Julia",   "j.keller@volksbank.de",     "IDV-Entwickler",      "IT & IT-Sicherheit"),
+        ],
+    )
+
+    # -----------------------------------------------------------------------
+    # 3. Geschäftsprozesse
+    # -----------------------------------------------------------------------
     conn.executemany(
         "INSERT OR IGNORE INTO geschaeftsprozesse "
         "(gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich, org_unit_id) "
         "VALUES (?,?,?,?,?, (SELECT id FROM org_units WHERE bezeichnung=?))",
         [
-            ("GP-BWK-001","Monatliche GuV-Berechnung",      "Steuerung",  1,1,"Betriebswirtschaft/Controlling"),
-            ("GP-KRE-001","Kreditentscheidung Firmenkunden","Marktfolge", 1,1,"Kreditabteilung"),
-            ("GP-MEL-001","Meldewesen EBA/Bundesbank",      "Steuerung",  1,1,"Meldewesen"),
-            ("GP-RIS-001","Zinsrisiko-Steuerung",           "Steuerung",  1,1,"Risikocontrolling"),
-        ]
+            ("GP-BWK-001", "Monatliche GuV-Berechnung",        "Steuerung",  1, 1, "Betriebswirtschaft/Controlling"),
+            ("GP-BWK-002", "Quartalsreporting CIR",            "Steuerung",  0, 1, "Betriebswirtschaft/Controlling"),
+            ("GP-KRE-001", "Kreditentscheidung Firmenkunden",  "Marktfolge", 1, 1, "Kreditabteilung"),
+            ("GP-KRE-002", "Sicherheitenbewertung",            "Marktfolge", 1, 1, "Kreditabteilung"),
+            ("GP-MEL-001", "Meldewesen EBA/Bundesbank COREP",  "Steuerung",  1, 1, "Meldewesen"),
+            ("GP-MEL-002", "FINREP-Meldung",                   "Steuerung",  1, 1, "Meldewesen"),
+            ("GP-RIS-001", "Zinsrisiko-Steuerung",             "Steuerung",  1, 1, "Risikocontrolling"),
+            ("GP-RIS-002", "Stresstest-Berechnung",            "Steuerung",  1, 1, "Risikocontrolling"),
+        ],
     )
 
-    # Plattformen werden als Baseline-Vorgaben direkt via schema.sql eingespielt.
+    # -----------------------------------------------------------------------
+    # 4. IDV-Register (8 Einträge, mix aus idv/arbeitshilfe/eigenprog.)
+    # -----------------------------------------------------------------------
+    # Spaltenreihenfolge:
+    #   idv_id, bezeichnung, kurzbeschreibung, idv_typ, entwicklungsart,
+    #   status, pruefintervall_monate, letzte_pruefung, naechste_pruefung,
+    #   produktiv_seit, nutzungsfrequenz, nutzeranzahl,
+    #   dokumentation_vorhanden, testkonzept_vorhanden, vier_augen_prinzip,
+    #   enthaelt_personendaten, datenschutz_kategorie,
+    #   gp_nummer, org_unit, fachv_kuerzel, entw_kuerzel, koord_kuerzel,
+    #   plattform_bezeichnung
+    idv_rows = [
+        ("IDV-2024-001", "GuV-Auswertung Excel-Makro",
+         "Monatliche GuV-Berechnung mit VBA-Makro – rechnungslegungsrelevant.",
+         "Excel-Makro", "idv", "Genehmigt", 12,
+         "2025-10-15", "2026-10-15", "2022-03-01",
+         "monatlich", 5, 1, 1, 1, 0, "keine",
+         "GP-BWK-001", "Betriebswirtschaft/Controlling", "FV-BWK", "IDV-ENT", "IDV-KO",
+         "Microsoft Excel"),
+        ("IDV-2024-002", "Sicherheiten-Bewertung Access-DB",
+         "Access-Datenbank zur Bewertung von Kreditsicherheiten.",
+         "Access-Datenbank", "idv", "Genehmigt", 12,
+         "2025-11-20", "2026-11-20", "2023-06-01",
+         "wöchentlich", 8, 1, 1, 1, 1, "allgemein",
+         "GP-KRE-002", "Kreditabteilung", "FV-KRE", "IDV-ENT", "IDV-KO",
+         "Microsoft Access"),
+        ("IDV-2024-003", "Reporting-Arbeitshilfe Vorstand",
+         "Excel-Arbeitshilfe zur Aufbereitung der Monatsberichte für den Vorstand.",
+         "Excel-Tabelle", "arbeitshilfe", "Entwurf", 24,
+         None, "2027-04-01", "2024-02-01",
+         "monatlich", 3, 0, 0, 0, 0, "keine",
+         "GP-BWK-002", "Betriebswirtschaft/Controlling", "FV-BWK", "FV-BWK", "IDV-KO",
+         "Microsoft Excel"),
+        ("IDV-2024-004", "EBA COREP Datenlieferung",
+         "Python-Skript zur Aufbereitung der COREP-Meldedaten an die Bundesbank.",
+         "Python-Skript", "idv", "Genehmigt", 6,
+         "2025-12-05", "2026-06-05", "2024-01-15",
+         "quartalsweise", 2, 1, 1, 1, 0, "keine",
+         "GP-MEL-001", "Meldewesen", "FV-MEL", "IDV-ENT", "IDV-KO",
+         "Python 3.11"),
+        ("IDV-2025-001", "FINREP-Meldewesen",
+         "Zentrales Python-Framework für FINREP-Meldungen, IT-Entwicklung.",
+         "Python-Skript", "eigenprogrammierung", "In Prüfung", 12,
+         None, "2026-07-01", "2025-02-10",
+         "quartalsweise", 4, 1, 1, 0, 0, "keine",
+         "GP-MEL-002", "Meldewesen", "FV-MEL", "IDV-ENT", "IDV-KO",
+         "Python 3.11"),
+        ("IDV-2025-002", "Zinsrisiko-Modell",
+         "Excel-Modell zur Berechnung des Barwertrisikos (Zinsschock).",
+         "Excel-Modell", "idv", "Genehmigt", 12,
+         "2026-01-20", "2027-01-20", "2023-09-01",
+         "monatlich", 3, 1, 1, 1, 0, "keine",
+         "GP-RIS-001", "Risikocontrolling", "FV-RIS", "FV-RIS", "IDV-KO",
+         "Microsoft Excel"),
+        ("IDV-2025-003", "Stresstest-Szenarien",
+         "Excel-Arbeitshilfe zur Zusammenstellung von Stresstest-Szenarien.",
+         "Excel-Tabelle", "arbeitshilfe", "Entwurf", 24,
+         None, "2027-05-01", "2025-05-20",
+         "jährlich", 2, 0, 0, 0, 0, "keine",
+         "GP-RIS-002", "Risikocontrolling", "FV-RIS", "FV-RIS", "IDV-KO",
+         "Microsoft Excel"),
+        ("IDV-2025-004", "Firmenkunden-Score",
+         "SQL-basiertes Scoring für Firmenkundenkredite, zentrale IT-Entwicklung.",
+         "SQL-Skript", "eigenprogrammierung", "In Prüfung", 12,
+         None, "2026-08-15", "2025-08-01",
+         "täglich", 12, 1, 0, 0, 1, "allgemein",
+         "GP-KRE-001", "Kreditabteilung", "FV-KRE", "IDV-ENT", "IDV-KO",
+         "Shell-Skripte"),
+    ]
+    conn.executemany(
+        "INSERT OR IGNORE INTO idv_register ("
+        " idv_id, bezeichnung, kurzbeschreibung, idv_typ, entwicklungsart,"
+        " status, pruefintervall_monate, letzte_pruefung, naechste_pruefung,"
+        " produktiv_seit, nutzungsfrequenz, nutzeranzahl,"
+        " dokumentation_vorhanden, testkonzept_vorhanden, vier_augen_prinzip,"
+        " enthaelt_personendaten, datenschutz_kategorie,"
+        " gp_id, org_unit_id,"
+        " fachverantwortlicher_id, idv_entwickler_id, idv_koordinator_id,"
+        " plattform_id"
+        ") VALUES ("
+        " ?,?,?,?,?,"
+        " ?,?,?,?,"
+        " ?,?,?,"
+        " ?,?,?,"
+        " ?,?,"
+        " (SELECT id FROM geschaeftsprozesse WHERE gp_nummer=?),"
+        " (SELECT id FROM org_units WHERE bezeichnung=?),"
+        " (SELECT id FROM persons WHERE kuerzel=?),"
+        " (SELECT id FROM persons WHERE kuerzel=?),"
+        " (SELECT id FROM persons WHERE kuerzel=?),"
+        " (SELECT id FROM plattformen WHERE bezeichnung=?)"
+        ")",
+        idv_rows,
+    )
+
+    # -----------------------------------------------------------------------
+    # 5. Prüfungen (4 Einträge)
+    # -----------------------------------------------------------------------
+    conn.executemany(
+        "INSERT OR IGNORE INTO pruefungen ("
+        " idv_id, pruefungsart, pruefungsdatum, pruefer_id, ergebnis,"
+        " befunde, massnahmen_erforderlich, frist_massnahmen,"
+        " abgeschlossen, abschlussdatum, naechste_pruefung, kommentar"
+        ") VALUES ("
+        " (SELECT id FROM idv_register WHERE idv_id=?),"
+        " ?,?,"
+        " (SELECT id FROM persons WHERE kuerzel=?),"
+        " ?,?,?,?,?,?,?,?)",
+        [
+            ("IDV-2024-001", "Erstprüfung",  "2024-03-20", "IDV-KO",
+             "Mit Befund",
+             "Dokumentation unvollständig, Vier-Augen-Prinzip fehlte.",
+             1, "2024-06-30", 1, "2024-06-25", "2025-10-15",
+             "Erstfreigabe nach Nachbesserung erteilt."),
+            ("IDV-2024-001", "Regelprüfung", "2025-10-15", "IDV-KO",
+             "Ohne Befund",
+             None,
+             0, None, 1, "2025-10-15", "2026-10-15",
+             "Jahresprüfung erfolgreich abgeschlossen."),
+            ("IDV-2024-002", "Erstprüfung",  "2024-07-10", "REV",
+             "Mit Befund",
+             "Zugriffsschutz der Access-DB nicht ausreichend dokumentiert.",
+             1, "2024-09-30", 1, "2024-09-28", "2025-11-20",
+             "Maßnahme zur Verbesserung des Zugriffsschutzes umgesetzt."),
+            ("IDV-2024-004", "Erstprüfung",  "2024-05-15", "IT-SI",
+             "Kritischer Befund",
+             "Python-Skript ohne Versionskontrolle, Logging unzureichend.",
+             1, "2024-08-31", 0, None, "2025-12-05",
+             "Maßnahmen in Bearbeitung (Git-Einführung)."),
+        ],
+    )
+
+    # -----------------------------------------------------------------------
+    # 6. Maßnahmen (3 Einträge, aus Prüfungsbefunden abgeleitet)
+    # -----------------------------------------------------------------------
+    conn.executemany(
+        "INSERT OR IGNORE INTO massnahmen ("
+        " idv_id, pruefung_id, titel, beschreibung,"
+        " massnahmentyp, prioritaet, verantwortlicher_id,"
+        " faellig_am, status, erledigt_am, erledigt_von_id"
+        ") VALUES ("
+        " (SELECT id FROM idv_register WHERE idv_id=?),"
+        " (SELECT id FROM pruefungen WHERE idv_id=(SELECT id FROM idv_register WHERE idv_id=?) AND pruefungsart=?),"
+        " ?,?,?,?,"
+        " (SELECT id FROM persons WHERE kuerzel=?),"
+        " ?,?,?,"
+        " (SELECT id FROM persons WHERE kuerzel=?))",
+        [
+            ("IDV-2024-001", "IDV-2024-001", "Erstprüfung",
+             "Dokumentation ergänzen",
+             "Fachkonzept und Betriebshandbuch vollständig erstellen.",
+             "Dokumentation", "Hoch", "FV-BWK",
+             "2024-06-30", "Erledigt", "2024-06-20", "FV-BWK"),
+            ("IDV-2024-002", "IDV-2024-002", "Erstprüfung",
+             "Zugriffsschutz Access-DB",
+             "Berechtigungskonzept mit IT-Sicherheit abstimmen und dokumentieren.",
+             "Technisch", "Kritisch", "IT-SI",
+             "2024-09-30", "Erledigt", "2024-09-15", "IT-SI"),
+            ("IDV-2024-004", "IDV-2024-004", "Erstprüfung",
+             "Git-Versionskontrolle einführen",
+             "Python-Skript in zentrales Git-Repository migrieren.",
+             "Technisch", "Mittel", "IDV-ENT",
+             "2024-08-31", "In Bearbeitung", None, None),
+        ],
+    )
+
+    # -----------------------------------------------------------------------
+    # 7. Genehmigungen (4 Einträge, für die genehmigten IDVs)
+    # -----------------------------------------------------------------------
+    conn.executemany(
+        "INSERT OR IGNORE INTO genehmigungen ("
+        " idv_id, genehmigungsart, antragsteller_id, antragsdatum,"
+        " genehmiger1_id, genehmigt1_am, genehmigt1_status, genehmigt1_kommentar,"
+        " genehmiger2_id, genehmigt2_am, genehmigt2_status, genehmigt2_kommentar,"
+        " gesamtstatus, abschlussdatum"
+        ") VALUES ("
+        " (SELECT id FROM idv_register WHERE idv_id=?),"
+        " ?,"
+        " (SELECT id FROM persons WHERE kuerzel=?), ?,"
+        " (SELECT id FROM persons WHERE kuerzel=?), ?, ?, ?,"
+        " (SELECT id FROM persons WHERE kuerzel=?), ?, ?, ?,"
+        " ?, ?)",
+        [
+            ("IDV-2024-001", "Erstfreigabe", "FV-BWK", "2024-03-10",
+             "IDV-KO", "2024-06-28", "Genehmigt", "Freigabe nach Nachbesserung.",
+             "IT-SI", "2024-06-28", "Genehmigt", "Keine sicherheitskritischen Funde.",
+             "Genehmigt", "2024-06-28"),
+            ("IDV-2024-002", "Erstfreigabe", "FV-KRE", "2024-07-01",
+             "IDV-KO", "2024-10-02", "Genehmigt", "Berechtigungskonzept umgesetzt.",
+             "IT-SI", "2024-10-02", "Genehmigt", "Zugriffsschutz geprüft.",
+             "Genehmigt", "2024-10-02"),
+            ("IDV-2024-004", "Erstfreigabe", "FV-MEL", "2024-05-01",
+             "IDV-KO", "2024-06-15", "Genehmigt", "Freigabe mit Auflage (Git-Einführung).",
+             "IT-SI", "2024-06-15", "Genehmigt", "DORA-Anforderungen erfüllt.",
+             "Genehmigt", "2024-06-15"),
+            ("IDV-2025-002", "Erstfreigabe", "FV-RIS", "2025-11-15",
+             "IDV-KO", "2026-01-22", "Genehmigt", "Zinsrisiko-Modell validiert.",
+             "IT-SI", "2026-01-22", "Genehmigt", "Keine IT-sicherheitsrelevanten Befunde.",
+             "Genehmigt", "2026-01-22"),
+        ],
+    )
+
+    # -----------------------------------------------------------------------
+    # 8. Fachliche Testfälle (3 Einträge)
+    # -----------------------------------------------------------------------
+    conn.executemany(
+        "INSERT OR IGNORE INTO fachliche_testfaelle ("
+        " idv_id, testfall_nr, beschreibung, parametrisierung, testdaten,"
+        " erwartetes_ergebnis, erzieltes_ergebnis, bewertung, tester, testdatum"
+        ") VALUES ("
+        " (SELECT id FROM idv_register WHERE idv_id=?),"
+        " ?,?,?,?,?,?,?,?,?)",
+        [
+            ("IDV-2024-001", 1,
+             "GuV-Berechnung Monatsschluss März 2024",
+             "Berichtsmonat=März 2024, Mandant=Volksbank",
+             "Buchungsstände SAP März 2024",
+             "GuV stimmt mit SAP-Kontensalden überein (Toleranz 0,01 EUR).",
+             "Abweichung 0,00 EUR.", "Erledigt",
+             "Anna Beispiel", "2024-04-02"),
+            ("IDV-2024-001", 2,
+             "Jahresabschluss-Simulation 2023",
+             "Berichtsmonat=Dezember 2023, Szenario=Ist-Abschluss",
+             "Testdaten Jahresabschluss 2023",
+             "GuV-Summen konsistent mit Bilanz.",
+             "Ergebnis korrekt.", "Erledigt",
+             "Anna Beispiel", "2024-04-05"),
+            ("IDV-2024-002", 1,
+             "Sicherheitenbewertung Beispielkredit",
+             "Kundennr=Muster-001, Sicherheit=Grundschuld",
+             "Beispielkreditvertrag mit Grundschuld 250.000 EUR",
+             "Beleihungswert 200.000 EUR (80 %).",
+             "Beleihungswert korrekt berechnet.", "Erledigt",
+             "Klaus Schmidt", "2024-07-05"),
+        ],
+    )
+
+    # -----------------------------------------------------------------------
+    # 9. IDV-Abhängigkeiten (2 Einträge)
+    # -----------------------------------------------------------------------
+    conn.executemany(
+        "INSERT OR IGNORE INTO idv_abhaengigkeiten ("
+        " quell_idv_id, ziel_idv_id, abhaengigkeitstyp, beschreibung"
+        ") VALUES ("
+        " (SELECT id FROM idv_register WHERE idv_id=?),"
+        " (SELECT id FROM idv_register WHERE idv_id=?),"
+        " ?, ?)",
+        [
+            ("IDV-2024-001", "IDV-2024-003", "Datenlieferant",
+             "GuV-Auswertung liefert Werte an die Reporting-Arbeitshilfe."),
+            ("IDV-2024-001", "IDV-2024-004", "Datenlieferant",
+             "GuV-Zahlen fließen in die COREP-Datenlieferung ein."),
+        ],
+    )
+
+    # -----------------------------------------------------------------------
+    # 10. Wesentlichkeitsbewertung – Antworten je IDV auf die drei
+    #     Beispielkriterien (schema.sql hat sie bereits angelegt).
+    # -----------------------------------------------------------------------
+    #  (idv_id, kriterium_bezeichnung, erfuellt, begruendung)
+    wesentlichkeit_rows = [
+        # IDV-2024-001 – rechnungslegungsrelevant, steuerungsrelevant
+        ("IDV-2024-001", "Rechnungslegungs-Relevanz (GoB)", 1,
+         "Generiert monatliche GuV-Positionen, die direkt in die Bilanz einfließen."),
+        ("IDV-2024-001", "Risiko / Steuerungs-Relevanz im Sinne der MaRisk", 1,
+         "Grundlage für Monatsberichte an den Vorstand."),
+        ("IDV-2024-001", "Kritische oder wichtige Funktionen", 0, None),
+        # IDV-2024-002 – Steuerungs-Relevanz
+        ("IDV-2024-002", "Rechnungslegungs-Relevanz (GoB)", 0, None),
+        ("IDV-2024-002", "Risiko / Steuerungs-Relevanz im Sinne der MaRisk", 1,
+         "Sicherheitenwerte fließen in die Kreditrisikosteuerung ein."),
+        ("IDV-2024-002", "Kritische oder wichtige Funktionen", 1,
+         "Abhängigkeit der Kreditvergabe von der Sicherheitenbewertung."),
+        # IDV-2024-003 – Arbeitshilfe, keine Wesentlichkeit
+        ("IDV-2024-003", "Rechnungslegungs-Relevanz (GoB)", 0, None),
+        ("IDV-2024-003", "Risiko / Steuerungs-Relevanz im Sinne der MaRisk", 0, None),
+        ("IDV-2024-003", "Kritische oder wichtige Funktionen", 0, None),
+        # IDV-2024-004 – Meldewesen
+        ("IDV-2024-004", "Rechnungslegungs-Relevanz (GoB)", 0, None),
+        ("IDV-2024-004", "Risiko / Steuerungs-Relevanz im Sinne der MaRisk", 1,
+         "COREP-Meldung an Bundesbank, bankaufsichtsrechtlich zwingend."),
+        ("IDV-2024-004", "Kritische oder wichtige Funktionen", 1,
+         "Meldewesen ist als kritische Funktion klassifiziert (DORA Art. 28)."),
+        # IDV-2025-001 – Eigenprogrammierung, Meldewesen
+        ("IDV-2025-001", "Rechnungslegungs-Relevanz (GoB)", 1,
+         "FINREP liefert Kennzahlen für den Konzernabschluss."),
+        ("IDV-2025-001", "Risiko / Steuerungs-Relevanz im Sinne der MaRisk", 1,
+         "FINREP ist bankaufsichtsrechtlich verpflichtend."),
+        ("IDV-2025-001", "Kritische oder wichtige Funktionen", 1,
+         "Meldewesen ist kritische Funktion."),
+        # IDV-2025-002 – Zinsrisiko
+        ("IDV-2025-002", "Rechnungslegungs-Relevanz (GoB)", 0, None),
+        ("IDV-2025-002", "Risiko / Steuerungs-Relevanz im Sinne der MaRisk", 1,
+         "Zinsrisiko-Modell ist Pflichtauswertung nach MaRisk."),
+        ("IDV-2025-002", "Kritische oder wichtige Funktionen", 0, None),
+        # IDV-2025-003 – Arbeitshilfe
+        ("IDV-2025-003", "Rechnungslegungs-Relevanz (GoB)", 0, None),
+        ("IDV-2025-003", "Risiko / Steuerungs-Relevanz im Sinne der MaRisk", 0, None),
+        ("IDV-2025-003", "Kritische oder wichtige Funktionen", 0, None),
+        # IDV-2025-004 – Firmenkunden-Score
+        ("IDV-2025-004", "Rechnungslegungs-Relevanz (GoB)", 0, None),
+        ("IDV-2025-004", "Risiko / Steuerungs-Relevanz im Sinne der MaRisk", 1,
+         "Score fließt in die Kreditentscheidung und Risikosteuerung ein."),
+        ("IDV-2025-004", "Kritische oder wichtige Funktionen", 1,
+         "Kreditvergabe ist kritische Funktion."),
+    ]
+    conn.executemany(
+        "INSERT OR IGNORE INTO idv_wesentlichkeit ("
+        " idv_db_id, kriterium_id, erfuellt, begruendung, geaendert_am"
+        ") VALUES ("
+        " (SELECT id FROM idv_register WHERE idv_id=?),"
+        " (SELECT id FROM wesentlichkeitskriterien WHERE bezeichnung=?),"
+        " ?, ?, ?)",
+        [(idv, krit, erf, begr, now) for (idv, krit, erf, begr) in wesentlichkeit_rows],
+    )
 
     stats = get_dashboard_stats(conn)
     print("\nDashboard-Statistik nach Demo-Import:")
