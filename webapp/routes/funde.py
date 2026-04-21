@@ -3,6 +3,8 @@ import json
 import logging
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
+from ..db_writer import get_writer
+from db_write_tx import write_tx
 from ..security import in_clause
 
 log = logging.getLogger("idvault.funde")
@@ -710,12 +712,16 @@ def ignorierte_reaktivieren():
         return redirect(url_for("funde.ignorierte_dateien"))
 
     ph, ph_params = in_clause(file_ids)
-    db.execute(
+    sql = (
         f"UPDATE idv_files SET bearbeitungsstatus='Neu'"
-        f" WHERE id IN ({ph}) AND bearbeitungsstatus='Ignoriert'",
-        ph_params,
+        f" WHERE id IN ({ph}) AND bearbeitungsstatus='Ignoriert'"
     )
-    db.commit()
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(sql, ph_params)
+
+    get_writer().submit(_do, wait=True)
     flash(f"{len(file_ids)} Datei(en) reaktiviert.", "success")
     return redirect(url_for("funde.ignorierte_dateien"))
 
@@ -736,26 +742,33 @@ def ignorierte_loeschen():
         flash("Keine Einträge ausgewählt.", "warning")
         return redirect(url_for("funde.ignorierte_dateien"))
 
-    geloescht    = 0
+    # Pre-Filter auf der Reader-Connection: nur wirklich ignorierte Dateien
+    # ohne IDV-Verknuepfung kommen durch.
     uebersprungen = 0
+    loeschbare = []
     for file_id in file_ids:
-        # Nur wirklich ignorierte Dateien betreffen
         datei = db.execute(
-            "SELECT id, file_name FROM idv_files WHERE id=? AND bearbeitungsstatus='Ignoriert'",
-            (file_id,)
+            "SELECT id FROM idv_files WHERE id=? AND bearbeitungsstatus='Ignoriert'",
+            (file_id,),
         ).fetchone()
         if not datei:
             continue
-        # Keine verknüpften IDVs löschen
         if db.execute("SELECT id FROM idv_register WHERE file_id=?", (file_id,)).fetchone():
             uebersprungen += 1
             continue
-        db.execute("DELETE FROM idv_file_history WHERE file_id=?", (file_id,))
-        db.execute("DELETE FROM idv_file_links  WHERE file_id=?", (file_id,))
-        db.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
-        geloescht += 1
+        loeschbare.append(file_id)
 
-    db.commit()
+    def _do(c):
+        count = 0
+        with write_tx(c):
+            for fid in loeschbare:
+                c.execute("DELETE FROM idv_file_history WHERE file_id=?", (fid,))
+                c.execute("DELETE FROM idv_file_links  WHERE file_id=?", (fid,))
+                c.execute("DELETE FROM idv_files WHERE id=?", (fid,))
+                count += 1
+        return count
+
+    geloescht = get_writer().submit(_do, wait=True) if loeschbare else 0
     if geloescht:
         flash(f"{geloescht} Einträge gelöscht.", "success")
     if uebersprungen:
@@ -835,21 +848,25 @@ def zusammenfassen():
                 flash("Eigenentwicklung nicht gefunden.", "error")
                 return redirect(url_for("funde.list_funde"))
 
-            linked = 0
-            for fid in file_ids:
-                try:
-                    db.execute(
-                        "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
-                        (idv_db_id, fid)
-                    )
-                    db.execute(
-                        "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
-                        (fid,)
-                    )
-                    linked += 1
-                except Exception:
-                    pass
-            db.commit()
+            def _do(c):
+                ok = 0
+                with write_tx(c):
+                    for fid in file_ids:
+                        try:
+                            c.execute(
+                                "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                                (idv_db_id, fid),
+                            )
+                            c.execute(
+                                "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
+                                (fid,),
+                            )
+                            ok += 1
+                        except Exception:
+                            pass
+                return ok
+
+            linked = get_writer().submit(_do, wait=True)
             flash(
                 f"{linked} Datei(en) mit IDV {idv_row['idv_id']} verknüpft.",
                 "success"
@@ -944,11 +961,13 @@ def bulk_aktion():
 
         if erlaubte_ids:
             ph2, ph2_params = in_clause(erlaubte_ids)
-            db.execute(
-                f"UPDATE idv_files SET bearbeitungsstatus = 'Ignoriert' WHERE id IN ({ph2})",
-                ph2_params
-            )
-            db.commit()
+            sql = f"UPDATE idv_files SET bearbeitungsstatus = 'Ignoriert' WHERE id IN ({ph2})"
+
+            def _do(c):
+                with write_tx(c):
+                    c.execute(sql, ph2_params)
+
+            get_writer().submit(_do, wait=True)
             msg = f"{len(erlaubte_ids)} Datei(en) als 'Ignoriert' markiert."
             if abgelehnt:
                 msg += f" {abgelehnt} Datei(en) übersprungen (Formeln vorhanden oder bereits registriert)."
@@ -962,30 +981,38 @@ def bulk_aktion():
 
     elif aktion == "nicht_mehr_ignorieren":
         ph, ph_params = in_clause(file_ids)
-        db.execute(
+        sql = (
             f"UPDATE idv_files SET bearbeitungsstatus = 'Neu'"
-            f" WHERE id IN ({ph}) AND bearbeitungsstatus = 'Ignoriert'",
-            ph_params
+            f" WHERE id IN ({ph}) AND bearbeitungsstatus = 'Ignoriert'"
         )
-        db.commit()
+
+        def _do(c):
+            with write_tx(c):
+                c.execute(sql, ph_params)
+
+        get_writer().submit(_do, wait=True)
         flash(f"{len(file_ids)} Datei(en): Ignorierung aufgehoben.", "success")
 
     elif aktion == "zur_registrierung":
         ph, ph_params = in_clause(file_ids)
-        db.execute(
-            f"UPDATE idv_files SET bearbeitungsstatus = 'Zur Registrierung' WHERE id IN ({ph})",
-            ph_params
-        )
-        db.commit()
+        sql = f"UPDATE idv_files SET bearbeitungsstatus = 'Zur Registrierung' WHERE id IN ({ph})"
+
+        def _do(c):
+            with write_tx(c):
+                c.execute(sql, ph_params)
+
+        get_writer().submit(_do, wait=True)
         flash(f"{len(file_ids)} Datei(en) zur Registrierung vorgemerkt.", "success")
 
     elif aktion == "nicht_wesentlich":
         ph, ph_params = in_clause(file_ids)
-        db.execute(
-            f"UPDATE idv_files SET bearbeitungsstatus = 'Nicht wesentlich' WHERE id IN ({ph})",
-            ph_params
-        )
-        db.commit()
+        sql = f"UPDATE idv_files SET bearbeitungsstatus = 'Nicht wesentlich' WHERE id IN ({ph})"
+
+        def _do(c):
+            with write_tx(c):
+                c.execute(sql, ph_params)
+
+        get_writer().submit(_do, wait=True)
         flash(f"{len(file_ids)} Datei(en) als 'Nicht wesentlich' eingestuft.", "success")
 
     elif aktion == "owner_aendern":
@@ -994,11 +1021,14 @@ def bulk_aktion():
             flash("Kein Dateieigentümer angegeben.", "warning")
         else:
             ph, ph_params = in_clause(file_ids)
-            db.execute(
-                f"UPDATE idv_files SET file_owner = ? WHERE id IN ({ph})",
-                [new_owner] + ph_params
-            )
-            db.commit()
+            sql = f"UPDATE idv_files SET file_owner = ? WHERE id IN ({ph})"
+            params = [new_owner] + ph_params
+
+            def _do(c):
+                with write_tx(c):
+                    c.execute(sql, params)
+
+            get_writer().submit(_do, wait=True)
             flash(
                 f"{len(file_ids)} Datei(en): Dateieigentümer auf \"{new_owner}\" gesetzt.",
                 "success"
@@ -1060,17 +1090,25 @@ def bulk_aktion():
         if current_user_role() != _ROLE_ADMIN:
             flash("Löschen ist nur für Administratoren erlaubt.", "error")
         else:
-            geloescht = 0
             uebersprungen = 0
+            loeschbare = []
             for file_id in file_ids:
                 if db.execute("SELECT id FROM idv_register WHERE file_id=?", (file_id,)).fetchone():
                     uebersprungen += 1
                     continue
-                db.execute("DELETE FROM idv_file_history WHERE file_id=?", (file_id,))
-                db.execute("DELETE FROM idv_file_links  WHERE file_id=?", (file_id,))
-                db.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
-                geloescht += 1
-            db.commit()
+                loeschbare.append(file_id)
+
+            def _do(c):
+                count = 0
+                with write_tx(c):
+                    for fid in loeschbare:
+                        c.execute("DELETE FROM idv_file_history WHERE file_id=?", (fid,))
+                        c.execute("DELETE FROM idv_file_links  WHERE file_id=?", (fid,))
+                        c.execute("DELETE FROM idv_files WHERE id=?", (fid,))
+                        count += 1
+                return count
+
+            geloescht = get_writer().submit(_do, wait=True) if loeschbare else 0
             if geloescht:
                 flash(f"{geloescht} Fund/Funde dauerhaft gelöscht.", "success")
             if uebersprungen:
@@ -1110,11 +1148,14 @@ def loeschen(file_id):
         return redirect(url_for("funde.list_funde"))
 
     datei_name = datei["file_name"]
-    # Abhängige Einträge vor dem Hauptlöschen entfernen (FK-Constraints)
-    db.execute("DELETE FROM idv_file_history WHERE file_id=?", (file_id,))
-    db.execute("DELETE FROM idv_file_links  WHERE file_id=?", (file_id,))
-    db.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
-    db.commit()
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM idv_file_history WHERE file_id=?", (file_id,))
+            c.execute("DELETE FROM idv_file_links  WHERE file_id=?", (file_id,))
+            c.execute("DELETE FROM idv_files WHERE id=?", (file_id,))
+
+    get_writer().submit(_do, wait=True)
     flash(f"Scannerfund \"{datei_name}\" wurde gelöscht.", "success")
     return redirect(url_for("funde.list_funde"))
 
