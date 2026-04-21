@@ -120,11 +120,11 @@
           <div class="detail-label">Kurzbeschreibung</div>
           <div>{{ idv.kurzbeschreibung or '–' }}</div>
         </div>
-        <div class="col-sm-6">
+        <div class="col-sm-8">
           <div class="detail-label">Typ</div>
           <div><span class="badge bg-light text-dark border">{{ idv.idv_typ }}</span></div>
         </div>
-        <div class="col-sm-6">
+        <div class="col-sm-4">
           <div class="detail-label">Produktiv seit</div>
           <div class="detail-value">{{ idv.produktiv_seit|datefmt }}</div>
         </div>
@@ -138,23 +138,6 @@
     <div class="form-section">
       <div class="form-section-title">Wesentlichkeitsbeurteilung (MaRisk AT 7.2 / DORA)</div>
       <div class="row g-3">
-
-        <!-- Fazit der Beurteilung -->
-        {% set ist_wesentlich = (wesentlichkeit | selectattr('erfuellt') | list | length > 0) %}
-        <div class="col-12">
-          <div
-            class="rounded p-3 {{ 'bg-danger bg-opacity-10 border border-danger border-opacity-25' if ist_wesentlich else 'bg-light border' }}">
-            <div class="fw-600 mb-2">
-              {% if ist_wesentlich %}
-              <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
-              Fazit: <span class="text-danger">Wesentlich – Dokumentationspflicht gem. MaRisk AT 7.2</span>
-              {% else %}
-              <i class="bi bi-check-circle-fill text-success me-2"></i>
-              Fazit: <span class="text-muted">Nicht wesentlich</span>
-              {% endif %}
-            </div>
-          </div>
-        </div>
 
         <!-- Geschäftsprozess -->
         <div class="col-12">
@@ -228,15 +211,15 @@
     </div>
     {% endif %}
 
-    <!-- Technik & Betrieb -->
+    <!-- Betriebsdokumentation -->
     <div class="form-section">
-      <div class="form-section-title">Technik & Betrieb</div>
+      <div class="form-section-title">Betriebsdokumentation</div>
       <div class="row g-3">
-        <div class="col-sm-4">
+        <div class="col-sm-6">
           <div class="detail-label">Programmiersprache</div>
           <div class="detail-value">{{ idv.programmiersprache or '–' }}</div>
         </div>
-        <div class="col-sm-4">
+        <div class="col-sm-6">
           <div class="detail-label">Nutzungsfrequenz</div>
           <div class="detail-value">{{ idv.nutzungsfrequenz or '–' }}</div>
         </div>
@@ -256,23 +239,18 @@
           <div class="detail-label">Erstellt für / Verwendungszweck</div>
           <div>{{ idv.erstellt_fuer or '–' }}</div>
         </div>
-      </div>
-    </div>
-
-    <!-- Betriebsdokumentation -->
-    <div class="form-section">
-      <div class="form-section-title">Betriebsdokumentation</div>
-      <div class="d-flex flex-wrap gap-3">
-        {% for label, val in [
-        ('Anwenderdokumentation vorhanden', idv.anwenderdokumentation),
-        ('Datenschutzbestimmungen eingehalten', idv.datenschutz_beachtet),
-        ('Rechenformeln durch Zellschutz gesichert', idv.zellschutz_formeln),
-        ] %}
-        <div>
-          <span class="detail-label">{{ label }}</span>
-          <div class="detail-value">{{ val|yesno }}</div>
+        <div class="d-flex flex-wrap gap-3">
+          {% for label, val in [
+          ('Anwenderdokumentation vorhanden', idv.anwenderdokumentation),
+          ('Datenschutzbestimmungen eingehalten', idv.datenschutz_beachtet),
+          ('Rechenformeln durch Zellschutz gesichert', idv.zellschutz_formeln),
+          ] %}
+          <div>
+            <span class="detail-label">{{ label }}</span>
+            <div class="detail-value">{{ val|yesno }}</div>
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
       </div>
     </div>
 
@@ -425,235 +403,6 @@
       </ul>
     </div>
 
-
-    <!-- Archivierung Originaldatei -->
-    {% if ist_wesentlich or phase3_gestartet %}
-    {% set archiv_f = (freigaben | selectattr('schritt','equalto','Archivierung Originaldatei') | list)[-1] if (freigaben | selectattr('schritt','equalto','Archivierung Originaldatei') | list) else none %}
-    <div class="card border-0 shadow-sm mb-4" id="archivierung">
-      <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-archive me-2"></i>Archivierung Originaldatei</span>
-        {% if archiv_f %}
-        <span class="badge
-          {% if archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}bg-success
-          {% elif archiv_f.status == 'Erledigt' %}bg-success
-          {% elif archiv_f.status == 'Ausstehend' %}bg-warning text-dark
-          {% elif archiv_f.status == 'Abgebrochen' %}bg-secondary
-          {% else %}bg-secondary{% endif %}" style="font-size:.7rem">
-          {% if archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}Archiviert
-          {% elif archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 0 %}Nicht verfügbar
-          {% else %}{{ archiv_f.status }}{% endif %}
-        </span>
-        {% endif %}
-      </div>
-      <div class="card-body px-3 py-3" style="font-size:.83rem">
-        {% if not archiv_f %}
-          <p class="text-muted mb-3" style="font-size:.82rem">
-            Originaldatei revisionssicher ablegen (MaRisk AT 7.2). Ist die Datei
-            nicht verfügbar (z.B. Cognos-Bericht), kann dies mit Begründung dokumentiert werden.
-          </p>
-          {% if can_create %}
-          <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="schritt" value="Archivierung Originaldatei">
-            <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-              <i class="bi bi-archive me-1"></i>Archivierung anlegen
-            </button>
-          </form>
-          {% endif %}
-        {% elif archiv_f.status == 'Ausstehend' %}
-          <p class="text-muted mb-3">Archivierung ist angelegt und wartet auf Durchführung.</p>
-          {% if can_create %}
-          <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=archiv_f.id) }}"
-             class="btn btn-sm btn-outline-success w-100">
-            <i class="bi bi-archive me-1"></i>Archivieren
-          </a>
-          {% else %}
-          <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=archiv_f.id) }}"
-             class="btn btn-sm btn-outline-secondary w-100">
-            <i class="bi bi-eye me-1"></i>Ansehen
-          </a>
-          {% endif %}
-        {% elif archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}
-          <div class="text-success mb-2"><i class="bi bi-archive-fill me-1"></i>Revisionssicher archiviert.</div>
-          {% if archiv_f.archiv_datei_name %}
-          <div>
-            <i class="bi bi-file-earmark-lock me-1 text-muted"></i>
-            <a href="{{ url_for('freigaben.archiv_download', freigabe_id=archiv_f.id) }}" class="text-decoration-none">{{ archiv_f.archiv_datei_name }}</a>
-          </div>
-          {% if archiv_f.archiv_datei_sha256 %}
-          <div class="text-muted font-monospace mt-1" style="font-size:.7rem;word-break:break-all">SHA-256: {{ archiv_f.archiv_datei_sha256 }}</div>
-          {% endif %}
-          {% endif %}
-          <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=archiv_f.id) }}"
-             class="btn btn-xs btn-outline-secondary mt-2">
-            <i class="bi bi-eye me-1"></i>Details
-          </a>
-        {% elif archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 0 %}
-          <div class="text-warning mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Datei nicht verfügbar – dokumentiert.</div>
-          {% if archiv_f.befunde %}<div class="text-muted mb-2">{{ archiv_f.befunde }}</div>{% endif %}
-          <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=archiv_f.id) }}"
-             class="btn btn-xs btn-outline-secondary">
-            <i class="bi bi-eye me-1"></i>Details
-          </a>
-        {% elif archiv_f.status == 'Abgebrochen' %}
-          <p class="text-muted mb-3">Schritt wurde abgebrochen.</p>
-          {% if can_create %}
-          <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="schritt" value="Archivierung Originaldatei">
-            <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-              <i class="bi bi-archive me-1"></i>Erneut anlegen
-            </button>
-          </form>
-          {% endif %}
-        {% endif %}
-        {% if archiv_f and is_admin %}
-        <div class="mt-2 pt-2 border-top">
-          <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=archiv_f.id) }}"
-            data-confirm="Archivierungs-Schritt löschen?">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-xs btn-outline-danger">
-              <i class="bi bi-trash me-1"></i>Schritt löschen
-            </button>
-          </form>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- Versionshistorie -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white fw-600"><i class="bi bi-diagram-3 me-2"></i>Versionshistorie</div>
-      <ul class="list-group list-group-flush">
-        {% if vorgaenger %}
-        <li class="list-group-item px-3 py-2">
-          <div class="detail-label text-muted">Vorgänger</div>
-          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=vorgaenger.id) }}"
-            class="text-decoration-none fw-500">
-            <span class="font-monospace me-1" style="font-size:.8rem">{{ vorgaenger.idv_id }}</span>
-            v{{ vorgaenger.version }}
-          </a>
-          <span class="badge status-{{ vorgaenger.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{
-            vorgaenger.status }}</span>
-        </li>
-        {% endif %}
-        <li class="list-group-item px-3 py-2 bg-light">
-          <div class="detail-label text-muted">Aktuelle Version</div>
-          <span class="fw-600">v{{ idv.version }}</span>
-          <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese Version</span>
-          {% if idv.letzte_aenderungsart %}
-          <span
-            class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
-            style="font-size:.6rem" {% if idv.letzte_aenderungsbegruendung
-            %}title="{{ idv.letzte_aenderungsbegruendung }}" {% endif %}>
-            {{ idv.letzte_aenderungsart }}
-          </span>
-          {% endif %}
-        </li>
-        {% for nf in nachfolger %}
-        <li class="list-group-item px-3 py-2">
-          <div class="detail-label text-muted">Nachfolger</div>
-          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=nf.id) }}" class="text-decoration-none fw-500">
-            <span class="font-monospace me-1" style="font-size:.8rem">{{ nf.idv_id }}</span>
-            v{{ nf.version }}
-          </a>
-          <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ nf.status
-            }}</span>
-          {% if nf.letzte_aenderungsart %}
-          <span
-            class="badge ms-1 {% if nf.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
-            style="font-size:.6rem" {% if nf.letzte_aenderungsbegruendung
-            %}title="{{ nf.letzte_aenderungsbegruendung }}" {% endif %}>
-            {{ nf.letzte_aenderungsart }}
-          </span>
-          {% endif %}
-        </li>
-        {% endfor %}
-        {% if not vorgaenger and not nachfolger %}
-        <li class="list-group-item text-muted text-center py-2" style="font-size:.83rem">
-          Keine Vorgänger/Nachfolger.
-        </li>
-        {% endif %}
-      </ul>
-      {% if can_create and idv.status != 'Archiviert' %}
-      <div class="card-footer bg-white">
-        <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal"
-          data-bs-target="#modal-neue-version">
-          <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
-        </button>
-        {% if ist_wesentlich %}
-        <div class="mt-1 text-muted text-center" style="font-size:.75rem">
-          <i class="bi bi-info-circle me-1"></i>Wesentliche Eigenentwicklung: neue Version erfordert erneute Freigabe
-        </div>
-        {% endif %}
-      </div>
-      {% endif %}
-
-      <!-- Modal: Neue Version anlegen -->
-      <div class="modal fade" id="modal-neue-version" tabindex="-1">
-        <div class="modal-dialog">
-          <form method="post" action="{{ url_for('eigenentwicklung.neue_version', idv_db_id=idv.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Neue Version anlegen</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body">
-                <div class="mb-3">
-                  <label class="form-label fw-500">Art der Änderung <span class="text-danger">*</span></label>
-                  <select name="aenderungsart" class="form-select form-select-sm" required id="aenderungsart-select">
-                    <option value="">– bitte wählen –</option>
-                    <option value="wesentlich">Wesentliche Änderung</option>
-                    <option value="unwesentlich">Unwesentliche Änderung</option>
-                  </select>
-                  <div class="form-text" id="aenderungsart-hinweis"></div>
-                </div>
-                <div class="mb-2">
-                  <label class="form-label fw-500">Begründung <span class="text-danger">*</span></label>
-                  <textarea name="aenderungsbegruendung" class="form-control form-control-sm" rows="3" required
-                    placeholder="Beschreiben Sie die wesentlichen Änderungen dieser Version …"></textarea>
-                  <div class="form-text">
-                    Begründung warum es sich um eine wesentliche bzw. unwesentliche Änderung handelt.
-                  </div>
-                </div>
-                <div class="alert alert-info py-2 mb-0 mt-2" style="font-size:.82rem">
-                  <i class="bi bi-info-circle me-1"></i>
-                  Die aktuelle Eigenentwicklung wird als Vorgänger verknüpft. Eine <strong>wesentliche Änderung</strong>
-                  erfordert ein erneutes Test- und Freigabeverfahren.
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                <button type="submit" class="btn btn-sm btn-primary">
-                  <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-      <script>
-        (function () {
-          var sel = document.getElementById('aenderungsart-select');
-          var hint = document.getElementById('aenderungsart-hinweis');
-          if (sel && hint) {
-            sel.addEventListener('change', function () {
-              if (this.value === 'wesentlich') {
-                hint.textContent = '⚠ Erfordert erneutes Test- und Freigabeverfahren.';
-                hint.className = 'form-text text-warning fw-500';
-              } else if (this.value === 'unwesentlich') {
-                hint.textContent = '✓ Kein Testverfahren erforderlich.';
-                hint.className = 'form-text text-success';
-              } else {
-                hint.textContent = '';
-              }
-            });
-          }
-        })();
-      </script>
-    </div>
 
     <!-- Test- und Freigabeverfahren -->
     {% if ist_wesentlich %}
@@ -1040,6 +789,239 @@
 
     {% endif %}
 
+    <!-- Archivierung Originaldatei -->
+    {% if ist_wesentlich or phase3_gestartet %}
+    {% set archiv_f = (freigaben | selectattr('schritt','equalto','Archivierung Originaldatei') | list)[-1] if
+    (freigaben | selectattr('schritt','equalto','Archivierung Originaldatei') | list) else none %}
+    <div class="card border-0 shadow-sm mb-4" id="archivierung">
+      <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-archive me-2"></i>Archivierung Originaldatei</span>
+        {% if archiv_f %}
+        <span class="badge
+          {% if archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}bg-success
+          {% elif archiv_f.status == 'Erledigt' %}bg-success
+          {% elif archiv_f.status == 'Ausstehend' %}bg-warning text-dark
+          {% elif archiv_f.status == 'Abgebrochen' %}bg-secondary
+          {% else %}bg-secondary{% endif %}" style="font-size:.7rem">
+          {% if archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}Archiviert
+          {% elif archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 0 %}Nicht verfügbar
+          {% else %}{{ archiv_f.status }}{% endif %}
+        </span>
+        {% endif %}
+      </div>
+      <div class="card-body px-3 py-3" style="font-size:.83rem">
+        {% if not archiv_f %}
+        <p class="text-muted mb-3" style="font-size:.82rem">
+          Originaldatei revisionssicher ablegen (MaRisk AT 7.2). Ist die Datei
+          nicht verfügbar (z.B. Cognos-Bericht), kann dies mit Begründung dokumentiert werden.
+        </p>
+        {% if can_create %}
+        <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="schritt" value="Archivierung Originaldatei">
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+            <i class="bi bi-archive me-1"></i>Archivierung anlegen
+          </button>
+        </form>
+        {% endif %}
+        {% elif archiv_f.status == 'Ausstehend' %}
+        <p class="text-muted mb-3">Archivierung ist angelegt und wartet auf Durchführung.</p>
+        {% if can_create %}
+        <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=archiv_f.id) }}"
+          class="btn btn-sm btn-outline-success w-100">
+          <i class="bi bi-archive me-1"></i>Archivieren
+        </a>
+        {% else %}
+        <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=archiv_f.id) }}"
+          class="btn btn-sm btn-outline-secondary w-100">
+          <i class="bi bi-eye me-1"></i>Ansehen
+        </a>
+        {% endif %}
+        {% elif archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}
+        <div class="text-success mb-2"><i class="bi bi-archive-fill me-1"></i>Revisionssicher archiviert.</div>
+        {% if archiv_f.archiv_datei_name %}
+        <div>
+          <i class="bi bi-file-earmark-lock me-1 text-muted"></i>
+          <a href="{{ url_for('freigaben.archiv_download', freigabe_id=archiv_f.id) }}" class="text-decoration-none">{{
+            archiv_f.archiv_datei_name }}</a>
+        </div>
+        {% if archiv_f.archiv_datei_sha256 %}
+        <div class="text-muted font-monospace mt-1" style="font-size:.7rem;word-break:break-all">SHA-256: {{
+          archiv_f.archiv_datei_sha256 }}</div>
+        {% endif %}
+        {% endif %}
+        <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=archiv_f.id) }}"
+          class="btn btn-xs btn-outline-secondary mt-2">
+          <i class="bi bi-eye me-1"></i>Details
+        </a>
+        {% elif archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 0 %}
+        <div class="text-warning mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Datei nicht verfügbar –
+          dokumentiert.</div>
+        {% if archiv_f.befunde %}<div class="text-muted mb-2">{{ archiv_f.befunde }}</div>{% endif %}
+        <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=archiv_f.id) }}"
+          class="btn btn-xs btn-outline-secondary">
+          <i class="bi bi-eye me-1"></i>Details
+        </a>
+        {% elif archiv_f.status == 'Abgebrochen' %}
+        <p class="text-muted mb-3">Schritt wurde abgebrochen.</p>
+        {% if can_create %}
+        <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="schritt" value="Archivierung Originaldatei">
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+            <i class="bi bi-archive me-1"></i>Erneut anlegen
+          </button>
+        </form>
+        {% endif %}
+        {% endif %}
+        {% if archiv_f and is_admin %}
+        <div class="mt-2 pt-2 border-top">
+          <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=archiv_f.id) }}"
+            data-confirm="Archivierungs-Schritt löschen?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-xs btn-outline-danger">
+              <i class="bi bi-trash me-1"></i>Schritt löschen
+            </button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Versionshistorie -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600"><i class="bi bi-diagram-3 me-2"></i>Versionshistorie</div>
+      <ul class="list-group list-group-flush">
+        {% if vorgaenger %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label text-muted">Vorgänger</div>
+          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=vorgaenger.id) }}"
+            class="text-decoration-none fw-500">
+            <span class="font-monospace me-1" style="font-size:.8rem">{{ vorgaenger.idv_id }}</span>
+            v{{ vorgaenger.version }}
+          </a>
+          <span class="badge status-{{ vorgaenger.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{
+            vorgaenger.status }}</span>
+        </li>
+        {% endif %}
+        <li class="list-group-item px-3 py-2 bg-light">
+          <div class="detail-label text-muted">Aktuelle Version</div>
+          <span class="fw-600">v{{ idv.version }}</span>
+          <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese Version</span>
+          {% if idv.letzte_aenderungsart %}
+          <span
+            class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
+            style="font-size:.6rem" {% if idv.letzte_aenderungsbegruendung
+            %}title="{{ idv.letzte_aenderungsbegruendung }}" {% endif %}>
+            {{ idv.letzte_aenderungsart }}
+          </span>
+          {% endif %}
+        </li>
+        {% for nf in nachfolger %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label text-muted">Nachfolger</div>
+          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=nf.id) }}" class="text-decoration-none fw-500">
+            <span class="font-monospace me-1" style="font-size:.8rem">{{ nf.idv_id }}</span>
+            v{{ nf.version }}
+          </a>
+          <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ nf.status
+            }}</span>
+          {% if nf.letzte_aenderungsart %}
+          <span
+            class="badge ms-1 {% if nf.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
+            style="font-size:.6rem" {% if nf.letzte_aenderungsbegruendung
+            %}title="{{ nf.letzte_aenderungsbegruendung }}" {% endif %}>
+            {{ nf.letzte_aenderungsart }}
+          </span>
+          {% endif %}
+        </li>
+        {% endfor %}
+        {% if not vorgaenger and not nachfolger %}
+        <li class="list-group-item text-muted text-center py-2" style="font-size:.83rem">
+          Keine Vorgänger/Nachfolger.
+        </li>
+        {% endif %}
+      </ul>
+      {% if can_create and idv.status != 'Archiviert' %}
+      <div class="card-footer bg-white">
+        <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal"
+          data-bs-target="#modal-neue-version">
+          <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
+        </button>
+        {% if ist_wesentlich %}
+        <div class="mt-1 text-muted text-center" style="font-size:.75rem">
+          <i class="bi bi-info-circle me-1"></i>Wesentliche Eigenentwicklung: neue Version erfordert erneute Freigabe
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Modal: Neue Version anlegen -->
+      <div class="modal fade" id="modal-neue-version" tabindex="-1">
+        <div class="modal-dialog">
+          <form method="post" action="{{ url_for('eigenentwicklung.neue_version', idv_db_id=idv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Neue Version anlegen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label class="form-label fw-500">Art der Änderung <span class="text-danger">*</span></label>
+                  <select name="aenderungsart" class="form-select form-select-sm" required id="aenderungsart-select">
+                    <option value="">– bitte wählen –</option>
+                    <option value="wesentlich">Wesentliche Änderung</option>
+                    <option value="unwesentlich">Unwesentliche Änderung</option>
+                  </select>
+                  <div class="form-text" id="aenderungsart-hinweis"></div>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label fw-500">Begründung <span class="text-danger">*</span></label>
+                  <textarea name="aenderungsbegruendung" class="form-control form-control-sm" rows="3" required
+                    placeholder="Beschreiben Sie die wesentlichen Änderungen dieser Version …"></textarea>
+                  <div class="form-text">
+                    Begründung warum es sich um eine wesentliche bzw. unwesentliche Änderung handelt.
+                  </div>
+                </div>
+                <div class="alert alert-info py-2 mb-0 mt-2" style="font-size:.82rem">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Die aktuelle Eigenentwicklung wird als Vorgänger verknüpft. Eine <strong>wesentliche Änderung</strong>
+                  erfordert ein erneutes Test- und Freigabeverfahren.
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="submit" class="btn btn-sm btn-primary">
+                  <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      <script>
+        (function () {
+          var sel = document.getElementById('aenderungsart-select');
+          var hint = document.getElementById('aenderungsart-hinweis');
+          if (sel && hint) {
+            sel.addEventListener('change', function () {
+              if (this.value === 'wesentlich') {
+                hint.textContent = '⚠ Erfordert erneutes Test- und Freigabeverfahren.';
+                hint.className = 'form-text text-warning fw-500';
+              } else if (this.value === 'unwesentlich') {
+                hint.textContent = '✓ Kein Testverfahren erforderlich.';
+                hint.className = 'form-text text-success';
+              } else {
+                hint.textContent = '';
+              }
+            });
+          }
+        })();
+      </script>
+    </div>
+
     <!-- Prüfung & Fristen -->
     <div class="card border-0 shadow-sm mb-4">
       <div class="card-header bg-white fw-600"><i class="bi bi-calendar-check me-2"></i>Prüffristen</div>
@@ -1109,7 +1091,8 @@
             <div>
               <div style="font-size:.82rem;font-weight:500">{{ h.aktion }}</div>
               {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(80) }}</div>
-              {% elif h.aenderungen_summary %}<div class="text-muted" style="font-size:.77rem">Geändert: {{ h.aenderungen_summary }}</div>
+              {% elif h.aenderungen_summary %}<div class="text-muted" style="font-size:.77rem">Geändert: {{
+                h.aenderungen_summary }}</div>
               {% endif %}
               <div class="text-muted" style="font-size:.75rem">
                 {{ h.durchgefuehrt_am|datefmt('%d.%m.%Y %H:%M') }}

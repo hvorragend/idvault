@@ -407,8 +407,9 @@
           </div>
           {% endif %}
           <textarea name="kriterium_begr_{{ k.id }}" class="form-control form-control-sm mt-1" rows="2"
-            placeholder="Begründung{% if k.begruendung_pflicht %} (Pflicht wenn aktiv){% endif %}"
-            {% if k.begruendung_pflicht and ant.get('erfuellt') %}required{% endif %}>{{ ant.get('begruendung', '') or '' }}</textarea>
+            placeholder="Begründung{% if k.begruendung_pflicht %} (Pflicht wenn aktiv){% endif %}" {% if
+            k.begruendung_pflicht and ant.get('erfuellt') %}required{% endif
+            %}>{{ ant.get('begruendung', '') or '' }}</textarea>
         </div>
       </div>
       {% endfor %}
@@ -422,24 +423,24 @@
 
     {% for k in wesentlichkeitskriterien %}{% if k.begruendung_pflicht %}
     <script>
-    (function(){
-      var cb = document.getElementById('sw_k{{ k.id }}');
-      var ta = document.querySelector('textarea[name="kriterium_begr_{{ k.id }}"]');
-      if (!cb || !ta) return;
-      function sync(){ ta.required = cb.checked; if(!cb.checked) ta.setCustomValidity(''); }
-      cb.addEventListener('change', sync);
-      sync();
-    })();
+      (function () {
+        var cb = document.getElementById('sw_k{{ k.id }}');
+        var ta = document.querySelector('textarea[name="kriterium_begr_{{ k.id }}"]');
+        if (!cb || !ta) return;
+        function sync() { ta.required = cb.checked; if (!cb.checked) ta.setCustomValidity(''); }
+        cb.addEventListener('change', sync);
+        sync();
+      })();
     </script>
     {% endif %}{% endfor %}
 
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <!-- 3. TECHNIK & BETRIEB                                       -->
+  <!-- 3. BETRIEBSDOKUMENTATION                                -->
   <!-- ═══════════════════════════════════════════════════════════ -->
   <div class="form-section">
-    <div class="form-section-title">3. Technik & Betrieb</div>
+    <div class="form-section-title">3. Betriebsdokumentation</div>
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Plattform</label>
@@ -493,14 +494,14 @@
         <div class="form-text">Für wen oder für welchen Zweck wird die Datei erstellt?</div>
       </div>
 
-      <!-- Betriebsdokumentation -->
+      <!-- Checkliste -->
       <div class="col-12">
-        <div class="fw-semibold text-muted mb-1" style="font-size:.85rem">Betriebsdokumentation</div>
+        <div class="fw-semibold text-muted mb-1" style="font-size:.85rem">Checkliste</div>
         <div class="row g-2">
           {% for fname, flabel in [
           ('anwenderdokumentation', 'Anwenderdokumentation vorhanden'),
-          ('datenschutz_beachtet',  'Datenschutzbestimmungen eingehalten (bei Speicherung personenbezogener Daten)'),
-          ('zellschutz_formeln',    'Rechenformeln durch Zellschutz gesichert'),
+          ('datenschutz_beachtet', 'Datenschutzbestimmungen eingehalten'),
+          ('zellschutz_formeln', 'Rechenformeln durch Zellschutz gesichert'),
           ] %}
           <div class="col-md-4">
             <div class="form-check">
