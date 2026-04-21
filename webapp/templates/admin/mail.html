@@ -64,6 +64,38 @@
             </button>
           </div>
 
+          <!-- ── Fristen-Benachrichtigungen (tägl. Scheduler) ─── -->
+          <div class="col-12 mt-3">
+            <hr class="my-2">
+            <h6 class="fw-600 mb-2"><i class="bi bi-alarm me-1"></i>Fristen-Benachrichtigungen</h6>
+            <p class="text-muted mb-3" style="font-size:.82rem">
+              Einmal täglich werden Verantwortliche per E-Mail an überfällige
+              Maßnahmen und Prüfungen erinnert. Dedup-Fenster: 7&nbsp;Tage
+              pro Datensatz.
+            </p>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check form-switch mt-md-3">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="notify_schedule_enabled" name="notify_schedule_enabled" value="1"
+                     {{ 'checked' if settings.get('notify_schedule_enabled','1') == '1' else '' }}>
+              <label class="form-check-label" for="notify_schedule_enabled">
+                Tägliche Fristen-Benachrichtigung aktivieren
+              </label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm fw-600">Uhrzeit</label>
+            <input type="time" name="notify_schedule_time" class="form-control form-control-sm"
+                   value="{{ settings.get('notify_schedule_time','08:00') }}">
+          </div>
+          <div class="col-md-5 d-flex align-items-end">
+            <div class="form-text mb-1">
+              Zuletzt ausgeführt:
+              <strong>{{ settings.get('notify_last_triggered_date') or '–' }}</strong>
+            </div>
+          </div>
+
           <!-- ── E-Mail-Vorlagen ─── -->
           <div class="col-12 mt-3" id="email-vorlagen">
             <hr class="my-2">

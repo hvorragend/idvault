@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify, abort, g
 from . import (login_required, write_access_required, own_write_required, admin_required,
                get_db, can_write, can_create, can_read_all, current_person_id)
 import sys, os, io, json
@@ -46,19 +46,29 @@ ENTWICKLUNGSART_LABEL = {key: label for key, label, _desc in ENTWICKLUNGSARTEN}
 
 
 def _form_lookups(db):
-    return {
+    """Liefert Nachschlagedaten für IDV-Formulare.
+
+    Quasi-statisch pro Request – Ergebnis wird in ``flask.g`` gecached, damit
+    list_idv / new_idv / edit_idv innerhalb eines Requests nicht mehrfach die
+    gleichen Lookup-Tabellen abfragen.
+    """
+    cached = getattr(g, "_form_lookups_cache", None)
+    if cached is not None:
+        return cached
+
+    result = {
         "org_units":          db.execute("SELECT * FROM org_units WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
         "persons":            db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall(),
         "geschaeftsprozesse": db.execute("SELECT * FROM geschaeftsprozesse WHERE aktiv=1 ORDER BY gp_nummer").fetchall(),
         "plattformen":        db.execute("SELECT * FROM plattformen WHERE aktiv=1 ORDER BY bezeichnung").fetchall(),
-        # Konfigurierbare Klassifizierungen
         "idv_typen":               get_klassifizierungen(db, "idv_typ"),
         "pruefintervalle":         get_klassifizierungen(db, "pruefintervall_monate"),
         "nutzungsfrequenzen":      get_klassifizierungen(db, "nutzungsfrequenz"),
-        # Konfigurierbare Wesentlichkeitskriterien (inkl. Detail-Checkboxen)
         "wesentlichkeitskriterien": get_wesentlichkeitskriterien(db, nur_aktive=True),
         "entwicklungsarten":       ENTWICKLUNGSARTEN,
     }
+    g._form_lookups_cache = result
+    return result
 
 
 def _int_or_none(val):
@@ -610,6 +620,7 @@ def new_idv():
     fund          = None
     prefill       = {}
     extra_fonds   = []
+    hash_duplikate = []
     file_id       = _int_or_none(request.args.get("file_id"))
     extra_file_ids = request.args.get("extra_file_ids", "")
     if file_id:
@@ -654,12 +665,176 @@ def new_idv():
                     f"SELECT * FROM idv_files WHERE id IN ({ph})", ph_params
                 ).fetchall()
 
+        # Hash-basierte Auto-Gruppierung: prüfen, ob ein Scannerfund mit identischem
+        # Hash bereits einer IDV zugeordnet ist, und dem Nutzer ein Verknüpfen anbieten.
+        hash_candidates = []
+        if fund and fund["file_hash"] and fund["file_hash"] != "HASH_ERROR":
+            hash_candidates.append(fund["file_hash"])
+        for ef in extra_fonds:
+            h = ef["file_hash"]
+            if h and h != "HASH_ERROR" and h not in hash_candidates:
+                hash_candidates.append(h)
+        if hash_candidates:
+            own_ids = [file_id] + [ef["id"] for ef in extra_fonds]
+            ph_hash, ph_hash_params = in_clause(hash_candidates)
+            ph_own,  ph_own_params  = in_clause(own_ids)
+            hash_duplikate = db.execute(f"""
+                SELECT DISTINCT r.id AS idv_db_id, r.idv_id, r.bezeichnung, r.status,
+                       f.id AS match_file_id, f.file_name AS match_file_name,
+                       f.file_hash AS match_hash
+                FROM idv_files f
+                LEFT JOIN idv_register  reg ON reg.file_id = f.id
+                LEFT JOIN idv_file_links lnk ON lnk.file_id = f.id
+                LEFT JOIN idv_register  r    ON r.id = COALESCE(reg.id, lnk.idv_db_id)
+                WHERE f.file_hash IN ({ph_hash})
+                  AND f.id NOT IN ({ph_own})
+                  AND r.id IS NOT NULL
+                ORDER BY r.idv_id
+            """, ph_hash_params + ph_own_params).fetchall()
+
     return render_template("eigenentwicklung/form.html", idv=None,
                            fund=fund, prefill=prefill,
                            extra_fonds=extra_fonds,
+                           hash_duplikate=hash_duplikate,
                            wesentlichkeit_antworten={},
                            can_write=can_write(),
                            **_form_lookups(db))
+
+
+# ── Bulk-Registrierung (P3) ────────────────────────────────────────────────
+
+@bp.route("/bulk-neu", methods=["GET", "POST"])
+@own_write_required
+def bulk_neu():
+    """Legt aus einer Menge Scanner-Funden je einen eigenen IDV-Eintrag an.
+
+    Pro Datei eine IDV. Gemeinsame Felder (OE, Fachverantwortlicher,
+    Entwicklungsart) werden aus dem Kopfbereich übernommen, pro Zeile
+    können Bezeichnung und IDV-Typ individuell gesetzt werden.
+    """
+    db = get_db()
+
+    if request.method == "POST":
+        raw_ids = request.form.getlist("file_ids")
+        try:
+            file_ids = [int(i) for i in raw_ids if i]
+        except ValueError:
+            flash("Ungültige Datei-IDs.", "error")
+            return redirect(url_for("funde.list_funde"))
+        if not file_ids:
+            flash("Keine Dateien ausgewählt.", "warning")
+            return redirect(url_for("funde.list_funde"))
+
+        common = {
+            "org_unit_id":             _int_or_none(request.form.get("org_unit_id")),
+            "fachverantwortlicher_id": _int_or_none(request.form.get("fachverantwortlicher_id")),
+            "idv_koordinator_id":      _int_or_none(request.form.get("idv_koordinator_id")),
+            "entwicklungsart":         request.form.get("entwicklungsart", "arbeitshilfe"),
+            "pruefintervall_monate":   _int_or_none(request.form.get("pruefintervall_monate")) or 12,
+        }
+        person_id = session.get("person_id")
+        user_name = session.get("user_name", "")
+
+        # Alle Formulardaten im Request-Kontext einlesen – der Writer-Thread
+        # hat keinen Zugriff auf flask.request.
+        per_file = []
+        errors   = []
+        for fid in file_ids:
+            bez = (request.form.get(f"bezeichnung_{fid}") or "").strip()
+            typ = (request.form.get(f"idv_typ_{fid}") or "unklassifiziert").strip()
+            entw = _int_or_none(request.form.get(f"idv_entwickler_id_{fid}"))
+            if not bez:
+                errors.append(fid)
+                continue
+            per_file.append({
+                "file_id":           fid,
+                "bezeichnung":       bez,
+                "idv_typ":           typ,
+                "idv_entwickler_id": entw,
+            })
+
+        created = []
+        try:
+            def _do(c):
+                out = []
+                with write_tx(c):
+                    for entry in per_file:
+                        data = dict(common)
+                        data.update(entry)
+                        new_id = create_idv(c, data, erfasser_id=person_id,
+                                            bearbeiter_name=user_name, commit=False)
+                        out.append((entry["file_id"], new_id))
+                return out
+
+            created = get_writer().submit(_do, wait=True) or []
+        except Exception as exc:
+            flash(f"Fehler beim Anlegen: {exc}", "error")
+            return redirect(url_for("eigenentwicklung.bulk_neu",
+                                     **{"file_ids": file_ids}))
+
+        if created:
+            flash(f"{len(created)} Eigenentwicklung(en) angelegt.", "success")
+        if errors:
+            flash(f"{len(errors)} Datei(en) übersprungen (keine Bezeichnung).", "warning")
+        return redirect(url_for("eigenentwicklung.list_idv"))
+
+    # ── GET ──
+    raw_ids = request.args.getlist("file_ids")
+    try:
+        file_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        file_ids = []
+    if not file_ids:
+        flash("Keine Dateien ausgewählt.", "warning")
+        return redirect(url_for("funde.list_funde"))
+
+    ph, ph_params = in_clause(file_ids)
+    dateien = db.execute(
+        f"SELECT * FROM idv_files WHERE id IN ({ph}) ORDER BY file_name",
+        ph_params
+    ).fetchall()
+
+    # Pro Datei: Bezeichnungs-/Typ-/Entwickler-Vorschläge aufbereiten
+    vorschlaege = []
+    for d in dateien:
+        ext = (d["extension"] or "").lower()
+        name = d["file_name"] or ""
+        if ext and name.lower().endswith(ext):
+            name = name[:-len(ext)]
+        typ = _idv_typ_vorschlag_for(ext, d["has_macros"])
+        dev_id = None
+        owner_hint = d["file_owner"] or d["office_author"] or ""
+        if owner_hint:
+            ad_login = owner_hint.split("\\")[-1] if "\\" in owner_hint else owner_hint
+            dev_row = db.execute(
+                """SELECT id FROM persons WHERE aktiv=1 AND (
+                    kuerzel=? OR ad_name=? OR user_id=?
+                    OR (vorname || ' ' || nachname)=?
+                    OR (nachname || ', ' || vorname)=?
+                    OR (nachname || ' ' || vorname)=?
+                ) LIMIT 1""",
+                (ad_login, ad_login, ad_login, owner_hint, owner_hint, owner_hint)
+            ).fetchone()
+            if dev_row:
+                dev_id = dev_row["id"]
+        vorschlaege.append({
+            "datei":            d,
+            "bezeichnung":      name,
+            "idv_typ":          typ,
+            "idv_entwickler_id": dev_id,
+        })
+
+    return render_template("eigenentwicklung/bulk_neu.html",
+                           vorschlaege=vorschlaege,
+                           **_form_lookups(db))
+
+
+def _idv_typ_vorschlag_for(extension: str, has_macros) -> str:
+    """Lokaler Spiegel von funde._idv_typ_vorschlag (vermeidet Zirkel-Import)."""
+    ext = (extension or "").lower()
+    if ext in (".xlsx", ".xls", ".xltx") and has_macros:
+        return "Excel-Makro"
+    return _EXT_TO_TYP.get(ext, "unklassifiziert")
 
 
 # ── Bearbeiten ─────────────────────────────────────────────────────────────

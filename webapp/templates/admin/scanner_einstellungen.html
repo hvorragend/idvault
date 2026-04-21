@@ -82,6 +82,17 @@
               <label class="form-label fw-600">Parallele Threads</label>
               <input type="number" name="max_workers" class="form-control" value="{{ cfg.max_workers or 4 }}" min="1"
                 max="32">
+              <div class="form-text">Pro Datei: Hash + Metadaten-Extraktion.</div>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label fw-600">Parallele Freigaben</label>
+              <input type="number" name="parallel_shares" class="form-control"
+                value="{{ cfg.parallel_shares or 1 }}" min="1" max="8">
+              <div class="form-text">
+                Mehrere Scan-Pfade gleichzeitig scannen. Nur sinnvoll bei 2+ Freigaben
+                mit Netzwerklatenz (1 = seriell).
+              </div>
             </div>
 
             <div class="col-md-3">

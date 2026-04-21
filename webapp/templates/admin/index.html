@@ -5,6 +5,21 @@
 {% block content %}
 {% include 'admin/_subnav.html' %}
 
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-grow-1">
+      <div class="fw-600"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Prüfer-Export</div>
+      <div class="text-muted" style="font-size:.82rem">
+        IDV-Register, Maßnahmen, Prüfungen und Nachweise als formatierte Excel-Arbeitsmappe
+        mit Ampel für Fristen.
+      </div>
+    </div>
+    <a href="{{ url_for('admin.export_excel') }}" class="btn btn-sm btn-primary">
+      <i class="bi bi-download me-1"></i>Excel herunterladen
+    </a>
+  </div>
+</div>
+
 <div class="row g-4">
 
   <!-- ── Organisationseinheiten ────────────────────────────────── -->

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Bulk-Registrierung{% endblock %}
+{% block page_title %}
+<i class="bi bi-collection me-2"></i>Bulk-Registrierung
+<small class="text-muted ms-2" style="font-size:.75rem">
+  {{ vorschlaege|length }} Scannerfund(e) → je eigene Eigenentwicklung
+</small>
+{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ url_for('eigenentwicklung.bulk_neu') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="alert alert-info d-flex align-items-start gap-3 mb-3" style="font-size:.85rem">
+    <i class="bi bi-info-circle fs-5 flex-shrink-0 mt-1"></i>
+    <div>
+      Für jede ausgewählte Datei wird ein eigener IDV-Register-Eintrag angelegt.
+      Die Felder <strong>Org-Einheit</strong>, <strong>Fachverantwortlicher</strong>,
+      <strong>Koordinator</strong>, <strong>Entwicklungsart</strong> und
+      <strong>Prüfintervall</strong> gelten einheitlich für alle Einträge.
+      Bezeichnung, IDV-Typ und Entwickler können pro Zeile feinjustiert werden.
+    </div>
+  </div>
+
+  <!-- Gemeinsame Felder -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white fw-600">
+      <i class="bi bi-sliders me-1"></i>Gemeinsame Stammdaten
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Org-Einheit</label>
+          <select name="org_unit_id" class="form-select form-select-sm">
+            <option value="">— bitte wählen —</option>
+            {% for o in org_units %}
+            <option value="{{ o.id }}">{{ o.bezeichnung }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Fachverantwortlicher</label>
+          <select name="fachverantwortlicher_id" class="form-select form-select-sm">
+            <option value="">— bitte wählen —</option>
+            {% for p in persons %}
+            <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">IDV-Koordinator</label>
+          <select name="idv_koordinator_id" class="form-select form-select-sm">
+            <option value="">— optional —</option>
+            {% for p in persons %}
+            <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Entwicklungsart</label>
+          <select name="entwicklungsart" class="form-select form-select-sm">
+            {% for key, label, desc in entwicklungsarten %}
+            <option value="{{ key }}" {% if key=='arbeitshilfe' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Prüfintervall (Monate)</label>
+          <select name="pruefintervall_monate" class="form-select form-select-sm">
+            {% for k in pruefintervalle %}
+            <option value="{{ k.wert }}" {% if k.wert|string=='12' %}selected{% endif %}>{{ k.bezeichnung }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zeilen pro Datei -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-600">
+      <i class="bi bi-files me-1"></i>Zu registrierende Dateien
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
+        <thead>
+          <tr>
+            <th>Datei</th>
+            <th style="min-width:220px">Bezeichnung</th>
+            <th style="min-width:180px">IDV-Typ</th>
+            <th style="min-width:220px">Entwickler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vorschlaege %}
+          {% set d = v.datei %}
+          <tr>
+            <td class="align-top">
+              <input type="hidden" name="file_ids" value="{{ d.id }}">
+              <div class="font-monospace">{{ d.file_name }}</div>
+              <div class="text-muted" style="font-size:.75rem">{{ d.full_path }}</div>
+              {% if d.has_macros %}
+              <span class="badge bg-danger mt-1">VBA-Makros</span>
+              {% endif %}
+            </td>
+            <td>
+              <input type="text" class="form-control form-control-sm"
+                     name="bezeichnung_{{ d.id }}"
+                     value="{{ v.bezeichnung }}" required>
+            </td>
+            <td>
+              <select name="idv_typ_{{ d.id }}" class="form-select form-select-sm">
+                {% for k in idv_typen %}
+                <option value="{{ k.wert }}" {% if k.wert==v.idv_typ %}selected{% endif %}>{{ k.bezeichnung }}</option>
+                {% endfor %}
+                <option value="unklassifiziert" {% if v.idv_typ=='unklassifiziert' %}selected{% endif %}>unklassifiziert</option>
+              </select>
+            </td>
+            <td>
+              <select name="idv_entwickler_id_{{ d.id }}" class="form-select form-select-sm">
+                <option value="">—</option>
+                {% for p in persons %}
+                <option value="{{ p.id }}" {% if v.idv_entwickler_id==p.id %}selected{% endif %}>{{ p.nachname }}, {{ p.vorname }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between mt-3">
+    <a href="{{ url_for('funde.list_funde') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Abbrechen
+    </a>
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-check-lg me-1"></i>{{ vorschlaege|length }} Eigenentwicklung(en) anlegen
+    </button>
+  </div>
+</form>
+{% endblock %}

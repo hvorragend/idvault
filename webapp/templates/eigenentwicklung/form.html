@@ -6,6 +6,44 @@
 {% endblock %}
 
 {% block content %}
+{# ── Hash-Dubletten-Warnung (P4: Auto-Gruppierung) – außerhalb der Haupt-Form, ─────
+   da sie eine eigene Form (Verknüpfen) enthält und Form-Verschachtelung ungültig ist. #}
+{% if hash_duplikate %}
+<div class="alert alert-warning d-flex align-items-start gap-3 mb-3">
+  <i class="bi bi-exclamation-triangle fs-4 flex-shrink-0 mt-1"></i>
+  <div class="flex-grow-1">
+    <strong>Inhaltsgleiche Datei(en) bereits registriert</strong>
+    <div class="text-muted mt-1" style="font-size:.85rem">
+      Der Datei-Hash stimmt mit folgenden bestehenden Eigenentwicklung(en) überein.
+      Prüfen Sie, ob eine Verknüpfung statt einer Neuanlage sinnvoller ist:
+    </div>
+    <ul class="mb-2 mt-2 ps-3" style="font-size:.9rem">
+      {% for d in hash_duplikate %}
+      <li>
+        <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=d.idv_db_id) }}"
+           target="_blank" class="fw-semibold">{{ d.idv_id }} – {{ d.bezeichnung }}</a>
+        <span class="text-muted">(Status: {{ d.status }})</span>
+        <div class="text-muted font-monospace" style="font-size:.78rem">
+          ↳ enthält: {{ d.match_file_name }}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    <form method="post" action="{{ url_for('funde.zusammenfassen') }}" class="d-inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="aktion" value="zu_idv">
+      <input type="hidden" name="idv_db_id" value="{{ hash_duplikate[0].idv_db_id }}">
+      <input type="hidden" name="file_ids" value="{{ prefill.file_id }}">
+      {% for ef in extra_fonds %}<input type="hidden" name="file_ids" value="{{ ef.id }}">{% endfor %}
+      <button type="submit" class="btn btn-sm btn-warning">
+        <i class="bi bi-link-45deg me-1"></i>Mit {{ hash_duplikate[0].idv_id }} verknüpfen
+      </button>
+    </form>
+    <span class="text-muted ms-2" style="font-size:.8rem">oder unten trotzdem neu anlegen.</span>
+  </div>
+</div>
+{% endif %}
+
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
