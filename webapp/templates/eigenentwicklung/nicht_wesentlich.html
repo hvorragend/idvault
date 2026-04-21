@@ -127,7 +127,6 @@ owner_filt} %}
     <table class="table table-hover mb-0 table-idv" id="nw-table" style="font-size:.82rem">
       <thead>
         <tr>
-          <th class="sortable">ID</th>
           <th class="sortable">Bezeichnung</th>
           <th class="sortable">OE</th>
           <th class="sortable">Typ</th>
@@ -143,14 +142,10 @@ owner_filt} %}
       <tbody>
         {% for r in nicht_wesentliche %}
         <tr>
-          <td>
-            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none font-monospace"
-              style="font-size:.82rem">
-              {{ r.idv_id }}
+          <td class="text-truncate" style="max-width:240px" title="{{ r.bezeichnung }}">
+            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">
+              {{ r.bezeichnung }}
             </a>
-          </td>
-          <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">
-            {{ r.bezeichnung }}
           </td>
           <td style="font-size:.78rem;white-space:nowrap">
             {% if r.org_einheit %}
@@ -210,7 +205,7 @@ owner_filt} %}
         </tr>
         {% else %}
         <tr>
-          <td colspan="11" class="text-center text-muted py-5">
+          <td colspan="10" class="text-center text-muted py-5">
             <i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>
             Keine nicht wesentlichen Eigenentwicklungen gefunden.
           </td>
