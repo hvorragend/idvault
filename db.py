@@ -942,6 +942,10 @@ def insert_demo_data(conn: sqlite3.Connection):
         [(idv, krit, erf, begr, now) for (idv, krit, erf, begr) in wesentlichkeit_rows],
     )
 
+    # Commit before returning so the caller's set_setting() (writer thread)
+    # doesn't deadlock against this connection's open write transaction.
+    conn.commit()
+
     stats = get_dashboard_stats(conn)
     print("\nDashboard-Statistik nach Demo-Import:")
     for k, v in stats.items():
