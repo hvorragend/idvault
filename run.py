@@ -200,6 +200,16 @@ if _upd:
 # admin.py den gleichen Executable mit --scan auf.
 if '--scan' in sys.argv:
     sys.argv = [a for a in sys.argv if a != '--scan']
+    # Konsolentitel setzen, damit der Scanner-Subprozess im Taskmanager
+    # vom Webserver-Prozess (gleiches EXE-Image) unterscheidbar ist.
+    if os.name == 'nt':
+        try:
+            import ctypes as _ctypes
+            _ctypes.windll.kernel32.SetConsoleTitleW(
+                f"idvault Scanner (PID {os.getpid()})"
+            )
+        except Exception:
+            pass
     _crash_log = os.path.join(_PROJECT_ROOT, 'instance', 'logs', 'scanner_crash.log')
     os.makedirs(os.path.join(_PROJECT_ROOT, 'instance', 'logs'), exist_ok=True)
     try:
