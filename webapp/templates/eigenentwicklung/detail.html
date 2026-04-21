@@ -1079,7 +1079,8 @@
         {% for m in massnahmen[:4] %}
         <li class="list-group-item px-3 py-2">
           <div class="d-flex justify-content-between">
-            <span style="font-size:.83rem;font-weight:500">{{ m.titel|truncate(30) }}</span>
+            <a href="{{ url_for('measures.detail_measure', m_id=m.id) }}"
+               class="text-decoration-none" style="font-size:.83rem;font-weight:500">{{ m.titel|truncate(30) }}</a>
             <span
               class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' }}">{{
               m.status }}</span>

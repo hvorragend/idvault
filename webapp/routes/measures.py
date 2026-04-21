@@ -83,6 +83,26 @@ def new_measure(idv_db_id):
         prioritaeten=get_klassifizierungen(db, "massnahmen_prioritaet"))
 
 
+@bp.route("/<int:m_id>")
+@login_required
+def detail_measure(m_id):
+    db = get_db()
+    m = db.execute("""
+        SELECT m.*, r.idv_id, r.bezeichnung AS idv_bezeichnung, r.idv_id AS idv_register_id,
+               p.nachname || ', ' || p.vorname AS verantwortlicher,
+               CASE WHEN m.faellig_am < date('now') AND m.status IN ('Offen','In Bearbeitung')
+                    THEN 'ÜBERFÄLLIG' ELSE 'OK' END AS faelligkeitsstatus
+        FROM massnahmen m
+        JOIN idv_register r ON m.idv_id = r.id
+        LEFT JOIN persons p ON m.verantwortlicher_id = p.id
+        WHERE m.id = ?
+    """, (m_id,)).fetchone()
+    if not m:
+        flash("Maßnahme nicht gefunden.", "error")
+        return redirect(url_for("measures.list_measures"))
+    return render_template("measures/detail.html", m=m)
+
+
 @bp.route("/<int:m_id>/erledigen", methods=["POST"])
 @own_write_required
 def complete_measure(m_id):
