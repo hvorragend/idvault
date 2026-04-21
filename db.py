@@ -4,11 +4,9 @@ IDV-Register Datenbankschicht
 Initialisierung, Migration und Basisfunktionen für das IDV-Register.
 Wird von Scanner und Web-Frontend gemeinsam genutzt.
 
-Schema-Änderungen werden seit Issue A6 über Alembic-Migrationen
-verwaltet (siehe ``alembic/versions/``). ``init_register_db()`` ruft
-``alembic upgrade head`` auf; Legacy-Datenbanken (Stand vor Einführung
-von Alembic) werden beim ersten Start automatisch auf den passenden
-Revisionsstand gestampt, bevor die Migrationen ausgeführt werden.
+Schema-Änderungen werden über Alembic-Migrationen verwaltet
+(siehe ``alembic/versions/``); ``init_register_db()`` ruft beim Start
+``alembic upgrade head`` auf.
 """
 
 import sys
@@ -64,84 +62,17 @@ def _alembic_config(db_path: str):
     return cfg
 
 
-def _stamp_legacy_db_if_needed(db_path: str, cfg) -> None:
-    """Stampt Pre-Alembic-Datenbanken auf den passenden Revisionsstand.
-
-    Hintergrund: Vor Einführung von Alembic (Issue A6) wurde die DB über
-    ``schema.sql`` + die Funktionen ``_migrate_risikoklasse`` und
-    ``_migrate_bearbeiter_name`` initialisiert. Alembic erkennt solche
-    Datenbanken an der Kombination „``idv_register``-Tabelle vorhanden,
-    aber keine ``alembic_version``-Tabelle" und setzt den Revisionsstand
-    entsprechend fest, bevor ``upgrade head`` die offenen Migrationen
-    anwendet. Dadurch wird verhindert, dass 0001 (schema.sql) erneut
-    durchlaufen wird, obwohl das Schema bereits vorhanden ist.
-    """
-    from alembic.runtime.migration import MigrationContext
-    from alembic import command
-
-    conn = get_connection(db_path)
-    try:
-        existing_tables = {
-            row[0] for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        }
-        if "alembic_version" in existing_tables:
-            # Bereits unter Alembic-Kontrolle; nichts zu tun.
-            return
-        if "idv_register" not in existing_tables:
-            # Leere DB → der normale ``upgrade head`` läuft alle Revisionen
-            # von Grund auf.
-            return
-
-        # Legacy-DB: prüfen, welche früheren Python-Migrationen bereits
-        # angewendet wurden, und die passende Revision stampen.
-        history_cols = {
-            row[1] for row in conn.execute(
-                "PRAGMA table_info(idv_history)"
-            ).fetchall()
-        }
-        register_cols = {
-            row[1] for row in conn.execute(
-                "PRAGMA table_info(idv_register)"
-            ).fetchall()
-        }
-        has_bearbeiter_name = "bearbeiter_name" in history_cols
-        has_risikoklasse_id = "risikoklasse_id" in register_cols
-        has_risikoklassen_tbl = "risikoklassen" in existing_tables
-
-        if has_bearbeiter_name and not has_risikoklasse_id and not has_risikoklassen_tbl:
-            # Beide Altmigrationen bereits gelaufen → direkt auf Kopf.
-            target = "head"
-        elif has_bearbeiter_name:
-            # Nur Bearbeiter-Migration gelaufen, Risikoklassen-Cleanup fehlt.
-            target = "0002_add_bearbeiter_name"
-        else:
-            # Keine der Python-Migrationen gelaufen – Stand entspricht der
-            # reinen schema.sql-Vorlage (= Initial-Revision).
-            target = "0001_initial_schema"
-    finally:
-        conn.close()
-
-    command.stamp(cfg, target)
-
-
 def init_register_db(db_path: str) -> sqlite3.Connection:
-    """Initialisiert die Datenbank über Alembic (Issue A6).
+    """Initialisiert die Datenbank über Alembic und liefert eine Connection.
 
     - Legt das Verzeichnis für die SQLite-Datei bei Bedarf an.
-    - Stampt Pre-Alembic-Datenbanken auf den passenden Revisionsstand.
-    - Fährt anschließend ``alembic upgrade head``.
+    - Fährt ``alembic upgrade head`` (idempotent).
     - Gibt eine Anwendungs-Connection (mit den Standard-PRAGMAs) zurück.
     """
     from alembic import command
 
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-
-    cfg = _alembic_config(db_path)
-    _stamp_legacy_db_if_needed(db_path, cfg)
-    command.upgrade(cfg, "head")
-
+    command.upgrade(_alembic_config(db_path), "head")
     return get_connection(db_path)
 
 

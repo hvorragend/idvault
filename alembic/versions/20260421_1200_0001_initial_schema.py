@@ -4,23 +4,12 @@ Revision ID: 0001_initial_schema
 Revises:
 Create Date: 2026-04-21
 
-Erste Alembic-Revision (Issue A6). Spielt das vollständige ``schema.sql``
-ein, das vor Einführung des Migrationsframeworks in
-``db.init_register_db()`` direkt per ``executescript`` geladen wurde.
-
-Alle Statements in ``schema.sql`` sind idempotent formuliert
-(``CREATE TABLE IF NOT EXISTS`` / ``CREATE INDEX IF NOT EXISTS`` /
-``INSERT OR IGNORE``). Damit lässt sich die Revision auch auf einer
-bereits befüllten Legacy-Datenbank (Stand vor Alembic) ausführen, ohne
-bestehende Daten zu beschädigen; ``init_register_db`` stampt in dem Fall
-zusätzlich die nachfolgenden Revisions, sodass die Legacy-Migrationen
-nicht mehrfach laufen.
-
-Die Statements werden einzeln über ``op.execute`` ausgeführt (statt
-``sqlite3.Connection.executescript``), damit Alembic die Migration und
-das Schreiben in ``alembic_version`` in einer gemeinsamen SA-Transaktion
-halten kann. ``executescript`` würde zwischendurch implizit committen
-und den SA-Transaktionsstatus zerreißen.
+Erste Alembic-Revision: spielt den in ``schema.sql`` definierten
+Zielzustand ein. Die Statements werden einzeln über
+``exec_driver_sql`` ausgeführt, damit Alembic die Migration und das
+Schreiben in ``alembic_version`` in einer gemeinsamen SA-Transaktion
+halten kann – ``sqlite3.Connection.executescript`` würde zwischendurch
+implizit committen und den Transaktionsstatus zerreißen.
 """
 
 from __future__ import annotations

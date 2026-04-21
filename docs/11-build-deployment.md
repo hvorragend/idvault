@@ -49,7 +49,7 @@ eigenständig lauffähig und benötigt keine lokale Python-Installation.
 `idvault.spec` steuert den Build-Prozess:
 
 - Einstiegspunkt: `run.py`
-- Zu bündelnde Ressourcen: `schema.sql`, `alembic.ini`, `alembic/` (Migrationen, Issue A6), `webapp/templates/`, `webapp/static/`, `version.json`, `scanner/`
+- Zu bündelnde Ressourcen: `schema.sql`, `alembic.ini`, `alembic/` (Migrationen), `webapp/templates/`, `webapp/static/`, `version.json`, `scanner/`
 - Zu bündelnde Bibliotheken: `flask`, `alembic`, `sqlalchemy`, `openpyxl`, `ldap3`, `cryptography`, `msal`, `requests`, ggf. `pywin32`
 - `debug=False` (keine Debug-Symbole in der EXE)
 

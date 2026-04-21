@@ -23,10 +23,10 @@ werkzeug_d,     werkzeug_b,     werkzeug_h     = collect_all('werkzeug')
 openpyxl_d,     openpyxl_b,     openpyxl_h     = collect_all('openpyxl')
 cryptography_d, cryptography_b, cryptography_h = collect_all('cryptography')
 ldap3_d,        ldap3_b,        ldap3_h        = collect_all('ldap3')
-# Alembic + SQLAlchemy: Migrations-Framework (Issue A6). collect_all zieht
-# die Mako-Template-Datei (script.py.mako) und die SQLAlchemy-Dialekte mit
-# ein – beides wird zur Laufzeit dynamisch geladen und sonst von
-# PyInstaller übersehen.
+# Alembic + SQLAlchemy: Migrations-Framework. collect_all zieht die
+# Mako-Template-Datei (script.py.mako) und die SQLAlchemy-Dialekte mit ein
+# – beides wird zur Laufzeit dynamisch geladen und sonst von PyInstaller
+# übersehen.
 alembic_d,      alembic_b,      alembic_h      = collect_all('alembic')
 sqlalchemy_d,   sqlalchemy_b,   sqlalchemy_h   = collect_all('sqlalchemy')
 
@@ -38,9 +38,9 @@ datas = [
     ('schema.sql', '.'),
     # Versionsinformationen
     ('version.json', '.'),
-    # Pflicht: Alembic-Konfiguration + Migrationen (Issue A6).
-    # init_register_db() startet "alembic upgrade head" beim App-Start;
-    # ohne diese Dateien schlägt der erste Lauf fehl.
+    # Pflicht: Alembic-Konfiguration + Migrationen. init_register_db()
+    # startet "alembic upgrade head" beim App-Start; ohne diese Dateien
+    # schlägt der erste Lauf fehl.
     ('alembic.ini',       '.'),
     ('alembic',           'alembic'),
     # Pflicht: alle Jinja2-Templates
