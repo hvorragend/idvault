@@ -45,8 +45,24 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
     conn.executescript(sql)
     conn.commit()
     _migrate_risikoklasse(conn)
+    _migrate_begruendung_pflicht(conn)
     _migrate_bearbeiter_name(conn)
     return conn
+
+
+def _migrate_begruendung_pflicht(conn: sqlite3.Connection) -> None:
+    """Setzt begruendung_pflicht=1 für die drei Standard-Wesentlichkeitskriterien."""
+    conn.execute("""
+        UPDATE wesentlichkeitskriterien
+        SET begruendung_pflicht = 1
+        WHERE begruendung_pflicht = 0
+          AND bezeichnung IN (
+            'Rechnungslegungs-Relevanz (GoB)',
+            'Risiko / Steuerungs-Relevanz im Sinne der MaRisk',
+            'Kritische oder wichtige Funktionen'
+          )
+    """)
+    conn.commit()
 
 
 def _migrate_bearbeiter_name(conn: sqlite3.Connection) -> None:
