@@ -14,7 +14,7 @@ import threading
 import time
 import zipfile
 from typing import Optional
-from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app, send_file
 from . import login_required, admin_required, write_access_required, get_db
 from ..security import in_clause
 from ..db_writer import get_writer
@@ -106,6 +106,7 @@ _SCANNER_CFG_KEYS = frozenset({
     "scan_paths", "extensions",
     "hash_size_limit_mb", "max_workers", "move_detection", "scan_since", "read_file_owner",
     "blacklist_paths", "whitelist_paths",
+    "parallel_shares",
 })
 
 
@@ -124,6 +125,7 @@ def _default_scanner_cfg() -> dict:
         "move_detection": "name_and_hash",
         "scan_since": None,
         "read_file_owner": True,
+        "parallel_shares": 1,
     }
 
 
@@ -1017,6 +1019,10 @@ def scanner_einstellungen():
             max_workers = max(1, min(32, int(request.form.get("max_workers", 4))))
         except ValueError:
             max_workers = 4
+        try:
+            parallel_shares = max(1, min(8, int(request.form.get("parallel_shares", 1))))
+        except ValueError:
+            parallel_shares = 1
 
         move_det         = request.form.get("move_detection", "name_and_hash")
         scan_since       = request.form.get("scan_since", "").strip() or None
@@ -1029,6 +1035,7 @@ def scanner_einstellungen():
             "whitelist_paths":   whitelist_paths,
             "hash_size_limit_mb": hash_limit,
             "max_workers":       max_workers,
+            "parallel_shares":   parallel_shares,
             "move_detection":    move_det,
             "scan_since":        scan_since,
             "read_file_owner":   read_file_owner,
@@ -1863,6 +1870,21 @@ def index():
         klassifizierungen=klassifizierungen,
         klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE,
         wesentlichkeitskriterien=wesentlichkeitskriterien)
+
+
+@bp.route("/export/excel")
+@admin_required
+def export_excel():
+    """Prüfer-Export: IDV-Register + Maßnahmen + Prüfungen + Nachweise als Excel."""
+    from ..excel_export import register_excel_bytes
+    payload = register_excel_bytes(get_db())
+    fname = f"idv-register-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+    return send_file(
+        io.BytesIO(payload),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=fname,
+    )
 
 
 @bp.route("/mitarbeiter")

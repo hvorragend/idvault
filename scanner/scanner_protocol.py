@@ -25,7 +25,14 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 from typing import Any
+
+# ``emit`` kann aus mehreren Worker-Threads aufgerufen werden (Share-Level-
+# Parallelisierung im Scanner). ``sys.stdout.write`` ist nicht atomar,
+# daher serialisieren wir Zeile + Flush mit einem Lock – so koennen
+# NDJSON-Zeilen nicht ineinanderlaufen.
+_EMIT_LOCK = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Op-Konstanten — muessen zwischen Scanner und Webapp-Handler uebereinstimmen.
@@ -51,5 +58,6 @@ def emit(op: str, **payload: Any) -> None:
     als erstes Feld geschrieben.
     """
     line = json.dumps({"op": op, **payload}, ensure_ascii=False, default=str)
-    sys.stdout.write(line + "\n")
-    sys.stdout.flush()
+    with _EMIT_LOCK:
+        sys.stdout.write(line + "\n")
+        sys.stdout.flush()

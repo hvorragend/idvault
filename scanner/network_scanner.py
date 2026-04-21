@@ -21,6 +21,8 @@ import argparse
 import json
 import traceback
 import ctypes
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple
@@ -105,6 +107,11 @@ DEFAULT_CONFIG = {
     "path_mappings": [],
     "hash_size_limit_mb": 500,   # Dateien > X MB werden nicht gehasht (Performance)
     "max_workers": 4,
+    # Parallelisierung auf Freigaben-/Top-Verzeichnis-Ebene. Wert 1 = seriell.
+    # Werte > 1 starten pro Top-Level-Unterverzeichnis einen Thread (mit
+    # eigener read-only SQLite-Connection). Sinnvoll bei mehreren langsamen
+    # Netzlaufwerken; lokal zumeist ohne Nutzen.
+    "parallel_shares": 1,
     # Dateibesitzer via Windows-API lesen (pywin32 erforderlich).
     # Auf Netzlaufwerken kann dies den Scan stark verlangsamen oder
     # mit einem KeyboardInterrupt abstürzen → bei Problemen auf false setzen.
@@ -875,16 +882,28 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                    stats: dict, signal_dir: Optional[str],
                    auto_ignore: bool = False,
                    discard_no_formula: bool = False,
-                   auto_classify_filename: bool = True) -> None:
+                   auto_classify_filename: bool = True,
+                   progress_lock: Optional[threading.Lock] = None) -> None:
     """Verarbeitet alle Dateien eines Generators, prüft alle 10 Dateien die Signale.
 
     auto_ignore:            Neue Excel-Dateien ohne Formeln/Makros sofort als 'Ignoriert' markieren.
     discard_no_formula:     Neue Excel-Dateien ohne Formeln/Makros komplett überspringen (nicht in DB).
     auto_classify_filename: Neue Dateien mit Präfix/Suffix 'AH' oder 'IDV' automatisch klassifizieren.
+    progress_lock:          Optionaler Lock, der ``stats``-Mutationen serialisiert, wenn
+                            mehrere Worker-Threads gleichzeitig Chunks verarbeiten.
     """
     # Signal-Check zu Beginn jedes Chunks (wichtig bei Verzeichnissen mit < 10 Dateien)
     _check_and_handle_signals(signal_dir, logger)
     file_counter = 0
+
+    # No-op-Kontext, wenn keine Parallelisierung aktiv ist – spart Lock-Overhead.
+    class _NullLock:
+        def __enter__(self):  # pragma: no cover — trivial
+            return self
+        def __exit__(self, *a):  # pragma: no cover — trivial
+            return False
+    lock = progress_lock if progress_lock is not None else _NullLock()
+
     for data in chunk_gen:
         current_path = data.get("full_path", "?")
         try:
@@ -899,13 +918,16 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                     "SELECT 1 FROM idv_files WHERE full_path = ?", (data["full_path"],)
                 ).fetchone()
                 if not exists:
-                    stats["discarded"] = stats.get("discarded", 0) + 1
+                    with lock:
+                        stats["discarded"] = stats.get("discarded", 0) + 1
                     logger.debug(f"Verworfen (kein Formel): {current_path}")
                     continue
 
             change = upsert_file(conn, data, scan_run_id, now, logger, move_mode)
-            stats["total"]  += 1
-            stats[change]   += 1
+            with lock:
+                stats["total"]  += 1
+                stats[change]   += 1
+                total_snapshot  = stats["total"]
             file_counter    += 1
 
             # ── Auto-Ignore: neue Excel-Dateien ohne Formeln sofort ignorieren ──
@@ -931,8 +953,8 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                 _check_and_handle_signals(signal_dir, logger)
                 _flush_log(logger)
 
-            if stats["total"] % 20 == 0:
-                logger.info(f"  … {stats['total']} Dateien verarbeitet")
+            if total_snapshot % 20 == 0:
+                logger.info(f"  … {total_snapshot} Dateien verarbeitet")
         except ScanCancelledError:
             raise
         except BaseException as e:
@@ -943,7 +965,8 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                 f"{traceback.format_exc()}"
             )
             _flush_log(logger)
-            stats["errors"] += 1
+            with lock:
+                stats["errors"] += 1
             # Bei echtem KeyboardInterrupt (Ctrl+C vom Benutzer) abbrechen;
             # bei Netzwerk-Signalen weiter scannen.
             if isinstance(e, KeyboardInterrupt):
@@ -1360,7 +1383,17 @@ def run_scan(config: dict, logger: logging.Logger,
         blacklist = config.get("blacklist_paths", [])
         whitelist = config.get("whitelist_paths", [])
 
-        for scan_path in scan_paths:
+        try:
+            parallel_shares = max(1, min(8, int(config.get("parallel_shares", 1))))
+        except (TypeError, ValueError):
+            parallel_shares = 1
+
+        # Lock serialisiert Zugriffe auf ``stats``, ``completed_dirs`` und
+        # ``write_checkpoint`` zwischen den Worker-Threads. ``emit`` bringt
+        # seinen eigenen Lock mit (scanner_protocol._EMIT_LOCK).
+        progress_lock = threading.Lock()
+
+        def _run_share(scan_path: str) -> None:
             accessible, err_msg = _check_path_accessible(scan_path, logger)
             if not accessible:
                 logger.warning(
@@ -1372,46 +1405,81 @@ def run_scan(config: dict, logger: logging.Logger,
                     "Freigabe vom Server aus aufgelöst werden kann (DNS, "
                     "Firewall, SMB-Version)."
                 )
-                stats["errors"] += 1
-                continue
+                with progress_lock:
+                    stats["errors"] += 1
+                return
 
-            logger.info(f"Scanne: {scan_path}")
+            # Jeder Worker-Thread braucht eine eigene SQLite-Connection —
+            # sqlite3.Connection ist nicht thread-safe. Lesemodus reicht
+            # (alle Schreibvorgaenge gehen via ``emit`` nach stdout).
+            local_conn = init_db(config["db_path"]) if parallel_shares > 1 else conn
+            try:
+                logger.info(f"Scanne: {scan_path}")
 
-            # Dateien direkt im Wurzelverzeichnis (kein Subdir-Abstieg)
-            root_chunk = f"__ROOT__{scan_path}"
-            if root_chunk not in completed_dirs:
-                _check_and_handle_signals(signal_dir, logger)
-                _process_chunk(
-                    walk_root_files(scan_path, config, scan_paths, logger, scan_since_ts),
-                    conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
-                    auto_ignore=runtime_auto_ignore,
-                    discard_no_formula=runtime_discard,
-                    auto_classify_filename=runtime_classify_filename,
-                )
-                completed_dirs.append(root_chunk)
-                if signal_dir:
-                    write_checkpoint(signal_dir, scan_run_id, scan_paths,
-                                     completed_dirs, stats)
+                # Dateien direkt im Wurzelverzeichnis (kein Subdir-Abstieg)
+                root_chunk = f"__ROOT__{scan_path}"
+                if root_chunk not in completed_dirs:
+                    _check_and_handle_signals(signal_dir, logger)
+                    _process_chunk(
+                        walk_root_files(scan_path, config, scan_paths, logger, scan_since_ts),
+                        local_conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
+                        auto_ignore=runtime_auto_ignore,
+                        discard_no_formula=runtime_discard,
+                        auto_classify_filename=runtime_classify_filename,
+                        progress_lock=progress_lock,
+                    )
+                    with progress_lock:
+                        completed_dirs.append(root_chunk)
+                        if signal_dir:
+                            write_checkpoint(signal_dir, scan_run_id, scan_paths,
+                                             completed_dirs, stats)
 
-            # Top-Level-Unterverzeichnisse als einzelne Checkpunkt-Einheiten
-            for subdir in _get_toplevel_dirs(scan_path, blacklist, whitelist):
-                if subdir in completed_dirs:
-                    logger.info(f"  Überspringe (bereits abgeschlossen): {subdir}")
-                    continue
+                # Top-Level-Unterverzeichnisse als einzelne Checkpunkt-Einheiten
+                for subdir in _get_toplevel_dirs(scan_path, blacklist, whitelist):
+                    if subdir in completed_dirs:
+                        logger.info(f"  Überspringe (bereits abgeschlossen): {subdir}")
+                        continue
 
-                _check_and_handle_signals(signal_dir, logger)
-                logger.info(f"  Unterverzeichnis: {subdir}")
-                _process_chunk(
-                    walk_and_scan(subdir, config, scan_paths, logger, scan_since_ts),
-                    conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
-                    auto_ignore=runtime_auto_ignore,
-                    discard_no_formula=runtime_discard,
-                    auto_classify_filename=runtime_classify_filename,
-                )
-                completed_dirs.append(subdir)
-                if signal_dir:
-                    write_checkpoint(signal_dir, scan_run_id, scan_paths,
-                                     completed_dirs, stats)
+                    _check_and_handle_signals(signal_dir, logger)
+                    logger.info(f"  Unterverzeichnis: {subdir}")
+                    _process_chunk(
+                        walk_and_scan(subdir, config, scan_paths, logger, scan_since_ts),
+                        local_conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
+                        auto_ignore=runtime_auto_ignore,
+                        discard_no_formula=runtime_discard,
+                        auto_classify_filename=runtime_classify_filename,
+                        progress_lock=progress_lock,
+                    )
+                    with progress_lock:
+                        completed_dirs.append(subdir)
+                        if signal_dir:
+                            write_checkpoint(signal_dir, scan_run_id, scan_paths,
+                                             completed_dirs, stats)
+            finally:
+                if parallel_shares > 1:
+                    try:
+                        local_conn.close()
+                    except Exception:
+                        pass
+
+        if parallel_shares > 1 and len(scan_paths) > 1:
+            workers = min(parallel_shares, len(scan_paths))
+            logger.info(f"Parallelisierung aktiv: {workers} Freigaben gleichzeitig")
+            cancel_exc: list = []
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="scan-share") as ex:
+                futures = [ex.submit(_run_share, sp) for sp in scan_paths]
+                for fut in as_completed(futures):
+                    exc = fut.exception()
+                    if exc is not None:
+                        if isinstance(exc, ScanCancelledError):
+                            cancel_exc.append(exc)
+                        else:
+                            raise exc
+            if cancel_exc:
+                raise cancel_exc[0]
+        else:
+            for scan_path in scan_paths:
+                _run_share(scan_path)
 
         # ── Erfolgreich abgeschlossen ──────────────────────────────────────
         deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, mapped_scan_paths)
