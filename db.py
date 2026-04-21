@@ -381,14 +381,22 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
 
     # Änderungsprotokoll aufbauen
     tracked_fields = [
-        "bezeichnung", "idv_typ", "entwicklungsart", "status",
-        "fachverantwortlicher_id", "gp_id",
-        "naechste_pruefung", "pruefintervall_monate",
-        "teststatus",
+        "bezeichnung", "version", "idv_typ", "entwicklungsart",
+        "fachverantwortlicher_id", "idv_entwickler_id", "idv_koordinator_id",
+        "stellvertreter_id", "org_unit_id", "gp_id",
+        "naechste_pruefung", "pruefintervall_monate", "teststatus",
+        "enthaelt_personendaten", "zugriffsschutz", "vier_augen_prinzip",
+        "plattform_id", "nutzungsfrequenz",
     ]
+
+    def _norm(v):
+        if v is None or v == "":
+            return None
+        return v
+
     changes = {}
     for f in tracked_fields:
-        if f in data and str(data[f]) != str(old[f]):
+        if f in data and _norm(data[f]) != _norm(old[f]):
             changes[f] = {"alt": old[f], "neu": data[f]}
 
     # Update ausführen

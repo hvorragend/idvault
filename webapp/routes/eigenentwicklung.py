@@ -431,11 +431,16 @@ def detail_idv(idv_db_id):
     """, (idv_db_id,)).fetchall()
 
     _FELD_LABELS = {
-        "bezeichnung": "Bezeichnung", "idv_typ": "Typ",
-        "entwicklungsart": "Art", "status": "Status",
+        "bezeichnung": "Bezeichnung", "version": "Version",
+        "idv_typ": "Typ", "entwicklungsart": "Art", "status": "Status",
         "fachverantwortlicher_id": "Fachverantwortlicher",
+        "idv_entwickler_id": "Entwickler", "idv_koordinator_id": "Koordinator",
+        "stellvertreter_id": "Stellvertreter", "org_unit_id": "Org.-Einheit",
         "gp_id": "Geschäftsprozess", "naechste_pruefung": "Nächste Prüfung",
         "pruefintervall_monate": "Prüfintervall", "teststatus": "Teststatus",
+        "enthaelt_personendaten": "Personendaten", "zugriffsschutz": "Zugriffsschutz",
+        "vier_augen_prinzip": "4-Augen-Prinzip", "plattform_id": "Plattform",
+        "nutzungsfrequenz": "Nutzungsfrequenz",
     }
     history = []
     for h in _raw_history:
