@@ -6,27 +6,27 @@
 {# Sortierung vor dem Rendern aus sessionStorage wiederherstellen. #}
 {% block extra_head %}
 <script>
-(function () {
-  var STORE_KEY = 'funde_eingang_sort';
-  var params    = new URLSearchParams(window.location.search);
-  if (params.has('sort')) {
-    try {
-      sessionStorage.setItem(STORE_KEY, JSON.stringify({
-        sort:     params.get('sort'),
-        per_page: params.get('per_page') || ''
-      }));
-    } catch (e) { /* ignore */ }
-    return;
-  }
-  try {
-    var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
-    if (saved && saved.sort) {
-      params.set('sort', saved.sort);
-      if (saved.per_page) params.set('per_page', saved.per_page);
-      window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+  (function () {
+    var STORE_KEY = 'funde_eingang_sort';
+    var params = new URLSearchParams(window.location.search);
+    if (params.has('sort')) {
+      try {
+        sessionStorage.setItem(STORE_KEY, JSON.stringify({
+          sort: params.get('sort'),
+          per_page: params.get('per_page') || ''
+        }));
+      } catch (e) { /* ignore */ }
+      return;
     }
-  } catch (e) { /* ignore */ }
-})();
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+      if (saved && saved.sort) {
+        params.set('sort', saved.sort);
+        if (saved.per_page) params.set('per_page', saved.per_page);
+        window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+      }
+    } catch (e) { /* ignore */ }
+  })();
 </script>
 {% endblock %}
 
@@ -59,7 +59,8 @@
   <div class="col-sm-3">
     <div class="card border-0 shadow-sm stat-card p-3 text-center">
       {% if gesamt_zu_bearbeiten > 0 %}
-      <div class="stat-val text-success">{{ ((gesamt_zu_bearbeiten - neu_gesamt) / gesamt_zu_bearbeiten * 100)|int }}%</div>
+      <div class="stat-val text-success">{{ ((gesamt_zu_bearbeiten - neu_gesamt) / gesamt_zu_bearbeiten * 100)|int }}%
+      </div>
       {% else %}
       <div class="stat-val text-success">–</div>
       {% endif %}
@@ -209,9 +210,8 @@
     <!-- Dateiname-Suche -->
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
-      <input type="text" name="q" value="{{ q_search }}"
-             class="form-control form-control-sm font-monospace"
-             placeholder="Dateiname …">
+      <input type="text" name="q" value="{{ q_search }}" class="form-control form-control-sm font-monospace"
+        placeholder="Dateiname …">
     </div>
     <!-- Speicherort – durchsuchbares Eingabefeld, volle Breite -->
     <div class="col-12">
@@ -224,8 +224,8 @@
       <select name="share_root" class="form-select form-select-sm" title="{{ share_root_filt }}">
         <option value="">– Alle –</option>
         {% for sr in share_roots %}
-        <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}
-                title="{{ sr }}">{% set sr_display = sr | map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
+        <option value="{{ sr }}" {{ 'selected' if share_root_filt==sr }} title="{{ sr }}">{% set sr_display = sr |
+          map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
         {% endfor %}
       </select>
     </div>
@@ -235,7 +235,7 @@
       <select name="scan_run" class="form-select form-select-sm">
         <option value="">– Alle Läufe –</option>
         {% for run in scan_runs %}
-        <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt == run.id|string }}>
+        <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt==run.id|string }}>
           {{ scan_run_label(run) }}
         </option>
         {% endfor %}
@@ -247,7 +247,7 @@
       <select name="owner" class="form-select form-select-sm">
         <option value="">– Alle –</option>
         {% for o in owner_list %}
-        <option value="{{ o }}" {{ 'selected' if owner_filt == o }}>{{ o }}</option>
+        <option value="{{ o }}" {{ 'selected' if owner_filt==o }}>{{ o }}</option>
         {% endfor %}
       </select>
     </div>
@@ -341,7 +341,8 @@
 </div>
 
 <!-- ── Pagination-Variablen (vor dem Formular) ─────────────────────── -->
-{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run': scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'date_to': date_to} %}
+{% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run':
+scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'date_to': date_to} %}
 {% set endpoint = 'funde.eingang_funde' %}
 {% include 'funde/_pagination.html' %}
 
@@ -367,37 +368,32 @@
         <i class="bi bi-eye-slash me-1"></i>Ignorieren
       </button>
       <button type="submit" name="aktion" value="nicht_mehr_ignorieren" id="btn-nicht-mehr-ignorieren"
-              class="btn btn-sm btn-outline-secondary"
-              title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
+        class="btn btn-sm btn-outline-secondary" title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
         <i class="bi bi-eye me-1"></i>Nicht mehr ignorieren
       </button>
       <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
         <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
       </button>
-      <button type="submit" name="aktion" value="nicht_wesentlich"
-              class="btn btn-sm btn-outline-secondary"
-              title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
+      <button type="submit" name="aktion" value="nicht_wesentlich" class="btn btn-sm btn-outline-secondary"
+        title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
         <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
       </button>
-      <button type="submit" name="aktion" value="zusammenfassen"
-              class="btn btn-sm btn-outline-primary"
-              title="Ausgewählte Dateien als Eigenentwicklungs-Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
-        <i class="bi bi-diagram-3 me-1"></i>Zu Eigenentwicklungs-Projekt zusammenfassen
+      <button type="submit" name="aktion" value="zusammenfassen" class="btn btn-sm btn-outline-primary"
+        title="Ausgewählte Dateien als Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu Projekt zusammenfassen
       </button>
       <button type="submit" name="aktion" value="bewertung_anfordern" class="btn btn-sm btn-outline-primary"
-              title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
+        title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
         <i class="bi bi-envelope me-1"></i>Bewertung anfordern
       </button>
-      <button type="button" class="btn btn-sm btn-outline-warning"
-              data-bs-toggle="modal" data-bs-target="#ownerModal"
-              title="Dateieigentümer für ausgewählte Dateien setzen">
+      <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#ownerModal"
+        title="Dateieigentümer für ausgewählte Dateien setzen">
         <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
       </button>
       {% if is_admin %}
-      <button type="submit" name="aktion" value="loeschen"
-              class="btn btn-sm btn-outline-danger"
-              data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
-              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Eigenentwicklungs-Verknüpfung)">
+      <button type="submit" name="aktion" value="loeschen" class="btn btn-sm btn-outline-danger"
+        data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Verknüpfung)">
         <i class="bi bi-trash me-1"></i>Löschen
       </button>
       {% endif %}
@@ -450,7 +446,7 @@
             <!-- Checkbox -->
             <td class="text-center align-middle">
               <input type="checkbox" name="file_ids" value="{{ f.id }}" class="form-check-input row-check"
-                     data-bearbeitungsstatus="{{ f.bearbeitungsstatus or 'Neu' }}">
+                data-bearbeitungsstatus="{{ f.bearbeitungsstatus or 'Neu' }}">
             </td>
 
             <!-- Dateiname + Hash -->
@@ -488,12 +484,12 @@
               {% if f.dir_path %}
               {% set crumbs = f.dir_path | path_breadcrumbs %}
               {% if crumbs %}
-                {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.eingang_funde',
-                                   extra={'sort': sort, 'per_page': per_page,
-                                          'share_root': share_root_filt,
-                                          'scan_run': scan_run_id_filt}) }}
+              {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.eingang_funde',
+              extra={'sort': sort, 'per_page': per_page,
+              'share_root': share_root_filt,
+              'scan_run': scan_run_id_filt}) }}
               {% else %}
-                {{ dir_fallback(f.dir_path) }}
+              {{ dir_fallback(f.dir_path) }}
               {% endif %}
               {% endif %}
             </td>
@@ -513,7 +509,7 @@
 
             <!-- Eigentümer -->
             <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
+              title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
               {{ f.file_owner or f.office_author or '–' }}
             </td>
 

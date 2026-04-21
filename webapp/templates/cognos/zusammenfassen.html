@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Berichte zu Eigenentwicklungs-Projekt zusammenfassen{% endblock %}
+{% block title %}Berichte zu Projekt zusammenfassen{% endblock %}
 {% block page_title %}
-  <i class="bi bi-diagram-3 me-2"></i>Berichte zu Eigenentwicklungs-Projekt zusammenfassen
+<i class="bi bi-diagram-3 me-2"></i>Berichte zu Projekt zusammenfassen
 {% endblock %}
 
 {% block content %}
@@ -61,10 +61,8 @@
             </label>
             {% for b in berichte %}
             <div class="form-check">
-              <input class="form-check-input" type="radio"
-                     name="primary_bericht_id" value="{{ b.id }}"
-                     id="prim-{{ b.id }}"
-                     {{ 'checked' if loop.first }}>
+              <input class="form-check-input" type="radio" name="primary_bericht_id" value="{{ b.id }}"
+                id="prim-{{ b.id }}" {{ 'checked' if loop.first }}>
               <label class="form-check-label" for="prim-{{ b.id }}">
                 <span class="fw-500">{{ b.berichtsname }}</span>
                 {% if b.suchpfad %}
