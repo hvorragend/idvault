@@ -353,8 +353,13 @@ def create_idv(conn: sqlite3.Connection, data: dict,
 
 
 def update_idv(conn: sqlite3.Connection, idv_db_id: int,
-               data: dict, geaendert_von_id: Optional[int] = None) -> bool:
-    """Aktualisiert einen IDV-Eintrag und schreibt die Änderungen in die History."""
+               data: dict, geaendert_von_id: Optional[int] = None,
+               commit: bool = True) -> bool:
+    """Aktualisiert einen IDV-Eintrag und schreibt die Änderungen in die History.
+
+    commit=False erlaubt es, mehrere Writes in eine umschliessende
+    write_tx-Transaktion einzubetten (z. B. update_idv +
+    save_idv_wesentlichkeit)."""
     now = datetime.now(timezone.utc).isoformat()
 
     old = conn.execute(
@@ -398,7 +403,8 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
     update_fields["aktualisiert_am"] = now
 
     set_clause = ", ".join(f"{k} = :{k}" for k in update_fields)
-    with write_tx(conn):
+
+    def _body():
         conn.execute(
             f"UPDATE idv_register SET {set_clause} WHERE id = :__id",
             {**update_fields, "__id": idv_db_id}
@@ -409,6 +415,12 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
                 INSERT INTO idv_history (idv_id, aktion, geaenderte_felder, durchgefuehrt_von_id)
                 VALUES (?, 'geaendert', ?, ?)
             """, (idv_db_id, json.dumps(changes, ensure_ascii=False), geaendert_von_id))
+
+    if commit:
+        with write_tx(conn):
+            _body()
+    else:
+        _body()
     return True
 
 
