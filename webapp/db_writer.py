@@ -180,9 +180,11 @@ class DbWriter:
                 if "locked" in msg or "busy" in msg:
                     self.retries += 1
                 self.rollbacks += 1
+                log.error("db_writer: OperationalError beim Schreiben: %s", exc)
                 job.future.set_exception(exc)
             except BaseException as exc:
                 self.rollbacks += 1
+                log.error("db_writer: Fehler beim Schreiben: %s", exc, exc_info=True)
                 job.future.set_exception(exc)
             else:
                 self.jobs_processed += 1
