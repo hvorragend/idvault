@@ -108,17 +108,13 @@
     <div class="form-section">
       <div class="form-section-title">Stammdaten</div>
       <div class="row g-3">
-        <div class="col-sm-6">
-          <div class="detail-label">ID</div>
-          <div class="detail-value font-monospace">{{ idv.idv_id }}</div>
-        </div>
-        <div class="col-sm-6">
-          <div class="detail-label">Version</div>
-          <div class="detail-value">{{ idv.version }}</div>
-        </div>
-        <div class="col-12">
+        <div class="col-sm-8">
           <div class="detail-label">Bezeichnung</div>
           <div class="detail-value">{{ idv.bezeichnung }}</div>
+        </div>
+        <div class="col-sm-4">
+          <div class="detail-label">Version</div>
+          <div class="detail-value">{{ idv.version }}</div>
         </div>
         <div class="col-12">
           <div class="detail-label">Kurzbeschreibung</div>
@@ -131,6 +127,9 @@
         <div class="col-sm-6">
           <div class="detail-label">Produktiv seit</div>
           <div class="detail-value">{{ idv.produktiv_seit|datefmt }}</div>
+        </div>
+        <div class="col-12">
+          <span class="text-muted font-monospace" style="font-size:.72rem">{{ idv.idv_id }}</span>
         </div>
       </div>
     </div>
