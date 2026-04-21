@@ -762,6 +762,193 @@ def delete_technischer_test(conn: sqlite3.Connection, idv_db_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scanner-Protokoll-Handler
+# ---------------------------------------------------------------------------
+# Werden von der Webapp aufgerufen, wenn sie eine NDJSON-Zeile des
+# Scanner-Subprozesses ueber den stdout-Reader empfangen hat. Alle
+# Handler laufen innerhalb des Webapp-Writer-Threads; sie kapseln
+# jeweils genau eine atomare Transaktion (write_tx) und erwarten als
+# Eingabe ein dict mit den Protokollfeldern.
+
+_IDV_FILES_COLUMNS = (
+    "file_hash", "full_path", "file_name", "extension", "share_root",
+    "relative_path", "size_bytes", "created_at", "modified_at", "file_owner",
+    "office_author", "office_last_author", "office_created", "office_modified",
+    "has_macros", "has_external_links", "sheet_count", "named_ranges_count",
+    "formula_count",
+    "has_sheet_protection", "protected_sheets_count",
+    "sheet_protection_has_pw", "workbook_protected",
+    "ist_cognos_report", "cognos_report_name", "cognos_paket_pfad",
+    "cognos_abfragen_anzahl", "cognos_datenpunkte_anzahl", "cognos_filter_anzahl",
+    "cognos_seiten_anzahl", "cognos_parameter_anzahl", "cognos_namespace_version",
+)
+
+
+def apply_scan_run_start(conn: sqlite3.Connection, payload: dict) -> None:
+    """Legt einen scan_runs-Eintrag an oder markiert ihn bei Resume als laufend.
+
+    Erwartete Felder:
+      * ``scan_run_id`` (erforderlich) – vom Webapp vorbelegter/gelesener Primaerschluessel
+      * ``resume`` (bool) – True: UPDATE status='running', False: INSERT
+      * ``started_at``, ``scan_paths`` – nur bei Neuanlage
+    """
+    with write_tx(conn):
+        if payload.get("resume"):
+            conn.execute(
+                "UPDATE scan_runs SET scan_status='running' WHERE id=?",
+                (payload["scan_run_id"],),
+            )
+        else:
+            scan_paths = payload.get("scan_paths")
+            if not isinstance(scan_paths, str):
+                scan_paths = json.dumps(scan_paths or [], ensure_ascii=False)
+            conn.execute(
+                "INSERT INTO scan_runs (id, started_at, scan_paths, scan_status) "
+                "VALUES (?, ?, ?, 'running')",
+                (payload["scan_run_id"], payload["started_at"], scan_paths),
+            )
+
+
+def apply_scan_run_end(conn: sqlite3.Connection, payload: dict) -> None:
+    """Schliesst den scan_runs-Eintrag ab (Status + Statistik).
+
+    Erwartete Felder: ``scan_run_id``, ``finished_at``, ``status`` ('completed'|
+    'cancelled'|'crashed'|'killed'), ``total``, ``new``, ``changed``, ``moved``,
+    ``restored``, ``archived``, ``errors``.
+    """
+    with write_tx(conn):
+        conn.execute(
+            """
+            UPDATE scan_runs SET
+                finished_at = ?, total_files = ?, new_files = ?,
+                changed_files = ?, moved_files = ?, restored_files = ?,
+                archived_files = ?, errors = ?, scan_status = ?
+            WHERE id = ?
+            """,
+            (
+                payload["finished_at"],
+                payload.get("total", 0),
+                payload.get("new", 0),
+                payload.get("changed", 0),
+                payload.get("moved", 0),
+                payload.get("restored", 0),
+                payload.get("archived", 0),
+                payload.get("errors", 0),
+                payload.get("status", "completed"),
+                payload["scan_run_id"],
+            ),
+        )
+
+
+def apply_scanner_upsert_file(conn: sqlite3.Connection, payload: dict) -> None:
+    """Spielt ein vom Scanner ermitteltes Ergebnis (new/changed/moved/restored/
+    unchanged) atomar in ``idv_files`` + ``idv_file_history`` ein.
+
+    Erwartete Felder:
+      * ``action`` – 'insert' | 'update' | 'move'
+      * ``scan_run_id``, ``now`` – Kontext des laufenden Scans
+      * ``change_type`` – Text fuer History (new/changed/unchanged/moved/restored)
+      * ``data`` – dict mit allen idv_files-Spalten (siehe ``_IDV_FILES_COLUMNS``)
+      * ``file_id`` – bei update/move: die bestehende idv_files.id
+      * ``old_hash`` – bei update/move fuer History
+      * ``details`` – optional, JSON-String fuer History.details
+    """
+    action      = payload["action"]
+    data        = payload["data"]
+    scan_run_id = payload["scan_run_id"]
+    now         = payload["now"]
+    change_type = payload.get("change_type") or action
+    details     = payload.get("details")
+
+    with write_tx(conn):
+        if action == "insert":
+            insert_data = {
+                **{col: data.get(col) for col in _IDV_FILES_COLUMNS},
+                "first_seen_at":    now,
+                "last_seen_at":     now,
+                "last_scan_run_id": scan_run_id,
+            }
+            cols = ", ".join(insert_data.keys()) + ", status"
+            placeholders = ", ".join(f":{k}" for k in insert_data.keys()) + ", 'active'"
+            cur = conn.execute(
+                f"INSERT INTO idv_files ({cols}) VALUES ({placeholders})",
+                insert_data,
+            )
+            file_id = cur.lastrowid
+            conn.execute(
+                "INSERT INTO idv_file_history (file_id, scan_run_id, change_type, "
+                "new_hash, changed_at) VALUES (?, ?, 'new', ?, ?)",
+                (file_id, scan_run_id, data.get("file_hash"), now),
+            )
+
+        elif action == "move":
+            file_id = payload["file_id"]
+            conn.execute(
+                """
+                UPDATE idv_files SET
+                    full_path = :full_path, share_root = :share_root,
+                    relative_path = :relative_path,
+                    last_seen_at = :now, last_scan_run_id = :run_id
+                WHERE id = :id
+                """,
+                {
+                    "full_path":     data["full_path"],
+                    "share_root":    data.get("share_root"),
+                    "relative_path": data.get("relative_path"),
+                    "now":           now,
+                    "run_id":        scan_run_id,
+                    "id":            file_id,
+                },
+            )
+            conn.execute(
+                "INSERT INTO idv_file_history (file_id, scan_run_id, change_type, "
+                "old_hash, new_hash, changed_at, details) VALUES (?, ?, 'moved', ?, ?, ?, ?)",
+                (file_id, scan_run_id, data.get("file_hash"), data.get("file_hash"),
+                 now, details),
+            )
+
+        else:  # update (changed / unchanged / restored)
+            file_id = payload["file_id"]
+            update_data = {col: data.get(col) for col in _IDV_FILES_COLUMNS}
+            update_data.update({"now": now, "run_id": scan_run_id, "id": file_id})
+            set_sql = ", ".join(f"{col} = :{col}" for col in _IDV_FILES_COLUMNS)
+            conn.execute(
+                f"UPDATE idv_files SET {set_sql}, "
+                "last_seen_at = :now, last_scan_run_id = :run_id, status = 'active' "
+                "WHERE id = :id",
+                update_data,
+            )
+            conn.execute(
+                "INSERT INTO idv_file_history (file_id, scan_run_id, change_type, "
+                "old_hash, new_hash, changed_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (file_id, scan_run_id, change_type,
+                 payload.get("old_hash"), data.get("file_hash"), now),
+            )
+
+
+def apply_scanner_history(conn: sqlite3.Connection, payload: dict) -> None:
+    """Standalone-History-Eintrag (z. B. 'archiviert' fuer einzelne Dateien).
+
+    Erwartete Felder: ``file_id``, ``scan_run_id``, ``change_type``,
+    ``changed_at``; optional ``old_hash``, ``new_hash``, ``details``.
+    """
+    with write_tx(conn):
+        conn.execute(
+            "INSERT INTO idv_file_history (file_id, scan_run_id, change_type, "
+            "old_hash, new_hash, changed_at, details) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                payload["file_id"],
+                payload["scan_run_id"],
+                payload["change_type"],
+                payload.get("old_hash"),
+                payload.get("new_hash"),
+                payload["changed_at"],
+                payload.get("details"),
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
