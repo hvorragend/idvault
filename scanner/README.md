@@ -41,7 +41,7 @@ python network_scanner.py --config config.json
 | `db_path` | String | `"idv_register.db"` | Pfad zur SQLite-Datenbank |
 | `log_path` | String | `"network_scanner.log"` | Pfad zur Logdatei |
 | `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |
-| `max_workers` | Integer | `4` | Reserviert (zukünftige Parallelisierung) |
+| `max_workers` | Integer | `4` | Derzeit ohne Wirkung – der Scanner läuft single-threaded. Der Parameter ist für eine künftige Parallelisierung reserviert. |
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (s.u.) |
 | `scan_since` | String\|null | `null` | Startdatum im Format `"YYYY-MM-DD"`. Nur Dateien, deren Änderungsdatum ≥ diesem Datum liegt, werden verarbeitet. `null` = alle Dateien. |
 | `read_file_owner` | Boolean | `true` | Dateibesitzer über die Windows-API (`pywin32`) auslesen. Auf Netzlaufwerken kann dieser API-Aufruf den Scan stark verlangsamen oder mit einem Fehler abbrechen — in dem Fall auf `false` setzen. |
@@ -111,6 +111,33 @@ konfigurierten Datum. Ist die Datei älter, wird sie in diesem Scan ignoriert.
 Datum des ersten Fundes in der Datenbank. Eine Datei, die schon länger existiert
 aber nie geändert wurde, wird bei `scan_since` übersprungen, auch wenn sie noch
 nie gescannt wurde.
+
+---
+
+### Ressourcenverbrauch (CPU / RAM) eingrenzen
+
+Der Scanner läuft single-threaded; hohe CPU- oder RAM-Last in einem Lauf
+weisen typischerweise auf blockierende Netzwerk-API-Aufrufe oder auf
+speicherlastige Analysen hin. Die wichtigsten Stellschrauben:
+
+| Symptom | Hebel | Wirkung |
+|---|---|---|
+| CPU durchgehend bei ~100 %, Scan hängt an Netzwerk-Shares | `"read_file_owner": false` | Entfernt den blockierenden Windows-API-Aufruf für Datei-Eigentümer |
+| Hoher RAM-Peak bei einzelnen Office-Dateien | `blacklist_paths` um Pfade mit sehr großen Excel-/PowerPoint-Dateien ergänzen | Die OOXML-Analyse (Makros, Formeln, Blattschutz) liest pro Tabellenblatt den vollständigen XML-Inhalt in den Speicher — bei Dateien mit dutzenden großen Blättern summiert sich das. Die OOXML-Analyse greift unabhängig von `hash_size_limit_mb`. |
+| RAM wächst bei sehr flachen Verzeichnissen (100 000+ Einträgen auf einer Ebene) | In Teilscans zerlegen (s.o.) oder `blacklist_paths` präzisieren | Verzeichnislistings werden je Ebene vollständig ins RAM gezogen; kleinere Teilbäume halten den Peak klein. |
+| Hoher CPU-Anteil durch SHA-256 auf riesige Dateien | `"hash_size_limit_mb": 100` (oder kleiner) | Dateien über dem Limit erhalten `HASH_ERROR` und werden nicht gehasht. |
+| Viele Neuzugänge, Scan wirkt DB-gebunden | `"move_detection": "disabled"` | Spart 1–2 DB-Queries pro Neuzugang. Nur verwenden, wenn Move-Tracking fachlich nicht gebraucht wird — verschobene Dateien werden sonst als „archiviert + neu" behandelt. |
+| Vollscan dauert grundsätzlich zu lange | `"scan_since": "YYYY-MM-DD"` | Nur seit dem Stichtag geänderte Dateien werden verarbeitet. |
+
+**Reihenfolge bei akuten Problemen**: zuerst `read_file_owner: false`
+setzen und die Wirkung messen, dann weitere Hebel einzeln aktivieren.
+
+**Zur Diagnose auf dem Server** helfen:
+- `tasklist /V | findstr idvault` bzw. Taskmanager → Details → Spalte
+  „Befehlszeile" zeigt den Scanner-Subprozess (Argument `--scan`).
+- Die Log-Datei (`log_path`, Standard `network_scanner.log`) auf Einträge
+  wie „Hash-Berechnung unterbrochen" oder „Verzeichnis-Listing
+  unterbrochen" prüfen — typische Hinweise auf Netzwerk-Blockaden.
 
 ---
 

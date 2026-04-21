@@ -54,7 +54,7 @@ Die Scanner-Einstellungen liegen im `"scanner"`-Abschnitt der gemeinsamen
 | `db_path` | String | `"instance/idvault.db"` | Pfad zur SQLite-Datenbank |
 | `log_path` | String | `"scanner/network_scanner.log"` | Pfad zur Logdatei |
 | `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |
-| `max_workers` | Integer | `4` | Reserviert (zukünftige Parallelisierung) |
+| `max_workers` | Integer | `4` | Derzeit ohne Wirkung – Scanner läuft single-threaded (für künftige Parallelisierung reserviert) |
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung |
 | `scan_since` | String\|null | `null` | Nur Dateien mit mtime ≥ diesem Datum verarbeiten |
 | `read_file_owner` | Boolean | `true` | Dateibesitzer via Windows-API lesen |
@@ -290,7 +290,36 @@ und setzt bei jedem Scan genau dort auf.
 - Empfehlung: Scanner zeitlich außerhalb der Geschäftszeiten betreiben
 - Bei WAN-Verbindungen: `scan_since` zur Reduzierung nutzen
 
-### 4.4 Überwachung
+### 4.4 Ressourcenverbrauch (CPU / RAM) eingrenzen
+
+Der Scanner ist aktuell single-threaded. Tritt auf dem Server hohe
+CPU- oder RAM-Last auf, sind typische Ursachen blockierende
+Netzwerk-API-Aufrufe oder speicherlastige Dateianalysen. Empfohlene
+Stellschrauben — einzeln setzen und Wirkung messen:
+
+| Symptom | Hebel | Wirkung |
+|---|---|---|
+| CPU dauerhaft bei ~100 %, Scan hängt auf Netzlaufwerken | `"read_file_owner": false` | Entfernt den blockierenden `GetFileSecurity`-Aufruf je Datei. Primärer Hebel. |
+| Hohe RAM-Peaks bei großen Office-Dateien | `blacklist_paths` um die entsprechenden Pfade ergänzen | Die OOXML-Analyse liest pro Tabellenblatt den vollständigen XML-Inhalt (Makros, Formeln, Blattschutz); sie greift unabhängig von `hash_size_limit_mb`. |
+| RAM wächst auf flachen Verzeichnissen (100 000+ Einträge je Ebene) | In Teilscans zerlegen (siehe 2.11) | Verzeichnislistings werden je Ebene vollständig ins RAM geladen. |
+| SHA-256 auf sehr großen Dateien lastet die CPU aus | `"hash_size_limit_mb": 100` (oder kleiner) | Dateien über dem Limit erhalten `HASH_ERROR`; Änderungsstatus basiert dann nur auf mtime. |
+| Scan wirkt DB-gebunden, viele Neuzugänge | `"move_detection": "disabled"` | Spart 1–2 DB-Queries je Neuzugang; verschobene Dateien werden jedoch als „archiviert + neu" behandelt. |
+| Vollscan grundsätzlich zu lang | `"scan_since": "YYYY-MM-DD"` | Nur seit Stichtag geänderte Dateien werden verarbeitet. |
+
+**Reihenfolge**: Bei akuten Ressourcenspitzen zuerst
+`read_file_owner: false` setzen — das adressiert den häufigsten Fall
+(blockierende Win32-API auf SMB-Shares). Weitere Hebel nur bei Bedarf
+hinzunehmen, um die Wirkung klar zuordnen zu können.
+
+**Diagnose auf dem Server**:
+- Den Scanner-Subprozess im Taskmanager über die Spalte „Befehlszeile"
+  identifizieren — er wird mit dem Argument `--scan` gestartet
+  (Details-Tab → Spalte „Befehlszeile" einblenden).
+- Die Scanner-Logdatei (`log_path`) auf Einträge wie
+  „Hash-Berechnung unterbrochen" oder „Verzeichnis-Listing
+  unterbrochen" prüfen; beide weisen auf Netzwerk-Blockaden hin.
+
+### 4.5 Überwachung
 
 - `scan_runs`-Tabelle anzeigen: Admin → Scanner → Scan-Läufe
 - Log-Datei `network_scanner.log` prüfen
