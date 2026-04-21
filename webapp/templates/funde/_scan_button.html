@@ -98,6 +98,8 @@
     var wrap = document.getElementById("scan-ctrl-wrap");
     if (!wrap) return;
     var noPath = {{ 'true' if not has_scan_paths else 'false' }};
+    var msg = document.getElementById("scan-inline-msg");
+    if (msg) { msg.style.display = "none"; msg.textContent = ""; }
 
     if (d.running && !d.paused) {
       wrap.innerHTML =

@@ -13,7 +13,7 @@
         {% for p in pruefungen %}
         <tr>
           <td>{{ p.pruefungsdatum|datefmt }}</td>
-          <td><a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=p.idv_id) }}">{{ p.idv_id }}</a> {{ p.idv_bezeichnung|truncate(30) }}</td>
+          <td><a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=p.idv_id) }}" class="text-decoration-none fw-500">{{ p.idv_bezeichnung|truncate(40) }}</a></td>
           <td>{{ p.pruefungsart }}</td>
           <td><span class="badge {{ 'bg-success' if p.ergebnis == 'Ohne Befund' else 'bg-warning text-dark' if p.ergebnis == 'Mit Befund' else 'bg-danger' }}">{{ p.ergebnis }}</span></td>
           <td>{{ p.pruefer or '–' }}</td>

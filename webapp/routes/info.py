@@ -2,7 +2,7 @@
 Info / Hilfe – statische Erläuterungsseiten.
 
 Enthält aktuell ausschließlich das Glossar zur regulatorischen
-Begriffsabgrenzung (MaRisk AT 7.2, BAIT, DORA) zwischen
+Begriffsabgrenzung (MaRisk AT 7.2, DORA) zwischen
 Anwendungsentwicklung, Eigen- und Auftragsprogrammierung, IDV und
 Arbeitshilfe.
 """

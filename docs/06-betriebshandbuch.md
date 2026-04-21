@@ -140,6 +140,7 @@ Beispiel (`config.json.example` enthält die vollständige Vorlage):
   "IDV_DB_PATH": "instance/idvault.db",
   "IDV_INSTANCE_PATH": "instance",
   "IDV_SERVICE_NAME": "",
+  "IDV_DEMO_DATA": false,
   "IDV_LOCAL_USERS": [ { "username": "admin", "password": "bitte-aendern", "role": "IDV-Administrator" } ]
 }
 ```
@@ -155,7 +156,9 @@ Seit der Konsolidierung gilt: **eine Quelle pro Einstellung.**
 - **`config.json` – Bootstrap (eine Datei, keine Umgebungsvariablen):**
   `SECRET_KEY`, `PORT`, `DEBUG`, `IDV_HTTPS`, `IDV_SSL_CERT`, `IDV_SSL_KEY`,
   `IDV_SSL_AUTOGEN`, `IDV_DB_PATH`, `IDV_INSTANCE_PATH`,
-  `IDV_LOCAL_USERS` (lokale Fallback-User) sowie `IDV_SERVICE_NAME`.
+  `IDV_LOCAL_USERS` (lokale Fallback-User), `IDV_SERVICE_NAME` sowie
+  `IDV_DEMO_DATA` (einmaliges Einspielen von Demo-Stammdaten beim Erststart,
+  Standard: `false`).
 - **SQLite `app_settings`:** SMTP (verschlüsselt), Rate-Limits
   (`login_rate_limit`, `upload_rate_limit`), Pfad-Mappings
   (`path_mappings`), Scanner-Konfiguration (`scanner_config`),
