@@ -299,7 +299,6 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "datenbankanbindung":        int(data.get("datenbankanbindung", 0)),
         "datenbankanbindung_beschr": data.get("datenbankanbindung_beschr"),
         "netzwerkzugriff":           int(data.get("netzwerkzugriff", 0)),
-        "enthaelt_personendaten":    int(data.get("enthaelt_personendaten", 0)),
         "datenschutz_kategorie":     data.get("datenschutz_kategorie", "keine"),
         "nutzungsfrequenz":          data.get("nutzungsfrequenz"),
         "nutzeranzahl":              data.get("nutzeranzahl"),
@@ -308,9 +307,9 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         "dokumentation_pfad":        data.get("dokumentation_pfad"),
         "testkonzept_vorhanden":     int(data.get("testkonzept_vorhanden", 0)),
         "versionskontrolle":         int(data.get("versionskontrolle", 0)),
-        "zugriffsschutz":            int(data.get("zugriffsschutz", 0)),
-        "zugriffsschutz_beschr":     data.get("zugriffsschutz_beschr"),
-        "vier_augen_prinzip":        int(data.get("vier_augen_prinzip", 0)),
+        "anwenderdokumentation":     int(data.get("anwenderdokumentation", 0)),
+        "datenschutz_beachtet":      int(data.get("datenschutz_beachtet", 0)),
+        "zellschutz_formeln":        int(data.get("zellschutz_formeln", 0)),
         "abloesung_geplant":         int(data.get("abloesung_geplant", 0)),
         "abloesung_zieldatum":       data.get("abloesung_zieldatum"),
         "abloesung_durch":           data.get("abloesung_durch"),
@@ -385,7 +384,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
         "fachverantwortlicher_id", "idv_entwickler_id", "idv_koordinator_id",
         "stellvertreter_id", "org_unit_id", "gp_id",
         "naechste_pruefung", "pruefintervall_monate", "teststatus",
-        "enthaelt_personendaten", "zugriffsschutz", "vier_augen_prinzip",
+        "anwenderdokumentation", "datenschutz_beachtet", "zellschutz_formeln",
         "plattform_id", "nutzungsfrequenz",
     ]
 
@@ -408,11 +407,11 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
         "idv_koordinator_id", "stellvertreter_id",
         "plattform_id", "programmiersprache", "datenbankanbindung",
         "datenbankanbindung_beschr", "netzwerkzugriff",
-        "enthaelt_personendaten", "datenschutz_kategorie",
+        "datenschutz_kategorie",
         "nutzungsfrequenz", "nutzeranzahl", "produktiv_seit",
         "dokumentation_vorhanden", "dokumentation_pfad",
         "testkonzept_vorhanden", "versionskontrolle",
-        "zugriffsschutz", "zugriffsschutz_beschr", "vier_augen_prinzip",
+        "anwenderdokumentation", "datenschutz_beachtet", "zellschutz_formeln",
         "abloesung_geplant", "abloesung_zieldatum", "abloesung_durch",
         "pruefintervall_monate", "naechste_pruefung", "interne_notizen", "tags",
         "erstellt_fuer", "schnittstellen_beschr",
@@ -653,8 +652,9 @@ def insert_demo_data(conn: sqlite3.Connection):
     #   idv_id, bezeichnung, kurzbeschreibung, idv_typ, entwicklungsart,
     #   status, pruefintervall_monate, letzte_pruefung, naechste_pruefung,
     #   produktiv_seit, nutzungsfrequenz, nutzeranzahl,
-    #   dokumentation_vorhanden, testkonzept_vorhanden, vier_augen_prinzip,
-    #   enthaelt_personendaten, datenschutz_kategorie,
+    #   dokumentation_vorhanden, testkonzept_vorhanden,
+    #   anwenderdokumentation, datenschutz_beachtet, zellschutz_formeln,
+    #   datenschutz_kategorie,
     #   gp_nummer, org_unit, fachv_kuerzel, entw_kuerzel, koord_kuerzel,
     #   plattform_bezeichnung
     idv_rows = [
@@ -662,56 +662,56 @@ def insert_demo_data(conn: sqlite3.Connection):
          "Monatliche GuV-Berechnung mit VBA-Makro – rechnungslegungsrelevant.",
          "Excel-Makro", "idv", "Genehmigt", 12,
          "2025-10-15", "2026-10-15", "2022-03-01",
-         "monatlich", 5, 1, 1, 1, 0, "keine",
+         "monatlich", 5, 1, 1, 0, 0, 0, "keine",
          "GP-BWK-001", "Betriebswirtschaft/Controlling", "FV-BWK", "IDV-ENT", "IDV-KO",
          "Microsoft Excel"),
         ("IDV-2024-002", "Sicherheiten-Bewertung Access-DB",
          "Access-Datenbank zur Bewertung von Kreditsicherheiten.",
          "Access-Datenbank", "idv", "Genehmigt", 12,
          "2025-11-20", "2026-11-20", "2023-06-01",
-         "wöchentlich", 8, 1, 1, 1, 1, "allgemein",
+         "wöchentlich", 8, 1, 1, 0, 0, 0, "allgemein",
          "GP-KRE-002", "Kreditabteilung", "FV-KRE", "IDV-ENT", "IDV-KO",
          "Microsoft Access"),
         ("IDV-2024-003", "Reporting-Arbeitshilfe Vorstand",
          "Excel-Arbeitshilfe zur Aufbereitung der Monatsberichte für den Vorstand.",
          "Excel-Tabelle", "arbeitshilfe", "Entwurf", 24,
          None, "2027-04-01", "2024-02-01",
-         "monatlich", 3, 0, 0, 0, 0, "keine",
+         "monatlich", 3, 0, 0, 0, 0, 0, "keine",
          "GP-BWK-002", "Betriebswirtschaft/Controlling", "FV-BWK", "FV-BWK", "IDV-KO",
          "Microsoft Excel"),
         ("IDV-2024-004", "EBA COREP Datenlieferung",
          "Python-Skript zur Aufbereitung der COREP-Meldedaten an die Bundesbank.",
          "Python-Skript", "idv", "Genehmigt", 6,
          "2025-12-05", "2026-06-05", "2024-01-15",
-         "quartalsweise", 2, 1, 1, 1, 0, "keine",
+         "quartalsweise", 2, 1, 1, 0, 0, 0, "keine",
          "GP-MEL-001", "Meldewesen", "FV-MEL", "IDV-ENT", "IDV-KO",
          "Python 3.11"),
         ("IDV-2025-001", "FINREP-Meldewesen",
          "Zentrales Python-Framework für FINREP-Meldungen, IT-Entwicklung.",
          "Python-Skript", "eigenprogrammierung", "In Prüfung", 12,
          None, "2026-07-01", "2025-02-10",
-         "quartalsweise", 4, 1, 1, 0, 0, "keine",
+         "quartalsweise", 4, 1, 1, 0, 0, 0, "keine",
          "GP-MEL-002", "Meldewesen", "FV-MEL", "IDV-ENT", "IDV-KO",
          "Python 3.11"),
         ("IDV-2025-002", "Zinsrisiko-Modell",
          "Excel-Modell zur Berechnung des Barwertrisikos (Zinsschock).",
          "Excel-Modell", "idv", "Genehmigt", 12,
          "2026-01-20", "2027-01-20", "2023-09-01",
-         "monatlich", 3, 1, 1, 1, 0, "keine",
+         "monatlich", 3, 1, 1, 0, 0, 0, "keine",
          "GP-RIS-001", "Risikocontrolling", "FV-RIS", "FV-RIS", "IDV-KO",
          "Microsoft Excel"),
         ("IDV-2025-003", "Stresstest-Szenarien",
          "Excel-Arbeitshilfe zur Zusammenstellung von Stresstest-Szenarien.",
          "Excel-Tabelle", "arbeitshilfe", "Entwurf", 24,
          None, "2027-05-01", "2025-05-20",
-         "jährlich", 2, 0, 0, 0, 0, "keine",
+         "jährlich", 2, 0, 0, 0, 0, 0, "keine",
          "GP-RIS-002", "Risikocontrolling", "FV-RIS", "FV-RIS", "IDV-KO",
          "Microsoft Excel"),
         ("IDV-2025-004", "Firmenkunden-Score",
          "SQL-basiertes Scoring für Firmenkundenkredite, zentrale IT-Entwicklung.",
          "SQL-Skript", "eigenprogrammierung", "In Prüfung", 12,
          None, "2026-08-15", "2025-08-01",
-         "täglich", 12, 1, 0, 0, 1, "allgemein",
+         "täglich", 12, 1, 0, 0, 0, 0, "allgemein",
          "GP-KRE-001", "Kreditabteilung", "FV-KRE", "IDV-ENT", "IDV-KO",
          "Shell-Skripte"),
     ]
@@ -720,8 +720,9 @@ def insert_demo_data(conn: sqlite3.Connection):
         " idv_id, bezeichnung, kurzbeschreibung, idv_typ, entwicklungsart,"
         " status, pruefintervall_monate, letzte_pruefung, naechste_pruefung,"
         " produktiv_seit, nutzungsfrequenz, nutzeranzahl,"
-        " dokumentation_vorhanden, testkonzept_vorhanden, vier_augen_prinzip,"
-        " enthaelt_personendaten, datenschutz_kategorie,"
+        " dokumentation_vorhanden, testkonzept_vorhanden,"
+        " anwenderdokumentation, datenschutz_beachtet, zellschutz_formeln,"
+        " datenschutz_kategorie,"
         " gp_id, org_unit_id,"
         " fachverantwortlicher_id, idv_entwickler_id, idv_koordinator_id,"
         " plattform_id"
@@ -729,8 +730,9 @@ def insert_demo_data(conn: sqlite3.Connection):
         " ?,?,?,?,?,"
         " ?,?,?,?,"
         " ?,?,?,"
-        " ?,?,?,"
         " ?,?,"
+        " ?,?,?,"
+        " ?,"
         " (SELECT id FROM geschaeftsprozesse WHERE gp_nummer=?),"
         " (SELECT id FROM org_units WHERE bezeichnung=?),"
         " (SELECT id FROM persons WHERE kuerzel=?),"

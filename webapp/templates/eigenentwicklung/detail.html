@@ -240,10 +240,6 @@
           <div class="detail-label">Nutzungsfrequenz</div>
           <div class="detail-value">{{ idv.nutzungsfrequenz or '–' }}</div>
         </div>
-        <div class="col-sm-4">
-          <div class="detail-label">4-Augen-Prinzip</div>
-          <div class="detail-value">{{ idv.vier_augen_prinzip|yesno }}</div>
-        </div>
         <div class="col-sm-6">
           <div class="detail-label">Datenquellen</div>
           <div>{{ idv.datenquellen or '–' }}</div>
@@ -260,6 +256,23 @@
           <div class="detail-label">Erstellt für / Verwendungszweck</div>
           <div>{{ idv.erstellt_fuer or '–' }}</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Betriebsdokumentation -->
+    <div class="form-section">
+      <div class="form-section-title">Betriebsdokumentation</div>
+      <div class="d-flex flex-wrap gap-3">
+        {% for label, val in [
+        ('Anwenderdokumentation vorhanden', idv.anwenderdokumentation),
+        ('Datenschutzbestimmungen eingehalten', idv.datenschutz_beachtet),
+        ('Rechenformeln durch Zellschutz gesichert', idv.zellschutz_formeln),
+        ] %}
+        <div>
+          <span class="detail-label">{{ label }}</span>
+          <div class="detail-value">{{ val|yesno }}</div>
+        </div>
+        {% endfor %}
       </div>
     </div>
 
