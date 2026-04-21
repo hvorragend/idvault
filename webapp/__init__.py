@@ -451,6 +451,8 @@ def create_app(db_path: str = None) -> Flask:
     if not app.testing:
         from .routes.admin import start_scheduler
         start_scheduler(app)
+        from .notification_scheduler import start_notification_scheduler
+        start_notification_scheduler(app)
 
     # Sidecar-Blueprint-Autodiscovery: neue .py-Dateien in
     # updates/webapp/routes/ werden automatisch als Blueprint registriert,

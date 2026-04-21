@@ -1892,7 +1892,8 @@ def mail():
         )
 
         keys = ["smtp_host", "smtp_port", "smtp_user",
-                "smtp_from", "smtp_tls", "app_base_url"]
+                "smtp_from", "smtp_tls", "app_base_url",
+                "notify_schedule_enabled", "notify_schedule_time"]
         for tpl_key in EMAIL_TEMPLATES:
             keys.append(f"notify_enabled_{tpl_key}")
             keys.append(f"email_tpl_{tpl_key}_subject")

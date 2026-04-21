@@ -187,7 +187,8 @@ def _phase3_komplett_erledigt(db, idv_db_id: int) -> bool:
     return set(_PHASE_3).issubset(done)
 
 
-def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int) -> bool:
+def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int,
+                            zugewiesen_an_id: int = None) -> bool:
     """Legt den Archivierungs-Schritt (Phase 3) an, sofern er noch nicht existiert.
 
     Idempotent und commit-frei: der Aufrufer muss bereits innerhalb einer
@@ -202,9 +203,9 @@ def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int) -> bool:
     now = datetime.now(timezone.utc).isoformat()
     conn.execute("""
         INSERT INTO idv_freigaben
-            (idv_id, schritt, status, beauftragt_von_id, beauftragt_am)
-        VALUES (?, ?, 'Ausstehend', ?, ?)
-    """, (idv_db_id, _PHASE_3[0], person_id, now))
+            (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
+        VALUES (?, ?, 'Ausstehend', ?, ?, ?)
+    """, (idv_db_id, _PHASE_3[0], person_id, now, zugewiesen_an_id))
     conn.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "archivierung_beauftragt",
@@ -309,7 +310,7 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
             "SELECT status FROM idv_freigaben WHERE id=?", (freigabe_id,)
         ).fetchone()
         if not row or row["status"] != "Ausstehend":
-            return False
+            return False, False
         with write_tx(c):
             c.execute("""
                 UPDATE idv_freigaben
@@ -322,12 +323,15 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
                 (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, session.get("user_name", "") or None),
             )
             freigegeben = False
+            archiv_neu  = False
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
-                _ensure_archiv_schritt(c, idv_db_id, person_id)
+                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id)
                 freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)
-        return freigegeben
+        return freigegeben, archiv_neu
 
-    freigegeben = get_writer().submit(_do, wait=True)
+    freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
+    if archiv_neu and not freigegeben:
+        _notify_schritte(db, idv_db_id, [_PHASE_3[0]], {_PHASE_3[0]: None})
     if freigegeben:
         _notify_freigabe_erteilt(db, idv_db_id)
 
@@ -566,15 +570,19 @@ def abschliessen(freigabe_id):
             phase2_done = False
             phase1_done = False
             freigegeben = False
+            archiv_neu  = False
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
                 phase2_done = True
-                _ensure_archiv_schritt(c, idv_db_id, person_id)
+                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id)
                 freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)
             elif schritt in _PHASE_1 and _phase1_komplett_erledigt(c, idv_db_id):
                 phase1_done = True
-        return phase2_done, phase1_done, freigegeben
+        return phase2_done, phase1_done, freigegeben, archiv_neu
 
-    phase2_done, phase1_done, freigegeben = get_writer().submit(_do, wait=True)
+    phase2_done, phase1_done, freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
+
+    if archiv_neu and not freigegeben:
+        _notify_schritte(db, idv_db_id, [_PHASE_3[0]], {_PHASE_3[0]: None})
 
     if freigegeben:
         _notify_freigabe_erteilt(db, idv_db_id)
