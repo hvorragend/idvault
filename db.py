@@ -948,6 +948,120 @@ def apply_scanner_history(conn: sqlite3.Connection, payload: dict) -> None:
         )
 
 
+def apply_scanner_archive_files(conn: sqlite3.Connection, payload: dict) -> None:
+    """Archiviert eine Liste aktiver idv_files-Eintraege und schreibt
+    einen 'archiviert'-History-Eintrag je Datei.
+
+    Erwartete Felder: ``scan_run_id``, ``now``, ``file_ids`` (Liste[int]).
+    """
+    file_ids = payload.get("file_ids") or []
+    if not file_ids:
+        return
+    scan_run_id = payload["scan_run_id"]
+    now         = payload["now"]
+    with write_tx(conn):
+        placeholders = ",".join("?" * len(file_ids))
+        conn.execute(
+            f"UPDATE idv_files SET status = 'archiviert', last_seen_at = ? "
+            f"WHERE id IN ({placeholders})",
+            [now] + list(file_ids),
+        )
+        conn.executemany(
+            "INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at) "
+            "VALUES (?, ?, 'archiviert', ?)",
+            [(fid, scan_run_id, now) for fid in file_ids],
+        )
+
+
+def apply_scanner_update_status(conn: sqlite3.Connection, payload: dict) -> None:
+    """Wendet eine der vom Scanner emittierten ``bearbeitungsstatus``-
+    Aktualisierungen an. Der Payload-Key ``kind`` waehlt die Variante:
+
+    * ``auto_ignore_single`` – einzelne Datei (``full_path``) auf
+      'Ignoriert' setzen, sofern noch 'Neu' und weder registriert noch
+      verlinkt.
+    * ``auto_classify_single`` – einzelne Datei (``full_path``,
+      ``new_status``) klassifizieren unter denselben Schutzbedingungen.
+    * ``auto_ignore_bulk_excel`` – alle aktiven 'Neu'-Excel-Dateien ohne
+      Formeln/Makros (``extensions`` Liste) auf 'Ignoriert' setzen.
+    * ``auto_classify_bulk_ah`` – AH-Praefix/Suffix → 'Nicht wesentlich'.
+    * ``auto_classify_bulk_idv`` – IDV-Praefix/Suffix → 'Zur Registrierung'.
+    """
+    kind = payload["kind"]
+    with write_tx(conn):
+        if kind == "auto_ignore_single":
+            conn.execute(
+                "UPDATE idv_files SET bearbeitungsstatus = 'Ignoriert' "
+                "WHERE full_path = ? AND status = 'active' "
+                "  AND bearbeitungsstatus = 'Neu' "
+                "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
+                "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
+                (payload["full_path"],),
+            )
+        elif kind == "auto_classify_single":
+            conn.execute(
+                "UPDATE idv_files SET bearbeitungsstatus = ? "
+                "WHERE full_path = ? AND status = 'active' "
+                "  AND bearbeitungsstatus = 'Neu' "
+                "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
+                "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
+                (payload["new_status"], payload["full_path"]),
+            )
+        elif kind == "auto_ignore_bulk_excel":
+            extensions = payload.get("extensions") or []
+            if not extensions:
+                return
+            ext_placeholders = ",".join("?" * len(extensions))
+            conn.execute(
+                f"UPDATE idv_files "
+                f"SET bearbeitungsstatus = 'Ignoriert' "
+                f"WHERE status = 'active' "
+                f"  AND bearbeitungsstatus = 'Neu' "
+                f"  AND LOWER(extension) IN ({ext_placeholders}) "
+                f"  AND (formula_count IS NULL OR formula_count = 0) "
+                f"  AND (has_macros IS NULL OR has_macros = 0) "
+                f"  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
+                f"  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
+                tuple(extensions),
+            )
+        elif kind == "auto_classify_bulk_ah":
+            conn.execute(
+                "UPDATE idv_files "
+                "SET bearbeitungsstatus = 'Nicht wesentlich' "
+                "WHERE status = 'active' "
+                "  AND bearbeitungsstatus = 'Neu' "
+                "  AND ("
+                "      UPPER(SUBSTR(file_name, 1, 2)) = 'AH'"
+                "      OR UPPER(SUBSTR(file_name,"
+                "                     LENGTH(file_name) - LENGTH(extension) - 1,"
+                "                     2)) = 'AH'"
+                "  ) "
+                "  AND NOT ("
+                "      UPPER(SUBSTR(file_name, 1, 3)) = 'IDV'"
+                "      OR UPPER(SUBSTR(file_name,"
+                "                     LENGTH(file_name) - LENGTH(extension) - 2,"
+                "                     3)) = 'IDV'"
+                "  ) "
+                "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
+                "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)"
+            )
+        elif kind == "auto_classify_bulk_idv":
+            conn.execute(
+                "UPDATE idv_files "
+                "SET bearbeitungsstatus = 'Zur Registrierung' "
+                "WHERE status = 'active' "
+                "  AND bearbeitungsstatus = 'Neu' "
+                "  AND ("
+                "      UPPER(SUBSTR(file_name, 1, 3)) = 'IDV'"
+                "      OR UPPER(SUBSTR(file_name,"
+                "                     LENGTH(file_name) - LENGTH(extension) - 2,"
+                "                     3)) = 'IDV'"
+                "  ) "
+                "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
+                "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)"
+            )
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
