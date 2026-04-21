@@ -17,9 +17,9 @@
     {% endif %}
     {% set art = idv.entwicklungsart or 'arbeitshilfe' %}
     {% set art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
-                        'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
+    'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
     <span class="badge {{ art_color.get(art, 'bg-secondary') }} fs-6"
-          title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA / BAIT)">
+      title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA / BAIT)">
       {{ entwicklungsart_label.get(art, art) }}
     </span>
     <span class="badge status-{{ idv.status|replace(' ', '-') }} fs-6">{{ idv.status }}</span>
@@ -34,7 +34,8 @@
         <i class="bi bi-arrow-right-circle me-1"></i>Status ändern
       </button>
       <ul class="dropdown-menu dropdown-menu-end">
-        {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt','Archiviert']
+        {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit
+        Auflagen','Abgelehnt','Abgekündigt','Archiviert']
         %}
         {% if s != idv.status %}
         <li>
@@ -152,12 +153,6 @@
               Fazit: <span class="text-muted">Nicht wesentlich</span>
               {% endif %}
             </div>
-            {% if ist_wesentlich %}
-            <div class="d-flex gap-2 flex-wrap" style="font-size:.82rem">
-              {% for k in wesentlichkeit %}{% if k.erfuellt %}<span class="badge bg-secondary">{{ k.bezeichnung
-                }}</span>{% endif %}{% endfor %}
-            </div>
-            {% endif %}
           </div>
         </div>
 
@@ -330,7 +325,9 @@
               '' }}</span>
           </div>
           {% if can_create %}
-          <form method="post" action="{{ url_for('eigenentwicklung.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}" data-confirm="Verknüpfung mit {{ ef.file_name }} aufheben?">
+          <form method="post"
+            action="{{ url_for('eigenentwicklung.unlink_file', idv_db_id=idv.id, link_id=ef.link_id) }}"
+            data-confirm="Verknüpfung mit {{ ef.file_name }} aufheben?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-xs btn-outline-danger" title="Verknüpfung aufheben">
               <i class="bi bi-x-lg"></i>
@@ -341,7 +338,8 @@
         <div class="row g-2 mt-1" style="font-size:.82rem">
           <div class="col-12">
             <div class="detail-label">Pfad</div>
-            <div class="hash-mono text-truncate" title="{{ ef.full_path | map_path }}">{{ ef.full_path | map_path }}</div>
+            <div class="hash-mono text-truncate" title="{{ ef.full_path | map_path }}">{{ ef.full_path | map_path }}
+            </div>
           </div>
           <div class="col-sm-4">
             <div class="detail-label">SHA-256</div>
@@ -361,7 +359,8 @@
 
       {% if can_create %}
       <div class="mt-2">
-        <a href="{{ url_for('eigenentwicklung.link_files', idv_db_id=idv.id) }}" class="btn btn-xs btn-outline-secondary">
+        <a href="{{ url_for('eigenentwicklung.link_files', idv_db_id=idv.id) }}"
+          class="btn btn-xs btn-outline-secondary">
           <i class="bi bi-plus-lg me-1"></i>Weitere Dateien verknüpfen
         </a>
       </div>
@@ -421,11 +420,13 @@
         {% if vorgaenger %}
         <li class="list-group-item px-3 py-2">
           <div class="detail-label text-muted">Vorgänger</div>
-          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=vorgaenger.id) }}" class="text-decoration-none fw-500">
+          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=vorgaenger.id) }}"
+            class="text-decoration-none fw-500">
             <span class="font-monospace me-1" style="font-size:.8rem">{{ vorgaenger.idv_id }}</span>
             v{{ vorgaenger.version }}
           </a>
-          <span class="badge status-{{ vorgaenger.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ vorgaenger.status }}</span>
+          <span class="badge status-{{ vorgaenger.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{
+            vorgaenger.status }}</span>
         </li>
         {% endif %}
         <li class="list-group-item px-3 py-2 bg-light">
@@ -433,11 +434,12 @@
           <span class="fw-600">v{{ idv.version }}</span>
           <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese Version</span>
           {% if idv.letzte_aenderungsart %}
-            <span class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
-                  style="font-size:.6rem"
-                  {% if idv.letzte_aenderungsbegruendung %}title="{{ idv.letzte_aenderungsbegruendung }}"{% endif %}>
-              {{ idv.letzte_aenderungsart }}
-            </span>
+          <span
+            class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
+            style="font-size:.6rem" {% if idv.letzte_aenderungsbegruendung
+            %}title="{{ idv.letzte_aenderungsbegruendung }}" {% endif %}>
+            {{ idv.letzte_aenderungsart }}
+          </span>
           {% endif %}
         </li>
         {% for nf in nachfolger %}
@@ -447,13 +449,15 @@
             <span class="font-monospace me-1" style="font-size:.8rem">{{ nf.idv_id }}</span>
             v{{ nf.version }}
           </a>
-          <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ nf.status }}</span>
+          <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ nf.status
+            }}</span>
           {% if nf.letzte_aenderungsart %}
-            <span class="badge ms-1 {% if nf.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
-                  style="font-size:.6rem"
-                  {% if nf.letzte_aenderungsbegruendung %}title="{{ nf.letzte_aenderungsbegruendung }}"{% endif %}>
-              {{ nf.letzte_aenderungsart }}
-            </span>
+          <span
+            class="badge ms-1 {% if nf.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
+            style="font-size:.6rem" {% if nf.letzte_aenderungsbegruendung
+            %}title="{{ nf.letzte_aenderungsbegruendung }}" {% endif %}>
+            {{ nf.letzte_aenderungsart }}
+          </span>
           {% endif %}
         </li>
         {% endfor %}
@@ -585,7 +589,7 @@
             {% set f_rows = freigaben | selectattr('schritt','equalto',schritt_name) | list %}
             {% set f = f_rows[-1] if f_rows else none %}
             {% set test_data_vorhanden = (schritt_name == 'Fachlicher Test' and fachlich_vorhanden)
-                                         or (schritt_name == 'Technischer Test' and technisch_vorhanden) %}
+            or (schritt_name == 'Technischer Test' and technisch_vorhanden) %}
             <div class="col-md-6">
               <div class="border rounded p-2 h-100
                 {% if f and f.status == 'Erledigt' %}border-success bg-success bg-opacity-10
@@ -614,50 +618,52 @@
 
                 <div class="d-flex gap-1 mt-2">
                   {% if not f and can_create %}
-                    {# Freigabe-Schritt wurde gelöscht → Anlage anbieten #}
-                    <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <input type="hidden" name="schritt" value="{{ schritt_name }}">
-                      <button type="submit" class="btn btn-xs btn-primary">
-                        <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
-                      </button>
-                    </form>
+                  {# Freigabe-Schritt wurde gelöscht → Anlage anbieten #}
+                  <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
+                    class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="schritt" value="{{ schritt_name }}">
+                    <button type="submit" class="btn btn-xs btn-primary">
+                      <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
+                    </button>
+                  </form>
                   {% elif f and can_create and not test_data_vorhanden %}
-                    {# Freigabe-Schritt aktiv, aber Test-Eintrag wurde manuell gelöscht → Neu-Anlage anbieten #}
-                    {% if schritt_name == 'Fachlicher Test' %}
-                    <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
-                       class="btn btn-xs btn-primary">
-                      <i class="bi bi-plus-circle me-1"></i>Anlage Fachlicher Test
-                    </a>
-                    {% else %}
-                    <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
-                       class="btn btn-xs btn-primary">
-                      <i class="bi bi-plus-circle me-1"></i>Anlage Technischer Test
-                    </a>
-                    {% endif %}
+                  {# Freigabe-Schritt aktiv, aber Test-Eintrag wurde manuell gelöscht → Neu-Anlage anbieten #}
+                  {% if schritt_name == 'Fachlicher Test' %}
+                  <a href="{{ url_for('tests.new_fachlicher_testfall', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
+                    class="btn btn-xs btn-primary">
+                    <i class="bi bi-plus-circle me-1"></i>Anlage Fachlicher Test
+                  </a>
+                  {% else %}
+                  <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
+                    class="btn btn-xs btn-primary">
+                    <i class="bi bi-plus-circle me-1"></i>Anlage Technischer Test
+                  </a>
+                  {% endif %}
                   {% elif f and can_create %}
-                    {# Testdaten vorhanden → Bearbeiten #}
-                    {% if schritt_name == 'Fachlicher Test' %}
-                    <a href="{{ url_for('tests.edit_fachlicher_testfall', testfall_id=fachliche_testfaelle[0].id) }}?freigabe_id={{ f.id }}"
-                       class="btn btn-xs btn-outline-primary" title="Bearbeiten">
-                      <i class="bi bi-pencil"></i>
-                    </a>
-                    {% else %}
-                    <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
-                       class="btn btn-xs btn-outline-primary" title="Bearbeiten">
-                      <i class="bi bi-pencil"></i>
-                    </a>
-                    {% endif %}
+                  {# Testdaten vorhanden → Bearbeiten #}
+                  {% if schritt_name == 'Fachlicher Test' %}
+                  <a href="{{ url_for('tests.edit_fachlicher_testfall', testfall_id=fachliche_testfaelle[0].id) }}?freigabe_id={{ f.id }}"
+                    class="btn btn-xs btn-outline-primary" title="Bearbeiten">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  {% else %}
+                  <a href="{{ url_for('tests.edit_technischer_test', idv_db_id=idv.id) }}?freigabe_id={{ f.id }}"
+                    class="btn btn-xs btn-outline-primary" title="Bearbeiten">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  {% endif %}
                   {% elif f %}
-                    {# Read-only-Zugriff #}
-                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
-                      <i class="bi bi-eye"></i>
-                    </a>
+                  {# Read-only-Zugriff #}
+                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                    class="btn btn-xs btn-outline-secondary" title="Öffnen">
+                    <i class="bi bi-eye"></i>
+                  </a>
                   {% endif %}
 
                   {% if f and is_admin %}
-                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}" data-confirm="{{ schritt_name }} löschen?" class="d-inline">
+                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
+                    data-confirm="{{ schritt_name }} löschen?" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
                       <i class="bi bi-trash"></i>
@@ -715,28 +721,30 @@
 
                 <div class="d-flex gap-1 mt-2">
                   {% if not f and can_create %}
-                    {# Abnahme-Schritt wurde gelöscht → Anlage anbieten #}
-                    <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <input type="hidden" name="schritt" value="{{ schritt_name }}">
-                      <button type="submit" class="btn btn-xs btn-primary">
-                        <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
-                      </button>
-                    </form>
+                  {# Abnahme-Schritt wurde gelöscht → Anlage anbieten #}
+                  <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
+                    class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="schritt" value="{{ schritt_name }}">
+                    <button type="submit" class="btn btn-xs btn-primary">
+                      <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
+                    </button>
+                  </form>
                   {% elif f and f.status == 'Ausstehend' and can_create %}
-                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                       class="btn btn-xs btn-outline-success" title="Als Erledigt markieren">
-                      <i class="bi bi-check2-circle"></i>
-                    </a>
+                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                    class="btn btn-xs btn-outline-success" title="Als Erledigt markieren">
+                    <i class="bi bi-check2-circle"></i>
+                  </a>
                   {% elif f %}
-                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
-                      <i class="bi bi-eye"></i>
-                    </a>
+                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                    class="btn btn-xs btn-outline-secondary" title="Öffnen">
+                    <i class="bi bi-eye"></i>
+                  </a>
                   {% endif %}
 
                   {% if f and is_admin %}
-                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}" data-confirm="{{ schritt_name }} löschen?" class="d-inline">
+                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
+                    data-confirm="{{ schritt_name }} löschen?" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
                       <i class="bi bi-trash"></i>
@@ -775,8 +783,10 @@
                 {% else %}bg-light{% endif %}">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   {% if not f %}<i class="bi bi-plus-circle text-primary"></i>
-                  {% elif f.status == 'Erledigt' and f.datei_verfuegbar == 1 %}<i class="bi bi-archive-fill text-success"></i>
-                  {% elif f.status == 'Erledigt' and f.datei_verfuegbar == 0 %}<i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                  {% elif f.status == 'Erledigt' and f.datei_verfuegbar == 1 %}<i
+                    class="bi bi-archive-fill text-success"></i>
+                  {% elif f.status == 'Erledigt' and f.datei_verfuegbar == 0 %}<i
+                    class="bi bi-exclamation-triangle-fill text-warning"></i>
                   {% elif f.status == 'Erledigt' %}<i class="bi bi-check-circle-fill text-success"></i>
                   {% elif f.status == 'Nicht erledigt' %}<i class="bi bi-x-circle-fill text-danger"></i>
                   {% elif f.status == 'Ausstehend' %}<i class="bi bi-hourglass-split text-warning"></i>
@@ -785,12 +795,13 @@
                   <span class="fw-500" style="font-size:.82rem">{{ schritt_name }}</span>
                   {% if f %}
                   {% if f.status == 'Erledigt' and f.datei_verfuegbar == 1 %}
-                  <span class="badge ms-auto bg-success" style="font-size:.6rem" title="Originaldatei revisionssicher archiviert">
+                  <span class="badge ms-auto bg-success" style="font-size:.6rem"
+                    title="Originaldatei revisionssicher archiviert">
                     Archiviert
                   </span>
                   {% elif f.status == 'Erledigt' and f.datei_verfuegbar == 0 %}
                   <span class="badge ms-auto bg-warning text-dark" style="font-size:.6rem"
-                        title="Originaldatei nicht verfügbar (z.B. Cognos) – als Statusschritt festgehalten">
+                    title="Originaldatei nicht verfügbar (z.B. Cognos) – als Statusschritt festgehalten">
                     Nicht verfügbar
                   </span>
                   {% else %}
@@ -808,11 +819,10 @@
                 {% if f and f.status == 'Erledigt' and f.datei_verfuegbar == 1 and f.archiv_datei_name %}
                 <div class="mt-2" style="font-size:.78rem">
                   <i class="bi bi-file-earmark-lock me-1 text-muted"></i>
-                  <a href="{{ url_for('freigaben.archiv_download', freigabe_id=f.id) }}"
-                     class="text-decoration-none">{{ f.archiv_datei_name }}</a>
+                  <a href="{{ url_for('freigaben.archiv_download', freigabe_id=f.id) }}" class="text-decoration-none">{{
+                    f.archiv_datei_name }}</a>
                   {% if f.archiv_datei_sha256 %}
-                  <div class="text-muted font-monospace mt-1"
-                       style="font-size:.7rem;word-break:break-all">
+                  <div class="text-muted font-monospace mt-1" style="font-size:.7rem;word-break:break-all">
                     SHA-256: {{ f.archiv_datei_sha256 }}
                   </div>
                   {% endif %}
@@ -825,27 +835,29 @@
 
                 <div class="d-flex gap-1 mt-2">
                   {% if not f and can_create %}
-                    <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <input type="hidden" name="schritt" value="{{ schritt_name }}">
-                      <button type="submit" class="btn btn-xs btn-primary">
-                        <i class="bi bi-plus-circle me-1"></i>Archivierung anlegen
-                      </button>
-                    </form>
+                  <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
+                    class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="schritt" value="{{ schritt_name }}">
+                    <button type="submit" class="btn btn-xs btn-primary">
+                      <i class="bi bi-plus-circle me-1"></i>Archivierung anlegen
+                    </button>
+                  </form>
                   {% elif f and f.status == 'Ausstehend' and can_create %}
-                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                       class="btn btn-xs btn-outline-success" title="Archivierung vornehmen">
-                      <i class="bi bi-archive me-1"></i>Archivieren
-                    </a>
+                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                    class="btn btn-xs btn-outline-success" title="Archivierung vornehmen">
+                    <i class="bi bi-archive me-1"></i>Archivieren
+                  </a>
                   {% elif f %}
-                    <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                       class="btn btn-xs btn-outline-secondary" title="Öffnen">
-                      <i class="bi bi-eye"></i>
-                    </a>
+                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                    class="btn btn-xs btn-outline-secondary" title="Öffnen">
+                    <i class="bi bi-eye"></i>
+                  </a>
                   {% endif %}
 
                   {% if f and is_admin %}
-                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}" data-confirm="{{ schritt_name }} löschen?" class="d-inline">
+                  <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
+                    data-confirm="{{ schritt_name }} löschen?" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-xs btn-outline-danger" title="Löschen">
                       <i class="bi bi-trash"></i>
@@ -868,7 +880,8 @@
             revisionssicher abzulegen (MaRisk AT 7.2). Ist die Datei nicht
             verfügbar (z.B. Cognos-Bericht), kann dies als Statusschritt
             mit Begründung dokumentiert werden.
-            <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}" class="d-inline ms-2">
+            <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
+              class="d-inline ms-2">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="schritt" value="Archivierung Originaldatei">
               <button type="submit" class="btn btn-xs btn-warning">
