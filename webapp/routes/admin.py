@@ -22,6 +22,27 @@ from .. import limiter
 from datetime import datetime, timezone, timedelta
 
 from db_write_tx import write_tx
+from db import (
+    apply_scan_run_start,
+    apply_scan_run_end,
+    apply_scanner_upsert_file,
+    apply_scanner_archive_files,
+    apply_scanner_update_status,
+    apply_scanner_history,
+)
+try:
+    from scanner.scanner_protocol import (
+        OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
+        OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
+        OP_LOG, OP_PROGRESS,
+    )
+except ImportError:  # pragma: no cover — Fallback, falls scanner/ nicht
+    # als Paket gefunden wird (alte Installationen ohne Namespace).
+    from scanner_protocol import (
+        OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
+        OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
+        OP_LOG, OP_PROGRESS,
+    )
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -422,6 +443,88 @@ def _scanner_subprocess_env() -> dict:
     return env
 
 
+_SCANNER_EVENT_HANDLERS = {
+    OP_START_RUN:     apply_scan_run_start,
+    OP_END_RUN:       apply_scan_run_end,
+    OP_UPSERT_FILE:   apply_scanner_upsert_file,
+    OP_MOVE_FILE:     apply_scanner_upsert_file,
+    OP_ARCHIVE_FILES: apply_scanner_archive_files,
+    OP_UPDATE_STATUS: apply_scanner_update_status,
+    OP_FILE_HISTORY:  apply_scanner_history,
+}
+
+
+def _dispatch_scanner_event(op: str, payload: dict) -> None:
+    """Reicht ein vom Scanner emittiertes Event an den Writer-Thread weiter.
+
+    ``OP_LOG`` / ``OP_PROGRESS`` und unbekannte Ops werden ignoriert – sie
+    dienen nur der Anzeige und werden vom Stdout-Reader direkt in das
+    Output-Log geschrieben, sofern sie dort landen sollen.
+    """
+    handler = _SCANNER_EVENT_HANDLERS.get(op)
+    if handler is None:
+        return
+    get_writer().submit(
+        lambda c, _h=handler, _p=payload: _h(c, _p),
+        wait=False,
+    )
+
+
+def _stdout_reader_thread(proc, log_fh, state: dict) -> None:
+    """Liest NDJSON-Events aus ``proc.stdout`` und dispatcht sie ueber den
+    Writer-Thread. Zeilen ohne gueltiges JSON bzw. ohne ``op``-Feld wandern
+    als Klartext ins Output-Log."""
+    try:
+        for raw in iter(proc.stdout.readline, ""):
+            line = raw.rstrip("\r\n")
+            if not line:
+                continue
+            payload = None
+            if line.startswith("{"):
+                try:
+                    payload = json.loads(line)
+                except Exception:
+                    payload = None
+            if isinstance(payload, dict) and "op" in payload:
+                op = payload.pop("op")
+                if op == OP_START_RUN:
+                    state["scan_run_id"] = payload.get("scan_run_id")
+                elif op == OP_END_RUN:
+                    state["end_run_seen"] = True
+                try:
+                    _dispatch_scanner_event(op, payload)
+                except Exception as exc:
+                    try:
+                        log_fh.write(f"[scanner-event-error] op={op}: {exc}\n")
+                    except Exception:
+                        pass
+            else:
+                try:
+                    log_fh.write(line + "\n")
+                except Exception:
+                    pass
+    except Exception as exc:
+        try:
+            log_fh.write(f"[stdout-reader-error] {exc}\n")
+        except Exception:
+            pass
+
+
+def _stderr_reader_thread(proc, log_fh) -> None:
+    """Leitet stderr des Scanner-Subprozesses in das Output-Log."""
+    try:
+        for raw in iter(proc.stderr.readline, ""):
+            line = raw.rstrip("\r\n")
+            if not line:
+                continue
+            try:
+                log_fh.write(line + "\n")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     """Startet den Scanner-Subprocess.
 
@@ -545,26 +648,99 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     # "a" (append) damit die oben geschriebenen [IDVAULT-START]-Zeilen
     # nicht überschrieben werden. Line-buffering (buffering=1) sorgt dafür,
     # dass Scanner-Output zeitnah sichtbar wird.
+    #
+    # stdout wird via PIPE eingelesen, weil der Scanner seit dem db_writer-
+    # Pattern seine DB-Schreibvorgaenge als NDJSON auf stdout emittiert;
+    # ein Reader-Thread parst jede Zeile und reicht sie an den Writer-
+    # Thread der Webapp weiter. Nicht-JSON-Zeilen (sowie der komplette
+    # stderr-Strom) werden direkt ins Output-Log gespiegelt.
     log_fh = open(log_path, "a", encoding="utf-8", buffering=1)
     try:
         proc = subprocess.Popen(
             cmd,
-            stdout=log_fh,
-            stderr=log_fh,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             cwd=cwd,
             creationflags=creationflags,
             env=_scanner_subprocess_env(),
+            bufsize=1,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except Exception:
         log_fh.close()
         _cancel_unc_credentials(registered_unc)
         raise
 
+    state = {"end_run_seen": False, "scan_run_id": None}
+    stdout_thread = threading.Thread(
+        target=_stdout_reader_thread,
+        args=(proc, log_fh, state),
+        daemon=True,
+    )
+    stderr_thread = threading.Thread(
+        target=_stderr_reader_thread,
+        args=(proc, log_fh),
+        daemon=True,
+    )
+    stdout_thread.start()
+    stderr_thread.start()
+
     def _wait():
         try:
             proc.wait()
         finally:
-            log_fh.close()
+            # Reader-Threads bis zum EOF drainen lassen, bevor wir das Log
+            # schliessen – sonst gehen End-of-Scan-Zeilen verloren.
+            try:
+                stdout_thread.join(timeout=5)
+            except Exception:
+                pass
+            try:
+                stderr_thread.join(timeout=5)
+            except Exception:
+                pass
+
+            # Ist der Scanner beendet worden, ohne einen OP_END_RUN zu
+            # emittieren (Kill -9, OOM-Killer, Hardware-Reset …), bleibt
+            # der scan_runs-Eintrag sonst ewig auf 'running'. In diesem
+            # Fall setzen wir den Lauf synthetisch auf 'killed'.
+            if not state["end_run_seen"] and state["scan_run_id"] is not None:
+                scan_run_id = state["scan_run_id"]
+                try:
+                    log_fh.write(
+                        f"[IDVAULT-END] Scanner-Prozess endete ohne "
+                        f"end_run-Event (Run #{scan_run_id}) – "
+                        f"synthetisiere status='killed'.\n"
+                    )
+                except Exception:
+                    pass
+                try:
+                    finished_at = datetime.now(timezone.utc).isoformat()
+                    get_writer().submit(
+                        lambda c, _id=scan_run_id, _fin=finished_at:
+                            apply_scan_run_end(c, {
+                                "scan_run_id": _id,
+                                "finished_at": _fin,
+                                "status":      "killed",
+                                "total":       0,
+                                "new":         0,
+                                "changed":     0,
+                                "moved":       0,
+                                "restored":    0,
+                                "archived":    0,
+                                "errors":      0,
+                            }),
+                        wait=False,
+                    )
+                except Exception:
+                    pass
+
+            try:
+                log_fh.close()
+            except Exception:
+                pass
             _cancel_unc_credentials(registered_unc)
 
     return proc.pid, _wait
