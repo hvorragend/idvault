@@ -447,6 +447,50 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(cognos_bp)
     app.register_blueprint(info_bp)
 
+    # -----------------------------------------------------------------------
+    # /healthz: öffentlicher JSON-Health-Check für Load-Balancer / Monitoring.
+    # Bewusst ohne Login/CSRF und mit minimalen Feldern, um keine internen
+    # Implementierungsdetails preiszugeben. Gibt 200 bei OK, 503 bei degraded.
+    # -----------------------------------------------------------------------
+    from flask import jsonify
+    from .db_writer import writer_stats
+
+    @app.route("/healthz")
+    @csrf.exempt
+    def healthz():
+        payload = {
+            "status":    "ok",
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        degraded = False
+
+        # DB erreichbar?
+        try:
+            get_db().execute("SELECT 1").fetchone()
+            payload["db"] = "ok"
+        except Exception:
+            payload["db"] = "error"
+            degraded = True
+
+        # Writer-Thread läuft?
+        try:
+            ws = writer_stats()
+            payload["writer"] = {
+                "running":       ws.get("running", False),
+                "queue_depth":   ws.get("queue_depth", 0),
+                "restart_count": ws.get("restart_count", 0),
+            }
+            if not ws.get("running", False):
+                degraded = True
+        except Exception:
+            payload["writer"] = {"running": False}
+            degraded = True
+
+        if degraded:
+            payload["status"] = "degraded"
+            return jsonify(payload), 503
+        return jsonify(payload), 200
+
     # Zeitplan-Scheduler starten (Daemon-Thread – nicht in Testläufen)
     if not app.testing:
         from .routes.admin import start_scheduler

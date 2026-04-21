@@ -859,6 +859,18 @@ CREATE INDEX IF NOT EXISTS idx_file_links_file ON idv_file_links(file_id);
 CREATE INDEX IF NOT EXISTS idx_files_status_bearb
     ON idv_files(status, bearbeitungsstatus, has_macros, first_seen_at);
 
+-- Scan-Auswertungen nach Share/Owner (Bulk-Operationen, Funde-Filter)
+CREATE INDEX IF NOT EXISTS idx_files_scan_metadata
+    ON idv_files(share_root, file_owner);
+
+-- Hash-basierte Dubletten-Erkennung (Auto-Gruppierung bei Registrierung)
+CREATE INDEX IF NOT EXISTS idx_files_file_hash
+    ON idv_files(file_hash);
+
+-- Scan-Run-Archive nach Startzeit (Historie / Export)
+CREATE INDEX IF NOT EXISTS idx_scan_runs_started_at
+    ON scan_runs(started_at);
+
 -- Prüffälligkeiten nächste 90 Tage
 CREATE VIEW IF NOT EXISTS v_prueffaelligkeiten AS
 SELECT

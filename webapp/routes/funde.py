@@ -918,9 +918,13 @@ def bulk_aktion():
 
     if aktion == "zusammenfassen":
         # Weiterleitung zur Zusammenfassen-Seite (GET)
-        from flask import url_for as _uf
         ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
         return redirect(url_for("funde.zusammenfassen") + "?" + ids_qs)
+
+    if aktion == "bulk_registrieren":
+        # Weiterleitung zur Bulk-Registrierungs-Seite (je Datei eine eigene IDV)
+        ids_qs = "&".join(f"file_ids={i}" for i in raw_ids if i)
+        return redirect(url_for("eigenentwicklung.bulk_neu") + "?" + ids_qs)
 
     if aktion not in ("ignorieren", "nicht_mehr_ignorieren", "zur_registrierung", "nicht_wesentlich", "owner_aendern", "bewertung_anfordern", "loeschen"):
         flash("Ungültige Aktion.", "error")
