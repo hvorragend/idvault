@@ -11,16 +11,7 @@ from db_write_tx import write_tx
 from ..db_writer import get_writer
 from ..security import (ensure_can_read_idv, ensure_can_write_idv,
                         user_can_read_idv, in_clause)
-
-# Dateierweiterung → IDV-Typ-Vorschlag (gespiegelt aus scanner.py)
-_EXT_TO_TYP = {
-    ".xlsx": "Excel-Tabelle", ".xlsm": "Excel-Makro", ".xlsb": "Excel-Makro",
-    ".xls":  "Excel-Tabelle", ".xltm": "Excel-Makro", ".xltx": "Excel-Tabelle",
-    ".accdb": "Access-Datenbank", ".mdb": "Access-Datenbank",
-    ".accde": "Access-Datenbank", ".accdr": "Access-Datenbank",
-    ".py": "Python-Skript", ".r": "Sonstige", ".rmd": "Sonstige",
-    ".sql": "SQL-Skript", ".pbix": "Power-BI-Bericht", ".pbit": "Power-BI-Bericht",
-}
+from ..helpers import _EXT_TO_TYP, _idv_typ_vorschlag, _int_or_none
 
 bp = Blueprint("eigenentwicklung", __name__, url_prefix="/eigenentwicklung")
 
@@ -69,13 +60,6 @@ def _form_lookups(db):
     }
     g._form_lookups_cache = result
     return result
-
-
-def _int_or_none(val):
-    try:
-        return int(val) if val else None
-    except (ValueError, TypeError):
-        return None
 
 
 _VALID_PER_PAGE_IDV = (25, 50, 100, 200, 500)
@@ -801,7 +785,7 @@ def bulk_neu():
         name = d["file_name"] or ""
         if ext and name.lower().endswith(ext):
             name = name[:-len(ext)]
-        typ = _idv_typ_vorschlag_for(ext, d["has_macros"])
+        typ = _idv_typ_vorschlag(ext, d["has_macros"])
         dev_id = None
         owner_hint = d["file_owner"] or d["office_author"] or ""
         if owner_hint:
@@ -828,13 +812,6 @@ def bulk_neu():
                            vorschlaege=vorschlaege,
                            **_form_lookups(db))
 
-
-def _idv_typ_vorschlag_for(extension: str, has_macros) -> str:
-    """Lokaler Spiegel von funde._idv_typ_vorschlag (vermeidet Zirkel-Import)."""
-    ext = (extension or "").lower()
-    if ext in (".xlsx", ".xls", ".xltx") and has_macros:
-        return "Excel-Makro"
-    return _EXT_TO_TYP.get(ext, "unklassifiziert")
 
 
 # ── Bearbeiten ─────────────────────────────────────────────────────────────

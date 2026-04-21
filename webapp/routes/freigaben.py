@@ -31,6 +31,7 @@ from db_write_tx import write_tx
 from ..security import (sanitize_html, validate_upload_mime,
                         ensure_can_read_idv, ensure_can_write_idv,
                         in_clause)
+from ..helpers import _int_or_none
 
 bp = Blueprint("freigaben", __name__, url_prefix="/freigaben")
 
@@ -244,12 +245,6 @@ def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int) ->
     )
     return True
 
-
-def _int_or_none(val):
-    try:
-        return int(val) if val else None
-    except (ValueError, TypeError):
-        return None
 
 
 def _ensure_test_eintraege(conn, idv_db_id: int) -> None:
