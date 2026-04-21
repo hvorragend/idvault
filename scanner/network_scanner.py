@@ -40,6 +40,21 @@ try:
 except ImportError:
     from scanner.path_utils import apply_path_mappings, should_pass_filters
 
+try:
+    from scanner_protocol import (
+        emit,
+        OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
+        OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
+        OP_LOG, OP_PROGRESS,
+    )
+except ImportError:
+    from scanner.scanner_protocol import (
+        emit,
+        OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
+        OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
+        OP_LOG, OP_PROGRESS,
+    )
+
 
 def _set_keep_awake(active: bool) -> None:
     """Verhindert Bildschirmschoner und Systemschlaf während des Scans (nur Windows).
@@ -215,8 +230,15 @@ CREATE INDEX IF NOT EXISTS idx_history_file    ON idv_file_history(file_id);
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
-    # Scanner-Subprozess teilt sich dieselben PRAGMAs wie die Webapp,
-    # insbesondere busy_timeout=60000 — siehe db_pragmas.apply_pragmas.
+    """Oeffnet eine rein lesende Connection fuer den Scanner-Subprozess.
+
+    Der Scanner schreibt seit Einfuehrung des db_writer-Patterns nicht mehr
+    direkt in die SQLite-Datei; alle Schreibvorgaenge werden als NDJSON
+    auf stdout emittiert und vom Webapp-Writer-Thread appliziert. Die
+    Schema-Initialisierung liegt daher ausschliesslich bei der Webapp
+    (``db.init_register_db``). Diese Funktion gibt lediglich eine
+    Reader-Connection mit den gemeinsamen PRAGMAs zurueck.
+    """
     try:
         from db_pragmas import apply_pragmas
     except ImportError:  # pragma: no cover — defensiv, falls Sidecar
@@ -227,9 +249,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
 
     conn = sqlite3.connect(db_path, timeout=60)
     conn.row_factory = sqlite3.Row
-    apply_pragmas(conn, role="writer")
-    conn.executescript(SCHEMA)
-    conn.commit()
+    apply_pragmas(conn, role="reader")
     return conn
 
 
@@ -1359,13 +1379,15 @@ def run_scan(config: dict, logger: logging.Logger,
             logger.warning("--resume angegeben, aber kein Checkpoint gefunden – starte neu.")
 
     # ── Scan-Run anlegen oder fortsetzen ───────────────────────────────────
+    # Schreiben in ``scan_runs`` geschieht ausschliesslich ueber den Webapp-
+    # Writer-Thread. Der Scanner emittiert per stdout, die Webapp wendet
+    # es an. Die scan_run_id wird vom Scanner selbst vergeben (MAX(id)+1
+    # auf seiner Reader-Connection) — solange kein zweiter Scanner parallel
+    # laeuft (durch Admin-Orchestrierung garantiert), ist die Vergabe
+    # kollisionsfrei.
     if checkpoint_run_id:
         scan_run_id = checkpoint_run_id
-        conn.execute(
-            "UPDATE scan_runs SET scan_status = 'running' WHERE id = ?",
-            (scan_run_id,)
-        )
-        conn.commit()
+        emit(OP_START_RUN, scan_run_id=scan_run_id, resume=True)
         stats = {
             "total":     cp_stats.get("total",     0),
             "new":       cp_stats.get("new",       0),
@@ -1376,12 +1398,17 @@ def run_scan(config: dict, logger: logging.Logger,
             "errors":    cp_stats.get("errors",    0),
         }
     else:
-        cur = conn.execute(
-            "INSERT INTO scan_runs (started_at, scan_paths, scan_status) VALUES (?, ?, 'running')",
-            (now, json.dumps(scan_paths))
+        _next = conn.execute(
+            "SELECT COALESCE(MAX(id), 0) + 1 FROM scan_runs"
+        ).fetchone()
+        scan_run_id = int(_next[0])
+        emit(
+            OP_START_RUN,
+            scan_run_id=scan_run_id,
+            started_at=now,
+            scan_paths=scan_paths,
+            resume=False,
         )
-        conn.commit()
-        scan_run_id = cur.lastrowid
         stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0,
                  "moved": 0, "restored": 0, "errors": 0}
 
@@ -1535,15 +1562,15 @@ def run_scan(config: dict, logger: logging.Logger,
             logger.info(f"  Verworfen       : {stats['discarded']} Excel-Dateien (kein Formel/Makro)")
 
         finished = datetime.now(timezone.utc).isoformat()
-        conn.execute("""
-            UPDATE scan_runs SET
-                finished_at = ?, total_files = ?, new_files = ?,
-                changed_files = ?, moved_files = ?, restored_files = ?,
-                archived_files = ?, errors = ?, scan_status = 'completed'
-            WHERE id = ?
-        """, (finished, stats["total"], stats["new"], stats["changed"],
-              stats["moved"], stats["restored"], deleted, stats["errors"], scan_run_id))
-        conn.commit()
+        emit(
+            OP_END_RUN,
+            scan_run_id=scan_run_id,
+            finished_at=finished,
+            status="completed",
+            total=stats["total"], new=stats["new"], changed=stats["changed"],
+            moved=stats["moved"], restored=stats["restored"],
+            archived=deleted, errors=stats["errors"],
+        )
         conn.close()
 
         if signal_dir:
@@ -1562,17 +1589,24 @@ def run_scan(config: dict, logger: logging.Logger,
 
     except ScanCancelledError:
         # ── Scan abgebrochen – Zwischenstand sichern ──────────────────────
-        conn.commit()
+        # In-flight idv_files-Writes (noch direkt auf conn) fluchten, bevor
+        # wir den scan_runs-Abschluss ueber stdout emittieren. Nach 5c/5d,
+        # wenn idv_files-Writes ebenfalls ueber stdout laufen, entfaellt
+        # dieser commit.
+        try:
+            conn.commit()
+        except Exception:
+            pass
         finished = datetime.now(timezone.utc).isoformat()
-        conn.execute("""
-            UPDATE scan_runs SET
-                finished_at = ?, total_files = ?, new_files = ?,
-                changed_files = ?, moved_files = ?, restored_files = ?,
-                archived_files = 0, errors = ?, scan_status = 'cancelled'
-            WHERE id = ?
-        """, (finished, stats["total"], stats["new"], stats["changed"],
-              stats["moved"], stats["restored"], stats["errors"], scan_run_id))
-        conn.commit()
+        emit(
+            OP_END_RUN,
+            scan_run_id=scan_run_id,
+            finished_at=finished,
+            status="cancelled",
+            total=stats["total"], new=stats["new"], changed=stats["changed"],
+            moved=stats["moved"], restored=stats["restored"],
+            archived=0, errors=stats["errors"],
+        )
         conn.close()
 
         if signal_dir:
@@ -1599,19 +1633,24 @@ def run_scan(config: dict, logger: logging.Logger,
         logger.critical("=" * 60)
         _flush_log(logger)
 
-        # DB-Zustand sichern, soweit möglich
+        # DB-Zustand sichern, soweit möglich. Eventuell in-flight idv_files-
+        # Writes noch fluchten, bevor wir den End-Event emittieren; nach
+        # 5c/5d entfaellt dieser commit.
         try:
             conn.commit()
+        except Exception:
+            pass
+        try:
             finished = datetime.now(timezone.utc).isoformat()
-            conn.execute("""
-                UPDATE scan_runs SET
-                    finished_at = ?, total_files = ?, new_files = ?,
-                    changed_files = ?, moved_files = ?, restored_files = ?,
-                    archived_files = 0, errors = ?, scan_status = 'crashed'
-                WHERE id = ?
-            """, (finished, stats["total"], stats["new"], stats["changed"],
-                  stats["moved"], stats["restored"], stats["errors"] + 1, scan_run_id))
-            conn.commit()
+            emit(
+                OP_END_RUN,
+                scan_run_id=scan_run_id,
+                finished_at=finished,
+                status="crashed",
+                total=stats["total"], new=stats["new"], changed=stats["changed"],
+                moved=stats["moved"], restored=stats["restored"],
+                archived=0, errors=stats["errors"] + 1,
+            )
         except Exception as db_err:
             logger.critical(f"DB-Sicherung fehlgeschlagen: {db_err}")
         finally:
