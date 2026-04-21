@@ -13,11 +13,15 @@ import tempfile
 import threading
 import time
 import zipfile
+from typing import Optional
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, jsonify, current_app
 from . import login_required, admin_required, write_access_required, get_db
 from ..security import in_clause
+from ..db_writer import get_writer
 from .. import limiter
 from datetime import datetime, timezone, timedelta
+
+from db_write_tx import write_tx
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -759,13 +763,15 @@ def _scheduler_loop(app) -> None:
                                     started = _trigger_scheduled_scan()
                                     if started:
                                         _schedule_last_triggered = today_str
-                                        db.execute(
-                                            "INSERT OR REPLACE INTO app_settings "
-                                            "(key, value) VALUES "
-                                            "('scan_schedule_last_triggered_date', ?)",
-                                            (today_str,)
-                                        )
-                                        db.commit()
+                                        def _do(c, _today=today_str):
+                                            with write_tx(c):
+                                                c.execute(
+                                                    "INSERT OR REPLACE INTO app_settings "
+                                                    "(key, value) VALUES "
+                                                    "('scan_schedule_last_triggered_date', ?)",
+                                                    (_today,)
+                                                )
+                                        get_writer().submit(_do, wait=True)
         except Exception:
             try:
                 app.logger.exception("Fehler im Scan-Scheduler")
@@ -875,12 +881,10 @@ def scanner_einstellungen():
             _save_scanner_config(cfg)
             _save_path_mappings(path_mappings_new)
             path_mappings = path_mappings_new
-            # App-Settings für Auto-Ignorieren, Verwerfen und Zeitplan speichern
-            db = get_db()
             val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
             val_dc = "1" if request.form.get("discard_no_formula") == "1" else "0"
             val_cf = "1" if request.form.get("auto_classify_by_filename") == "1" else "0"
-            for _key, _val in [
+            _settings = [
                 ("auto_ignore_no_formula",    val_ai),
                 ("discard_no_formula",        val_dc),
                 ("auto_classify_by_filename", val_cf),
@@ -888,10 +892,13 @@ def scanner_einstellungen():
                 ("scan_schedule_type",        sched_type),
                 ("scan_schedule_time",        sched_time),
                 ("scan_schedule_weekday",     sched_weekday),
-            ]:
-                db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
-                           (_key, _val))
-            db.commit()
+            ]
+            def _do(c):
+                with write_tx(c):
+                    for _key, _val in _settings:
+                        c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
+                                  (_key, _val))
+            get_writer().submit(_do, wait=True)
             flash("Scanner-Konfiguration gespeichert.", "success")
         except Exception as exc:
             flash(f"Fehler beim Speichern: {exc}", "error")
@@ -1059,16 +1066,19 @@ def scanner_runas_speichern():
         ).fetchone()
         password_enc = existing["value"] if existing else ""
 
-    for key, val in [
+    _runas_settings = [
         ("scanner_runas_domain",   domain),
         ("scanner_runas_username", username),
         ("scanner_runas_password", password_enc),
-    ]:
-        db.execute(
-            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
-            (key, val),
-        )
-    db.commit()
+    ]
+    def _do(c):
+        with write_tx(c):
+            for _key, _val in _runas_settings:
+                c.execute(
+                    "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+                    (_key, _val),
+                )
+    get_writer().submit(_do, wait=True)
 
     if username:
         display = f"{domain}\\{username}" if domain else username
@@ -1182,20 +1192,21 @@ def scanner_bereinigen():
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=tage)).isoformat()
 
-    hist_count = db.execute(
-        "DELETE FROM idv_file_history WHERE changed_at < ?", (cutoff,)
-    ).rowcount
-
-    runs_count = db.execute("""
-        DELETE FROM scan_runs
-        WHERE started_at < ?
-          AND id NOT IN (
-              SELECT DISTINCT last_scan_run_id FROM idv_files
-              WHERE last_scan_run_id IS NOT NULL
-          )
-    """, (cutoff,)).rowcount
-
-    db.commit()
+    def _do(c, _cutoff=cutoff):
+        with write_tx(c):
+            hist = c.execute(
+                "DELETE FROM idv_file_history WHERE changed_at < ?", (_cutoff,)
+            ).rowcount
+            runs = c.execute("""
+                DELETE FROM scan_runs
+                WHERE started_at < ?
+                  AND id NOT IN (
+                      SELECT DISTINCT last_scan_run_id FROM idv_files
+                      WHERE last_scan_run_id IS NOT NULL
+                  )
+            """, (_cutoff,)).rowcount
+        return hist, runs
+    hist_count, runs_count = get_writer().submit(_do, wait=True)
     flash(
         f"Bereinigung abgeschlossen: {hist_count} History-Einträge und "
         f"{runs_count} Scan-Läufe gelöscht (älter als {tage} Tage).",
@@ -1226,150 +1237,150 @@ def scanner_db_importieren():
         flash(f"Quelldatenbank kann nicht geöffnet werden: {exc}", "error")
         return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
 
-    dst = get_db()
     now = datetime.now(timezone.utc).isoformat()
 
-    stats = {"runs": 0, "files_new": 0, "files_updated": 0, "history": 0}
-
     try:
-        # ── 1. scan_runs importieren ──────────────────────────────────────
-        run_id_map = {}   # src_run_id → dst_run_id
-        src_runs = src.execute(
-            "SELECT * FROM scan_runs ORDER BY id"
-        ).fetchall()
-        for run in src_runs:
-            cur = dst.execute("""
-                INSERT INTO scan_runs
-                    (started_at, finished_at, scan_paths,
-                     total_files, new_files, changed_files, moved_files,
-                     restored_files, archived_files, errors)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                run["started_at"], run["finished_at"], run["scan_paths"],
-                run["total_files"] or 0, run["new_files"] or 0,
-                run["changed_files"] or 0, run["moved_files"] or 0,
-                run["restored_files"] or 0, run["archived_files"] or 0,
-                run["errors"] or 0,
-            ))
-            run_id_map[run["id"]] = cur.lastrowid
-            stats["runs"] += 1
-
-        # ── 2. idv_files zusammenführen ──────────────────────────────────
-        file_id_map = {}  # src_file_id → dst_file_id
-        src_files = src.execute("SELECT * FROM idv_files ORDER BY id").fetchall()
-        for f in src_files:
-            existing = dst.execute(
-                "SELECT id, last_seen_at FROM idv_files WHERE full_path = ?",
-                (f["full_path"],)
-            ).fetchone()
-
-            if existing is None:
-                # Neue Datei einfügen
-                cur = dst.execute("""
-                    INSERT INTO idv_files (
-                        file_hash, full_path, file_name, extension, share_root,
-                        relative_path, size_bytes, created_at, modified_at, file_owner,
-                        office_author, office_last_author, office_created, office_modified,
-                        has_macros, has_external_links, sheet_count, named_ranges_count,
-                        formula_count, has_sheet_protection, protected_sheets_count,
-                        sheet_protection_has_pw, workbook_protected,
-                        first_seen_at, last_seen_at, last_scan_run_id, status
-                    ) VALUES (
-                        :file_hash, :full_path, :file_name, :extension, :share_root,
-                        :relative_path, :size_bytes, :created_at, :modified_at, :file_owner,
-                        :office_author, :office_last_author, :office_created, :office_modified,
-                        :has_macros, :has_external_links, :sheet_count, :named_ranges_count,
-                        :formula_count, :has_sheet_protection, :protected_sheets_count,
-                        :sheet_protection_has_pw, :workbook_protected,
-                        :first_seen_at, :last_seen_at, :last_scan_run_id, :status
-                    )
-                """, {
-                    "file_hash":          f["file_hash"],
-                    "full_path":          f["full_path"],
-                    "file_name":          f["file_name"],
-                    "extension":          f["extension"],
-                    "share_root":         f["share_root"],
-                    "relative_path":      f["relative_path"],
-                    "size_bytes":         f["size_bytes"],
-                    "created_at":         f["created_at"],
-                    "modified_at":        f["modified_at"],
-                    "file_owner":         f["file_owner"],
-                    "office_author":      f["office_author"],
-                    "office_last_author": f["office_last_author"],
-                    "office_created":     f["office_created"],
-                    "office_modified":    f["office_modified"],
-                    "has_macros":         f["has_macros"] or 0,
-                    "has_external_links": f["has_external_links"] or 0,
-                    "sheet_count":        f["sheet_count"],
-                    "named_ranges_count": f["named_ranges_count"],
-                    "formula_count":      f["formula_count"] or 0,
-                    "has_sheet_protection":    f["has_sheet_protection"] or 0,
-                    "protected_sheets_count":  f["protected_sheets_count"] or 0,
-                    "sheet_protection_has_pw": f["sheet_protection_has_pw"] or 0,
-                    "workbook_protected":      f["workbook_protected"] or 0,
-                    "first_seen_at":      f["first_seen_at"] or now,
-                    "last_seen_at":       f["last_seen_at"] or now,
-                    "last_scan_run_id":   run_id_map.get(f["last_scan_run_id"]),
-                    "status":             f["status"] or "active",
-                })
-                file_id_map[f["id"]] = cur.lastrowid
-                stats["files_new"] += 1
-            else:
-                # Vorhandene Datei: aktualisieren wenn Quelle neuer
-                file_id_map[f["id"]] = existing["id"]
-                src_ts  = f["last_seen_at"] or ""
-                dst_ts  = existing["last_seen_at"] or ""
-                if src_ts > dst_ts:
-                    dst.execute("""
-                        UPDATE idv_files SET
-                            file_hash = ?, size_bytes = ?,
-                            modified_at = ?, file_owner = ?,
-                            office_author = ?, office_last_author = ?,
-                            office_modified = ?,
-                            has_macros = ?, has_external_links = ?,
-                            sheet_count = ?, named_ranges_count = ?,
-                            formula_count = ?,
-                            has_sheet_protection = ?, protected_sheets_count = ?,
-                            sheet_protection_has_pw = ?, workbook_protected = ?,
-                            last_seen_at = ?, last_scan_run_id = ?, status = ?
-                        WHERE id = ?
-                    """, (
-                        f["file_hash"], f["size_bytes"],
-                        f["modified_at"], f["file_owner"],
-                        f["office_author"], f["office_last_author"],
-                        f["office_modified"],
-                        f["has_macros"] or 0, f["has_external_links"] or 0,
-                        f["sheet_count"], f["named_ranges_count"],
-                        f["formula_count"] or 0,
-                        f["has_sheet_protection"] or 0, f["protected_sheets_count"] or 0,
-                        f["sheet_protection_has_pw"] or 0, f["workbook_protected"] or 0,
-                        f["last_seen_at"], run_id_map.get(f["last_scan_run_id"]),
-                        f["status"] or "active",
-                        existing["id"],
-                    ))
-                    stats["files_updated"] += 1
-
-        # ── 3. idv_file_history übertragen ────────────────────────────────
-        src_hist = src.execute("SELECT * FROM idv_file_history ORDER BY id").fetchall()
-        for h in src_hist:
-            dst_file_id = file_id_map.get(h["file_id"])
-            dst_run_id  = run_id_map.get(h["scan_run_id"])
-            if dst_file_id is None or dst_run_id is None:
-                continue
-            dst.execute("""
-                INSERT INTO idv_file_history
-                    (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at, details)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                dst_file_id, dst_run_id,
-                h["change_type"], h["old_hash"], h["new_hash"],
-                h["changed_at"], h["details"],
-            ))
-            stats["history"] += 1
-
-        dst.commit()
+        src_runs  = [dict(r) for r in src.execute("SELECT * FROM scan_runs ORDER BY id").fetchall()]
+        src_files = [dict(r) for r in src.execute("SELECT * FROM idv_files ORDER BY id").fetchall()]
+        src_hist  = [dict(r) for r in src.execute("SELECT * FROM idv_file_history ORDER BY id").fetchall()]
+    except Exception as exc:
+        src.close()
+        flash(f"Fehler beim Lesen der Quelldatenbank: {exc}", "error")
+        return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
+    finally:
         src.close()
 
+    def _do(c):
+        stats = {"runs": 0, "files_new": 0, "files_updated": 0, "history": 0}
+        run_id_map = {}
+        file_id_map = {}
+        with write_tx(c):
+            for run in src_runs:
+                cur = c.execute("""
+                    INSERT INTO scan_runs
+                        (started_at, finished_at, scan_paths,
+                         total_files, new_files, changed_files, moved_files,
+                         restored_files, archived_files, errors)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    run["started_at"], run["finished_at"], run["scan_paths"],
+                    run["total_files"] or 0, run["new_files"] or 0,
+                    run["changed_files"] or 0, run["moved_files"] or 0,
+                    run["restored_files"] or 0, run["archived_files"] or 0,
+                    run["errors"] or 0,
+                ))
+                run_id_map[run["id"]] = cur.lastrowid
+                stats["runs"] += 1
+
+            for f in src_files:
+                existing = c.execute(
+                    "SELECT id, last_seen_at FROM idv_files WHERE full_path = ?",
+                    (f["full_path"],)
+                ).fetchone()
+
+                if existing is None:
+                    cur = c.execute("""
+                        INSERT INTO idv_files (
+                            file_hash, full_path, file_name, extension, share_root,
+                            relative_path, size_bytes, created_at, modified_at, file_owner,
+                            office_author, office_last_author, office_created, office_modified,
+                            has_macros, has_external_links, sheet_count, named_ranges_count,
+                            formula_count, has_sheet_protection, protected_sheets_count,
+                            sheet_protection_has_pw, workbook_protected,
+                            first_seen_at, last_seen_at, last_scan_run_id, status
+                        ) VALUES (
+                            :file_hash, :full_path, :file_name, :extension, :share_root,
+                            :relative_path, :size_bytes, :created_at, :modified_at, :file_owner,
+                            :office_author, :office_last_author, :office_created, :office_modified,
+                            :has_macros, :has_external_links, :sheet_count, :named_ranges_count,
+                            :formula_count, :has_sheet_protection, :protected_sheets_count,
+                            :sheet_protection_has_pw, :workbook_protected,
+                            :first_seen_at, :last_seen_at, :last_scan_run_id, :status
+                        )
+                    """, {
+                        "file_hash":          f["file_hash"],
+                        "full_path":          f["full_path"],
+                        "file_name":          f["file_name"],
+                        "extension":          f["extension"],
+                        "share_root":         f["share_root"],
+                        "relative_path":      f["relative_path"],
+                        "size_bytes":         f["size_bytes"],
+                        "created_at":         f["created_at"],
+                        "modified_at":        f["modified_at"],
+                        "file_owner":         f["file_owner"],
+                        "office_author":      f["office_author"],
+                        "office_last_author": f["office_last_author"],
+                        "office_created":     f["office_created"],
+                        "office_modified":    f["office_modified"],
+                        "has_macros":         f["has_macros"] or 0,
+                        "has_external_links": f["has_external_links"] or 0,
+                        "sheet_count":        f["sheet_count"],
+                        "named_ranges_count": f["named_ranges_count"],
+                        "formula_count":      f["formula_count"] or 0,
+                        "has_sheet_protection":    f["has_sheet_protection"] or 0,
+                        "protected_sheets_count":  f["protected_sheets_count"] or 0,
+                        "sheet_protection_has_pw": f["sheet_protection_has_pw"] or 0,
+                        "workbook_protected":      f["workbook_protected"] or 0,
+                        "first_seen_at":      f["first_seen_at"] or now,
+                        "last_seen_at":       f["last_seen_at"] or now,
+                        "last_scan_run_id":   run_id_map.get(f["last_scan_run_id"]),
+                        "status":             f["status"] or "active",
+                    })
+                    file_id_map[f["id"]] = cur.lastrowid
+                    stats["files_new"] += 1
+                else:
+                    file_id_map[f["id"]] = existing["id"]
+                    src_ts  = f["last_seen_at"] or ""
+                    dst_ts  = existing["last_seen_at"] or ""
+                    if src_ts > dst_ts:
+                        c.execute("""
+                            UPDATE idv_files SET
+                                file_hash = ?, size_bytes = ?,
+                                modified_at = ?, file_owner = ?,
+                                office_author = ?, office_last_author = ?,
+                                office_modified = ?,
+                                has_macros = ?, has_external_links = ?,
+                                sheet_count = ?, named_ranges_count = ?,
+                                formula_count = ?,
+                                has_sheet_protection = ?, protected_sheets_count = ?,
+                                sheet_protection_has_pw = ?, workbook_protected = ?,
+                                last_seen_at = ?, last_scan_run_id = ?, status = ?
+                            WHERE id = ?
+                        """, (
+                            f["file_hash"], f["size_bytes"],
+                            f["modified_at"], f["file_owner"],
+                            f["office_author"], f["office_last_author"],
+                            f["office_modified"],
+                            f["has_macros"] or 0, f["has_external_links"] or 0,
+                            f["sheet_count"], f["named_ranges_count"],
+                            f["formula_count"] or 0,
+                            f["has_sheet_protection"] or 0, f["protected_sheets_count"] or 0,
+                            f["sheet_protection_has_pw"] or 0, f["workbook_protected"] or 0,
+                            f["last_seen_at"], run_id_map.get(f["last_scan_run_id"]),
+                            f["status"] or "active",
+                            existing["id"],
+                        ))
+                        stats["files_updated"] += 1
+
+            for h in src_hist:
+                dst_file_id = file_id_map.get(h["file_id"])
+                dst_run_id  = run_id_map.get(h["scan_run_id"])
+                if dst_file_id is None or dst_run_id is None:
+                    continue
+                c.execute("""
+                    INSERT INTO idv_file_history
+                        (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at, details)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    dst_file_id, dst_run_id,
+                    h["change_type"], h["old_hash"], h["new_hash"],
+                    h["changed_at"], h["details"],
+                ))
+                stats["history"] += 1
+        return stats
+
+    try:
+        stats = get_writer().submit(_do, wait=True)
         flash(
             f"Import abgeschlossen: {stats['runs']} Scan-Läufe, "
             f"{stats['files_new']} neue Dateien, "
@@ -1377,10 +1388,7 @@ def scanner_db_importieren():
             f"{stats['history']} History-Einträge.",
             "success"
         )
-
     except Exception as exc:
-        dst.rollback()
-        src.close()
         flash(f"Fehler beim Import: {exc}", "error")
 
     return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
@@ -1701,8 +1709,9 @@ def mail():
     if request.method == "POST":
         # VULN-007: SMTP-Passwort gesondert behandeln (Fernet-Verschlüsselung)
         from ..email_service import EMAIL_TEMPLATES, encrypt_smtp_password
-        _save_smtp_password(db, request.form.get("smtp_password", ""),
-                            encrypt_smtp_password)
+        smtp_pw_enc = _encrypt_smtp_password(
+            request.form.get("smtp_password", ""), encrypt_smtp_password
+        )
 
         keys = ["smtp_host", "smtp_port", "smtp_user",
                 "smtp_from", "smtp_tls", "app_base_url"]
@@ -1710,10 +1719,15 @@ def mail():
             keys.append(f"notify_enabled_{tpl_key}")
             keys.append(f"email_tpl_{tpl_key}_subject")
             keys.append(f"email_tpl_{tpl_key}_body")
-        for k in keys:
-            val = request.form.get(k, "")
-            db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", (k, val))
-        db.commit()
+        kv = [(k, request.form.get(k, "")) for k in keys]
+        if smtp_pw_enc is not None:
+            kv.append(("smtp_password", smtp_pw_enc))
+        def _do(c):
+            with write_tx(c):
+                for _k, _v in kv:
+                    c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
+                              (_k, _v))
+        get_writer().submit(_do, wait=True)
         flash("Einstellungen gespeichert.", "success")
         return redirect(url_for("admin.mail") + "#email-vorlagen")
 
@@ -1788,24 +1802,26 @@ def mail_test():
 @bp.route("/person/neu", methods=["POST"])
 @login_required
 def new_person():
-    db = get_db()
+    params = (
+        request.form.get("kuerzel", "").strip().upper(),
+        request.form.get("nachname", "").strip(),
+        request.form.get("vorname", "").strip(),
+        request.form.get("email") or None,
+        request.form.get("rolle") or None,
+        request.form.get("org_unit_id") or None,
+        request.form.get("user_id") or None,
+        request.form.get("ad_name") or None,
+        _now(),
+    )
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id,
+                                     user_id, ad_name, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?)
+            """, params)
     try:
-        db.execute("""
-            INSERT INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id,
-                                 user_id, ad_name, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """, (
-            request.form.get("kuerzel", "").strip().upper(),
-            request.form.get("nachname", "").strip(),
-            request.form.get("vorname", "").strip(),
-            request.form.get("email") or None,
-            request.form.get("rolle") or None,
-            request.form.get("org_unit_id") or None,
-            request.form.get("user_id") or None,
-            request.form.get("ad_name") or None,
-            _now()
-        ))
-        db.commit()
+        get_writer().submit(_do, wait=True)
     except sqlite3.OperationalError as exc:
         current_app.logger.warning("new_person: Datenbank gesperrt: %s", exc)
         flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
@@ -1829,26 +1845,29 @@ def edit_person(pid):
         new_pw = request.form.get("password", "").strip()
         pw_hash = _hash_pw(new_pw) if new_pw else person["password_hash"]
 
+        params = (
+            request.form.get("kuerzel", "").strip().upper(),
+            request.form.get("nachname", "").strip(),
+            request.form.get("vorname", "").strip(),
+            request.form.get("email") or None,
+            request.form.get("rolle") or None,
+            request.form.get("org_unit_id") or None,
+            request.form.get("user_id") or None,
+            request.form.get("ad_name") or None,
+            pw_hash,
+            1 if request.form.get("aktiv") else 0,
+            pid,
+        )
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    UPDATE persons SET
+                        kuerzel=?, nachname=?, vorname=?, email=?, rolle=?,
+                        org_unit_id=?, user_id=?, ad_name=?, password_hash=?, aktiv=?
+                    WHERE id=?
+                """, params)
         try:
-            db.execute("""
-                UPDATE persons SET
-                    kuerzel=?, nachname=?, vorname=?, email=?, rolle=?,
-                    org_unit_id=?, user_id=?, ad_name=?, password_hash=?, aktiv=?
-                WHERE id=?
-            """, (
-                request.form.get("kuerzel", "").strip().upper(),
-                request.form.get("nachname", "").strip(),
-                request.form.get("vorname", "").strip(),
-                request.form.get("email") or None,
-                request.form.get("rolle") or None,
-                request.form.get("org_unit_id") or None,
-                request.form.get("user_id") or None,
-                request.form.get("ad_name") or None,
-                pw_hash,
-                1 if request.form.get("aktiv") else 0,
-                pid
-            ))
-            db.commit()
+            get_writer().submit(_do, wait=True)
         except sqlite3.OperationalError as exc:
             current_app.logger.warning("edit_person (pid=%s): Datenbank gesperrt: %s", pid, exc)
             flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
@@ -1862,9 +1881,10 @@ def edit_person(pid):
 @bp.route("/person/<int:pid>/loeschen", methods=["POST"])
 @admin_required
 def delete_person(pid):
-    db = get_db()
-    db.execute("UPDATE persons SET aktiv=0 WHERE id=?", (pid,))
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("UPDATE persons SET aktiv=0 WHERE id=?", (pid,))
+    get_writer().submit(_do, wait=True)
     flash("Person deaktiviert.", "success")
     return redirect(url_for("admin.index"))
 
@@ -1872,13 +1892,13 @@ def delete_person(pid):
 @bp.route("/person/<int:pid>/endgueltig-loeschen", methods=["POST"])
 @admin_required
 def delete_person_hard(pid):
-    db = get_db()
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM persons WHERE id=?", (pid,))
     try:
-        db.execute("DELETE FROM persons WHERE id=?", (pid,))
-        db.commit()
+        get_writer().submit(_do, wait=True)
         flash("Person gelöscht.", "success")
     except Exception:
-        db.rollback()
         flash("Person konnte nicht gelöscht werden (noch Eigenentwicklungen zugeordnet) – bitte zuerst deaktivieren.", "warning")
     return redirect(url_for("admin.index"))
 
@@ -1898,28 +1918,28 @@ def bulk_persons():
 
     if action == "deactivate":
         ph, ph_params = in_clause(ids)
-        db.execute(f"UPDATE persons SET aktiv=0 WHERE id IN ({ph})", ph_params)
-        db.commit()
+        def _do(c):
+            with write_tx(c):
+                c.execute(f"UPDATE persons SET aktiv=0 WHERE id IN ({ph})", ph_params)
+        get_writer().submit(_do, wait=True)
         flash(f"{len(ids)} Person(en) deaktiviert.", "success")
 
     elif action == "delete":
         import sqlite3 as _sq
         deleted = skipped = 0
         for pid in ids:
+            def _do(c, _pid=pid):
+                with write_tx(c):
+                    c.execute("DELETE FROM persons WHERE id=?", (_pid,))
             try:
-                db.execute("DELETE FROM persons WHERE id=?", (pid,))
-                db.commit()
+                get_writer().submit(_do, wait=True)
                 deleted += 1
             except _sq.IntegrityError as exc:
-                # VULN-011: FK-Verletzungen (person hat IDVs) sind erwartet,
-                # aber andere DB-Fehler protokollieren wir.
-                db.rollback()
                 skipped += 1
                 current_app.logger.info(
                     "Person %s nicht löschbar (FK-Constraint): %s", pid, exc
                 )
             except _sq.DatabaseError as exc:
-                db.rollback()
                 skipped += 1
                 current_app.logger.warning(
                     "Person %s: Datenbankfehler beim Löschen: %s", pid, exc
@@ -1940,16 +1960,18 @@ def bulk_persons():
 @bp.route("/oe/neu", methods=["POST"])
 @login_required
 def new_oe():
-    db = get_db()
-    db.execute("""
-        INSERT INTO org_units (bezeichnung, parent_id, created_at)
-        VALUES (?,?,?)
-    """, (
+    params = (
         request.form.get("bezeichnung", "").strip(),
         request.form.get("parent_id") or None,
-        _now()
-    ))
-    db.commit()
+        _now(),
+    )
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO org_units (bezeichnung, parent_id, created_at)
+                VALUES (?,?,?)
+            """, params)
+    get_writer().submit(_do, wait=True)
     flash("Organisationseinheit angelegt.", "success")
     return redirect(url_for("admin.index"))
 
@@ -1966,15 +1988,18 @@ def edit_oe(oid):
     all_oe = db.execute("SELECT * FROM org_units WHERE id!=? ORDER BY bezeichnung", (oid,)).fetchall()
 
     if request.method == "POST":
-        db.execute("""
-            UPDATE org_units SET bezeichnung=?, parent_id=?
-            WHERE id=?
-        """, (
+        params = (
             request.form.get("bezeichnung", "").strip(),
             request.form.get("parent_id") or None,
-            oid
-        ))
-        db.commit()
+            oid,
+        )
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    UPDATE org_units SET bezeichnung=?, parent_id=?
+                    WHERE id=?
+                """, params)
+        get_writer().submit(_do, wait=True)
         flash("Organisationseinheit gespeichert.", "success")
         return redirect(url_for("admin.index"))
 
@@ -1984,9 +2009,10 @@ def edit_oe(oid):
 @bp.route("/oe/<int:oid>/loeschen", methods=["POST"])
 @admin_required
 def delete_oe(oid):
-    db = get_db()
-    db.execute("DELETE FROM org_units WHERE id=?", (oid,))
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM org_units WHERE id=?", (oid,))
+    get_writer().submit(_do, wait=True)
     flash("Organisationseinheit gelöscht.", "success")
     return redirect(url_for("admin.index"))
 
@@ -1996,21 +2022,23 @@ def delete_oe(oid):
 @bp.route("/gp/neu", methods=["POST"])
 @login_required
 def new_gp():
-    db = get_db()
     now = _now()
-    db.execute("""
-        INSERT INTO geschaeftsprozesse
-          (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich, updated_at, created_at)
-        VALUES (?,?,?,?,?,?,?)
-    """, (
+    params = (
         request.form.get("gp_nummer", "").strip(),
         request.form.get("bezeichnung", "").strip(),
         request.form.get("bereich") or None,
         1 if request.form.get("ist_kritisch") else 0,
         1 if request.form.get("ist_wesentlich") else 0,
-        now, now
-    ))
-    db.commit()
+        now, now,
+    )
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO geschaeftsprozesse
+                  (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich, updated_at, created_at)
+                VALUES (?,?,?,?,?,?,?)
+            """, params)
+    get_writer().submit(_do, wait=True)
     flash("Geschäftsprozess angelegt.", "success")
     return redirect(url_for("admin.index"))
 
@@ -2025,14 +2053,7 @@ def edit_gp(gid):
         return redirect(url_for("admin.index"))
 
     if request.method == "POST":
-        db.execute("""
-            UPDATE geschaeftsprozesse SET
-                gp_nummer=?, bezeichnung=?, ist_kritisch=?, ist_wesentlich=?,
-                beschreibung=?,
-                schutzbedarf_a=?, schutzbedarf_c=?, schutzbedarf_i=?, schutzbedarf_n=?,
-                aktiv=?, updated_at=?
-            WHERE id=?
-        """, (
+        params = (
             request.form.get("gp_nummer", "").strip(),
             request.form.get("bezeichnung", "").strip(),
             1 if request.form.get("ist_kritisch") else 0,
@@ -2043,9 +2064,19 @@ def edit_gp(gid):
             request.form.get("schutzbedarf_i") or None,
             request.form.get("schutzbedarf_n") or None,
             1 if request.form.get("aktiv") else 0,
-            _now(), gid
-        ))
-        db.commit()
+            _now(), gid,
+        )
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    UPDATE geschaeftsprozesse SET
+                        gp_nummer=?, bezeichnung=?, ist_kritisch=?, ist_wesentlich=?,
+                        beschreibung=?,
+                        schutzbedarf_a=?, schutzbedarf_c=?, schutzbedarf_i=?, schutzbedarf_n=?,
+                        aktiv=?, updated_at=?
+                    WHERE id=?
+                """, params)
+        get_writer().submit(_do, wait=True)
         flash("Geschäftsprozess gespeichert.", "success")
         return redirect(url_for("admin.index"))
 
@@ -2056,9 +2087,10 @@ def edit_gp(gid):
 @bp.route("/gp/<int:gid>/loeschen", methods=["POST"])
 @admin_required
 def delete_gp(gid):
-    db = get_db()
-    db.execute("UPDATE geschaeftsprozesse SET aktiv=0 WHERE id=?", (gid,))
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("UPDATE geschaeftsprozesse SET aktiv=0 WHERE id=?", (gid,))
+    get_writer().submit(_do, wait=True)
     flash("Geschäftsprozess deaktiviert.", "success")
     return redirect(url_for("admin.index"))
 
@@ -2068,10 +2100,11 @@ def delete_gp(gid):
 def delete_all_gp():
     """Löscht alle Geschäftsprozesse unwiderruflich.
     Verknüpfungen in idv_register.gp_id werden dabei auf NULL gesetzt."""
-    db = get_db()
-    db.execute("UPDATE idv_register SET gp_id=NULL WHERE gp_id IS NOT NULL")
-    db.execute("DELETE FROM geschaeftsprozesse")
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("UPDATE idv_register SET gp_id=NULL WHERE gp_id IS NOT NULL")
+            c.execute("DELETE FROM geschaeftsprozesse")
+    get_writer().submit(_do, wait=True)
     flash("Alle Geschäftsprozesse wurden gelöscht.", "success")
     return redirect(url_for("admin.index") + "#geschaeftsprozesse")
 
@@ -2091,21 +2124,24 @@ def bulk_gps():
 
     if action == "deactivate":
         ph, ph_params = in_clause(ids)
-        db.execute(f"UPDATE geschaeftsprozesse SET aktiv=0 WHERE id IN ({ph})", ph_params)
-        db.commit()
+        def _do(c):
+            with write_tx(c):
+                c.execute(f"UPDATE geschaeftsprozesse SET aktiv=0 WHERE id IN ({ph})", ph_params)
+        get_writer().submit(_do, wait=True)
         flash(f"{len(ids)} Geschäftsprozess(e) deaktiviert.", "success")
 
     elif action == "delete":
         import sqlite3 as _sq
         deleted = skipped = 0
         for gid in ids:
+            def _do(c, _gid=gid):
+                with write_tx(c):
+                    c.execute("UPDATE idv_register SET gp_id=NULL WHERE gp_id=?", (_gid,))
+                    c.execute("DELETE FROM geschaeftsprozesse WHERE id=?", (_gid,))
             try:
-                db.execute("UPDATE idv_register SET gp_id=NULL WHERE gp_id=?", (gid,))
-                db.execute("DELETE FROM geschaeftsprozesse WHERE id=?", (gid,))
-                db.commit()
+                get_writer().submit(_do, wait=True)
                 deleted += 1
             except _sq.DatabaseError as exc:
-                db.rollback()
                 skipped += 1
                 current_app.logger.warning(
                     "Geschäftsprozess %s nicht löschbar: %s", gid, exc
@@ -2126,16 +2162,18 @@ def bulk_gps():
 @bp.route("/plattform/neu", methods=["POST"])
 @login_required
 def new_plattform():
-    db = get_db()
-    db.execute("""
-        INSERT INTO plattformen (bezeichnung, typ, hersteller)
-        VALUES (?,?,?)
-    """, (
+    params = (
         request.form.get("bezeichnung", "").strip(),
         request.form.get("typ") or None,
         request.form.get("hersteller") or None,
-    ))
-    db.commit()
+    )
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO plattformen (bezeichnung, typ, hersteller)
+                VALUES (?,?,?)
+            """, params)
+    get_writer().submit(_do, wait=True)
     flash("Plattform angelegt.", "success")
     return redirect(url_for("admin.index"))
 
@@ -2150,17 +2188,20 @@ def edit_plattform(plid):
         return redirect(url_for("admin.index"))
 
     if request.method == "POST":
-        db.execute("""
-            UPDATE plattformen SET bezeichnung=?, typ=?, hersteller=?, aktiv=?
-            WHERE id=?
-        """, (
+        params = (
             request.form.get("bezeichnung", "").strip(),
             request.form.get("typ") or None,
             request.form.get("hersteller") or None,
             1 if request.form.get("aktiv") else 0,
-            plid
-        ))
-        db.commit()
+            plid,
+        )
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    UPDATE plattformen SET bezeichnung=?, typ=?, hersteller=?, aktiv=?
+                    WHERE id=?
+                """, params)
+        get_writer().submit(_do, wait=True)
         flash("Plattform gespeichert.", "success")
         return redirect(url_for("admin.index"))
 
@@ -2170,9 +2211,10 @@ def edit_plattform(plid):
 @bp.route("/plattform/<int:plid>/loeschen", methods=["POST"])
 @admin_required
 def delete_plattform(plid):
-    db = get_db()
-    db.execute("UPDATE plattformen SET aktiv=0 WHERE id=?", (plid,))
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("UPDATE plattformen SET aktiv=0 WHERE id=?", (plid,))
+    get_writer().submit(_do, wait=True)
     flash("Plattform deaktiviert.", "success")
     return redirect(url_for("admin.index"))
 
@@ -2182,11 +2224,11 @@ def delete_plattform(plid):
 @bp.route("/einstellungen", methods=["POST"])
 @admin_required
 def save_settings():
-    db = get_db()
     # VULN-007: SMTP-Passwort gesondert behandeln (Fernet-Verschlüsselung)
     from ..email_service import EMAIL_TEMPLATES, encrypt_smtp_password
-    _save_smtp_password(db, request.form.get("smtp_password", ""),
-                        encrypt_smtp_password)
+    smtp_pw_enc = _encrypt_smtp_password(
+        request.form.get("smtp_password", ""), encrypt_smtp_password
+    )
 
     keys = ["smtp_host", "smtp_port", "smtp_user",
             "smtp_from", "smtp_tls", "local_login_enabled",
@@ -2196,30 +2238,31 @@ def save_settings():
         keys.append(f"notify_enabled_{tpl_key}")
         keys.append(f"email_tpl_{tpl_key}_subject")
         keys.append(f"email_tpl_{tpl_key}_body")
-    for k in keys:
-        val = request.form.get(k, "")
-        db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", (k, val))
-    db.commit()
+    kv = [(k, request.form.get(k, "")) for k in keys]
+    if smtp_pw_enc is not None:
+        kv.append(("smtp_password", smtp_pw_enc))
+    def _do(c):
+        with write_tx(c):
+            for _k, _v in kv:
+                c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
+                          (_k, _v))
+    get_writer().submit(_do, wait=True)
     flash("Einstellungen gespeichert.", "success")
     return redirect(url_for("admin.mail") + "#email-vorlagen")
 
 
-def _save_smtp_password(db, submitted: str, encrypt_fn) -> None:
-    """Speichert das SMTP-Passwort verschlüsselt.
+def _encrypt_smtp_password(submitted: str, encrypt_fn) -> Optional[str]:
+    """Verschlüsselt ein SMTP-Passwort für die spätere Persistenz.
 
-    - Leerer Wert bedeutet "Passwort beibehalten" (z. B. wenn der Admin nur
-      andere Felder bearbeitet hat). Das Feld im Formular ist bewusst leer,
-      um das Klartext-Passwort nicht ins HTML zu schreiben.
-    - Nicht-leerer Wert wird Fernet-verschlüsselt und mit "enc:"-Präfix
-      abgelegt.
+    Gibt den verschlüsselten Wert zurueck oder ``None``, wenn nichts
+    gespeichert werden soll (leerer Wert = Altbestand behalten) bzw. wenn
+    die Verschlüsselung fehlgeschlagen ist (Fehler wird geflasht).
     """
     if not submitted:
-        return  # Altbestand nicht überschreiben
+        return None
     try:
-        enc = encrypt_fn(submitted)
+        return encrypt_fn(submitted)
     except Exception as exc:
-        # VULN-011: Fehler protokollieren; im Ausnahmefall lieber nicht
-        # speichern als Klartext abzulegen.
         current_app.logger.error(
             "SMTP-Passwort-Verschlüsselung fehlgeschlagen: %s", exc
         )
@@ -2227,11 +2270,7 @@ def _save_smtp_password(db, submitted: str, encrypt_fn) -> None:
             "SMTP-Passwort konnte nicht verschlüsselt werden – nicht gespeichert.",
             "error",
         )
-        return
-    db.execute(
-        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
-        ("smtp_password", enc),
-    )
+        return None
 
 
 # ── Scanner-Log ───────────────────────────────────────────────────────────
@@ -2420,8 +2459,10 @@ def import_persons():
     delimiter  = ";" if first_line.count(";") >= first_line.count(",") else ","
 
     reader  = csv.DictReader(io.StringIO(content), delimiter=delimiter)
-    created = updated = errors = 0
     now     = _now()
+
+    prepared = []  # Liste von ("update", params) oder ("insert", params)
+    errors = 0
 
     for row in reader:
         try:
@@ -2441,7 +2482,6 @@ def import_persons():
                 errors += 1
                 continue
 
-            # OE auflösen
             org_unit_id = None
             if oe_bezeichnung:
                 oe_row = db.execute(
@@ -2450,7 +2490,6 @@ def import_persons():
                 if oe_row:
                     org_unit_id = oe_row["id"]
 
-            # Prüfen ob user_id schon existiert
             existing = None
             if user_id:
                 existing = db.execute("SELECT id FROM persons WHERE user_id=?", (user_id,)).fetchone()
@@ -2458,29 +2497,38 @@ def import_persons():
                 existing = db.execute("SELECT id FROM persons WHERE kuerzel=?", (kuerzel,)).fetchone()
 
             if existing:
-                db.execute("""
-                    UPDATE persons SET
-                        email=COALESCE(NULLIF(?,''), email),
-                        ad_name=COALESCE(NULLIF(?,''), ad_name),
-                        org_unit_id=COALESCE(?,org_unit_id),
-                        user_id=COALESCE(NULLIF(?,''), user_id),
-                        rolle=COALESCE(NULLIF(?,''), rolle)
-                    WHERE id=?
-                """, (email, ad_name, org_unit_id, user_id, rolle, existing["id"]))
-                updated += 1
+                prepared.append(("update", (email, ad_name, org_unit_id, user_id, rolle, existing["id"])))
             else:
-                db.execute("""
-                    INSERT INTO persons
-                        (kuerzel, nachname, vorname, email, rolle, org_unit_id,
-                         user_id, ad_name, created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?)
-                """, (kuerzel, nachname, vorname, email or None, rolle,
-                      org_unit_id, user_id or None, ad_name or None, now))
-                created += 1
-        except Exception as exc:
+                prepared.append(("insert", (kuerzel, nachname, vorname, email or None, rolle,
+                                            org_unit_id, user_id or None, ad_name or None, now)))
+        except Exception:
             errors += 1
 
-    db.commit()
+    def _do(c):
+        created = updated = 0
+        with write_tx(c):
+            for op, params in prepared:
+                if op == "update":
+                    c.execute("""
+                        UPDATE persons SET
+                            email=COALESCE(NULLIF(?,''), email),
+                            ad_name=COALESCE(NULLIF(?,''), ad_name),
+                            org_unit_id=COALESCE(?,org_unit_id),
+                            user_id=COALESCE(NULLIF(?,''), user_id),
+                            rolle=COALESCE(NULLIF(?,''), rolle)
+                        WHERE id=?
+                    """, params)
+                    updated += 1
+                else:
+                    c.execute("""
+                        INSERT INTO persons
+                            (kuerzel, nachname, vorname, email, rolle, org_unit_id,
+                             user_id, ad_name, created_at)
+                        VALUES (?,?,?,?,?,?,?,?,?)
+                    """, params)
+                    created += 1
+        return created, updated
+    created, updated = get_writer().submit(_do, wait=True)
     flash(f"Import abgeschlossen: {created} neu, {updated} aktualisiert, {errors} Fehler.", "success")
     return redirect(url_for("admin.index"))
 
@@ -2513,21 +2561,24 @@ def new_klassifizierung(bereich):
         "SELECT COALESCE(MAX(sort_order),0) FROM klassifizierungen WHERE bereich=?", (bereich,)
     ).fetchone()[0]
 
-    db.execute("""
-        INSERT INTO klassifizierungen (bereich, wert, bezeichnung, beschreibung, sort_order, aktiv)
-        VALUES (?,?,?,?,?,1)
-        ON CONFLICT(bereich, wert) DO UPDATE SET
-            bezeichnung=excluded.bezeichnung,
-            beschreibung=excluded.beschreibung,
-            aktiv=1
-    """, (
+    params = (
         bereich,
         wert,
         request.form.get("bezeichnung") or None,
         request.form.get("beschreibung") or None,
-        max_order + 1
-    ))
-    db.commit()
+        max_order + 1,
+    )
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO klassifizierungen (bereich, wert, bezeichnung, beschreibung, sort_order, aktiv)
+                VALUES (?,?,?,?,?,1)
+                ON CONFLICT(bereich, wert) DO UPDATE SET
+                    bezeichnung=excluded.bezeichnung,
+                    beschreibung=excluded.beschreibung,
+                    aktiv=1
+            """, params)
+    get_writer().submit(_do, wait=True)
     flash(f"Eintrag '{wert}' in '{bereich}' angelegt.", "success")
     return redirect(url_for("admin.index") + f"#klass-{bereich}")
 
@@ -2542,19 +2593,22 @@ def edit_klassifizierung(kid):
         return redirect(url_for("admin.index"))
 
     if request.method == "POST":
-        db.execute("""
-            UPDATE klassifizierungen
-            SET wert=?, bezeichnung=?, beschreibung=?, sort_order=?, aktiv=?
-            WHERE id=?
-        """, (
+        params = (
             request.form.get("wert", "").strip(),
             request.form.get("bezeichnung") or None,
             request.form.get("beschreibung") or None,
             int(request.form.get("sort_order", row["sort_order"])),
             1 if request.form.get("aktiv") else 0,
-            kid
-        ))
-        db.commit()
+            kid,
+        )
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    UPDATE klassifizierungen
+                    SET wert=?, bezeichnung=?, beschreibung=?, sort_order=?, aktiv=?
+                    WHERE id=?
+                """, params)
+        get_writer().submit(_do, wait=True)
         flash("Eintrag gespeichert.", "success")
         return redirect(url_for("admin.index") + f"#klass-{row['bereich']}")
 
@@ -2568,8 +2622,10 @@ def edit_klassifizierung(kid):
 def delete_klassifizierung(kid):
     db  = get_db()
     row = db.execute("SELECT bereich FROM klassifizierungen WHERE id=?", (kid,)).fetchone()
-    db.execute("UPDATE klassifizierungen SET aktiv=0 WHERE id=?", (kid,))
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("UPDATE klassifizierungen SET aktiv=0 WHERE id=?", (kid,))
+    get_writer().submit(_do, wait=True)
     flash("Eintrag deaktiviert.", "success")
     bereich = row["bereich"] if row else ""
     return redirect(url_for("admin.index") + f"#klass-{bereich}")
@@ -2590,17 +2646,20 @@ def new_wesentlichkeitskriterium():
         "SELECT COALESCE(MAX(sort_order), 0) FROM wesentlichkeitskriterien"
     ).fetchone()[0]
 
-    db.execute("""
-        INSERT INTO wesentlichkeitskriterien
-            (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
-        VALUES (?, ?, ?, ?, 1)
-    """, (
+    params = (
         bezeichnung,
         request.form.get("beschreibung") or None,
         1 if request.form.get("begruendung_pflicht") else 0,
         max_order + 1,
-    ))
-    db.commit()
+    )
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO wesentlichkeitskriterien
+                    (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
+                VALUES (?, ?, ?, ?, 1)
+            """, params)
+    get_writer().submit(_do, wait=True)
     flash(f"Kriterium '{bezeichnung}' angelegt.", "success")
     return redirect(url_for("admin.index") + "#wesentlichkeit")
 
@@ -2615,19 +2674,22 @@ def edit_wesentlichkeitskriterium(kid):
         return redirect(url_for("admin.index") + "#wesentlichkeit")
 
     if request.method == "POST":
-        db.execute("""
-            UPDATE wesentlichkeitskriterien
-            SET bezeichnung=?, beschreibung=?, begruendung_pflicht=?, sort_order=?, aktiv=?
-            WHERE id=?
-        """, (
+        params = (
             request.form.get("bezeichnung", "").strip(),
             request.form.get("beschreibung") or None,
             1 if request.form.get("begruendung_pflicht") else 0,
             int(request.form.get("sort_order", row["sort_order"])),
             1 if request.form.get("aktiv") else 0,
             kid,
-        ))
-        db.commit()
+        )
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    UPDATE wesentlichkeitskriterien
+                    SET bezeichnung=?, beschreibung=?, begruendung_pflicht=?, sort_order=?, aktiv=?
+                    WHERE id=?
+                """, params)
+        get_writer().submit(_do, wait=True)
         flash("Kriterium gespeichert.", "success")
         return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
 
@@ -2648,12 +2710,16 @@ def delete_wesentlichkeitskriterium(kid):
         "SELECT 1 FROM idv_wesentlichkeit WHERE kriterium_id=? LIMIT 1", (kid,)
     ).fetchone()
     if in_use:
-        db.execute("UPDATE wesentlichkeitskriterien SET aktiv=0 WHERE id=?", (kid,))
-        db.commit()
+        def _do(c):
+            with write_tx(c):
+                c.execute("UPDATE wesentlichkeitskriterien SET aktiv=0 WHERE id=?", (kid,))
+        get_writer().submit(_do, wait=True)
         flash("Kriterium deaktiviert. Vorhandene Antworten bleiben erhalten.", "success")
     else:
-        db.execute("DELETE FROM wesentlichkeitskriterien WHERE id=?", (kid,))
-        db.commit()
+        def _do(c):
+            with write_tx(c):
+                c.execute("DELETE FROM wesentlichkeitskriterien WHERE id=?", (kid,))
+        get_writer().submit(_do, wait=True)
         flash("Kriterium gelöscht.", "success")
     return redirect(url_for("admin.index") + "#wesentlichkeit")
 
@@ -2677,13 +2743,15 @@ def new_wesentlichkeit_detail(kid):
         "SELECT COALESCE(MAX(sort_order), 0) FROM wesentlichkeitskriterium_details WHERE kriterium_id=?",
         (kid,),
     ).fetchone()[0]
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO wesentlichkeitskriterium_details
+                    (kriterium_id, bezeichnung, sort_order, aktiv)
+                VALUES (?, ?, ?, 1)
+            """, (kid, bezeichnung, max_order + 1))
     try:
-        db.execute("""
-            INSERT INTO wesentlichkeitskriterium_details
-                (kriterium_id, bezeichnung, sort_order, aktiv)
-            VALUES (?, ?, ?, 1)
-        """, (kid, bezeichnung, max_order + 1))
-        db.commit()
+        get_writer().submit(_do, wait=True)
         flash(f"Detail '{bezeichnung}' hinzugefügt.", "success")
     except Exception as exc:
         flash(f"Detail konnte nicht angelegt werden: {exc}", "error")
@@ -2698,17 +2766,20 @@ def edit_wesentlichkeit_detail(kid, did):
     if not bezeichnung:
         flash("Bezeichnung darf nicht leer sein.", "error")
         return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
-    db.execute("""
-        UPDATE wesentlichkeitskriterium_details
-        SET bezeichnung=?, sort_order=?, aktiv=?
-        WHERE id=? AND kriterium_id=?
-    """, (
+    params = (
         bezeichnung,
         int(request.form.get("sort_order") or 0),
         1 if request.form.get("aktiv") else 0,
         did, kid,
-    ))
-    db.commit()
+    )
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                UPDATE wesentlichkeitskriterium_details
+                SET bezeichnung=?, sort_order=?, aktiv=?
+                WHERE id=? AND kriterium_id=?
+            """, params)
+    get_writer().submit(_do, wait=True)
     flash("Detail gespeichert.", "success")
     return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
 
@@ -2716,12 +2787,13 @@ def edit_wesentlichkeit_detail(kid, did):
 @bp.route("/wesentlichkeit/<int:kid>/detail/<int:did>/loeschen", methods=["POST"])
 @admin_required
 def delete_wesentlichkeit_detail(kid, did):
-    db = get_db()
-    db.execute(
-        "UPDATE wesentlichkeitskriterium_details SET aktiv=0 WHERE id=? AND kriterium_id=?",
-        (did, kid),
-    )
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE wesentlichkeitskriterium_details SET aktiv=0 WHERE id=? AND kriterium_id=?",
+                (did, kid),
+            )
+    get_writer().submit(_do, wait=True)
     flash("Detail deaktiviert. Vorhandene Antworten bleiben erhalten.", "success")
     return redirect(url_for("admin.edit_wesentlichkeitskriterium", kid=kid))
 
@@ -2771,7 +2843,7 @@ def import_geschaeftsprozesse():
     first_line = content.split("\n")[0]
     delimiter  = ";" if first_line.count(";") >= first_line.count(",") else ","
     reader     = csv.DictReader(io.StringIO(content), delimiter=delimiter)
-    created = updated = errors = 0
+    errors = 0
     now     = _now()
 
     # Format-Erkennung anhand der Header-Zeile
@@ -2779,8 +2851,9 @@ def import_geschaeftsprozesse():
     fields_lower = [f.lower() for f in raw_fields]
     is_prozess_export = "prozess_id" in fields_lower
 
+    prepared = []   # Liste von ("update"|"insert", "prozess"|"standard", params)
+
     if is_prozess_export:
-        # ── Prozess-Export-Format ────────────────────────────────────────────
         for row in reader:
             try:
                 r = {k.strip(): (v or "").strip() for k, v in row.items() if k and k.strip()}
@@ -2806,42 +2879,23 @@ def import_geschaeftsprozesse():
                 ).fetchone()
 
                 if existing:
-                    db.execute("""
-                        UPDATE geschaeftsprozesse
-                        SET bezeichnung=?,
-                            beschreibung=COALESCE(?,beschreibung),
-                            ist_kritisch=?,
-                            ist_wesentlich=?,
-                            schutzbedarf_a=COALESCE(?,schutzbedarf_a),
-                            schutzbedarf_c=COALESCE(?,schutzbedarf_c),
-                            schutzbedarf_i=COALESCE(?,schutzbedarf_i),
-                            schutzbedarf_n=COALESCE(?,schutzbedarf_n),
-                            aktiv=1,
-                            updated_at=?
-                        WHERE gp_nummer=?
-                    """, (bezeichnung, beschreibung,
-                          ist_kritisch, ist_wesentlich,
-                          sb_a, sb_c, sb_i, sb_n,
-                          now, gp_nummer))
-                    updated += 1
+                    prepared.append(("update", "prozess", (
+                        bezeichnung, beschreibung,
+                        ist_kritisch, ist_wesentlich,
+                        sb_a, sb_c, sb_i, sb_n,
+                        now, gp_nummer,
+                    )))
                 else:
-                    db.execute("""
-                        INSERT INTO geschaeftsprozesse
-                            (gp_nummer, bezeichnung, beschreibung,
-                             ist_kritisch, ist_wesentlich,
-                             schutzbedarf_a, schutzbedarf_c, schutzbedarf_i, schutzbedarf_n,
-                             created_at, updated_at)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                    """, (gp_nummer, bezeichnung, beschreibung,
-                          ist_kritisch, ist_wesentlich,
-                          sb_a, sb_c, sb_i, sb_n,
-                          now, now))
-                    created += 1
+                    prepared.append(("insert", "prozess", (
+                        gp_nummer, bezeichnung, beschreibung,
+                        ist_kritisch, ist_wesentlich,
+                        sb_a, sb_c, sb_i, sb_n,
+                        now, now,
+                    )))
             except Exception:
                 errors += 1
 
     else:
-        # ── Standard-Format ──────────────────────────────────────────────────
         for row in reader:
             try:
                 r = {k.strip().lower(): (v or "").strip() for k, v in row.items()}
@@ -2861,29 +2915,68 @@ def import_geschaeftsprozesse():
                 ).fetchone()
 
                 if existing:
-                    db.execute("""
+                    prepared.append(("update", "standard", (
+                        bezeichnung, bereich, ist_kritisch, ist_wesentlich,
+                        beschreibung, now, gp_nummer,
+                    )))
+                else:
+                    prepared.append(("insert", "standard", (
+                        gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
+                        beschreibung, now, now,
+                    )))
+            except Exception:
+                errors += 1
+
+    def _do(c):
+        created = updated = 0
+        with write_tx(c):
+            for op, fmt, params in prepared:
+                if op == "update" and fmt == "prozess":
+                    c.execute("""
+                        UPDATE geschaeftsprozesse
+                        SET bezeichnung=?,
+                            beschreibung=COALESCE(?,beschreibung),
+                            ist_kritisch=?,
+                            ist_wesentlich=?,
+                            schutzbedarf_a=COALESCE(?,schutzbedarf_a),
+                            schutzbedarf_c=COALESCE(?,schutzbedarf_c),
+                            schutzbedarf_i=COALESCE(?,schutzbedarf_i),
+                            schutzbedarf_n=COALESCE(?,schutzbedarf_n),
+                            aktiv=1,
+                            updated_at=?
+                        WHERE gp_nummer=?
+                    """, params)
+                    updated += 1
+                elif op == "insert" and fmt == "prozess":
+                    c.execute("""
+                        INSERT INTO geschaeftsprozesse
+                            (gp_nummer, bezeichnung, beschreibung,
+                             ist_kritisch, ist_wesentlich,
+                             schutzbedarf_a, schutzbedarf_c, schutzbedarf_i, schutzbedarf_n,
+                             created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    """, params)
+                    created += 1
+                elif op == "update" and fmt == "standard":
+                    c.execute("""
                         UPDATE geschaeftsprozesse
                         SET bezeichnung=?, bereich=COALESCE(?,bereich),
                             ist_kritisch=?, ist_wesentlich=?,
                             beschreibung=COALESCE(?,beschreibung),
                             aktiv=1, updated_at=?
                         WHERE gp_nummer=?
-                    """, (bezeichnung, bereich, ist_kritisch, ist_wesentlich,
-                          beschreibung, now, gp_nummer))
+                    """, params)
                     updated += 1
                 else:
-                    db.execute("""
+                    c.execute("""
                         INSERT INTO geschaeftsprozesse
                             (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
                              beschreibung, created_at, updated_at)
                         VALUES (?,?,?,?,?,?,?,?)
-                    """, (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich,
-                          beschreibung, now, now))
+                    """, params)
                     created += 1
-            except Exception:
-                errors += 1
-
-    db.commit()
+        return created, updated
+    created, updated = get_writer().submit(_do, wait=True)
     flash(f"GP-Import: {created} neu, {updated} aktualisiert, {errors} Fehler.", "success")
     return redirect(url_for("admin.index") + "#geschaeftsprozesse")
 
@@ -2932,24 +3025,27 @@ def ldap_config():
             bind_password_enc = db_cfg.get("bind_password", "")
 
         updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        db.execute("""
-            INSERT INTO ldap_config
-                (id, enabled, server_url, port, base_dn, bind_dn,
-                 bind_password, user_attr, ssl_verify, updated_at)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                enabled=excluded.enabled,
-                server_url=excluded.server_url,
-                port=excluded.port,
-                base_dn=excluded.base_dn,
-                bind_dn=excluded.bind_dn,
-                bind_password=excluded.bind_password,
-                user_attr=excluded.user_attr,
-                ssl_verify=excluded.ssl_verify,
-                updated_at=excluded.updated_at
-        """, (enabled, server_url, port, base_dn, bind_dn,
-              bind_password_enc, user_attr, ssl_verify, updated_at))
-        db.commit()
+        params = (enabled, server_url, port, base_dn, bind_dn,
+                  bind_password_enc, user_attr, ssl_verify, updated_at)
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    INSERT INTO ldap_config
+                        (id, enabled, server_url, port, base_dn, bind_dn,
+                         bind_password, user_attr, ssl_verify, updated_at)
+                    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        enabled=excluded.enabled,
+                        server_url=excluded.server_url,
+                        port=excluded.port,
+                        base_dn=excluded.base_dn,
+                        bind_dn=excluded.bind_dn,
+                        bind_password=excluded.bind_password,
+                        user_attr=excluded.user_attr,
+                        ssl_verify=excluded.ssl_verify,
+                        updated_at=excluded.updated_at
+                """, params)
+        get_writer().submit(_do, wait=True)
         flash("LDAP-Konfiguration gespeichert.", "success")
         # VULN-012: TLS-Zertifikatsprüfung abgeschaltet → Audit-Warnung
         if enabled and not ssl_verify:
@@ -3009,12 +3105,15 @@ def ldap_gruppe_neu():
         flash("Gruppen-DN und Rolle sind Pflichtfelder.", "danger")
         return redirect(url_for("admin.ldap_gruppen"))
 
+    params = (group_dn, group_name or None, rolle, sort_order)
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO ldap_group_role_mapping (group_dn, group_name, rolle, sort_order)
+                VALUES (?, ?, ?, ?)
+            """, params)
     try:
-        db.execute("""
-            INSERT INTO ldap_group_role_mapping (group_dn, group_name, rolle, sort_order)
-            VALUES (?, ?, ?, ?)
-        """, (group_dn, group_name or None, rolle, sort_order))
-        db.commit()
+        get_writer().submit(_do, wait=True)
         flash("Gruppen-Mapping angelegt.", "success")
     except Exception:
         flash("Fehler: Gruppen-DN ist bereits vorhanden.", "danger")
@@ -3034,12 +3133,15 @@ def ldap_gruppe_bearbeiten(mid):
         flash("Gruppen-DN und Rolle sind Pflichtfelder.", "danger")
         return redirect(url_for("admin.ldap_gruppen"))
 
-    db.execute("""
-        UPDATE ldap_group_role_mapping
-        SET group_dn=?, group_name=?, rolle=?, sort_order=?
-        WHERE id=?
-    """, (group_dn, group_name or None, rolle, sort_order, mid))
-    db.commit()
+    params = (group_dn, group_name or None, rolle, sort_order, mid)
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                UPDATE ldap_group_role_mapping
+                SET group_dn=?, group_name=?, rolle=?, sort_order=?
+                WHERE id=?
+            """, params)
+    get_writer().submit(_do, wait=True)
     flash("Gruppen-Mapping aktualisiert.", "success")
     return redirect(url_for("admin.ldap_gruppen"))
 
@@ -3047,9 +3149,10 @@ def ldap_gruppe_bearbeiten(mid):
 @bp.route("/ldap-gruppe/<int:mid>/loeschen", methods=["POST"])
 @admin_required
 def ldap_gruppe_loeschen(mid):
-    db = get_db()
-    db.execute("DELETE FROM ldap_group_role_mapping WHERE id=?", (mid,))
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM ldap_group_role_mapping WHERE id=?", (mid,))
+    get_writer().submit(_do, wait=True)
     flash("Gruppen-Mapping gelöscht.", "success")
     return redirect(url_for("admin.ldap_gruppen"))
 
@@ -3073,16 +3176,22 @@ def ldap_import():
         # ── Aktion: Löschen (Deaktivieren) ───────────────────────────────────
         if action == "delete":
             deactivated = skipped = 0
+            ids_to_deactivate = []
             for uid in selected_ids:
                 row = db.execute(
                     "SELECT id FROM persons WHERE ad_name=? OR user_id=?", (uid, uid)
                 ).fetchone()
                 if row:
-                    db.execute("UPDATE persons SET aktiv=0 WHERE id=?", (row["id"],))
+                    ids_to_deactivate.append(row["id"])
                     deactivated += 1
                 else:
                     skipped += 1
-            db.commit()
+            if ids_to_deactivate:
+                def _do(c, _ids=tuple(ids_to_deactivate)):
+                    with write_tx(c):
+                        for _pid in _ids:
+                            c.execute("UPDATE persons SET aktiv=0 WHERE id=?", (_pid,))
+                get_writer().submit(_do, wait=True)
             msg = f"{deactivated} Person(en) deaktiviert."
             if skipped:
                 msg += f" {skipped} nicht gefunden (noch nicht importiert)."
@@ -3585,11 +3694,7 @@ def glossar_overview():
 def new_glossar():
     db = get_db()
     if request.method == "POST":
-        db.execute("""
-            INSERT INTO glossar_eintraege
-                (begriff, entwickler, ort, fokus, beschreibung, im_register, sort_order, aktiv)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-        """, (
+        params = (
             request.form["begriff"].strip(),
             request.form.get("entwickler", "").strip(),
             request.form.get("ort", "").strip(),
@@ -3597,8 +3702,15 @@ def new_glossar():
             request.form.get("beschreibung", "").strip(),
             1 if request.form.get("im_register") else 0,
             int(request.form.get("sort_order") or 0),
-        ))
-        db.commit()
+        )
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    INSERT INTO glossar_eintraege
+                        (begriff, entwickler, ort, fokus, beschreibung, im_register, sort_order, aktiv)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                """, params)
+        get_writer().submit(_do, wait=True)
         flash("Glossar-Eintrag angelegt.", "success")
         return redirect(url_for("admin.glossar_overview"))
     return render_template("admin/glossar_edit.html", row=None)
@@ -3613,18 +3725,7 @@ def edit_glossar(gid):
         flash("Eintrag nicht gefunden.", "error")
         return redirect(url_for("admin.glossar_overview"))
     if request.method == "POST":
-        db.execute("""
-            UPDATE glossar_eintraege
-            SET begriff      = ?,
-                entwickler   = ?,
-                ort          = ?,
-                fokus        = ?,
-                beschreibung = ?,
-                im_register  = ?,
-                sort_order   = ?,
-                aktiv        = ?
-            WHERE id = ?
-        """, (
+        params = (
             request.form["begriff"].strip(),
             request.form.get("entwickler", "").strip(),
             request.form.get("ort", "").strip(),
@@ -3634,8 +3735,22 @@ def edit_glossar(gid):
             int(request.form.get("sort_order") or 0),
             1 if request.form.get("aktiv") else 0,
             gid,
-        ))
-        db.commit()
+        )
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    UPDATE glossar_eintraege
+                    SET begriff      = ?,
+                        entwickler   = ?,
+                        ort          = ?,
+                        fokus        = ?,
+                        beschreibung = ?,
+                        im_register  = ?,
+                        sort_order   = ?,
+                        aktiv        = ?
+                    WHERE id = ?
+                """, params)
+        get_writer().submit(_do, wait=True)
         flash("Glossar-Eintrag gespeichert.", "success")
         return redirect(url_for("admin.glossar_overview"))
     return render_template("admin/glossar_edit.html", row=dict(row))
@@ -3644,9 +3759,10 @@ def edit_glossar(gid):
 @bp.route("/glossar/<int:gid>/loeschen", methods=["POST"])
 @admin_required
 def delete_glossar(gid):
-    db = get_db()
-    db.execute("DELETE FROM glossar_eintraege WHERE id = ?", (gid,))
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM glossar_eintraege WHERE id = ?", (gid,))
+    get_writer().submit(_do, wait=True)
     flash("Glossar-Eintrag gelöscht.", "success")
     return redirect(url_for("admin.glossar_overview"))
 
@@ -3656,13 +3772,16 @@ def delete_glossar(gid):
 def glossar_erklaerung():
     db = get_db()
     if request.method == "POST":
-        for key in _GLOSSAR_TEXT_KEYS_OVERVIEW:
-            value = request.form.get(key, "").strip()
-            db.execute(
-                "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
-                (key, value),
-            )
-        db.commit()
+        kv = [(key, request.form.get(key, "").strip())
+              for key in _GLOSSAR_TEXT_KEYS_OVERVIEW]
+        def _do(c):
+            with write_tx(c):
+                for _k, _v in kv:
+                    c.execute(
+                        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+                        (_k, _v),
+                    )
+        get_writer().submit(_do, wait=True)
         flash("Erläuterungstexte gespeichert.", "success")
         return redirect(url_for("admin.glossar_erklaerung"))
     rows = db.execute(
