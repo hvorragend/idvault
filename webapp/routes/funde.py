@@ -6,6 +6,7 @@ from . import login_required, write_access_required, own_write_required, get_db,
 from ..db_writer import get_writer
 from db_write_tx import write_tx
 from ..security import in_clause
+from ..helpers import _EXT_TO_TYP, _idv_typ_vorschlag
 
 log = logging.getLogger("idvault.funde")
 
@@ -41,33 +42,6 @@ def _scan_btn_ctx() -> dict:
         "has_scan_paths": bool(_load_scanner_config().get("scan_paths")),
         "has_checkpoint": _has_checkpoint(),
     }
-
-_EXT_TO_TYP = {
-    ".xlsx": "Excel-Tabelle",
-    ".xlsm": "Excel-Makro",
-    ".xlsb": "Excel-Makro",
-    ".xls":  "Excel-Tabelle",
-    ".xltm": "Excel-Makro",
-    ".xltx": "Excel-Tabelle",
-    ".accdb": "Access-Datenbank",
-    ".mdb":   "Access-Datenbank",
-    ".accde": "Access-Datenbank",
-    ".accdr": "Access-Datenbank",
-    ".py":    "Python-Skript",
-    ".r":     "Sonstige",
-    ".rmd":   "Sonstige",
-    ".sql":   "SQL-Skript",
-    ".pbix":  "Power-BI-Bericht",
-    ".pbit":  "Power-BI-Bericht",
-    ".ida":   "Cognos-Report",
-}
-
-
-def _idv_typ_vorschlag(extension: str, has_macros: int) -> str:
-    ext = (extension or "").lower()
-    if ext in (".xlsx", ".xls", ".xltx") and has_macros:
-        return "Excel-Makro"
-    return _EXT_TO_TYP.get(ext, "unklassifiziert")
 
 
 def _scan_run_label(row) -> str:
