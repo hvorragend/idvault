@@ -860,13 +860,18 @@ def apply_scanner_upsert_file(conn: sqlite3.Connection, payload: dict) -> None:
     change_type = payload.get("change_type") or action
     details     = payload.get("details")
 
+    source     = data.get("source") or "filesystem"
+    sp_item_id = data.get("sharepoint_item_id")
+
     with write_tx(conn):
         if action == "insert":
             insert_data = {
                 **{col: data.get(col) for col in _IDV_FILES_COLUMNS},
-                "first_seen_at":    now,
-                "last_seen_at":     now,
-                "last_scan_run_id": scan_run_id,
+                "first_seen_at":      now,
+                "last_seen_at":       now,
+                "last_scan_run_id":   scan_run_id,
+                "source":             source,
+                "sharepoint_item_id": sp_item_id,
             }
             cols = ", ".join(insert_data.keys()) + ", status"
             placeholders = ", ".join(f":{k}" for k in insert_data.keys()) + ", 'active'"
@@ -888,16 +893,19 @@ def apply_scanner_upsert_file(conn: sqlite3.Connection, payload: dict) -> None:
                 UPDATE idv_files SET
                     full_path = :full_path, share_root = :share_root,
                     relative_path = :relative_path,
+                    source = :source, sharepoint_item_id = :sharepoint_item_id,
                     last_seen_at = :now, last_scan_run_id = :run_id
                 WHERE id = :id
                 """,
                 {
-                    "full_path":     data["full_path"],
-                    "share_root":    data.get("share_root"),
-                    "relative_path": data.get("relative_path"),
-                    "now":           now,
-                    "run_id":        scan_run_id,
-                    "id":            file_id,
+                    "full_path":          data["full_path"],
+                    "share_root":         data.get("share_root"),
+                    "relative_path":      data.get("relative_path"),
+                    "source":             source,
+                    "sharepoint_item_id": sp_item_id,
+                    "now":                now,
+                    "run_id":             scan_run_id,
+                    "id":                 file_id,
                 },
             )
             conn.execute(
@@ -910,10 +918,17 @@ def apply_scanner_upsert_file(conn: sqlite3.Connection, payload: dict) -> None:
         else:  # update (changed / unchanged / restored)
             file_id = payload["file_id"]
             update_data = {col: data.get(col) for col in _IDV_FILES_COLUMNS}
-            update_data.update({"now": now, "run_id": scan_run_id, "id": file_id})
+            update_data.update({
+                "now":                now,
+                "run_id":             scan_run_id,
+                "id":                 file_id,
+                "source":             source,
+                "sharepoint_item_id": sp_item_id,
+            })
             set_sql = ", ".join(f"{col} = :{col}" for col in _IDV_FILES_COLUMNS)
             conn.execute(
                 f"UPDATE idv_files SET {set_sql}, "
+                "source = :source, sharepoint_item_id = :sharepoint_item_id, "
                 "last_seen_at = :now, last_scan_run_id = :run_id, status = 'active' "
                 "WHERE id = :id",
                 update_data,
@@ -1060,6 +1075,28 @@ def apply_scanner_update_status(conn: sqlite3.Connection, payload: dict) -> None
                 "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
                 "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)"
             )
+
+
+def apply_scanner_save_delta_token(conn: sqlite3.Connection, payload: dict) -> None:
+    """Speichert (oder aktualisiert) den Delta-Token fuer einen SharePoint-Drive.
+
+    Erwartete Felder: ``drive_id``, ``delta_token``, ``now``.
+    """
+    with write_tx(conn):
+        conn.execute(
+            """
+            INSERT INTO teams_delta_tokens (drive_id, delta_token, updated_at)
+            VALUES (:drive_id, :delta_token, :now)
+            ON CONFLICT(drive_id) DO UPDATE
+                SET delta_token = excluded.delta_token,
+                    updated_at  = excluded.updated_at
+            """,
+            {
+                "drive_id":    payload["drive_id"],
+                "delta_token": payload["delta_token"],
+                "now":         payload["now"],
+            },
+        )
 
 
 # ---------------------------------------------------------------------------

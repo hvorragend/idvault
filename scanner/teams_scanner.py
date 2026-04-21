@@ -52,6 +52,16 @@ from network_scanner import (
     init_db,
 )
 from path_utils import apply_path_mappings, should_pass_filters
+try:
+    from scanner_protocol import (
+        emit,
+        OP_START_RUN, OP_END_RUN, OP_ARCHIVE_FILES, OP_SAVE_DELTA_TOKEN,
+    )
+except ImportError:
+    from scanner.scanner_protocol import (
+        emit,
+        OP_START_RUN, OP_END_RUN, OP_ARCHIVE_FILES, OP_SAVE_DELTA_TOKEN,
+    )
 
 # ---------------------------------------------------------------------------
 # Optionale Abhängigkeiten
@@ -224,16 +234,7 @@ def load_delta_token(conn: sqlite3.Connection, drive_id: str) -> Optional[str]:
 
 def save_delta_token(conn: sqlite3.Connection, drive_id: str,
                      token: str, now: str) -> None:
-    conn.execute(
-        """
-        INSERT INTO teams_delta_tokens (drive_id, delta_token, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(drive_id) DO UPDATE
-            SET delta_token = excluded.delta_token,
-                updated_at  = excluded.updated_at
-        """,
-        (drive_id, token, now),
-    )
+    emit(OP_SAVE_DELTA_TOKEN, drive_id=drive_id, delta_token=token, now=now)
 
 
 # ---------------------------------------------------------------------------
@@ -341,17 +342,7 @@ def _archive_deleted_item(
     if not row:
         return
     file_id = row["id"]
-    conn.execute(
-        "UPDATE idv_files SET status = 'archiviert', last_seen_at = ? WHERE id = ?",
-        (now, file_id),
-    )
-    conn.execute(
-        """
-        INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at)
-        VALUES (?, ?, 'archiviert', ?)
-        """,
-        (file_id, scan_run_id, now),
-    )
+    emit(OP_ARCHIVE_FILES, scan_run_id=scan_run_id, now=now, file_ids=[file_id])
     logger.debug(f"SharePoint-Datei als gelöscht markiert: {row['full_path']}")
 
 
@@ -466,9 +457,9 @@ def build_file_metadata(
         "protected_sheets_count": ooxml_result.get("protected_sheets_count", 0),
         "sheet_protection_has_pw":ooxml_result.get("sheet_protection_has_pw", 0),
         "workbook_protected":     ooxml_result.get("workbook_protected", 0),
-        # Interne Felder (werden nach upsert_file gesetzt, nicht direkt eingefügt)
-        "_source":                "sharepoint",
-        "_sharepoint_item_id":    item_id,
+        # Felder für Teams/SharePoint-Quelle (werden via OP_UPSERT_FILE gesetzt)
+        "source":              "sharepoint",
+        "sharepoint_item_id":  item_id,
     }
 
 
@@ -561,23 +552,11 @@ def scan_drive(
                     logger.debug(f"Übersprungen (Filter): {meta['relative_path']}")
                     continue
 
-                # Interne Felder extrahieren (nicht Teil des Standard-Schemas)
-                source      = meta.pop("_source", "sharepoint")
-                sp_item_id  = meta.pop("_sharepoint_item_id", None)
-
                 change = upsert_file(conn, meta, scan_run_id, now, logger, move_mode)
                 stats["total"] += 1
                 stats[change]  += 1
 
-                # source und sharepoint_item_id nachtragen
-                conn.execute(
-                    "UPDATE idv_files SET source = ?, sharepoint_item_id = ? "
-                    "WHERE full_path = ?",
-                    (source, sp_item_id, meta["full_path"]),
-                )
-
                 if stats["total"] % 50 == 0:
-                    conn.commit()
                     logger.info(
                         f"  [{display_name}] … {stats['total']} Dateien verarbeitet"
                     )
@@ -593,12 +572,9 @@ def scan_drive(
             new_delta_token = page["@odata.deltaLink"]
         next_url = page.get("@odata.nextLink")
 
-    conn.commit()
-
     # Neuen Delta-Token für nächsten inkrementellen Scan speichern
     if new_delta_token:
         save_delta_token(conn, drive_id, new_delta_token, now)
-        conn.commit()
         logger.debug(f"[{display_name}] Neuer Delta-Token gespeichert.")
 
     logger.info(
@@ -622,20 +598,20 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
         )
         sys.exit(1)
 
+    # Reader-Connection (nur für Lesezugriffe: Delta-Token, Move-Detection, scan_run_id)
     conn = init_db(config["db_path"])
     now  = datetime.now(timezone.utc).isoformat()
 
-    # Scan-Run protokollieren
+    # scan_run_id vorab per Reader ermitteln (kollisionsfrei, da nur ein Scanner gleichzeitig)
+    _next = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM scan_runs").fetchone()
+    scan_run_id = int(_next[0])
+
     labels = [
         t.get("display_name") or t.get("team_id") or t.get("site_url", "?")
         for t in teams
     ]
-    cur = conn.execute(
-        "INSERT INTO scan_runs (started_at, scan_paths) VALUES (?, ?)",
-        (now, json.dumps(labels)),
-    )
-    conn.commit()
-    scan_run_id = cur.lastrowid
+    emit(OP_START_RUN, scan_run_id=scan_run_id, started_at=now,
+         scan_paths=labels, resume=False)
     logger.info(f"Teams-Scan-Run #{scan_run_id} gestartet | Quellen: {labels}")
 
     token  = get_access_token(config, logger)
@@ -664,8 +640,6 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
         if was_full_scan:
             full_scan_site_urls.append(site_url)
 
-    conn.commit()
-
     # Dateien, die im Vollscan nicht mehr gesehen wurden, archivieren.
     # Bei Inkremental-Scans werden Löschungen bereits über den Delta-Response behandelt.
     deleted = 0
@@ -673,37 +647,24 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
         deleted = mark_deleted_files(
             conn, scan_run_id, now, scan_paths=full_scan_site_urls
         )
-        conn.commit()
+
+    conn.close()
 
     # Scan-Run abschließen
     finished = datetime.now(timezone.utc).isoformat()
-    conn.execute(
-        """
-        UPDATE scan_runs SET
-            finished_at    = ?,
-            total_files    = ?,
-            new_files      = ?,
-            changed_files  = ?,
-            moved_files    = ?,
-            restored_files = ?,
-            archived_files = ?,
-            errors         = ?
-        WHERE id = ?
-        """,
-        (
-            finished,
-            total_stats["total"],
-            total_stats["new"],
-            total_stats["changed"],
-            total_stats["moved"],
-            total_stats["restored"],
-            deleted,
-            total_stats["errors"],
-            scan_run_id,
-        ),
+    emit(
+        OP_END_RUN,
+        scan_run_id=scan_run_id,
+        finished_at=finished,
+        status="completed",
+        total=total_stats["total"],
+        new=total_stats["new"],
+        changed=total_stats["changed"],
+        moved=total_stats["moved"],
+        restored=total_stats["restored"],
+        archived=deleted,
+        errors=total_stats["errors"],
     )
-    conn.commit()
-    conn.close()
 
     logger.info("=" * 60)
     logger.info(f"Teams-Scan abgeschlossen in Run #{scan_run_id}")

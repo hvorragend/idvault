@@ -29,19 +29,20 @@ from db import (
     apply_scanner_archive_files,
     apply_scanner_update_status,
     apply_scanner_history,
+    apply_scanner_save_delta_token,
 )
 try:
     from scanner.scanner_protocol import (
         OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
         OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
-        OP_LOG, OP_PROGRESS,
+        OP_LOG, OP_PROGRESS, OP_SAVE_DELTA_TOKEN,
     )
 except ImportError:  # pragma: no cover — Fallback, falls scanner/ nicht
     # als Paket gefunden wird (alte Installationen ohne Namespace).
     from scanner_protocol import (
         OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
         OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
-        OP_LOG, OP_PROGRESS,
+        OP_LOG, OP_PROGRESS, OP_SAVE_DELTA_TOKEN,
     )
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -444,13 +445,14 @@ def _scanner_subprocess_env() -> dict:
 
 
 _SCANNER_EVENT_HANDLERS = {
-    OP_START_RUN:     apply_scan_run_start,
-    OP_END_RUN:       apply_scan_run_end,
-    OP_UPSERT_FILE:   apply_scanner_upsert_file,
-    OP_MOVE_FILE:     apply_scanner_upsert_file,
-    OP_ARCHIVE_FILES: apply_scanner_archive_files,
-    OP_UPDATE_STATUS: apply_scanner_update_status,
-    OP_FILE_HISTORY:  apply_scanner_history,
+    OP_START_RUN:        apply_scan_run_start,
+    OP_END_RUN:          apply_scan_run_end,
+    OP_UPSERT_FILE:      apply_scanner_upsert_file,
+    OP_MOVE_FILE:        apply_scanner_upsert_file,
+    OP_ARCHIVE_FILES:    apply_scanner_archive_files,
+    OP_UPDATE_STATUS:    apply_scanner_update_status,
+    OP_FILE_HISTORY:     apply_scanner_history,
+    OP_SAVE_DELTA_TOKEN: apply_scanner_save_delta_token,
 }
 
 
