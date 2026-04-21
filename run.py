@@ -399,6 +399,8 @@ def _run_server(service_mode: bool = False):
             )
         try:
             server.start()          # blockierend
+        except KeyboardInterrupt:
+            pass
         finally:
             server.stop()           # graceful drain
     else:
@@ -581,4 +583,7 @@ if __name__ == "__main__":
             sys.exit(0)
     # ─────────────────────────────────────────────────────────────────────────
 
-    _run_server()
+    try:
+        _run_server()
+    except KeyboardInterrupt:
+        pass
