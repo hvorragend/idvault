@@ -739,10 +739,7 @@ def schritt_anlegen(idv_db_id):
         flash("Phase-2-Schritte können erst nach kompletter Phase 1 angelegt werden.", "warning")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
-    # Für Phase 3 (Archivierung) ist erforderlich, dass Phase 2 komplett erledigt ist
-    if schritt in _PHASE_3 and not _phase2_komplett_erledigt(db, idv_db_id):
-        flash("Archivierungs-Schritt kann erst nach kompletter Phase 2 angelegt werden.", "warning")
-        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+    # Phase 3 (Archivierung) kann jederzeit angelegt werden
 
     # Duplikats-Guard: Schritt darf nicht bereits existieren
     existing = db.execute(
