@@ -38,8 +38,9 @@ OP_MOVE_FILE     = "move_file"       # idv_files: UPDATE full_path; History 'mov
 OP_ARCHIVE_FILES = "archive_files"   # idv_files: batch status='archiviert'
 OP_UPDATE_STATUS = "update_status"   # idv_files.bearbeitungsstatus
 OP_FILE_HISTORY  = "file_history"    # idv_file_history: INSERT (Einzelzeile)
-OP_LOG           = "log"             # reiner Textlog-Eintrag (Webapp persistiert nicht)
-OP_PROGRESS      = "progress"        # Fortschrittsmeldung fuer UI (nicht persistiert)
+OP_LOG              = "log"              # reiner Textlog-Eintrag (Webapp persistiert nicht)
+OP_PROGRESS         = "progress"         # Fortschrittsmeldung fuer UI (nicht persistiert)
+OP_SAVE_DELTA_TOKEN = "save_delta_token" # teams_delta_tokens: UPSERT (inkrementeller Scan)
 
 
 def emit(op: str, **payload: Any) -> None:
