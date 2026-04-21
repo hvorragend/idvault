@@ -56,6 +56,9 @@ def new_review(idv_db_id):
         kommentar = request.form.get("kommentar") or None
         pruefungsart = request.form.get("pruefungsart", "Regelprüfung")
 
+        person_id = session.get("person_id")
+        user_name = session.get("user_name", "")
+
         def _do(c):
             with write_tx(c):
                 c.execute("""
@@ -74,9 +77,10 @@ def new_review(idv_db_id):
                     """, (pruefungsdatum, naechste, now, idv_db_id))
 
                 c.execute("""
-                    INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_am)
-                    VALUES (?,?,?,?)
-                """, (idv_db_id, "geprueft", f"Prüfung {ergebnis} am {pruefungsdatum}", now))
+                    INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name, durchgefuehrt_am)
+                    VALUES (?,?,?,?,?,?)
+                """, (idv_db_id, "geprueft", f"Prüfung {ergebnis} am {pruefungsdatum}",
+                      person_id, user_name or None, now))
 
         get_writer().submit(_do, wait=True)
         flash("Prüfung gespeichert.", "success")

@@ -206,10 +206,10 @@ def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int) -> bool:
         VALUES (?, ?, 'Ausstehend', ?, ?)
     """, (idv_db_id, _PHASE_3[0], person_id, now))
     conn.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "archivierung_beauftragt",
          "Archivierung Originaldatei beauftragt.",
-         person_id)
+         person_id, session.get("user_name", "") or None)
     )
     return True
 
@@ -237,9 +237,9 @@ def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int) ->
         WHERE id=?
     """, (now, idv_db_id))
     conn.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "freigabe_erteilt",
-         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id)
+         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id, session.get("user_name", "") or None)
     )
     return True
 
@@ -318,8 +318,8 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
                 WHERE id=?
             """, (person_id, now, kommentar, nachweise, freigabe_id))
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id),
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, session.get("user_name", "") or None),
             )
             freigegeben = False
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
@@ -383,10 +383,10 @@ def starten(idv_db_id):
                 (now, idv_db_id),
             )
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_gestartet",
                  "Freigabeverfahren gestartet – Phase 1: Fachlicher Test + Technischer Test (parallel)",
-                 person_id),
+                 person_id, session.get("user_name", "") or None),
             )
 
     get_writer().submit(_do, wait=True)
@@ -438,9 +438,9 @@ def abnahme_starten(idv_db_id):
                 """, (idv_db_id, schritt, person_id, now, zugewiesen))
 
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_phase2_gestartet",
-                 "Phase 2 gestartet: Fachliche Abnahme + Technische Abnahme (parallel)", person_id),
+                 "Phase 2 gestartet: Fachliche Abnahme + Technische Abnahme (parallel)", person_id, session.get("user_name", "") or None),
             )
 
     get_writer().submit(_do, wait=True)
@@ -559,8 +559,8 @@ def abschliessen(freigabe_id):
             """, (person_id, now, kommentar, nachweise, nachweis_pfad, nachweis_name, freigabe_id))
 
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id),
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, session.get("user_name", "") or None),
             )
 
             phase2_done = False
@@ -652,9 +652,9 @@ def ablehnen(freigabe_id):
                 (now, idv_db_id),
             )
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_abgelehnt",
-                 f"{schritt_name} nicht erledigt. Befunde: {befunde}", person_id),
+                 f"{schritt_name} nicht erledigt. Befunde: {befunde}", person_id, session.get("user_name", "") or None),
             )
 
     get_writer().submit(_do, wait=True)
@@ -703,11 +703,11 @@ def abbrechen(idv_db_id):
                 (now, idv_db_id),
             )
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_abgebrochen",
                  "Freigabeverfahren durch Administrator abgebrochen."
                  + (f" Grund: {kommentar}" if kommentar else ""),
-                 person_id),
+                 person_id, session.get("user_name", "") or None),
             )
 
     get_writer().submit(_do, wait=True)
@@ -765,8 +765,8 @@ def schritt_anlegen(idv_db_id):
                 _ensure_test_eintraege(c, idv_db_id)
 
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_angelegt", f"{schritt} erneut angelegt", person_id),
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_angelegt", f"{schritt} erneut angelegt", person_id, session.get("user_name", "") or None),
             )
 
     get_writer().submit(_do, wait=True)
@@ -797,8 +797,8 @@ def loeschen(freigabe_id):
         with write_tx(c):
             c.execute("DELETE FROM idv_freigaben WHERE id=?", (freigabe_id,))
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_geloescht", f"{schritt} gelöscht", person_id),
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_geloescht", f"{schritt} gelöscht", person_id, session.get("user_name", "") or None),
             )
 
     get_writer().submit(_do, wait=True)
@@ -1078,8 +1078,8 @@ def archivieren(freigabe_id):
                   archiv_pfad, archiv_name, archiv_sha256, freigabe_id))
 
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-                (idv_db_id, aktion, hist_kom, person_id),
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (idv_db_id, aktion, hist_kom, person_id, session.get("user_name", "") or None),
             )
 
             freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)

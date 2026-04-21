@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify, abort
 from . import (login_required, write_access_required, own_write_required, admin_required,
                get_db, can_write, can_create, can_read_all, current_person_id)
-import sys, os, io
+import sys, os, io, json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (create_idv, update_idv, change_status, search_idv,
                 get_klassifizierungen, get_wesentlichkeitskriterien,
@@ -349,13 +349,14 @@ def bulk_status():
         flash("Keine Eigenentwicklungen ausgewählt.", "warning")
         return redirect(url_for("eigenentwicklung.list_idv"))
 
+    user_name = session.get("user_name", "")
     writer = get_writer()
     updated = errors = 0
     for idv_db_id in idv_db_ids:
         try:
             writer.submit(
-                lambda c, _id=idv_db_id, _st=neuer_status, _p=person_id:
-                    change_status(c, _id, _st, geaendert_von_id=_p),
+                lambda c, _id=idv_db_id, _st=neuer_status, _p=person_id, _n=user_name:
+                    change_status(c, _id, _st, geaendert_von_id=_p, bearbeiter_name=_n),
                 wait=True,
             )
             updated += 1
@@ -419,14 +420,37 @@ def detail_idv(idv_db_id):
     except Exception:
         extra_files = []
 
-    history = db.execute("""
-        SELECT h.*, p.nachname || ', ' || p.vorname AS person
+    _raw_history = db.execute("""
+        SELECT h.*,
+               COALESCE(p.nachname || ', ' || p.vorname, h.bearbeiter_name) AS person
         FROM idv_history h
         LEFT JOIN persons p ON h.durchgefuehrt_von_id = p.id
         WHERE h.idv_id = ?
         ORDER BY h.durchgefuehrt_am DESC
-        LIMIT 20
+        LIMIT 50
     """, (idv_db_id,)).fetchall()
+
+    _FELD_LABELS = {
+        "bezeichnung": "Bezeichnung", "idv_typ": "Typ",
+        "entwicklungsart": "Art", "status": "Status",
+        "fachverantwortlicher_id": "Fachverantwortlicher",
+        "gp_id": "Geschäftsprozess", "naechste_pruefung": "Nächste Prüfung",
+        "pruefintervall_monate": "Prüfintervall", "teststatus": "Teststatus",
+    }
+    history = []
+    for h in _raw_history:
+        row = dict(h)
+        if h["geaenderte_felder"]:
+            try:
+                chg = json.loads(h["geaenderte_felder"])
+                row["aenderungen_summary"] = ", ".join(
+                    _FELD_LABELS.get(k, k) for k in chg
+                )
+            except Exception:
+                row["aenderungen_summary"] = ""
+        else:
+            row["aenderungen_summary"] = ""
+        history.append(row)
 
     massnahmen = db.execute("""
         SELECT m.*, p.nachname || ', ' || p.vorname AS verantwortlicher,
@@ -541,7 +565,8 @@ def new_idv():
         file_id = _int_or_none(request.form.get("file_id"))
         if file_id:
             data["file_id"] = file_id
-        person_id = session.get("person_id")
+        person_id  = session.get("person_id")
+        user_name  = session.get("user_name", "")
         try:
             antworten = _build_wesentlichkeit_answers(db, request.form)
             extra_raw = request.form.get("extra_file_ids", "")
@@ -553,7 +578,8 @@ def new_idv():
 
             def _do(c):
                 with write_tx(c):
-                    new_id = create_idv(c, data, erfasser_id=person_id, commit=False)
+                    new_id = create_idv(c, data, erfasser_id=person_id,
+                                        bearbeiter_name=user_name, commit=False)
                     if antworten:
                         save_idv_wesentlichkeit(c, new_id, antworten, commit=False)
                     for extra_id in extras:
@@ -647,13 +673,14 @@ def edit_idv(idv_db_id):
     if request.method == "POST":
         data = _form_to_dict(request.form)
         person_id = session.get("person_id")
+        user_name = session.get("user_name", "")
         try:
             antworten = _build_wesentlichkeit_answers(db, request.form)
 
             def _do(c):
                 with write_tx(c):
-                    update_idv(c, idv_db_id, data,
-                               geaendert_von_id=person_id, commit=False)
+                    update_idv(c, idv_db_id, data, geaendert_von_id=person_id,
+                               bearbeiter_name=user_name, commit=False)
                     if antworten:
                         save_idv_wesentlichkeit(c, idv_db_id, antworten, commit=False)
 
@@ -689,10 +716,12 @@ def change_status_route(idv_db_id):
     ensure_can_write_idv(db, idv_db_id)
     new_status = request.form.get("status")
     person_id  = session.get("person_id")
+    user_name  = session.get("user_name", "")
     if new_status:
         get_writer().submit(
             lambda c: change_status(c, idv_db_id, new_status,
-                                    geaendert_von_id=person_id),
+                                    geaendert_von_id=person_id,
+                                    bearbeiter_name=user_name),
             wait=True,
         )
         flash(f"Status geändert zu: {new_status}", "success")
@@ -714,6 +743,7 @@ def change_teststatus(idv_db_id):
         flash("Ungültiger Teststatus.", "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
     person_id = session.get("person_id")
+    user_name = session.get("user_name", "")
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
 
@@ -724,8 +754,8 @@ def change_teststatus(idv_db_id):
                 (val, now, idv_db_id),
             )
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-                (idv_db_id, "teststatus_geaendert", f"Teststatus → {val}", person_id),
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (idv_db_id, "teststatus_geaendert", f"Teststatus → {val}", person_id, user_name or None),
             )
 
     get_writer().submit(_do, wait=True)
@@ -914,6 +944,7 @@ def neue_version(idv_db_id):
         data.pop(k, None)
 
     person_id = session.get("person_id")
+    user_name = session.get("user_name", "")
 
     # Wesentlichkeitskriterien-Antworten aus Quelle schon jetzt lesen.
     quell_antworten = get_idv_wesentlichkeit(db, idv_db_id)
@@ -931,17 +962,18 @@ def neue_version(idv_db_id):
 
     def _do(c):
         with write_tx(c):
-            new_id = create_idv(c, data, erfasser_id=person_id, commit=False)
+            new_id = create_idv(c, data, erfasser_id=person_id,
+                                bearbeiter_name=user_name, commit=False)
             if kopierte_antworten:
                 save_idv_wesentlichkeit(c, new_id, kopierte_antworten, commit=False)
             new_idv_row = c.execute(
                 "SELECT idv_id FROM idv_register WHERE id=?", (new_id,)
             ).fetchone()
             c.execute(
-                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "neue_version",
                  f"Nachfolger {new_idv_row['idv_id']} (v{new_version}) angelegt{aenderung_info}",
-                 person_id),
+                 person_id, user_name or None),
             )
         return new_id
 

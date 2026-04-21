@@ -8,7 +8,7 @@
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0 table-idv">
-      <thead><tr><th>Datum</th><th>Eigenentwicklung</th><th>Art</th><th>Ergebnis</th><th>Prüfer</th><th>Nächste Prüfung</th></tr></thead>
+      <thead><tr><th>Datum</th><th>Eigenentwicklung</th><th>Art</th><th>Ergebnis</th><th>Prüfer</th></tr></thead>
       <tbody>
         {% for p in pruefungen %}
         <tr>
@@ -17,10 +17,9 @@
           <td>{{ p.pruefungsart }}</td>
           <td><span class="badge {{ 'bg-success' if p.ergebnis == 'Ohne Befund' else 'bg-warning text-dark' if p.ergebnis == 'Mit Befund' else 'bg-danger' }}">{{ p.ergebnis }}</span></td>
           <td>{{ p.pruefer or '–' }}</td>
-          <td>{{ p.naechste_pruefung|datefmt }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-center text-muted py-4">Keine Prüfungen vorhanden.</td></tr>
+        <tr><td colspan="5" class="text-center text-muted py-4">Keine Prüfungen vorhanden.</td></tr>
         {% endfor %}
       </tbody>
     </table>

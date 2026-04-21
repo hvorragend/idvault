@@ -166,7 +166,6 @@
             {% if can_write %}<th style="width:36px"><input type="checkbox" id="select-all" class="form-check-input"
                 title="Alle auswählen"></th>{% endif %}
             <th class="sortable">Bezeichnung</th>
-            <th class="sortable">OE</th>
             <th class="sortable">Typ</th>
             <th class="sortable" title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">Art</th>
             <th class="sortable">Version / Dateien</th>
@@ -175,7 +174,6 @@
             <th class="sortable">Fachverantwortlicher</th>
             <th class="sortable">Eigentümer</th>
             <th class="sortable">Geändert</th>
-            <th class="sortable">Nächste Prüfung</th>
             <th></th>
           </tr>
         </thead>
@@ -188,14 +186,6 @@
             <td class="text-truncate" style="max-width:240px" title="{{ r.bezeichnung }}">
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
                 class="fw-500 text-decoration-none">{{ r.bezeichnung }}</a>
-            </td>
-            <td style="font-size:.78rem;white-space:nowrap">
-              {% if r.org_einheit %}
-              <a href="{{ url_for('eigenentwicklung.list_idv', oe_id=r.org_unit_id, status=request.args.get('status',''), filter=request.args.get('filter','')) }}"
-                class="text-decoration-none text-muted" title="Nach dieser OE filtern">
-                {{ r.org_einheit }}
-              </a>
-              {% else %}–{% endif %}
             </td>
             <td>
               <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
@@ -246,15 +236,6 @@
             <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
             <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–'
               }}</td>
-            <td style="font-size:.82rem">
-              {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
-              <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
-              {% elif r.pruefstatus == 'BALD FÄLLIG' %}
-              <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
-              {% else %}
-              {{ r.naechste_pruefung|datefmt }}
-              {% endif %}
-            </td>
             <td>
               <div class="d-flex gap-1">
                 <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
@@ -272,7 +253,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 13 if can_write else 12 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 11 if can_write else 10 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Eigenentwicklungen gefunden.
               {% if can_write %}<a href="{{ url_for('eigenentwicklung.new_idv') }}">Erste Eigenentwicklung erfassen →</a>{% endif %}

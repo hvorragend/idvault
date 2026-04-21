@@ -128,14 +128,12 @@ owner_filt} %}
       <thead>
         <tr>
           <th class="sortable">Bezeichnung</th>
-          <th class="sortable">OE</th>
           <th class="sortable">Typ</th>
           <th>Version / Dateien</th>
           <th class="sortable">Status</th>
           <th class="sortable">Fachverantwortlicher</th>
           <th>Eigentümer</th>
           <th>Geändert</th>
-          <th class="sortable">Nächste Prüfung</th>
           <th></th>
         </tr>
       </thead>
@@ -146,14 +144,6 @@ owner_filt} %}
             <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">
               {{ r.bezeichnung }}
             </a>
-          </td>
-          <td style="font-size:.78rem;white-space:nowrap">
-            {% if r.org_einheit %}
-            <a href="{{ url_for('eigenentwicklung.nicht_wesentliche_idvs', oe_id=r.org_unit_id, status=status, q=q) }}"
-              class="text-decoration-none text-muted" title="Nach dieser OE filtern">
-              {{ r.org_einheit }}
-            </a>
-            {% else %}–{% endif %}
           </td>
           <td>
             <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
@@ -187,15 +177,6 @@ owner_filt} %}
           <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
           <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}
           </td>
-          <td style="font-size:.82rem">
-            {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
-            <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ r.naechste_pruefung|datefmt }}</span>
-            {% elif r.pruefstatus == 'BALD FÄLLIG' %}
-            <span class="text-warning fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
-            {% else %}
-            {{ r.naechste_pruefung|datefmt if r.naechste_pruefung else '–' }}
-            {% endif %}
-          </td>
           <td>
             <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
               title="Detail">
@@ -205,7 +186,7 @@ owner_filt} %}
         </tr>
         {% else %}
         <tr>
-          <td colspan="10" class="text-center text-muted py-5">
+          <td colspan="8" class="text-center text-muted py-5">
             <i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>
             Keine nicht wesentlichen Eigenentwicklungen gefunden.
           </td>
