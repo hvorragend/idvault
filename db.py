@@ -45,7 +45,16 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
     conn.executescript(sql)
     conn.commit()
     _migrate_risikoklasse(conn)
+    _migrate_bearbeiter_name(conn)
     return conn
+
+
+def _migrate_bearbeiter_name(conn: sqlite3.Connection) -> None:
+    """Fügt bearbeiter_name zu idv_history hinzu (Revisionssicherheit auch für Config-User)."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(idv_history)").fetchall()}
+    if "bearbeiter_name" not in cols:
+        conn.execute("ALTER TABLE idv_history ADD COLUMN bearbeiter_name TEXT")
+        conn.commit()
 
 
 def _migrate_risikoklasse(conn: sqlite3.Connection) -> None:
@@ -260,6 +269,7 @@ def generate_idv_id(conn: sqlite3.Connection) -> str:
 
 def create_idv(conn: sqlite3.Connection, data: dict,
                erfasser_id: Optional[int] = None,
+               bearbeiter_name: str = "",
                commit: bool = True) -> int:
     """Legt einen neuen IDV-Register-Eintrag an."""
     now = datetime.now(timezone.utc).isoformat()
@@ -332,9 +342,9 @@ def create_idv(conn: sqlite3.Connection, data: dict,
 
         # Historien-Eintrag
         conn.execute("""
-            INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
-            VALUES (?, 'erstellt', ?, ?)
-        """, (new_id, f"IDV {idv_id} erstellt", erfasser_id))
+            INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name)
+            VALUES (?, 'erstellt', ?, ?, ?)
+        """, (new_id, f"IDV {idv_id} erstellt", erfasser_id, bearbeiter_name or None))
 
         # Scanner-Datei als registriert markieren
         if data.get("file_id"):
@@ -354,6 +364,7 @@ def create_idv(conn: sqlite3.Connection, data: dict,
 
 def update_idv(conn: sqlite3.Connection, idv_db_id: int,
                data: dict, geaendert_von_id: Optional[int] = None,
+               bearbeiter_name: str = "",
                commit: bool = True) -> bool:
     """Aktualisiert einen IDV-Eintrag und schreibt die Änderungen in die History.
 
@@ -412,9 +423,9 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
 
         if changes:
             conn.execute("""
-                INSERT INTO idv_history (idv_id, aktion, geaenderte_felder, durchgefuehrt_von_id)
-                VALUES (?, 'geaendert', ?, ?)
-            """, (idv_db_id, json.dumps(changes, ensure_ascii=False), geaendert_von_id))
+                INSERT INTO idv_history (idv_id, aktion, geaenderte_felder, durchgefuehrt_von_id, bearbeiter_name)
+                VALUES (?, 'geaendert', ?, ?, ?)
+            """, (idv_db_id, json.dumps(changes, ensure_ascii=False), geaendert_von_id, bearbeiter_name or None))
 
     if commit:
         with write_tx(conn):
@@ -426,7 +437,8 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
 
 def change_status(conn: sqlite3.Connection, idv_db_id: int,
                   new_status: str, kommentar: str = "",
-                  geaendert_von_id: Optional[int] = None):
+                  geaendert_von_id: Optional[int] = None,
+                  bearbeiter_name: str = ""):
     """Ändert den Workflow-Status eines IDV-Eintrags."""
     now = datetime.now(timezone.utc).isoformat()
     # Kommentar-Suffix (Datei-Hash) außerhalb der Transaktion ermitteln,
@@ -447,9 +459,9 @@ def change_status(conn: sqlite3.Connection, idv_db_id: int,
             WHERE id = ?
         """, (new_status, now, geaendert_von_id, now, idv_db_id))
         conn.execute("""
-            INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id)
-            VALUES (?, 'status_geaendert', ?, ?)
-        """, (idv_db_id, f"Status → {new_status}. {kommentar}", geaendert_von_id))
+            INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name)
+            VALUES (?, 'status_geaendert', ?, ?, ?)
+        """, (idv_db_id, f"Status → {new_status}. {kommentar}", geaendert_von_id, bearbeiter_name or None))
 
 
 # ---------------------------------------------------------------------------

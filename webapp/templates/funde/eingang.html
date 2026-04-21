@@ -637,15 +637,11 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
       if (bulkCount) bulkCount.textContent = n;
       if (bulkBar) bulkBar.classList.toggle('d-none', n === 0);
       if (btnIgn) {
-        const allNoFormula = [...checked].every(cb => {
-          const row = cb.closest('tr');
-          return parseInt(row.dataset.formulaCount || '0') === 0
-            && row.dataset.hasIdv === '0';
-        });
-        btnIgn.disabled = !allNoFormula;
-        btnIgn.title = allNoFormula
-          ? 'Alle ausgewählten Dateien haben keine Formeln – Ignorieren möglich'
-          : 'Eine oder mehrere Dateien haben Formeln';
+        const noneHasIdv = [...checked].every(cb => cb.closest('tr').dataset.hasIdv === '0');
+        btnIgn.disabled = !noneHasIdv;
+        btnIgn.title = noneHasIdv
+          ? 'Ausgewählte Dateien ignorieren'
+          : 'Dateien mit verknüpfter Eigenentwicklung können nicht ignoriert werden';
       }
       if (btnNichtMehrIgn) {
         const anyIgnoriert = [...checked].some(cb => cb.dataset.bearbeitungsstatus === 'Ignoriert');

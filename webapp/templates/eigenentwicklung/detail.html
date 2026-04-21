@@ -1095,7 +1095,8 @@
             <div class="timeline-dot mt-1"></div>
             <div>
               <div style="font-size:.82rem;font-weight:500">{{ h.aktion }}</div>
-              {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(60) }}</div>
+              {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(80) }}</div>
+              {% elif h.aenderungen_summary %}<div class="text-muted" style="font-size:.77rem">Geändert: {{ h.aenderungen_summary }}</div>
               {% endif %}
               <div class="text-muted" style="font-size:.75rem">
                 {{ h.durchgefuehrt_am|datefmt('%d.%m.%Y %H:%M') }}
