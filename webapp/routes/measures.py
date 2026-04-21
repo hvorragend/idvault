@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import get_klassifizierungen
+from db_write_tx import write_tx
+from ..db_writer import get_writer
 from ..security import ensure_can_write_idv
 
 bp = Blueprint("measures", __name__, url_prefix="/massnahmen")
@@ -46,12 +48,7 @@ def new_measure(idv_db_id):
 
     if request.method == "POST":
         now = datetime.now(timezone.utc).isoformat()
-        db.execute("""
-            INSERT INTO massnahmen
-              (idv_id, titel, beschreibung, massnahmentyp, prioritaet,
-               verantwortlicher_id, faellig_am, status, erstellt_am, aktualisiert_am)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
-        """, (
+        params = (
             idv_db_id,
             request.form.get("titel", "").strip(),
             request.form.get("beschreibung") or None,
@@ -59,9 +56,19 @@ def new_measure(idv_db_id):
             request.form.get("prioritaet", "Mittel"),
             request.form.get("verantwortlicher_id") or None,
             request.form.get("faellig_am") or None,
-            "Offen", now, now
-        ))
-        db.commit()
+            "Offen", now, now,
+        )
+
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    INSERT INTO massnahmen
+                      (idv_id, titel, beschreibung, massnahmentyp, prioritaet,
+                       verantwortlicher_id, faellig_am, status, erstellt_am, aktualisiert_am)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
+                """, params)
+
+        get_writer().submit(_do, wait=True)
         flash("Maßnahme angelegt.", "success")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -86,10 +93,14 @@ def complete_measure(m_id):
         return redirect(url_for("measures.list_measures"))
     ensure_can_write_idv(db, row[0])
     now = datetime.now(timezone.utc).isoformat()
-    db.execute("""
-        UPDATE massnahmen SET status='Erledigt', erledigt_am=?, aktualisiert_am=?
-        WHERE id=?
-    """, (now, now, m_id))
-    db.commit()
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                UPDATE massnahmen SET status='Erledigt', erledigt_am=?, aktualisiert_am=?
+                WHERE id=?
+            """, (now, now, m_id))
+
+    get_writer().submit(_do, wait=True)
     flash("Maßnahme als erledigt markiert.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=row[0]))
