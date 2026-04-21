@@ -26,6 +26,7 @@ from db import (
     apply_scan_run_start,
     apply_scan_run_end,
     apply_scanner_upsert_file,
+    apply_scanner_upsert_file_batch,
     apply_scanner_archive_files,
     apply_scanner_update_status,
     apply_scanner_history,
@@ -446,11 +447,11 @@ def _scanner_subprocess_env() -> dict:
     return env
 
 
+_UPSERT_BATCH_SIZE = 500
+
 _SCANNER_EVENT_HANDLERS = {
     OP_START_RUN:        apply_scan_run_start,
     OP_END_RUN:          apply_scan_run_end,
-    OP_UPSERT_FILE:      apply_scanner_upsert_file,
-    OP_MOVE_FILE:        apply_scanner_upsert_file,
     OP_ARCHIVE_FILES:    apply_scanner_archive_files,
     OP_UPDATE_STATUS:    apply_scanner_update_status,
     OP_FILE_HISTORY:     apply_scanner_history,
@@ -474,10 +475,32 @@ def _dispatch_scanner_event(op: str, payload: dict) -> None:
     )
 
 
+def _flush_upsert_buffer(buf: list, log_fh) -> None:
+    """Reicht den gepufferten Upsert-Batch als einzelnen Writer-Job ein."""
+    if not buf:
+        return
+    batch = buf[:]
+    buf.clear()
+    try:
+        get_writer().submit(
+            lambda c, _b=batch: apply_scanner_upsert_file_batch(c, _b),
+            wait=False,
+        )
+    except Exception as exc:
+        try:
+            log_fh.write(f"[scanner-batch-error] {exc}\n")
+        except Exception:
+            pass
+
+
 def _stdout_reader_thread(proc, log_fh, state: dict) -> None:
     """Liest NDJSON-Events aus ``proc.stdout`` und dispatcht sie ueber den
-    Writer-Thread. Zeilen ohne gueltiges JSON bzw. ohne ``op``-Feld wandern
-    als Klartext ins Output-Log."""
+    Writer-Thread. upsert_file- und move_file-Events werden in Batches von
+    ``_UPSERT_BATCH_SIZE`` zusammengefasst, damit je Batch nur eine SQLite-
+    Transaktion anfaellt. Alle anderen Events leeren zunaechst den Puffer,
+    um die Reihenfolge zu wahren. Zeilen ohne gueltiges JSON wandern ins
+    Output-Log."""
+    upsert_buf: list = []
     try:
         for raw in iter(proc.stdout.readline, ""):
             line = raw.rstrip("\r\n")
@@ -495,13 +518,22 @@ def _stdout_reader_thread(proc, log_fh, state: dict) -> None:
                     state["scan_run_id"] = payload.get("scan_run_id")
                 elif op == OP_END_RUN:
                     state["end_run_seen"] = True
-                try:
-                    _dispatch_scanner_event(op, payload)
-                except Exception as exc:
+
+                if op in (OP_UPSERT_FILE, OP_MOVE_FILE):
+                    upsert_buf.append(payload)
+                    if len(upsert_buf) >= _UPSERT_BATCH_SIZE:
+                        _flush_upsert_buffer(upsert_buf, log_fh)
+                else:
+                    # Puffer leeren, bevor ein anderes Event verarbeitet wird,
+                    # damit z. B. archive_files auf bereits geschriebene Zeilen trifft.
+                    _flush_upsert_buffer(upsert_buf, log_fh)
                     try:
-                        log_fh.write(f"[scanner-event-error] op={op}: {exc}\n")
-                    except Exception:
-                        pass
+                        _dispatch_scanner_event(op, payload)
+                    except Exception as exc:
+                        try:
+                            log_fh.write(f"[scanner-event-error] op={op}: {exc}\n")
+                        except Exception:
+                            pass
             else:
                 try:
                     log_fh.write(line + "\n")
@@ -512,6 +544,8 @@ def _stdout_reader_thread(proc, log_fh, state: dict) -> None:
             log_fh.write(f"[stdout-reader-error] {exc}\n")
         except Exception:
             pass
+    finally:
+        _flush_upsert_buffer(upsert_buf, log_fh)
 
 
 def _stderr_reader_thread(proc, log_fh) -> None:
