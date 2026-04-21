@@ -34,7 +34,7 @@
             </a>
           </td>
           <td class="text-truncate" style="max-width:200px" title="{{ m.titel }}">
-            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=m.idv_id) }}" class="text-decoration-none">{{ m.titel }}</a>
+            <a href="{{ url_for('measures.detail_measure', m_id=m.id) }}" class="text-decoration-none">{{ m.titel }}</a>
           </td>
           <td><span class="badge bg-light text-dark border">{{ m.massnahmentyp or '–' }}</span></td>
           <td>

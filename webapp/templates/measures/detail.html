@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Maßnahme – {{ m.titel }}{% endblock %}
+{% block page_title %}<i class="bi bi-tools me-2"></i>Maßnahme{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+        <span>{{ m.titel }}</span>
+        <span class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' if m.status == 'Offen' else 'primary' if m.status == 'In Bearbeitung' else 'success' }}">
+          {{ m.status }}
+        </span>
+      </div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Typ</div>
+          <span class="badge bg-light text-dark border">{{ m.massnahmentyp or '–' }}</span>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Priorität</div>
+          <span class="badge bg-{{ 'danger' if m.prioritaet == 'Kritisch' else 'warning text-dark' if m.prioritaet == 'Hoch' else 'secondary' }}">
+            {{ m.prioritaet }}
+          </span>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Verantwortlicher</div>
+          <div class="fw-500">{{ m.verantwortlicher or '–' }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Fällig am</div>
+          <div class="fw-500 {{ 'text-danger' if m.faelligkeitsstatus == 'ÜBERFÄLLIG' }}">
+            {% if m.faelligkeitsstatus == 'ÜBERFÄLLIG' %}
+              <i class="bi bi-alarm me-1"></i>
+            {% endif %}
+            {{ m.faellig_am|datefmt if m.faellig_am else '–' }}
+          </div>
+        </li>
+        {% if m.beschreibung %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Beschreibung</div>
+          <div style="white-space:pre-wrap;font-size:.9rem">{{ m.beschreibung }}</div>
+        </li>
+        {% endif %}
+        {% if m.status == 'Erledigt' %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Erledigt am</div>
+          <div class="fw-500">{{ m.erledigt_am|datefmt if m.erledigt_am else '–' }}</div>
+        </li>
+        {% if m.erledigung_kommentar %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Erledigungskommentar</div>
+          <div style="white-space:pre-wrap;font-size:.9rem">{{ m.erledigung_kommentar }}</div>
+        </li>
+        {% endif %}
+        {% endif %}
+      </ul>
+      {% if m.status != 'Erledigt' %}
+      <div class="card-footer bg-white">
+        <form method="post" action="{{ url_for('measures.complete_measure', m_id=m.id) }}" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-success" data-confirm="Maßnahme als erledigt markieren?">
+            <i class="bi bi-check-lg me-1"></i>Als erledigt markieren
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    <a href="{{ url_for('measures.list_measures') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Zurück zur Übersicht
+    </a>
+
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600"><i class="bi bi-app-indicator me-2"></i>Eigenentwicklung</div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Bezeichnung</div>
+          <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=m.idv_id) }}"
+             class="fw-500 text-decoration-none">{{ m.idv_bezeichnung }}</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<style>
+  .fw-600 { font-weight: 600; }
+  .fw-500 { font-weight: 500; }
+  .detail-label { font-size: .75rem; color: #6c757d; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .1rem; }
+</style>
+{% endblock %}
