@@ -57,7 +57,7 @@
             <label class="form-label fw-500">Testbeschreibung <span class="required-star">*</span></label>
             <div data-quill="beschreibung"></div>
             <input type="hidden" name="beschreibung" id="beschreibung-hidden"
-                   value="{{ testfall.beschreibung if testfall else '' }}">
+                   value="{{ testfall.beschreibung or '' if testfall else '' }}">
           </div>
 
           <div class="col-12">

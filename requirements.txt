@@ -22,7 +22,12 @@ ldap3>=2.9.1
 # Verschlüsselung für LDAP-Service-Account-Passwort
 cryptography>=42.0.0
 
-# Produktion (optional)
+# Produktiver WSGI-Server (pure Python, threaded, nativer TLS-Support,
+# PyInstaller-kompatibel). Wird im EXE-Modus bevorzugt vor dem
+# Werkzeug-Dev-Server verwendet.
+cheroot>=10.0.0
+
+# Produktion auf Unix (optional, Alternative zu cheroot)
 gunicorn>=21.0.0
 
 # Optional: Windows-Dateieigentümer auslesen (nur auf Windows)

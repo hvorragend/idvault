@@ -112,9 +112,15 @@ def ldap_sync_person(db, person_data: dict) -> Optional[int]:
     """
     Legt eine Person aus LDAP-Daten in der persons-Tabelle an oder aktualisiert sie.
     Gibt die persons.id zurück.
+
+    Der ``db``-Parameter wird fuer Reads verwendet. Writes laufen ueber den
+    zentralen Writer-Thread, damit SQLite pro Prozess nur eine Writer-
+    Connection verwendet.
     """
+    from .db_writer import get_writer
+    from db_write_tx import write_tx
+
     ad_name = person_data.get("ad_name", "")
-    user_id = person_data.get("user_id", ad_name)
 
     # Vorhandene Person per ad_name finden
     existing = db.execute(
@@ -122,9 +128,8 @@ def ldap_sync_person(db, person_data: dict) -> Optional[int]:
     ).fetchone()
 
     if existing:
-        # Stammdaten aus LDAP aktualisieren (Rolle nur wenn aus Gruppe ermittelbar)
         update_fields = []
-        params = []
+        params: list = []
         for field in ("vorname", "nachname", "email", "telefon"):
             val = person_data.get(field, "").strip()
             if val:
@@ -136,31 +141,40 @@ def ldap_sync_person(db, person_data: dict) -> Optional[int]:
         update_fields.append("aktiv = 1")
         if update_fields:
             params.append(existing["id"])
-            db.execute(
-                f"UPDATE persons SET {', '.join(update_fields)} WHERE id = ?", params
-            )
-        db.commit()
+            params_tuple = tuple(params)
+            set_clause = ", ".join(update_fields)
+
+            def _apply_update(c):
+                with write_tx(c):
+                    c.execute(
+                        f"UPDATE persons SET {set_clause} WHERE id = ?",
+                        params_tuple,
+                    )
+            get_writer().submit(_apply_update, wait=True)
         return existing["id"]
 
-    # Neue Person anlegen – AD-Name direkt als Kürzel und User-ID übernehmen
-    rolle = person_data.get("rolle") or None  # kein Default – Admin vergibt Rolle manuell
-    db.execute(
-        """INSERT INTO persons
-               (kuerzel, nachname, vorname, email, telefon, rolle, ad_name, user_id, aktiv)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)""",
-        (
-            ad_name,   # AD-Name als Kürzel
-            person_data.get("nachname", ""),
-            person_data.get("vorname", ""),
-            person_data.get("email", ""),
-            person_data.get("telefon", ""),
-            rolle,
-            ad_name,
-            ad_name,   # AD-Name auch als User-ID
-        ),
+    rolle = person_data.get("rolle") or None
+    insert_params = (
+        ad_name,
+        person_data.get("nachname", ""),
+        person_data.get("vorname", ""),
+        person_data.get("email", ""),
+        person_data.get("telefon", ""),
+        rolle,
+        ad_name,
+        ad_name,
     )
-    db.commit()
-    return db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    def _apply_insert(c):
+        with write_tx(c):
+            cur = c.execute(
+                """INSERT INTO persons
+                       (kuerzel, nachname, vorname, email, telefon, rolle, ad_name, user_id, aktiv)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+                insert_params,
+            )
+            return cur.lastrowid
+    return get_writer().submit(_apply_insert, wait=True)
 
 
 def _generate_kuerzel(db, person_data: dict) -> str:

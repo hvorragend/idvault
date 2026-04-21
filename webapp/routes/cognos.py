@@ -26,6 +26,8 @@ def _upload_rate_limit():
 # db.py liegt zwei Ebenen über webapp/routes/
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import generate_idv_id  # noqa: E402
+from db_write_tx import write_tx  # noqa: E402
+from ..db_writer import get_writer  # noqa: E402
 
 bp = Blueprint("cognos", __name__, url_prefix="/cognos")
 
@@ -374,14 +376,14 @@ def import_berichte():
     now         = datetime.now(timezone.utc).isoformat()
     person_id   = current_person_id()
 
-    eingefuegt  = 0
-    aktualisiert = 0
-
+    # Reads auf der Request-Reader-Connection; der Writer-Thread bekommt
+    # anschliessend nur noch fertig aufbereitete ("update"|"insert", params)-
+    # Tupel zum atomaren Apply.
+    prepared: list[tuple[str, tuple]] = []
     for row in rows:
-        # Prüfen ob bereits vorhanden (nach Unique-Key)
-        bank_id     = row.get("bank_id") or ""
+        bank_id      = row.get("bank_id") or ""
         berichtsname = row.get("berichtsname") or ""
-        suchpfad    = row.get("suchpfad") or ""
+        suchpfad     = row.get("suchpfad") or ""
 
         existing = db.execute(
             "SELECT id, bearbeitungsstatus FROM cognos_berichte "
@@ -390,19 +392,7 @@ def import_berichte():
         ).fetchone()
 
         if existing:
-            # Nur Metadaten aktualisieren, bearbeitungsstatus erhalten
-            db.execute("""
-                UPDATE cognos_berichte SET
-                    import_datei_name=?, importiert_am=?, importiert_von_id=?,
-                    umfeld=?, anwendung=?, package=?, eigentuemer=?,
-                    berichtsbeschreibung=?,
-                    erstelldatum=?, aenderungsdatum=?,
-                    letztes_ausfuehrungsdatum=?, letzter_ausfuehrungsstatus=?,
-                    anz_abfragen=?, anz_datenelemente=?, anz_felder_klarnamen=?,
-                    anz_filter=?, summe_ausdruckslaenge=?, komplexitaet=?,
-                    datum_berichtsabzug=?
-                WHERE id=?
-            """, (
+            prepared.append(("update", (
                 filename, now, person_id,
                 row.get("umfeld"), row.get("anwendung"), row.get("package"),
                 row.get("eigentuemer"), row.get("berichtsbeschreibung"),
@@ -413,23 +403,9 @@ def import_berichte():
                 row.get("summe_ausdruckslaenge"), row.get("komplexitaet"),
                 row.get("datum_berichtsabzug"),
                 existing["id"],
-            ))
-            aktualisiert += 1
+            )))
         else:
-            db.execute("""
-                INSERT INTO cognos_berichte (
-                    import_datei_name, importiert_am, importiert_von_id,
-                    umfeld, bank_id, anwendung, berichtsname, suchpfad,
-                    package, eigentuemer, berichtsbeschreibung,
-                    erstelldatum, aenderungsdatum,
-                    letztes_ausfuehrungsdatum, letzter_ausfuehrungsstatus,
-                    anz_abfragen, anz_datenelemente, anz_felder_klarnamen,
-                    anz_filter, summe_ausdruckslaenge, komplexitaet,
-                    datum_berichtsabzug
-                ) VALUES (
-                    ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
-                )
-            """, (
+            prepared.append(("insert", (
                 filename, now, person_id,
                 row.get("umfeld"), bank_id, row.get("anwendung"),
                 berichtsname, suchpfad,
@@ -442,10 +418,45 @@ def import_berichte():
                 row.get("anz_felder_klarnamen"), row.get("anz_filter"),
                 row.get("summe_ausdruckslaenge"), row.get("komplexitaet"),
                 row.get("datum_berichtsabzug"),
-            ))
-            eingefuegt += 1
+            )))
 
-    db.commit()
+    def _apply(c):
+        upd = ins = 0
+        with write_tx(c):
+            for op, params in prepared:
+                if op == "update":
+                    c.execute("""
+                        UPDATE cognos_berichte SET
+                            import_datei_name=?, importiert_am=?, importiert_von_id=?,
+                            umfeld=?, anwendung=?, package=?, eigentuemer=?,
+                            berichtsbeschreibung=?,
+                            erstelldatum=?, aenderungsdatum=?,
+                            letztes_ausfuehrungsdatum=?, letzter_ausfuehrungsstatus=?,
+                            anz_abfragen=?, anz_datenelemente=?, anz_felder_klarnamen=?,
+                            anz_filter=?, summe_ausdruckslaenge=?, komplexitaet=?,
+                            datum_berichtsabzug=?
+                        WHERE id=?
+                    """, params)
+                    upd += 1
+                else:
+                    c.execute("""
+                        INSERT INTO cognos_berichte (
+                            import_datei_name, importiert_am, importiert_von_id,
+                            umfeld, bank_id, anwendung, berichtsname, suchpfad,
+                            package, eigentuemer, berichtsbeschreibung,
+                            erstelldatum, aenderungsdatum,
+                            letztes_ausfuehrungsdatum, letzter_ausfuehrungsstatus,
+                            anz_abfragen, anz_datenelemente, anz_felder_klarnamen,
+                            anz_filter, summe_ausdruckslaenge, komplexitaet,
+                            datum_berichtsabzug
+                        ) VALUES (
+                            ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+                        )
+                    """, params)
+                    ins += 1
+        return ins, upd
+
+    eingefuegt, aktualisiert = get_writer().submit(_apply, wait=True)
 
     for err in fehler:
         flash(err, "warning")
@@ -505,38 +516,19 @@ def als_idv_registrieren(bericht_id: int):
         if dev_row:
             entwickler_id = dev_row["id"]
 
-    cur = db.execute("""
-        INSERT INTO idv_register (
-            idv_id, bezeichnung, kurzbeschreibung, idv_typ,
-            enthaelt_personendaten,
-            pruefintervall_monate, naechste_pruefung,
-            idv_entwickler_id,
-            status, erstellt_am, aktualisiert_am, teststatus
-        ) VALUES (
-            ?, ?, ?, 'Cognos-Report',
-            0,
-            12, ?,
-            ?,
-            'Entwurf', ?, ?, 'Wertung ausstehend'
-        )
-    """, (
+    insert_params = (
         idv_id,
         bericht["berichtsname"],
         bericht["suchpfad"],
         naechste_pruefung,
         entwickler_id,
         now, now,
-    ))
-    new_id = cur.lastrowid
-
-    db.execute(
-        "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert' WHERE id=?",
-        (new_id, bericht_id),
     )
 
-    # Extra-Berichte verknüpfen (aus GET-Params oder POST-Form)
+    # Extra-Berichte parsen (aus GET-Params oder POST-Form)
     extra_raw = (request.args.get("extra_bericht_ids") or
                  request.form.get("extra_bericht_ids") or "")
+    extra_ids: list[int] = []
     if extra_raw:
         for part in extra_raw.split(","):
             try:
@@ -545,13 +537,39 @@ def als_idv_registrieren(bericht_id: int):
                 continue
             if extra_id == bericht_id:
                 continue
-            db.execute(
-                "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert'"
-                " WHERE id=? AND bearbeitungsstatus != 'Registriert'",
-                (new_id, extra_id)
-            )
+            extra_ids.append(extra_id)
 
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            cur = c.execute("""
+                INSERT INTO idv_register (
+                    idv_id, bezeichnung, kurzbeschreibung, idv_typ,
+                    enthaelt_personendaten,
+                    pruefintervall_monate, naechste_pruefung,
+                    idv_entwickler_id,
+                    status, erstellt_am, aktualisiert_am, teststatus
+                ) VALUES (
+                    ?, ?, ?, 'Cognos-Report',
+                    0,
+                    12, ?,
+                    ?,
+                    'Entwurf', ?, ?, 'Wertung ausstehend'
+                )
+            """, insert_params)
+            new_id = cur.lastrowid
+            c.execute(
+                "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert' WHERE id=?",
+                (new_id, bericht_id),
+            )
+            for extra_id in extra_ids:
+                c.execute(
+                    "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert'"
+                    " WHERE id=? AND bearbeitungsstatus != 'Registriert'",
+                    (new_id, extra_id)
+                )
+            return new_id
+
+    new_id = get_writer().submit(_do, wait=True)
 
     flash(f"Eigenentwicklung {idv_id} wurde angelegt. Bitte jetzt vervollständigen.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=new_id))
@@ -561,12 +579,14 @@ def als_idv_registrieren(bericht_id: int):
 @login_required
 @write_access_required
 def ignorieren(bericht_id: int):
-    db = get_db()
-    db.execute(
-        "UPDATE cognos_berichte SET bearbeitungsstatus='Ignoriert' WHERE id=?",
-        (bericht_id,),
-    )
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE cognos_berichte SET bearbeitungsstatus='Ignoriert' WHERE id=?",
+                (bericht_id,),
+            )
+
+    get_writer().submit(_do, wait=True)
     flash("Bericht wurde als ignoriert markiert.", "info")
     return redirect(request.referrer or url_for("cognos.list_berichte"))
 
@@ -575,12 +595,14 @@ def ignorieren(bericht_id: int):
 @login_required
 @write_access_required
 def reaktivieren(bericht_id: int):
-    db = get_db()
-    db.execute(
-        "UPDATE cognos_berichte SET bearbeitungsstatus='Neu' WHERE id=? AND bearbeitungsstatus='Ignoriert'",
-        (bericht_id,),
-    )
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE cognos_berichte SET bearbeitungsstatus='Neu' WHERE id=? AND bearbeitungsstatus='Ignoriert'",
+                (bericht_id,),
+            )
+
+    get_writer().submit(_do, wait=True)
     flash("Bericht reaktiviert.", "info")
     return redirect(request.referrer or url_for("cognos.list_berichte"))
 
@@ -589,9 +611,11 @@ def reaktivieren(bericht_id: int):
 @login_required
 @write_access_required
 def loeschen(bericht_id: int):
-    db = get_db()
-    db.execute("DELETE FROM cognos_berichte WHERE id=?", (bericht_id,))
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM cognos_berichte WHERE id=?", (bericht_id,))
+
+    get_writer().submit(_do, wait=True)
     flash("Bericht gelöscht.", "info")
     return redirect(request.referrer or url_for("cognos.list_berichte"))
 
@@ -639,18 +663,22 @@ def zusammenfassen():
                 flash("Eigenentwicklung nicht gefunden.", "error")
                 return redirect(url_for("cognos.list_berichte"))
 
-            linked = 0
-            for bid in bericht_ids:
-                try:
-                    db.execute(
-                        "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert'"
-                        " WHERE id=? AND bearbeitungsstatus != 'Registriert'",
-                        (idv_db_id, bid)
-                    )
-                    linked += 1
-                except Exception:
-                    pass
-            db.commit()
+            def _do(c):
+                n = 0
+                with write_tx(c):
+                    for bid in bericht_ids:
+                        try:
+                            c.execute(
+                                "UPDATE cognos_berichte SET idv_register_id=?, bearbeitungsstatus='Registriert'"
+                                " WHERE id=? AND bearbeitungsstatus != 'Registriert'",
+                                (idv_db_id, bid)
+                            )
+                            n += 1
+                        except Exception:
+                            pass
+                return n
+
+            linked = get_writer().submit(_do, wait=True)
             flash(f"{linked} Bericht(e) mit IDV {idv_row['idv_id']} verknüpft.", "success")
             return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -716,39 +744,39 @@ def bulk_aktion():
     ph, ph_params = in_clause(bericht_ids)
 
     if aktion == "ignorieren":
-        db.execute(
-            f"UPDATE cognos_berichte SET bearbeitungsstatus='Ignoriert'"
-            f" WHERE id IN ({ph}) AND bearbeitungsstatus != 'Registriert'",
-            ph_params,
-        )
-        db.commit()
+        sql = (f"UPDATE cognos_berichte SET bearbeitungsstatus='Ignoriert'"
+               f" WHERE id IN ({ph}) AND bearbeitungsstatus != 'Registriert'")
+        def _do(c, _sql=sql, _params=ph_params):
+            with write_tx(c):
+                c.execute(_sql, _params)
+        get_writer().submit(_do, wait=True)
         flash(f"{len(bericht_ids)} Bericht(e) ignoriert.", "info")
 
     elif aktion == "nicht_mehr_ignorieren":
-        db.execute(
-            f"UPDATE cognos_berichte SET bearbeitungsstatus='Neu'"
-            f" WHERE id IN ({ph}) AND bearbeitungsstatus='Ignoriert'",
-            ph_params,
-        )
-        db.commit()
+        sql = (f"UPDATE cognos_berichte SET bearbeitungsstatus='Neu'"
+               f" WHERE id IN ({ph}) AND bearbeitungsstatus='Ignoriert'")
+        def _do(c, _sql=sql, _params=ph_params):
+            with write_tx(c):
+                c.execute(_sql, _params)
+        get_writer().submit(_do, wait=True)
         flash(f"{len(bericht_ids)} Bericht(e): Ignorierung aufgehoben.", "success")
 
     elif aktion == "zur_registrierung":
-        db.execute(
-            f"UPDATE cognos_berichte SET bearbeitungsstatus='Zur Registrierung'"
-            f" WHERE id IN ({ph})",
-            ph_params,
-        )
-        db.commit()
+        sql = (f"UPDATE cognos_berichte SET bearbeitungsstatus='Zur Registrierung'"
+               f" WHERE id IN ({ph})")
+        def _do(c, _sql=sql, _params=ph_params):
+            with write_tx(c):
+                c.execute(_sql, _params)
+        get_writer().submit(_do, wait=True)
         flash(f"{len(bericht_ids)} Bericht(e) zur Registrierung vorgemerkt.", "success")
 
     elif aktion == "nicht_wesentlich":
-        db.execute(
-            f"UPDATE cognos_berichte SET bearbeitungsstatus='Nicht wesentlich'"
-            f" WHERE id IN ({ph})",
-            ph_params,
-        )
-        db.commit()
+        sql = (f"UPDATE cognos_berichte SET bearbeitungsstatus='Nicht wesentlich'"
+               f" WHERE id IN ({ph})")
+        def _do(c, _sql=sql, _params=ph_params):
+            with write_tx(c):
+                c.execute(_sql, _params)
+        get_writer().submit(_do, wait=True)
         flash(f"{len(bericht_ids)} Bericht(e) als 'Nicht wesentlich' eingestuft.", "success")
 
     elif aktion == "owner_aendern":
@@ -756,11 +784,14 @@ def bulk_aktion():
         if not new_owner:
             flash("Kein Eigentümer angegeben.", "warning")
         else:
-            db.execute(
-                f"UPDATE cognos_berichte SET eigentuemer=? WHERE id IN ({ph})",
-                [new_owner] + ph_params,
-            )
-            db.commit()
+            sql = f"UPDATE cognos_berichte SET eigentuemer=? WHERE id IN ({ph})"
+            params = [new_owner] + ph_params
+
+            def _do(c, _sql=sql, _params=params):
+                with write_tx(c):
+                    c.execute(_sql, _params)
+
+            get_writer().submit(_do, wait=True)
             flash(f"{len(bericht_ids)} Bericht(e): Eigentümer auf \"{new_owner}\" gesetzt.", "success")
 
     elif aktion == "bewertung_anfordern":

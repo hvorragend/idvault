@@ -82,6 +82,20 @@ CREATE TABLE IF NOT EXISTS idv_files (
 
 CREATE INDEX IF NOT EXISTS idx_files_sp_item ON idv_files(sharepoint_item_id);
 
+-- Änderungsprotokoll pro Scanner-Fund (jedes Auftauchen/Ändern einer Datei)
+CREATE TABLE IF NOT EXISTS idv_file_history (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id         INTEGER NOT NULL REFERENCES idv_files(id),
+    scan_run_id     INTEGER NOT NULL,
+    change_type     TEXT NOT NULL,  -- new | changed | unchanged | moved | restored | archiviert
+    old_hash        TEXT,
+    new_hash        TEXT,
+    changed_at      TEXT NOT NULL,
+    details         TEXT            -- JSON mit geänderten Feldern
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_file ON idv_file_history(file_id);
+
 -- Delta-Token pro Drive für inkrementellen Graph-API-Sync (Teams-Scanner)
 CREATE TABLE IF NOT EXISTS teams_delta_tokens (
     drive_id    TEXT PRIMARY KEY,

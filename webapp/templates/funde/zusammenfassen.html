@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Dateien zu Eigenentwicklungs-Projekt zusammenfassen{% endblock %}
+{% block title %}Dateien zu Projekt zusammenfassen{% endblock %}
 {% block page_title %}
-  <i class="bi bi-diagram-3 me-2"></i>Dateien zu Eigenentwicklungs-Projekt zusammenfassen
+<i class="bi bi-diagram-3 me-2"></i>Dateien zu Projekt zusammenfassen
 {% endblock %}
 
 {% block content %}
@@ -45,7 +45,7 @@
                 </span>
                 {% endif %}
                 <div class="text-truncate hash-mono" style="font-size:.72rem;max-width:250px"
-                     title="{{ f.full_path | map_path }}">
+                  title="{{ f.full_path | map_path }}">
                   {{ f.relative_path or (f.full_path | map_path) }}
                 </div>
               </td>
@@ -90,10 +90,8 @@
             </label>
             {% for f in dateien %}
             <div class="form-check">
-              <input class="form-check-input" type="radio"
-                     name="primary_file_id" value="{{ f.id }}"
-                     id="prim-{{ f.id }}"
-                     {{ 'checked' if loop.first }}>
+              <input class="form-check-input" type="radio" name="primary_file_id" value="{{ f.id }}"
+                id="prim-{{ f.id }}" {{ 'checked' if loop.first }}>
               <label class="form-check-label" for="prim-{{ f.id }}">
                 <span class="fw-500">{{ f.file_name }}</span>
                 <span class="text-muted ms-1" style="font-size:.8rem">
@@ -192,7 +190,12 @@
 </div>
 
 <style>
-.fw-600 { font-weight: 600; }
-.fw-500 { font-weight: 500; }
+  .fw-600 {
+    font-weight: 600;
+  }
+
+  .fw-500 {
+    font-weight: 500;
+  }
 </style>
 {% endblock %}

@@ -6,27 +6,27 @@
 {# Sortierung vor dem Rendern aus sessionStorage wiederherstellen. #}
 {% block extra_head %}
 <script>
-(function () {
-  var STORE_KEY = 'cognos_list_sort';
-  var params    = new URLSearchParams(window.location.search);
-  if (params.has('sort')) {
-    try {
-      sessionStorage.setItem(STORE_KEY, JSON.stringify({
-        sort:  params.get('sort'),
-        order: params.get('order') || ''
-      }));
-    } catch (e) { /* ignore */ }
-    return;
-  }
-  try {
-    var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
-    if (saved && saved.sort) {
-      params.set('sort', saved.sort);
-      if (saved.order) params.set('order', saved.order);
-      window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+  (function () {
+    var STORE_KEY = 'cognos_list_sort';
+    var params = new URLSearchParams(window.location.search);
+    if (params.has('sort')) {
+      try {
+        sessionStorage.setItem(STORE_KEY, JSON.stringify({
+          sort: params.get('sort'),
+          order: params.get('order') || ''
+        }));
+      } catch (e) { /* ignore */ }
+      return;
     }
-  } catch (e) { /* ignore */ }
-})();
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+      if (saved && saved.sort) {
+        params.set('sort', saved.sort);
+        if (saved.order) params.set('order', saved.order);
+        window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+      }
+    } catch (e) { /* ignore */ }
+  })();
 </script>
 {% endblock %}
 
@@ -35,17 +35,17 @@
 {# ── Sortierspalten-Makro ──────────────────────────────────────────────── #}
 {% macro sort_th(col, label, classes='', title='') %}
 {% set new_ord = 'desc' if (sort == col and order == 'asc') else 'asc' %}
-<th class="{{ classes }}"{% if title %} title="{{ title }}"{% endif %}>
+<th class="{{ classes }}" {% if title %} title="{{ title }}" {% endif %}>
   <a href="{{ url_for('cognos.list_berichte', sort=col, order=new_ord,
                       q=q, status=status_filt, komplexitaet=komplexitaet_filt,
                       abfragen=abfragen_filt, pfad_prefix=pfad_prefix,
                       page=1, per_page=per_page) }}"
-     class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
+    class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
     {{ label }}
     {% if sort == col %}
-      <i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>
+    <i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>
     {% else %}
-      <i class="bi bi-arrow-down-up text-muted" style="opacity:.35;font-size:.7em"></i>
+    <i class="bi bi-arrow-down-up text-muted" style="opacity:.35;font-size:.7em"></i>
     {% endif %}
   </a>
 </th>
@@ -86,39 +86,38 @@
       <div class="col-sm-3">
         <label class="form-label small mb-1">Suche</label>
         <input type="text" name="q" class="form-control form-control-sm"
-               placeholder="Berichtsname, Suchpfad, Eigentümer …"
-               value="{{ q }}">
+          placeholder="Berichtsname, Suchpfad, Eigentümer …" value="{{ q }}">
       </div>
       <div class="col-sm-2">
         <label class="form-label small mb-1">Status</label>
         <select name="status" class="form-select form-select-sm">
           <option value="">Alle</option>
-          <option value="Neu"          {% if status_filt=='Neu'          %}selected{% endif %}>Neu</option>
-          <option value="Registriert"  {% if status_filt=='Registriert'  %}selected{% endif %}>Registriert</option>
-          <option value="Ignoriert"    {% if status_filt=='Ignoriert'    %}selected{% endif %}>Ignoriert</option>
+          <option value="Neu" {% if status_filt=='Neu' %}selected{% endif %}>Neu</option>
+          <option value="Registriert" {% if status_filt=='Registriert' %}selected{% endif %}>Registriert</option>
+          <option value="Ignoriert" {% if status_filt=='Ignoriert' %}selected{% endif %}>Ignoriert</option>
         </select>
       </div>
       <div class="col-sm-2">
         <label class="form-label small mb-1">Komplexität</label>
         <select name="komplexitaet" class="form-select form-select-sm">
           <option value="">Alle</option>
-          <option value="niedrig"  {% if komplexitaet_filt=='niedrig'  %}selected{% endif %}>0–3 (niedrig)</option>
-          <option value="mittel"   {% if komplexitaet_filt=='mittel'   %}selected{% endif %}>4–6 (mittel)</option>
-          <option value="hoch"     {% if komplexitaet_filt=='hoch'     %}selected{% endif %}>7–10 (hoch)</option>
+          <option value="niedrig" {% if komplexitaet_filt=='niedrig' %}selected{% endif %}>0–3 (niedrig)</option>
+          <option value="mittel" {% if komplexitaet_filt=='mittel' %}selected{% endif %}>4–6 (mittel)</option>
+          <option value="hoch" {% if komplexitaet_filt=='hoch' %}selected{% endif %}>7–10 (hoch)</option>
         </select>
       </div>
       <div class="col-sm-2">
         <label class="form-label small mb-1">Abfragen</label>
         <select name="abfragen" class="form-select form-select-sm">
           <option value="">Alle</option>
-          <option value="1-5"   {% if abfragen_filt=='1-5'   %}selected{% endif %}>1–5</option>
-          <option value="6-10"  {% if abfragen_filt=='6-10'  %}selected{% endif %}>6–10</option>
+          <option value="1-5" {% if abfragen_filt=='1-5' %}selected{% endif %}>1–5</option>
+          <option value="6-10" {% if abfragen_filt=='6-10' %}selected{% endif %}>6–10</option>
           <option value="11-20" {% if abfragen_filt=='11-20' %}selected{% endif %}>11–20</option>
-          <option value="21+"   {% if abfragen_filt=='21+'   %}selected{% endif %}}>&gt; 20</option>
+          <option value="21+" {% if abfragen_filt=='21+' %}selected{% endif %}}>&gt; 20</option>
         </select>
       </div>
       {# Sortierung und Reihenfolge als hidden fields erhalten #}
-      <input type="hidden" name="sort"  value="{{ sort }}">
+      <input type="hidden" name="sort" value="{{ sort }}">
       <input type="hidden" name="order" value="{{ order }}">
       <div class="col-auto">
         <button type="submit" class="btn btn-primary btn-sm">
@@ -146,28 +145,29 @@
   {# Gemeinsamen Prefix aus Anzeige weglassen #}
   {% set display_pfad = pfad_prefix %}
   {% if common_prefix and display_pfad.startswith(common_prefix) %}
-    {% set display_pfad = display_pfad[common_prefix|length:] %}
-    {% if display_pfad.startswith(' / ') %}{% set display_pfad = display_pfad[3:] %}{% endif %}
+  {% set display_pfad = display_pfad[common_prefix|length:] %}
+  {% if display_pfad.startswith(' / ') %}{% set display_pfad = display_pfad[3:] %}{% endif %}
   {% endif %}
   {# Klickbare Segmente des aktiven Filters (zum Hochnavigieren) #}
   {% set filter_segs = pfad_prefix.split(' / ') %}
   {% set cp_depth = (common_prefix.split(' / ')|length) if common_prefix else 0 %}
   {% for seg in filter_segs[cp_depth:] %}
-    {% set parent_path = filter_segs[:cp_depth + loop.index] | join(' / ') %}
-    <a href="{{ url_for('cognos.list_berichte', pfad_prefix=parent_path, q=q, status=status_filt, komplexitaet=komplexitaet_filt, abfragen=abfragen_filt, sort=sort, order=order) }}"
-       class="badge bg-primary text-decoration-none" style="font-size:.78rem">{{ seg }}</a>
-    {% if not loop.last %}<span class="text-muted">/</span>{% endif %}
+  {% set parent_path = filter_segs[:cp_depth + loop.index] | join(' / ') %}
+  <a href="{{ url_for('cognos.list_berichte', pfad_prefix=parent_path, q=q, status=status_filt, komplexitaet=komplexitaet_filt, abfragen=abfragen_filt, sort=sort, order=order) }}"
+    class="badge bg-primary text-decoration-none" style="font-size:.78rem">{{ seg }}</a>
+  {% if not loop.last %}<span class="text-muted">/</span>{% endif %}
   {% endfor %}
   <a href="{{ url_for('cognos.list_berichte', q=q, status=status_filt, komplexitaet=komplexitaet_filt, abfragen=abfragen_filt, sort=sort, order=order) }}"
-     class="btn btn-xs btn-outline-secondary ms-1" title="Pfad-Filter aufheben">
+    class="btn btn-xs btn-outline-secondary ms-1" title="Pfad-Filter aufheben">
     <i class="bi bi-x-lg"></i>
   </a>
 </div>
 {% endif %}
 
 <!-- ── Pagination oben ────────────────────────────────────────────────── -->
-{% set endpoint  = 'cognos.list_berichte' %}
-{% set url_extra = {'q': q, 'status': status_filt, 'komplexitaet': komplexitaet_filt, 'abfragen': abfragen_filt, 'pfad_prefix': pfad_prefix, 'sort': sort, 'order': order} %}
+{% set endpoint = 'cognos.list_berichte' %}
+{% set url_extra = {'q': q, 'status': status_filt, 'komplexitaet': komplexitaet_filt, 'abfragen': abfragen_filt,
+'pfad_prefix': pfad_prefix, 'sort': sort, 'order': order} %}
 {% include 'funde/_pagination.html' %}
 
 {% if can_write %}
@@ -217,38 +217,31 @@
         <i class="bi bi-check2-square me-1"></i>
         <span id="bulk-count">0</span> ausgewählt
       </span>
-      <button type="submit" name="aktion" value="ignorieren"
-              class="btn btn-sm btn-outline-secondary" id="btn-ignorieren"
-              title="Nur für Berichte ohne Eigenentwicklungs-Verknüpfung verfügbar">
+      <button type="submit" name="aktion" value="ignorieren" class="btn btn-sm btn-outline-secondary"
+        id="btn-ignorieren" title="Nur für Berichte ohne Verknüpfung verfügbar">
         <i class="bi bi-eye-slash me-1"></i>Ignorieren
       </button>
-      <button type="submit" name="aktion" value="nicht_mehr_ignorieren"
-              class="btn btn-sm btn-outline-secondary" id="btn-nicht-mehr-ignorieren"
-              title="Ignorierung aufheben – Bericht wieder auf 'Neu' setzen">
+      <button type="submit" name="aktion" value="nicht_mehr_ignorieren" class="btn btn-sm btn-outline-secondary"
+        id="btn-nicht-mehr-ignorieren" title="Ignorierung aufheben – Bericht wieder auf 'Neu' setzen">
         <i class="bi bi-eye me-1"></i>Nicht mehr ignorieren
       </button>
-      <button type="submit" name="aktion" value="zur_registrierung"
-              class="btn btn-sm btn-outline-info">
+      <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
         <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
       </button>
-      <button type="submit" name="aktion" value="nicht_wesentlich"
-              class="btn btn-sm btn-outline-secondary"
-              title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
+      <button type="submit" name="aktion" value="nicht_wesentlich" class="btn btn-sm btn-outline-secondary"
+        title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
         <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
       </button>
-      <button type="submit" name="aktion" value="zusammenfassen"
-              class="btn btn-sm btn-outline-primary"
-              title="Ausgewählte Berichte als Eigenentwicklungs-Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
-        <i class="bi bi-diagram-3 me-1"></i>Zu Eigenentwicklungs-Projekt zusammenfassen
+      <button type="submit" name="aktion" value="zusammenfassen" class="btn btn-sm btn-outline-primary"
+        title="Ausgewählte Berichte als Eigenentwicklungs-Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu Projekt zusammenfassen
       </button>
-      <button type="submit" name="aktion" value="bewertung_anfordern"
-              class="btn btn-sm btn-outline-primary"
-              title="E-Mail an Berichts-Eigentümer mit Bitte um Bewertung senden">
+      <button type="submit" name="aktion" value="bewertung_anfordern" class="btn btn-sm btn-outline-primary"
+        title="E-Mail an Berichts-Eigentümer mit Bitte um Bewertung senden">
         <i class="bi bi-envelope me-1"></i>Bewertung anfordern
       </button>
-      <button type="button" class="btn btn-sm btn-outline-warning"
-              data-bs-toggle="modal" data-bs-target="#ownerModal"
-              title="Eigentümer für ausgewählte Berichte setzen">
+      <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#ownerModal"
+        title="Eigentümer für ausgewählte Berichte setzen">
         <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
       </button>
       <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
@@ -263,8 +256,7 @@
     <div class="card-header bg-white py-2 d-flex align-items-center justify-content-between">
       <span class="fw-600 small">
         {% if can_write %}
-        <input type="checkbox" id="select-all" class="form-check-input me-2"
-               title="Alle auf dieser Seite auswählen">
+        <input type="checkbox" id="select-all" class="form-check-input me-2" title="Alle auf dieser Seite auswählen">
         {% endif %}
         {{ total }} Berichte
       </span>
@@ -282,7 +274,8 @@
             {{ sort_th('anz_datenelemente', 'Datenelm.', 'text-end d-none d-xl-table-cell', 'Anz. Datenelemente') }}
             {{ sort_th('anz_felder_klarnamen', 'Felder', 'text-end d-none d-xl-table-cell', 'Anz. Felder/Klarnamen') }}
             {{ sort_th('anz_filter', 'Filter', 'text-end d-none d-xl-table-cell', 'Anz. Filter') }}
-            {{ sort_th('summe_ausdruckslaenge', 'Ausdr.-Lg.', 'text-end d-none d-xl-table-cell', 'Summe Ausdruckslänge') }}
+            {{ sort_th('summe_ausdruckslaenge', 'Ausdr.-Lg.', 'text-end d-none d-xl-table-cell', 'Summe Ausdruckslänge')
+            }}
             {{ sort_th('komplexitaet', 'Kompl.', 'text-end d-none d-lg-table-cell') }}
             {{ sort_th('status', 'Status') }}
             {% if can_write %}<th></th>{% endif %}
@@ -293,9 +286,8 @@
           <tr>
             {% if can_write %}
             <td class="text-center align-middle">
-              <input type="checkbox" name="bericht_ids" value="{{ b.id }}"
-                     class="form-check-input row-check"
-                     data-status="{{ b.bearbeitungsstatus }}">
+              <input type="checkbox" name="bericht_ids" value="{{ b.id }}" class="form-check-input row-check"
+                data-status="{{ b.bearbeitungsstatus }}">
             </td>
             {% endif %}
 
@@ -305,43 +297,43 @@
             <!-- Suchpfad als klickbare Breadcrumbs (gemeinsamer Präfix ausgeblendet) -->
             <td style="max-width:320px" title="{{ b.suchpfad or '' }}">
               {% if b.suchpfad %}
-                {# Alle Segmente des ursprünglichen Pfads #}
-                {% set orig_segs = b.suchpfad.split(' / ') %}
-                {# Wie viele führende Segmente sind gemeinsamer Prefix? #}
-                {% set cp_depth = (common_prefix.split(' / ')|length) if common_prefix else 0 %}
-                {# Anzeigesegmente = alles nach dem gemeinsamen Prefix #}
-                {% set disp_segs = orig_segs[cp_depth:] %}
-                {% if disp_segs %}
-                  {# (seg, vollständiger Filterpfad)-Tupel für das gemeinsame
-                     Breadcrumb-Makro zusammensetzen. #}
-                  {% set cognos_crumbs = [] %}
-                  {% for seg in disp_segs %}
-                    {% set filter_path = orig_segs[:cp_depth + loop.index] | join(' / ') %}
-                    {% set _ = cognos_crumbs.append((seg, filter_path)) %}
-                  {% endfor %}
-                  {{ dir_breadcrumbs(cognos_crumbs, pfad_prefix,
-                                     'cognos.list_berichte',
-                                     extra={'q': q, 'status': status_filt,
-                                            'komplexitaet': komplexitaet_filt,
-                                            'abfragen': abfragen_filt,
-                                            'sort': sort, 'order': order},
-                                     dir_key='pfad_prefix', separator='/') }}
-                {% else %}
-                  {# Pfad endet genau beim gemeinsamen Prefix #}
-                  <span class="text-muted" style="font-size:.72rem">{{ b.suchpfad }}</span>
-                {% endif %}
+              {# Alle Segmente des ursprünglichen Pfads #}
+              {% set orig_segs = b.suchpfad.split(' / ') %}
+              {# Wie viele führende Segmente sind gemeinsamer Prefix? #}
+              {% set cp_depth = (common_prefix.split(' / ')|length) if common_prefix else 0 %}
+              {# Anzeigesegmente = alles nach dem gemeinsamen Prefix #}
+              {% set disp_segs = orig_segs[cp_depth:] %}
+              {% if disp_segs %}
+              {# (seg, vollständiger Filterpfad)-Tupel für das gemeinsame
+              Breadcrumb-Makro zusammensetzen. #}
+              {% set cognos_crumbs = [] %}
+              {% for seg in disp_segs %}
+              {% set filter_path = orig_segs[:cp_depth + loop.index] | join(' / ') %}
+              {% set _ = cognos_crumbs.append((seg, filter_path)) %}
+              {% endfor %}
+              {{ dir_breadcrumbs(cognos_crumbs, pfad_prefix,
+              'cognos.list_berichte',
+              extra={'q': q, 'status': status_filt,
+              'komplexitaet': komplexitaet_filt,
+              'abfragen': abfragen_filt,
+              'sort': sort, 'order': order},
+              dir_key='pfad_prefix', separator='/') }}
+              {% else %}
+              {# Pfad endet genau beim gemeinsamen Prefix #}
+              <span class="text-muted" style="font-size:.72rem">{{ b.suchpfad }}</span>
+              {% endif %}
               {% else %}–{% endif %}
             </td>
 
             <!-- Eigentümer -->
             <td class="d-none d-lg-table-cell">
               {% if b.eigentuemer %}
-                {% set resolved = eigentuemer_map.get(b.eigentuemer) %}
-                {% if resolved %}
-                  <span title="{{ b.eigentuemer }}">{{ resolved }}</span>
-                {% else %}
-                  <span class="text-muted" title="Kein Eintrag in Personentabelle gefunden">{{ b.eigentuemer }}</span>
-                {% endif %}
+              {% set resolved = eigentuemer_map.get(b.eigentuemer) %}
+              {% if resolved %}
+              <span title="{{ b.eigentuemer }}">{{ resolved }}</span>
+              {% else %}
+              <span class="text-muted" title="Kein Eintrag in Personentabelle gefunden">{{ b.eigentuemer }}</span>
+              {% endif %}
               {% else %}–{% endif %}
             </td>
 
@@ -373,26 +365,27 @@
             <!-- Komplexität -->
             <td class="text-end d-none d-lg-table-cell">
               {% if b.komplexitaet is not none %}
-                <span class="badge {% if b.komplexitaet >= 7 %}bg-danger{% elif b.komplexitaet >= 4 %}bg-warning text-dark{% else %}bg-success{% endif %}">
-                  {{ b.komplexitaet|int }}
-                </span>
+              <span
+                class="badge {% if b.komplexitaet >= 7 %}bg-danger{% elif b.komplexitaet >= 4 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                {{ b.komplexitaet|int }}
+              </span>
               {% else %}–{% endif %}
             </td>
 
             <!-- Bearbeitungsstatus -->
             <td>
               {% if b.bearbeitungsstatus == 'Registriert' %}
-                <span class="badge bg-success">
-                  <i class="bi bi-check-circle me-1"></i>Eigenentwicklung
-                  {% if b.idv_id_str %}
-                    <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=b.idv_register_id) }}"
-                       class="text-white text-decoration-none ms-1">{{ b.idv_id_str }}</a>
-                  {% endif %}
-                </span>
+              <span class="badge bg-success">
+                <i class="bi bi-check-circle me-1"></i>Eigenentwicklung
+                {% if b.idv_id_str %}
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=b.idv_register_id) }}"
+                  class="text-white text-decoration-none ms-1">{{ b.idv_id_str }}</a>
+                {% endif %}
+              </span>
               {% elif b.bearbeitungsstatus == 'Ignoriert' %}
-                <span class="badge bg-secondary">Ignoriert</span>
+              <span class="badge bg-secondary">Ignoriert</span>
               {% else %}
-                <span class="badge bg-warning text-dark">Neu</span>
+              <span class="badge bg-warning text-dark">Neu</span>
               {% endif %}
             </td>
 
@@ -400,39 +393,28 @@
             {% if can_write %}
             <td class="text-end text-nowrap">
               {% if b.bearbeitungsstatus == 'Neu' %}
-                <button type="submit"
-                        formaction="{{ url_for('cognos.als_idv_registrieren', bericht_id=b.id) }}"
-                        formmethod="post"
-                        class="btn btn-outline-primary btn-xs"
-                        title="Als Eigenentwicklung registrieren">
-                  <i class="bi bi-plus-circle"></i>
-                </button>
-                <button type="submit"
-                        formaction="{{ url_for('cognos.ignorieren', bericht_id=b.id) }}"
-                        formmethod="post"
-                        class="btn btn-outline-secondary btn-xs ms-1"
-                        title="Ignorieren">
-                  <i class="bi bi-eye-slash"></i>
-                </button>
+              <button type="submit" formaction="{{ url_for('cognos.als_idv_registrieren', bericht_id=b.id) }}"
+                formmethod="post" class="btn btn-outline-primary btn-xs" title="Als Eigenentwicklung registrieren">
+                <i class="bi bi-plus-circle"></i>
+              </button>
+              <button type="submit" formaction="{{ url_for('cognos.ignorieren', bericht_id=b.id) }}" formmethod="post"
+                class="btn btn-outline-secondary btn-xs ms-1" title="Ignorieren">
+                <i class="bi bi-eye-slash"></i>
+              </button>
               {% elif b.bearbeitungsstatus == 'Ignoriert' %}
-                <button type="submit"
-                        formaction="{{ url_for('cognos.reaktivieren', bericht_id=b.id) }}"
-                        formmethod="post"
-                        class="btn btn-outline-warning btn-xs"
-                        title="Nicht mehr ignorieren">
-                  <i class="bi bi-eye"></i>
-                </button>
+              <button type="submit" formaction="{{ url_for('cognos.reaktivieren', bericht_id=b.id) }}" formmethod="post"
+                class="btn btn-outline-warning btn-xs" title="Nicht mehr ignorieren">
+                <i class="bi bi-eye"></i>
+              </button>
               {% elif b.bearbeitungsstatus == 'Registriert' and b.idv_register_id %}
-                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=b.idv_register_id) }}"
-                   class="btn btn-outline-success btn-xs" title="Eigenentwicklung öffnen">
-                  <i class="bi bi-box-arrow-up-right"></i>
-                </a>
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=b.idv_register_id) }}"
+                class="btn btn-outline-success btn-xs" title="Eigenentwicklung öffnen">
+                <i class="bi bi-box-arrow-up-right"></i>
+              </a>
               {% endif %}
-              <button type="submit"
-                      formaction="{{ url_for('cognos.loeschen', bericht_id=b.id) }}"
-                      formmethod="post"
-                      class="btn btn-outline-danger btn-xs ms-1"
-                      title="Löschen" data-confirm="Bericht \&quot;{{ b.berichtsname|e }}\&quot; wirklich löschen?">
+              <button type="submit" formaction="{{ url_for('cognos.loeschen', bericht_id=b.id) }}" formmethod="post"
+                class="btn btn-outline-danger btn-xs ms-1" title="Löschen"
+                data-confirm="Bericht \&quot;{{ b.berichtsname|e }}\&quot; wirklich löschen?">
                 <i class="bi bi-trash"></i>
               </button>
             </td>
@@ -444,8 +426,7 @@
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Berichte gefunden.
               {% if can_write %}
-              <br><a href="{{ url_for('cognos.import_berichte') }}"
-                     class="btn btn-sm btn-success mt-2">
+              <br><a href="{{ url_for('cognos.import_berichte') }}" class="btn btn-sm btn-success mt-2">
                 <i class="bi bi-cloud-upload me-1"></i>Berichtsübersicht importieren
               </a>
               {% endif %}
@@ -463,78 +444,87 @@
 {% include 'funde/_pagination.html' %}
 
 <style>
-  .btn-xs { padding: .15rem .45rem; font-size: .75rem; }
-  .fw-600 { font-weight: 600; }
-  .fw-500 { font-weight: 500; }
+  .btn-xs {
+    padding: .15rem .45rem;
+    font-size: .75rem;
+  }
+
+  .fw-600 {
+    font-weight: 600;
+  }
+
+  .fw-500 {
+    font-weight: 500;
+  }
 </style>
 
 <script>
-(function () {
-  const selectAll   = document.getElementById('select-all');
-  const bulkBar     = document.getElementById('bulk-bar');
-  const bulkCount   = document.getElementById('bulk-count');
-  const btnDeselect = document.getElementById('btn-deselect-all');
+  (function () {
+    const selectAll = document.getElementById('select-all');
+    const bulkBar = document.getElementById('bulk-bar');
+    const bulkCount = document.getElementById('bulk-count');
+    const btnDeselect = document.getElementById('btn-deselect-all');
 
-  function updateBar() {
-    const checked = document.querySelectorAll('.row-check:checked');
-    const n = checked.length;
-    if (bulkCount) bulkCount.textContent = n;
-    if (bulkBar)   bulkBar.classList.toggle('d-none', n === 0);
+    function updateBar() {
+      const checked = document.querySelectorAll('.row-check:checked');
+      const n = checked.length;
+      if (bulkCount) bulkCount.textContent = n;
+      if (bulkBar) bulkBar.classList.toggle('d-none', n === 0);
 
-    const btnIgn         = document.getElementById('btn-ignorieren');
-    const btnNichtMehrIgn = document.getElementById('btn-nicht-mehr-ignorieren');
-    if (btnIgn) {
-      const anyIgnorierbar = [...checked].some(cb => cb.dataset.status !== 'Registriert');
-      btnIgn.disabled = !anyIgnorierbar;
+      const btnIgn = document.getElementById('btn-ignorieren');
+      const btnNichtMehrIgn = document.getElementById('btn-nicht-mehr-ignorieren');
+      if (btnIgn) {
+        const anyIgnorierbar = [...checked].some(cb => cb.dataset.status !== 'Registriert');
+        btnIgn.disabled = !anyIgnorierbar;
+      }
+      if (btnNichtMehrIgn) {
+        const anyIgnoriert = [...checked].some(cb => cb.dataset.status === 'Ignoriert');
+        btnNichtMehrIgn.disabled = !anyIgnoriert;
+      }
     }
-    if (btnNichtMehrIgn) {
-      const anyIgnoriert = [...checked].some(cb => cb.dataset.status === 'Ignoriert');
-      btnNichtMehrIgn.disabled = !anyIgnoriert;
+
+    document.querySelectorAll('.row-check').forEach(cb =>
+      cb.addEventListener('change', updateBar)
+    );
+
+    if (selectAll) {
+      selectAll.addEventListener('change', function () {
+        document.querySelectorAll('.row-check').forEach(cb => { cb.checked = this.checked; });
+        updateBar();
+      });
     }
-  }
 
-  document.querySelectorAll('.row-check').forEach(cb =>
-    cb.addEventListener('change', updateBar)
-  );
+    if (btnDeselect) {
+      btnDeselect.addEventListener('click', function () {
+        document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
+        if (selectAll) selectAll.checked = false;
+        updateBar();
+      });
+    }
 
-  if (selectAll) {
-    selectAll.addEventListener('change', function () {
-      document.querySelectorAll('.row-check').forEach(cb => { cb.checked = this.checked; });
-      updateBar();
-    });
-  }
-
-  if (btnDeselect) {
-    btnDeselect.addEventListener('click', function () {
-      document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
-      if (selectAll) selectAll.checked = false;
-      updateBar();
-    });
-  }
-
-  // Eigentümer-Modal
-  const ownerModal = document.getElementById('ownerModal');
-  if (ownerModal) {
-    ownerModal.addEventListener('show.bs.modal', function () {
-      const n = document.querySelectorAll('.row-check:checked').length;
-      const countEl = document.getElementById('owner-modal-count');
-      if (countEl) countEl.textContent = n;
-    });
-    document.getElementById('owner-modal-confirm')?.addEventListener('click', function () {
-      const val = document.getElementById('owner-modal-input')?.value || '';
-      if (!val) return;
-      document.getElementById('hidden-new-owner').value = val;
-      const form = document.getElementById('bulk-form');
-      const btn  = document.createElement('input');
-      btn.type  = 'hidden';
-      btn.name  = 'aktion';
-      btn.value = 'owner_aendern';
-      form.appendChild(btn);
-      bootstrap.Modal.getInstance(ownerModal).hide();
-      form.submit();
-    });
-  }
-})();
+    // Eigentümer-Modal
+    const ownerModal = document.getElementById('ownerModal');
+    if (ownerModal) {
+      ownerModal.addEventListener('show.bs.modal', function () {
+        const n = document.querySelectorAll('.row-check:checked').length;
+        const countEl = document.getElementById('owner-modal-count');
+        if (countEl) countEl.textContent = n;
+      });
+      document.getElementById('owner-modal-confirm')?.addEventListener('click', function () {
+        const val = document.getElementById('owner-modal-input')?.value || '';
+        if (!val) return;
+        document.getElementById('hidden-new-owner').value = val;
+        const form = document.getElementById('bulk-form');
+        const btn = document.createElement('input');
+        btn.type = 'hidden';
+        btn.name = 'aktion';
+        btn.value = 'owner_aendern';
+        form.appendChild(btn);
+        bootstrap.Modal.getInstance(ownerModal).hide();
+        form.submit();
+      });
+    }
+  })();
 </script>
 
 {% endblock %}

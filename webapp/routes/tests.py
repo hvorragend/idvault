@@ -11,7 +11,9 @@ from db import (
     create_fachlicher_testfall, update_fachlicher_testfall, delete_fachlicher_testfall,
     get_technischer_test, save_technischer_test, delete_technischer_test,
 )
+from db_write_tx import write_tx
 from datetime import date as _date, datetime as _datetime
+from ..db_writer import get_writer
 from ..security import validate_upload_mime, ensure_can_read_idv, ensure_can_write_idv
 
 bp = Blueprint("tests", __name__, url_prefix="/tests")
@@ -63,12 +65,14 @@ def _get_idv_or_404(db, idv_db_id):
 
 def _reset_freigabe_schritt(db, idv_db_id: int, schritt: str) -> None:
     """Setzt einen Freigabe-Schritt auf 'Ausstehend' zurück, wenn der Test gelöscht wird."""
-    db.execute(
-        "UPDATE idv_freigaben SET status='Ausstehend', durchgefuehrt_von_id=NULL, "
-        "durchgefuehrt_am=NULL WHERE idv_id=? AND schritt=? AND status='Erledigt'",
-        (idv_db_id, schritt)
-    )
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE idv_freigaben SET status='Ausstehend', durchgefuehrt_von_id=NULL, "
+                "durchgefuehrt_am=NULL WHERE idv_id=? AND schritt=? AND status='Erledigt'",
+                (idv_db_id, schritt),
+            )
+    get_writer().submit(_do, wait=True)
 
 
 def _phase1_schritt_aktiv(db, idv_db_id: int, schritt: str) -> bool:
@@ -183,7 +187,10 @@ def new_fachlicher_testfall(idv_db_id):
             data["nachweis_datei_pfad"] = pfad
             data["nachweis_datei_name"] = name
 
-            create_fachlicher_testfall(db, idv_db_id, data)
+            get_writer().submit(
+                lambda c: create_fachlicher_testfall(c, idv_db_id, data),
+                wait=True,
+            )
 
             if data["bewertung"] == "Erledigt":
                 if freigabe_id:
@@ -244,7 +251,10 @@ def edit_fachlicher_testfall(testfall_id):
             data["nachweis_datei_pfad"] = pfad or testfall["nachweis_datei_pfad"]
             data["nachweis_datei_name"] = name or testfall["nachweis_datei_name"]
 
-            update_fachlicher_testfall(db, testfall_id, data)
+            get_writer().submit(
+                lambda c: update_fachlicher_testfall(c, testfall_id, data),
+                wait=True,
+            )
 
             if data["bewertung"] == "Erledigt":
                 if freigabe_id:
@@ -279,7 +289,10 @@ def delete_fachlicher_testfall_route(testfall_id):
         return redirect(url_for("eigenentwicklung.list_idv"))
     idv_db_id = testfall["idv_id"]
     ensure_can_write_idv(db, idv_db_id)
-    delete_fachlicher_testfall(db, testfall_id)
+    get_writer().submit(
+        lambda c: delete_fachlicher_testfall(c, testfall_id),
+        wait=True,
+    )
     # Freigabe-Schritt zurücksetzen, damit ein neuer Test angelegt werden kann
     _reset_freigabe_schritt(db, idv_db_id, "Fachlicher Test")
     flash("Test gelöscht.", "success")
@@ -324,7 +337,10 @@ def edit_technischer_test(idv_db_id):
         data["nachweis_datei_pfad"] = pfad or (tech_test["nachweis_datei_pfad"] if tech_test else None)
         data["nachweis_datei_name"] = name or (tech_test["nachweis_datei_name"] if tech_test else None)
 
-        save_technischer_test(db, idv_db_id, data)
+        get_writer().submit(
+            lambda c: save_technischer_test(c, idv_db_id, data),
+            wait=True,
+        )
 
         if data["ergebnis"] == "Erledigt":
             if freigabe_id:
@@ -357,7 +373,10 @@ def delete_technischer_test_route(idv_db_id):
     idv = _get_idv_or_404(db, idv_db_id)
     if not idv:
         return redirect(url_for("eigenentwicklung.list_idv"))
-    delete_technischer_test(db, idv_db_id)
+    get_writer().submit(
+        lambda c: delete_technischer_test(c, idv_db_id),
+        wait=True,
+    )
     # Freigabe-Schritt zurücksetzen, damit ein neuer Test angelegt werden kann
     _reset_freigabe_schritt(db, idv_db_id, "Technischer Test")
     flash("Technischer Test gelöscht.", "success")

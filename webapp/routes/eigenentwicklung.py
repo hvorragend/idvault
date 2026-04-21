@@ -7,6 +7,8 @@ from db import (create_idv, update_idv, change_status, search_idv,
                 get_klassifizierungen, get_wesentlichkeitskriterien,
                 get_idv_wesentlichkeit, save_idv_wesentlichkeit,
                 get_fachliche_testfaelle, get_technischer_test)
+from db_write_tx import write_tx
+from ..db_writer import get_writer
 from ..security import (ensure_can_read_idv, ensure_can_write_idv,
                         user_can_read_idv, in_clause)
 
@@ -290,27 +292,29 @@ def bulk_loeschen():
         flash("Keine Eigenentwicklungen ausgewählt.", "warning")
         return redirect(url_for("eigenentwicklung.list_idv"))
 
-    deleted = 0
-    for idv_db_id in idv_db_ids:
-        row = db.execute("SELECT idv_id FROM idv_register WHERE id=?", (idv_db_id,)).fetchone()
-        if not row:
-            continue
-        # Abhängige Datensätze ohne CASCADE zuerst löschen
-        db.execute("DELETE FROM idv_history        WHERE idv_id = ?", (idv_db_id,))
-        db.execute("DELETE FROM massnahmen          WHERE idv_id = ?", (idv_db_id,))
-        db.execute("DELETE FROM pruefungen          WHERE idv_id = ?", (idv_db_id,))
-        db.execute("DELETE FROM genehmigungen       WHERE idv_id = ?", (idv_db_id,))
-        db.execute("DELETE FROM dokumente           WHERE idv_id = ?", (idv_db_id,))
-        db.execute("DELETE FROM idv_abhaengigkeiten WHERE quell_idv_id = ?", (idv_db_id,))
-        db.execute("DELETE FROM idv_abhaengigkeiten WHERE ziel_idv_id  = ?", (idv_db_id,))
-        # Vorgänger-Verknüpfung in Nachfolgern aufheben
-        db.execute("UPDATE idv_register SET vorgaenger_idv_id = NULL WHERE vorgaenger_idv_id = ?",
-                   (idv_db_id,))
-        # Eigenentwicklung löschen (CASCADE für idv_freigaben, idv_file_links, idv_wesentlichkeit)
-        db.execute("DELETE FROM idv_register WHERE id=?", (idv_db_id,))
-        deleted += 1
+    existing_ids = [
+        r["id"] for r in db.execute(
+            f"SELECT id FROM idv_register WHERE id IN ({','.join(['?']*len(idv_db_ids))})",
+            idv_db_ids,
+        ).fetchall()
+    ]
 
-    db.commit()
+    def _do(c):
+        with write_tx(c):
+            for idv_db_id in existing_ids:
+                c.execute("DELETE FROM idv_history        WHERE idv_id = ?", (idv_db_id,))
+                c.execute("DELETE FROM massnahmen          WHERE idv_id = ?", (idv_db_id,))
+                c.execute("DELETE FROM pruefungen          WHERE idv_id = ?", (idv_db_id,))
+                c.execute("DELETE FROM genehmigungen       WHERE idv_id = ?", (idv_db_id,))
+                c.execute("DELETE FROM dokumente           WHERE idv_id = ?", (idv_db_id,))
+                c.execute("DELETE FROM idv_abhaengigkeiten WHERE quell_idv_id = ?", (idv_db_id,))
+                c.execute("DELETE FROM idv_abhaengigkeiten WHERE ziel_idv_id  = ?", (idv_db_id,))
+                c.execute("UPDATE idv_register SET vorgaenger_idv_id = NULL WHERE vorgaenger_idv_id = ?",
+                          (idv_db_id,))
+                c.execute("DELETE FROM idv_register WHERE id=?", (idv_db_id,))
+        return len(existing_ids)
+
+    deleted = get_writer().submit(_do, wait=True)
     flash(f"{deleted} Eigenentwicklung(en) gelöscht.", "success")
     return redirect(url_for("eigenentwicklung.list_idv"))
 
@@ -345,10 +349,15 @@ def bulk_status():
         flash("Keine Eigenentwicklungen ausgewählt.", "warning")
         return redirect(url_for("eigenentwicklung.list_idv"))
 
+    writer = get_writer()
     updated = errors = 0
     for idv_db_id in idv_db_ids:
         try:
-            change_status(db, idv_db_id, neuer_status, geaendert_von_id=person_id)
+            writer.submit(
+                lambda c, _id=idv_db_id, _st=neuer_status, _p=person_id:
+                    change_status(c, _id, _st, geaendert_von_id=_p),
+                wait=True,
+            )
             updated += 1
         except Exception as exc:
             # VULN-011: Einzel-Fehler nicht schlucken – damit Batch-Fehler
@@ -488,7 +497,10 @@ def detail_idv(idv_db_id):
     phase3_erledigt   = (
         {f["schritt"] for f in phase3_schritte if f["status"] == "Erledigt"} == set(_PHASE_3)
     )
-    hat_offenen_schritt = any(f["status"] == "Ausstehend" for f in freigaben)
+    hat_offenen_schritt = any(
+        f["status"] == "Ausstehend" and f["schritt"] not in _PHASE_3
+        for f in freigaben
+    )
 
     fachliche_testfaelle = get_fachliche_testfaelle(db, idv_db_id)
     technischer_test     = get_technischer_test(db, idv_db_id)
@@ -531,26 +543,31 @@ def new_idv():
             data["file_id"] = file_id
         person_id = session.get("person_id")
         try:
-            new_id = create_idv(db, data, erfasser_id=person_id)
-            _save_wesentlichkeit_from_form(db, new_id, request.form)
-            # Zusätzliche Dateien aus idv_file_links speichern
+            antworten = _build_wesentlichkeit_answers(db, request.form)
             extra_raw = request.form.get("extra_file_ids", "")
+            extras = []
             for part in extra_raw.split(","):
                 extra_id = _int_or_none(part.strip())
                 if extra_id and extra_id != file_id:
-                    try:
-                        db.execute(
+                    extras.append(extra_id)
+
+            def _do(c):
+                with write_tx(c):
+                    new_id = create_idv(c, data, erfasser_id=person_id, commit=False)
+                    if antworten:
+                        save_idv_wesentlichkeit(c, new_id, antworten, commit=False)
+                    for extra_id in extras:
+                        c.execute(
                             "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
-                            (new_id, extra_id)
+                            (new_id, extra_id),
                         )
-                        db.execute(
+                        c.execute(
                             "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
-                            (extra_id,)
+                            (extra_id,),
                         )
-                    except Exception:
-                        pass
-            if extra_raw.strip():
-                db.commit()
+                return new_id
+
+            new_id = get_writer().submit(_do, wait=True)
             flash("Eigenentwicklung erfolgreich angelegt.", "success")
             if request.form.get("save_action") == "save_and_new":
                 return redirect(url_for("eigenentwicklung.new_idv"))
@@ -631,8 +648,16 @@ def edit_idv(idv_db_id):
         data = _form_to_dict(request.form)
         person_id = session.get("person_id")
         try:
-            update_idv(db, idv_db_id, data, geaendert_von_id=person_id)
-            _save_wesentlichkeit_from_form(db, idv_db_id, request.form)
+            antworten = _build_wesentlichkeit_answers(db, request.form)
+
+            def _do(c):
+                with write_tx(c):
+                    update_idv(c, idv_db_id, data,
+                               geaendert_von_id=person_id, commit=False)
+                    if antworten:
+                        save_idv_wesentlichkeit(c, idv_db_id, antworten, commit=False)
+
+            get_writer().submit(_do, wait=True)
             flash("Eigenentwicklung gespeichert.", "success")
             return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
         except Exception as e:
@@ -665,7 +690,11 @@ def change_status_route(idv_db_id):
     new_status = request.form.get("status")
     person_id  = session.get("person_id")
     if new_status:
-        change_status(db, idv_db_id, new_status, geaendert_von_id=person_id)
+        get_writer().submit(
+            lambda c: change_status(c, idv_db_id, new_status,
+                                    geaendert_von_id=person_id),
+            wait=True,
+        )
         flash(f"Status geändert zu: {new_status}", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -687,15 +716,19 @@ def change_teststatus(idv_db_id):
     person_id = session.get("person_id")
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
-    db.execute(
-        "UPDATE idv_register SET teststatus=?, aktualisiert_am=? WHERE id=?",
-        (val, now, idv_db_id)
-    )
-    db.execute(
-        "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-        (idv_db_id, "teststatus_geaendert", f"Teststatus → {val}", person_id)
-    )
-    db.commit()
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE idv_register SET teststatus=?, aktualisiert_am=? WHERE id=?",
+                (val, now, idv_db_id),
+            )
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "teststatus_geaendert", f"Teststatus → {val}", person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
     flash(f"Teststatus geändert zu: {val}", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -713,12 +746,18 @@ def unlink_file(idv_db_id, link_id):
     if not row:
         flash("Verknüpfung nicht gefunden.", "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
-    db.execute("DELETE FROM idv_file_links WHERE id=?", (link_id,))
-    db.execute(
-        "UPDATE idv_files SET bearbeitungsstatus='Neu' WHERE id=? AND bearbeitungsstatus='Registriert'",
-        (row["file_id"],)
-    )
-    db.commit()
+
+    file_id_ref = row["file_id"]
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM idv_file_links WHERE id=?", (link_id,))
+            c.execute(
+                "UPDATE idv_files SET bearbeitungsstatus='Neu' WHERE id=? AND bearbeitungsstatus='Registriert'",
+                (file_id_ref,),
+            )
+
+    get_writer().submit(_do, wait=True)
     flash(f"Verknüpfung mit \"{row['file_name']}\" aufgehoben.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -746,21 +785,25 @@ def link_files(idv_db_id):
             flash("Keine Dateien ausgewählt.", "warning")
             return redirect(url_for("eigenentwicklung.link_files", idv_db_id=idv_db_id))
 
-        linked = 0
-        for fid in file_ids:
-            try:
-                db.execute(
-                    "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
-                    (idv_db_id, fid)
-                )
-                db.execute(
-                    "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
-                    (fid,)
-                )
-                linked += 1
-            except Exception:
-                pass
-        db.commit()
+        def _do(c):
+            ok = 0
+            with write_tx(c):
+                for fid in file_ids:
+                    try:
+                        c.execute(
+                            "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                            (idv_db_id, fid),
+                        )
+                        c.execute(
+                            "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
+                            (fid,),
+                        )
+                        ok += 1
+                    except Exception:
+                        pass
+            return ok
+
+        linked = get_writer().submit(_do, wait=True)
         flash(f"{linked} Datei(en) mit Eigenentwicklung {idv['idv_id']} verknüpft.", "success")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -871,33 +914,39 @@ def neue_version(idv_db_id):
         data.pop(k, None)
 
     person_id = session.get("person_id")
+
+    # Wesentlichkeitskriterien-Antworten aus Quelle schon jetzt lesen.
+    quell_antworten = get_idv_wesentlichkeit(db, idv_db_id)
+    kopierte_antworten = [
+        {"kriterium_id": a["kriterium_id"], "erfuellt": a["erfuellt"],
+         "begruendung": a["begruendung"]}
+        for a in quell_antworten
+    ]
+
+    aenderung_info = ""
+    if aenderungsart:
+        aenderung_info = f" | Änderungsart: {aenderungsart}"
+        if aenderungsbegruendung:
+            aenderung_info += f" – {aenderungsbegruendung}"
+
+    def _do(c):
+        with write_tx(c):
+            new_id = create_idv(c, data, erfasser_id=person_id, commit=False)
+            if kopierte_antworten:
+                save_idv_wesentlichkeit(c, new_id, kopierte_antworten, commit=False)
+            new_idv_row = c.execute(
+                "SELECT idv_id FROM idv_register WHERE id=?", (new_id,)
+            ).fetchone()
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
+                (idv_db_id, "neue_version",
+                 f"Nachfolger {new_idv_row['idv_id']} (v{new_version}) angelegt{aenderung_info}",
+                 person_id),
+            )
+        return new_id
+
     try:
-        new_id = create_idv(db, data, erfasser_id=person_id, commit=False)
-
-        # Wesentlichkeitskriterien-Antworten aus Quelle kopieren
-        antworten = get_idv_wesentlichkeit(db, idv_db_id)
-        from db import save_idv_wesentlichkeit
-        save_idv_wesentlichkeit(db, new_id, [
-            {"kriterium_id": a["kriterium_id"], "erfuellt": a["erfuellt"],
-             "begruendung": a["begruendung"]}
-            for a in antworten
-        ], commit=False)
-
-        # History-Eintrag auf Quell-IDV
-        new_idv_row = db.execute("SELECT idv_id FROM idv_register WHERE id=?", (new_id,)).fetchone()
-        aenderung_info = ""
-        if aenderungsart:
-            aenderung_info = f" | Änderungsart: {aenderungsart}"
-            if aenderungsbegruendung:
-                aenderung_info += f" – {aenderungsbegruendung}"
-        db.execute(
-            "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id) VALUES (?,?,?,?)",
-            (idv_db_id, "neue_version",
-             f"Nachfolger {new_idv_row['idv_id']} (v{new_version}) angelegt{aenderung_info}",
-             person_id)
-        )
-        db.commit()
-
+        new_id = get_writer().submit(_do, wait=True)
         flash(f"Neue Version {new_version} angelegt.", "success")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=new_id))
     except Exception as e:
@@ -982,9 +1031,13 @@ def _form_to_dict(form) -> dict:
     }
 
 
-def _save_wesentlichkeit_from_form(db, idv_db_id: int, form) -> None:
-    """Liest die konfigurierbaren Kriterium-Antworten (inkl. Detail-Checkboxen)
-    aus dem Formular und speichert sie."""
+def _build_wesentlichkeit_answers(db, form) -> list:
+    """Read-only: erzeugt die Antwortliste aus dem Formular.
+
+    Gibt die Liste der Kriterium-Antworten zurueck, aber schreibt nicht.
+    Muss vor einem writer.submit() auf der Reader-Connection aufgerufen
+    werden.
+    """
     criteria = db.execute(
         "SELECT id FROM wesentlichkeitskriterien WHERE aktiv=1"
     ).fetchall()
@@ -1003,8 +1056,19 @@ def _save_wesentlichkeit_from_form(db, idv_db_id: int, form) -> None:
             "begruendung":  form.get(f"kriterium_begr_{kid}") or None,
             "detail_ids":   detail_ids,
         })
+    return antworten
+
+
+def _save_wesentlichkeit_from_form(db, idv_db_id: int, form) -> None:
+    """Bewahrt die alte Signatur fuer Aufrufer, die keinen eigenen Writer-
+    Closure brauchen: baut die Antworten auf der Reader-Connection und
+    schreibt sie ueber den Writer-Thread."""
+    antworten = _build_wesentlichkeit_answers(db, form)
     if antworten:
-        save_idv_wesentlichkeit(db, idv_db_id, antworten)
+        get_writer().submit(
+            lambda c: save_idv_wesentlichkeit(c, idv_db_id, antworten),
+            wait=True,
+        )
 
 
 # ── Nicht-wesentliche Eigenentwicklungen ──────────────────────────────────

@@ -113,12 +113,12 @@ def generate_self_signed(cert_path: str, key_path: str,
         pass
 
 
-def build_ssl_context(instance_path: str) -> Optional[ssl.SSLContext]:
-    """Liefert einen ``ssl.SSLContext`` für ``app.run(ssl_context=…)``.
+def resolve_ssl_paths(instance_path: str) -> Optional[tuple]:
+    """Ermittelt (cert_path, key_path) und legt sie bei Bedarf an.
 
-    Gibt ``None`` zurück, wenn HTTPS nicht aktiviert ist (``IDV_HTTPS``
-    nicht gesetzt). Fehlen die Zertifikatsdateien und ``IDV_SSL_AUTOGEN``
-    ist aktiv (Standard), wird ein selbstsigniertes Zertifikat erzeugt.
+    Gibt ``None`` zurück, wenn HTTPS nicht aktiviert ist. Bei fehlenden
+    Dateien + aktivem ``IDV_SSL_AUTOGEN`` wird ein selbstsigniertes
+    Zertifikat erzeugt.
     """
     if not https_enabled():
         return None
@@ -138,6 +138,21 @@ def build_ssl_context(instance_path: str) -> Optional[ssl.SSLContext]:
         print(f"        Zertifikat: {cert_path}")
         print(f"        Schlüssel:  {key_path}")
         generate_self_signed(cert_path, key_path)
+
+    return cert_path, key_path
+
+
+def build_ssl_context(instance_path: str) -> Optional[ssl.SSLContext]:
+    """Liefert einen ``ssl.SSLContext`` für ``app.run(ssl_context=…)``.
+
+    Gibt ``None`` zurück, wenn HTTPS nicht aktiviert ist (``IDV_HTTPS``
+    nicht gesetzt). Fehlen die Zertifikatsdateien und ``IDV_SSL_AUTOGEN``
+    ist aktiv (Standard), wird ein selbstsigniertes Zertifikat erzeugt.
+    """
+    paths = resolve_ssl_paths(instance_path)
+    if paths is None:
+        return None
+    cert_path, key_path = paths
 
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)

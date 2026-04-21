@@ -40,6 +40,21 @@ try:
 except ImportError:
     from scanner.path_utils import apply_path_mappings, should_pass_filters
 
+try:
+    from scanner_protocol import (
+        emit,
+        OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
+        OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
+        OP_LOG, OP_PROGRESS,
+    )
+except ImportError:
+    from scanner.scanner_protocol import (
+        emit,
+        OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
+        OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
+        OP_LOG, OP_PROGRESS,
+    )
+
 
 def _set_keep_awake(active: bool) -> None:
     """Verhindert Bildschirmschoner und Systemschlaf während des Scans (nur Windows).
@@ -215,13 +230,26 @@ CREATE INDEX IF NOT EXISTS idx_history_file    ON idv_file_history(file_id);
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, timeout=30)
+    """Oeffnet eine rein lesende Connection fuer den Scanner-Subprozess.
+
+    Der Scanner schreibt seit Einfuehrung des db_writer-Patterns nicht mehr
+    direkt in die SQLite-Datei; alle Schreibvorgaenge werden als NDJSON
+    auf stdout emittiert und vom Webapp-Writer-Thread appliziert. Die
+    Schema-Initialisierung liegt daher ausschliesslich bei der Webapp
+    (``db.init_register_db``). Diese Funktion gibt lediglich eine
+    Reader-Connection mit den gemeinsamen PRAGMAs zurueck.
+    """
+    try:
+        from db_pragmas import apply_pragmas
+    except ImportError:  # pragma: no cover — defensiv, falls Sidecar
+        import sys as _sys
+        import os as _os
+        _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+        from db_pragmas import apply_pragmas
+
+    conn = sqlite3.connect(db_path, timeout=60)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = NORMAL")
-    conn.execute("PRAGMA busy_timeout = 30000")
-    conn.executescript(SCHEMA)
-    conn.commit()
+    apply_pragmas(conn, role="reader")
     return conn
 
 
@@ -882,34 +910,27 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
 
             # ── Auto-Ignore: neue Excel-Dateien ohne Formeln sofort ignorieren ──
             if auto_ignore and change in ("new", "restored") and is_excel and no_formula:
-                conn.execute(
-                    "UPDATE idv_files SET bearbeitungsstatus = 'Ignoriert' "
-                    "WHERE full_path = ? AND status = 'active' "
-                    "  AND bearbeitungsstatus = 'Neu' "
-                    "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
-                    "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
-                    (data["full_path"],)
+                emit(
+                    OP_UPDATE_STATUS,
+                    kind="auto_ignore_single",
+                    full_path=data["full_path"],
                 )
 
             # ── Auto-Klassifizierung nach Dateiname (AH / IDV) ──
             if auto_classify_filename and change in ("new", "restored"):
                 fn_status = _classify_by_filename(data.get("file_name", ""))
                 if fn_status:
-                    conn.execute(
-                        "UPDATE idv_files SET bearbeitungsstatus = ? "
-                        "WHERE full_path = ? AND status = 'active' "
-                        "  AND bearbeitungsstatus = 'Neu' "
-                        "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
-                        "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
-                        (fn_status, data["full_path"])
+                    emit(
+                        OP_UPDATE_STATUS,
+                        kind="auto_classify_single",
+                        full_path=data["full_path"],
+                        new_status=fn_status,
                     )
 
             if file_counter % 10 == 0:
                 _check_and_handle_signals(signal_dir, logger)
                 _flush_log(logger)
 
-            if stats["total"] % 5 == 0:
-                conn.commit()
             if stats["total"] % 20 == 0:
                 logger.info(f"  … {stats['total']} Dateien verarbeitet")
         except ScanCancelledError:
@@ -1008,63 +1029,32 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
                     moved_from = None   # Kopie → Neuanlage weiter unten
 
             if moved_from:
-                conn.execute("""
-                    UPDATE idv_files SET
-                        full_path = :full_path, share_root = :share_root,
-                        relative_path = :relative_path,
-                        last_seen_at = :now, last_scan_run_id = :run_id
-                    WHERE id = :id
-                """, {**data, "now": now, "run_id": scan_run_id, "id": moved_from["id"]})
-                conn.execute("""
-                    INSERT INTO idv_file_history
-                        (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at, details)
-                    VALUES (?, ?, 'moved', ?, ?, ?, ?)
-                """, (moved_from["id"], scan_run_id,
-                      data["file_hash"], data["file_hash"], now,
-                      json.dumps({"old_path": moved_from["full_path"],
-                                  "new_path": data["full_path"]})))
+                emit(
+                    OP_UPSERT_FILE,
+                    action="move",
+                    scan_run_id=scan_run_id,
+                    now=now,
+                    change_type="moved",
+                    file_id=moved_from["id"],
+                    old_hash=data["file_hash"],
+                    data=data,
+                    details=json.dumps({
+                        "old_path": moved_from["full_path"],
+                        "new_path": data["full_path"],
+                    }),
+                )
                 logger.debug(f"Verschoben: {moved_from['full_path']} → {data['full_path']}")
                 return "moved"
 
         # ── Echter Neuzugang ────────────────────────────────────────────
-        insert_data = {
-            **data,
-            "first_seen_at":    now,
-            "last_seen_at":     now,
-            "last_scan_run_id": scan_run_id,
-        }
-        cur_ins = conn.execute("""
-            INSERT INTO idv_files (
-                file_hash, full_path, file_name, extension, share_root,
-                relative_path, size_bytes, created_at, modified_at, file_owner,
-                office_author, office_last_author, office_created, office_modified,
-                has_macros, has_external_links, sheet_count, named_ranges_count,
-                formula_count,
-                has_sheet_protection, protected_sheets_count,
-                sheet_protection_has_pw, workbook_protected,
-                ist_cognos_report, cognos_report_name, cognos_paket_pfad,
-                cognos_abfragen_anzahl, cognos_datenpunkte_anzahl, cognos_filter_anzahl,
-                cognos_seiten_anzahl, cognos_parameter_anzahl, cognos_namespace_version,
-                first_seen_at, last_seen_at, last_scan_run_id, status
-            ) VALUES (
-                :file_hash, :full_path, :file_name, :extension, :share_root,
-                :relative_path, :size_bytes, :created_at, :modified_at, :file_owner,
-                :office_author, :office_last_author, :office_created, :office_modified,
-                :has_macros, :has_external_links, :sheet_count, :named_ranges_count,
-                :formula_count,
-                :has_sheet_protection, :protected_sheets_count,
-                :sheet_protection_has_pw, :workbook_protected,
-                :ist_cognos_report, :cognos_report_name, :cognos_paket_pfad,
-                :cognos_abfragen_anzahl, :cognos_datenpunkte_anzahl, :cognos_filter_anzahl,
-                :cognos_seiten_anzahl, :cognos_parameter_anzahl, :cognos_namespace_version,
-                :first_seen_at, :last_seen_at, :last_scan_run_id, 'active'
-            )
-        """, insert_data)
-        file_id = cur_ins.lastrowid
-        conn.execute("""
-            INSERT INTO idv_file_history (file_id, scan_run_id, change_type, new_hash, changed_at)
-            VALUES (?, ?, 'new', ?, ?)
-        """, (file_id, scan_run_id, data["file_hash"], now))
+        emit(
+            OP_UPSERT_FILE,
+            action="insert",
+            scan_run_id=scan_run_id,
+            now=now,
+            change_type="new",
+            data=data,
+        )
         return "new"
 
     else:
@@ -1074,42 +1064,21 @@ def upsert_file(conn: sqlite3.Connection, data: dict,
         new_hash     = data["file_hash"]
         was_archived = existing["status"] == "archiviert"
 
-        conn.execute("""
-            UPDATE idv_files SET
-                file_hash = :file_hash, size_bytes = :size_bytes,
-                modified_at = :modified_at, file_owner = :file_owner,
-                office_author = :office_author, office_last_author = :office_last_author,
-                office_modified = :office_modified,
-                has_macros = :has_macros, has_external_links = :has_external_links,
-                sheet_count = :sheet_count, named_ranges_count = :named_ranges_count,
-                formula_count = :formula_count,
-                has_sheet_protection = :has_sheet_protection,
-                protected_sheets_count = :protected_sheets_count,
-                sheet_protection_has_pw = :sheet_protection_has_pw,
-                workbook_protected = :workbook_protected,
-                ist_cognos_report = :ist_cognos_report,
-                cognos_report_name = :cognos_report_name,
-                cognos_paket_pfad = :cognos_paket_pfad,
-                cognos_abfragen_anzahl = :cognos_abfragen_anzahl,
-                cognos_datenpunkte_anzahl = :cognos_datenpunkte_anzahl,
-                cognos_filter_anzahl = :cognos_filter_anzahl,
-                cognos_seiten_anzahl = :cognos_seiten_anzahl,
-                cognos_parameter_anzahl = :cognos_parameter_anzahl,
-                cognos_namespace_version = :cognos_namespace_version,
-                last_seen_at = :now, last_scan_run_id = :run_id, status = 'active'
-            WHERE full_path = :full_path
-        """, {**data, "now": now, "run_id": scan_run_id})
-
         if was_archived:
             change_type = "restored"
         else:
             change_type = "changed" if old_hash != new_hash else "unchanged"
 
-        conn.execute("""
-            INSERT INTO idv_file_history
-                (file_id, scan_run_id, change_type, old_hash, new_hash, changed_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (file_id, scan_run_id, change_type, old_hash, new_hash, now))
+        emit(
+            OP_UPSERT_FILE,
+            action="update",
+            scan_run_id=scan_run_id,
+            now=now,
+            change_type=change_type,
+            file_id=file_id,
+            old_hash=old_hash,
+            data=data,
+        )
         return change_type
 
 
@@ -1154,16 +1123,12 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
         return 0
 
     ids = [row["id"] for row in rows]
-    placeholders = ",".join("?" * len(ids))
-    conn.execute(
-        f"UPDATE idv_files SET status = 'archiviert', last_seen_at = ? WHERE id IN ({placeholders})",
-        [now] + ids
+    emit(
+        OP_ARCHIVE_FILES,
+        scan_run_id=scan_run_id,
+        now=now,
+        file_ids=ids,
     )
-    conn.executemany("""
-        INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at)
-        VALUES (?, ?, 'archiviert', ?)
-    """, [(fid, scan_run_id, now) for fid in ids])
-
     return len(ids)
 
 
@@ -1351,13 +1316,15 @@ def run_scan(config: dict, logger: logging.Logger,
             logger.warning("--resume angegeben, aber kein Checkpoint gefunden – starte neu.")
 
     # ── Scan-Run anlegen oder fortsetzen ───────────────────────────────────
+    # Schreiben in ``scan_runs`` geschieht ausschliesslich ueber den Webapp-
+    # Writer-Thread. Der Scanner emittiert per stdout, die Webapp wendet
+    # es an. Die scan_run_id wird vom Scanner selbst vergeben (MAX(id)+1
+    # auf seiner Reader-Connection) — solange kein zweiter Scanner parallel
+    # laeuft (durch Admin-Orchestrierung garantiert), ist die Vergabe
+    # kollisionsfrei.
     if checkpoint_run_id:
         scan_run_id = checkpoint_run_id
-        conn.execute(
-            "UPDATE scan_runs SET scan_status = 'running' WHERE id = ?",
-            (scan_run_id,)
-        )
-        conn.commit()
+        emit(OP_START_RUN, scan_run_id=scan_run_id, resume=True)
         stats = {
             "total":     cp_stats.get("total",     0),
             "new":       cp_stats.get("new",       0),
@@ -1368,12 +1335,17 @@ def run_scan(config: dict, logger: logging.Logger,
             "errors":    cp_stats.get("errors",    0),
         }
     else:
-        cur = conn.execute(
-            "INSERT INTO scan_runs (started_at, scan_paths, scan_status) VALUES (?, ?, 'running')",
-            (now, json.dumps(scan_paths))
+        _next = conn.execute(
+            "SELECT COALESCE(MAX(id), 0) + 1 FROM scan_runs"
+        ).fetchone()
+        scan_run_id = int(_next[0])
+        emit(
+            OP_START_RUN,
+            scan_run_id=scan_run_id,
+            started_at=now,
+            scan_paths=scan_paths,
+            resume=False,
         )
-        conn.commit()
-        scan_run_id = cur.lastrowid
         stats = {"total": 0, "new": 0, "changed": 0, "unchanged": 0,
                  "moved": 0, "restored": 0, "errors": 0}
 
@@ -1416,7 +1388,6 @@ def run_scan(config: dict, logger: logging.Logger,
                     discard_no_formula=runtime_discard,
                     auto_classify_filename=runtime_classify_filename,
                 )
-                conn.commit()
                 completed_dirs.append(root_chunk)
                 if signal_dir:
                     write_checkpoint(signal_dir, scan_run_id, scan_paths,
@@ -1437,7 +1408,6 @@ def run_scan(config: dict, logger: logging.Logger,
                     discard_no_formula=runtime_discard,
                     auto_classify_filename=runtime_classify_filename,
                 )
-                conn.commit()
                 completed_dirs.append(subdir)
                 if signal_dir:
                     write_checkpoint(signal_dir, scan_run_id, scan_paths,
@@ -1445,97 +1415,39 @@ def run_scan(config: dict, logger: logging.Logger,
 
         # ── Erfolgreich abgeschlossen ──────────────────────────────────────
         deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, mapped_scan_paths)
-        conn.commit()
 
         # ── Auto-Ignorieren am Scan-Ende: verbleibende Excel-Dateien ohne Formeln ─
         # (deckt Dateien ab, die bereits vor diesem Scan existierten und noch 'Neu' sind)
         # WICHTIG: Nur Excel-Dateien – andere Dateitypen (Access, Cognos, Skripte …)
         # dürfen nicht pauschal ignoriert werden, nur weil sie keine Formeln haben.
-        auto_ignored = 0
-        try:
-            if runtime_auto_ignore:
-                ext_placeholders = ",".join("?" * len(_EXCEL_EXTENSIONS))
-                cur_ai = conn.execute(f"""
-                    UPDATE idv_files
-                    SET bearbeitungsstatus = 'Ignoriert'
-                    WHERE status = 'active'
-                      AND bearbeitungsstatus = 'Neu'
-                      AND LOWER(extension) IN ({ext_placeholders})
-                      AND (formula_count IS NULL OR formula_count = 0)
-                      AND (has_macros IS NULL OR has_macros = 0)
-                      AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)
-                      AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)
-                """, tuple(_EXCEL_EXTENSIONS))
-                auto_ignored = cur_ai.rowcount
-                conn.commit()
-                if auto_ignored:
-                    logger.info(f"  Auto-Ignoriert  : {auto_ignored} Excel-Dateien (ohne Formeln/Makros)")
-        except Exception as e:
-            logger.warning(f"Auto-Ignorieren fehlgeschlagen: {e}")
+        if runtime_auto_ignore:
+            emit(
+                OP_UPDATE_STATUS,
+                kind="auto_ignore_bulk_excel",
+                extensions=sorted(_EXCEL_EXTENSIONS),
+            )
+            logger.info("  Auto-Ignorieren (Excel ohne Formeln) emittiert")
 
         # ── Auto-Klassifizierung nach Dateiname am Scan-Ende ──────────────────
         # (deckt Dateien ab, die bereits vor diesem Scan existierten und noch 'Neu' sind)
-        auto_classified_nw = 0
-        auto_classified_reg = 0
-        try:
-            if runtime_classify_filename:
-                cur_nw = conn.execute("""
-                    UPDATE idv_files
-                    SET bearbeitungsstatus = 'Nicht wesentlich'
-                    WHERE status = 'active'
-                      AND bearbeitungsstatus = 'Neu'
-                      AND (
-                          UPPER(SUBSTR(file_name, 1, 2)) = 'AH'
-                          OR UPPER(SUBSTR(file_name,
-                                         LENGTH(file_name) - LENGTH(extension) - 1,
-                                         2)) = 'AH'
-                      )
-                      AND NOT (
-                          UPPER(SUBSTR(file_name, 1, 3)) = 'IDV'
-                          OR UPPER(SUBSTR(file_name,
-                                         LENGTH(file_name) - LENGTH(extension) - 2,
-                                         3)) = 'IDV'
-                      )
-                      AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)
-                      AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)
-                """)
-                auto_classified_nw = cur_nw.rowcount
-                cur_reg = conn.execute("""
-                    UPDATE idv_files
-                    SET bearbeitungsstatus = 'Zur Registrierung'
-                    WHERE status = 'active'
-                      AND bearbeitungsstatus = 'Neu'
-                      AND (
-                          UPPER(SUBSTR(file_name, 1, 3)) = 'IDV'
-                          OR UPPER(SUBSTR(file_name,
-                                         LENGTH(file_name) - LENGTH(extension) - 2,
-                                         3)) = 'IDV'
-                      )
-                      AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)
-                      AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)
-                """)
-                auto_classified_reg = cur_reg.rowcount
-                conn.commit()
-                if auto_classified_nw:
-                    logger.info(f"  Auto-Klassifiziert (AH): {auto_classified_nw} Datei(en) → 'Nicht wesentlich'")
-                if auto_classified_reg:
-                    logger.info(f"  Auto-Klassifiziert (IDV): {auto_classified_reg} Datei(en) → 'Zur Registrierung'")
-        except Exception as e:
-            logger.warning(f"Auto-Klassifizierung nach Dateiname fehlgeschlagen: {e}")
+        if runtime_classify_filename:
+            emit(OP_UPDATE_STATUS, kind="auto_classify_bulk_ah")
+            emit(OP_UPDATE_STATUS, kind="auto_classify_bulk_idv")
+            logger.info("  Auto-Klassifizierung (AH/IDV) emittiert")
 
         if stats.get("discarded"):
             logger.info(f"  Verworfen       : {stats['discarded']} Excel-Dateien (kein Formel/Makro)")
 
         finished = datetime.now(timezone.utc).isoformat()
-        conn.execute("""
-            UPDATE scan_runs SET
-                finished_at = ?, total_files = ?, new_files = ?,
-                changed_files = ?, moved_files = ?, restored_files = ?,
-                archived_files = ?, errors = ?, scan_status = 'completed'
-            WHERE id = ?
-        """, (finished, stats["total"], stats["new"], stats["changed"],
-              stats["moved"], stats["restored"], deleted, stats["errors"], scan_run_id))
-        conn.commit()
+        emit(
+            OP_END_RUN,
+            scan_run_id=scan_run_id,
+            finished_at=finished,
+            status="completed",
+            total=stats["total"], new=stats["new"], changed=stats["changed"],
+            moved=stats["moved"], restored=stats["restored"],
+            archived=deleted, errors=stats["errors"],
+        )
         conn.close()
 
         if signal_dir:
@@ -1554,17 +1466,18 @@ def run_scan(config: dict, logger: logging.Logger,
 
     except ScanCancelledError:
         # ── Scan abgebrochen – Zwischenstand sichern ──────────────────────
-        conn.commit()
+        # Scanner-Connection ist read-only; Schreibvorgaenge liegen bereits
+        # als NDJSON auf stdout und werden von der Webapp appliziert.
         finished = datetime.now(timezone.utc).isoformat()
-        conn.execute("""
-            UPDATE scan_runs SET
-                finished_at = ?, total_files = ?, new_files = ?,
-                changed_files = ?, moved_files = ?, restored_files = ?,
-                archived_files = 0, errors = ?, scan_status = 'cancelled'
-            WHERE id = ?
-        """, (finished, stats["total"], stats["new"], stats["changed"],
-              stats["moved"], stats["restored"], stats["errors"], scan_run_id))
-        conn.commit()
+        emit(
+            OP_END_RUN,
+            scan_run_id=scan_run_id,
+            finished_at=finished,
+            status="cancelled",
+            total=stats["total"], new=stats["new"], changed=stats["changed"],
+            moved=stats["moved"], restored=stats["restored"],
+            archived=0, errors=stats["errors"],
+        )
         conn.close()
 
         if signal_dir:
@@ -1591,19 +1504,19 @@ def run_scan(config: dict, logger: logging.Logger,
         logger.critical("=" * 60)
         _flush_log(logger)
 
-        # DB-Zustand sichern, soweit möglich
+        # Scanner-Connection ist read-only; Schreibvorgaenge liegen bereits
+        # als NDJSON auf stdout und werden von der Webapp appliziert.
         try:
-            conn.commit()
             finished = datetime.now(timezone.utc).isoformat()
-            conn.execute("""
-                UPDATE scan_runs SET
-                    finished_at = ?, total_files = ?, new_files = ?,
-                    changed_files = ?, moved_files = ?, restored_files = ?,
-                    archived_files = 0, errors = ?, scan_status = 'crashed'
-                WHERE id = ?
-            """, (finished, stats["total"], stats["new"], stats["changed"],
-                  stats["moved"], stats["restored"], stats["errors"] + 1, scan_run_id))
-            conn.commit()
+            emit(
+                OP_END_RUN,
+                scan_run_id=scan_run_id,
+                finished_at=finished,
+                status="crashed",
+                total=stats["total"], new=stats["new"], changed=stats["changed"],
+                moved=stats["moved"], restored=stats["restored"],
+                archived=0, errors=stats["errors"] + 1,
+            )
         except Exception as db_err:
             logger.critical(f"DB-Sicherung fehlgeschlagen: {db_err}")
         finally:

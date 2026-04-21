@@ -4,32 +4,32 @@
 {% block page_title %}<i class="bi bi-radar me-2"></i>Scanner-Funde{% endblock %}
 
 {# Sortierung vor dem Rendern aus sessionStorage wiederherstellen – so
-   bleibt die zuletzt aktive Sortierung auch nach Navigation über die
-   Sidebar oder externe Links erhalten, ohne dass der Nutzer kurz die
-   Standardsortierung zu sehen bekommt. #}
+bleibt die zuletzt aktive Sortierung auch nach Navigation über die
+Sidebar oder externe Links erhalten, ohne dass der Nutzer kurz die
+Standardsortierung zu sehen bekommt. #}
 {% block extra_head %}
 <script>
-(function () {
-  var STORE_KEY = 'funde_list_sort';
-  var params    = new URLSearchParams(window.location.search);
-  if (params.has('sort')) {
-    try {
-      sessionStorage.setItem(STORE_KEY, JSON.stringify({
-        sort:  params.get('sort'),
-        order: params.get('order') || ''
-      }));
-    } catch (e) { /* ignore */ }
-    return;
-  }
-  try {
-    var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
-    if (saved && saved.sort) {
-      params.set('sort', saved.sort);
-      if (saved.order) params.set('order', saved.order);
-      window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+  (function () {
+    var STORE_KEY = 'funde_list_sort';
+    var params = new URLSearchParams(window.location.search);
+    if (params.has('sort')) {
+      try {
+        sessionStorage.setItem(STORE_KEY, JSON.stringify({
+          sort: params.get('sort'),
+          order: params.get('order') || ''
+        }));
+      } catch (e) { /* ignore */ }
+      return;
     }
-  } catch (e) { /* ignore */ }
-})();
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+      if (saved && saved.sort) {
+        params.set('sort', saved.sort);
+        if (saved.order) params.set('order', saved.order);
+        window.location.replace(window.location.pathname + '?' + params.toString() + window.location.hash);
+      }
+    } catch (e) { /* ignore */ }
+  })();
 </script>
 {% endblock %}
 
@@ -73,16 +73,10 @@
 
 <!-- ── Letzter Scan + DB-Pfad-Hinweis ─────────────────────────────── -->
 {% if gesamt == 0 %}
-<div class="alert alert-warning">
-  <i class="bi bi-exclamation-triangle-fill me-2"></i>
-  <strong>Keine Scannerfunde in dieser Datenbank.</strong>
-  Stelle sicher, dass der Scanner mit dem korrekten <code>db_path</code> konfiguriert ist
-  und auf dieselbe Datenbankdatei zeigt wie die Webapp.
-  Passe dazu unter <strong>Admin → Scanner-Einstellungen</strong> den Datenbankpfad an:
-  <pre class="mt-2 mb-0 bg-light p-2 rounded" style="font-size:.82rem">{
-  "db_path": "{{ webapp_db_path }}",
-  ...
-}</pre>
+<div class="alert alert-light border text-muted" style="font-size:.88rem">
+  <i class="bi bi-info-circle me-2"></i>
+  Noch keine Scanner-Funde vorhanden. Sobald ein Scan-Lauf durchgeführt wurde, erscheinen die gefundenen Dateien hier.
+  Den Scanner können Sie unter <a href="{{ url_for('admin.scanner_einstellungen') }}" class="text-decoration-none">Admin → Scanner-Einstellungen</a> starten.
 </div>
 {% else %}
 
@@ -95,13 +89,13 @@
     #{{ letzter_scan.id }} &nbsp;·&nbsp;
     {{ letzter_scan.started_at|datefmt('%d.%m.%Y %H:%M') }}
     {% if letzter_scan.finished_at %}
-      → {{ letzter_scan.finished_at|datefmt('%H:%M') }}
+    → {{ letzter_scan.finished_at|datefmt('%H:%M') }}
     {% endif %}
     &nbsp;·&nbsp;
     {% set paths = letzter_scan.sr_scan_paths or letzter_scan.scan_paths %}
     {% if paths %}
-      {% set parsed = paths %}
-      <span class="font-monospace">{{ parsed }}</span>
+    {% set parsed = paths %}
+    <span class="font-monospace">{{ parsed }}</span>
     {% endif %}
     &nbsp;·&nbsp;
     <span class="badge bg-success">{{ letzter_scan.new_files }} neu</span>
@@ -123,9 +117,8 @@
     <!-- Dateiname-Suche -->
     <div class="col-12">
       <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
-      <input type="text" name="q" value="{{ q_search }}"
-             class="form-control form-control-sm font-monospace"
-             placeholder="Dateiname …">
+      <input type="text" name="q" value="{{ q_search }}" class="form-control form-control-sm font-monospace"
+        placeholder="Dateiname …">
     </div>
     <!-- Speicherort (dir_path) – durchsuchbares Eingabefeld, volle Breite -->
     <div class="col-12">
@@ -138,8 +131,8 @@
       <select name="share_root" class="form-select form-select-sm" title="{{ share_root_filt }}">
         <option value="">– Alle –</option>
         {% for sr in share_roots %}
-        <option value="{{ sr }}" {{ 'selected' if share_root_filt == sr }}
-                title="{{ sr }}">{% set sr_display = sr | map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
+        <option value="{{ sr }}" {{ 'selected' if share_root_filt==sr }} title="{{ sr }}">{% set sr_display = sr |
+          map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
         {% endfor %}
       </select>
     </div>
@@ -149,7 +142,7 @@
       <select name="scan_run" class="form-select form-select-sm">
         <option value="">– Alle Läufe –</option>
         {% for run in scan_runs %}
-        <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt == run.id|string }}>
+        <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt==run.id|string }}>
           {{ scan_run_label(run) }}
         </option>
         {% endfor %}
@@ -161,7 +154,7 @@
       <select name="owner" class="form-select form-select-sm">
         <option value="">– Alle –</option>
         {% for o in owner_list %}
-        <option value="{{ o }}" {{ 'selected' if owner_filt == o }}>{{ o }}</option>
+        <option value="{{ o }}" {{ 'selected' if owner_filt==o }}>{{ o }}</option>
         {% endfor %}
       </select>
     </div>
@@ -176,7 +169,8 @@
     </div>
     <div class="col-md-1 d-flex gap-1 align-items-end">
       <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i></button>
-      <a href="{{ url_for('funde.list_funde', filter=filt, sort=sort, order=order) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
+      <a href="{{ url_for('funde.list_funde', filter=filt, sort=sort, order=order) }}"
+        class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
     </div>
   </div>
   {% if q_search or dir_path_filt or share_root_filt or scan_run_id_filt or owner_filt or date_from or date_to %}
@@ -208,44 +202,44 @@
 
 <!-- ── Typ-Filter-Buttons ──────────────────────────────────────────── -->
 {# Sortierung wird über alle Filter-Buttons hinweg erhalten, damit
-   die aktuelle Spalten-Sortierung beim Wechsel des Filter-Typs nicht
-   verloren geht. #}
+die aktuelle Spalten-Sortierung beim Wechsel des Filter-Typs nicht
+verloren geht. #}
 <div class="d-flex gap-2 mb-3 flex-wrap">
   <a href="{{ url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
+    class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
     Alle ({{ gesamt }})
   </a>
   <a href="{{ url_for('funde.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-secondary' if filt == 'ignoriert' else 'btn-outline-secondary' }}">
+    class="btn btn-sm {{ 'btn-secondary' if filt == 'ignoriert' else 'btn-outline-secondary' }}">
     <i class="bi bi-eye-slash me-1"></i>Ignoriert ({{ ignoriert }})
   </a>
   <a href="{{ url_for('funde.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
+    class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
     <i class="bi bi-exclamation-circle me-1"></i>Noch nicht registriert ({{ ohne_idv }})
   </a>
   <a href="{{ url_for('funde.list_funde', filter='makros', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
+    class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
     <i class="bi bi-lightning-fill me-1"></i>Mit Makros ({{ mit_makro }})
   </a>
   <a href="{{ url_for('funde.list_funde', filter='blattschutz', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
+    class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
     <i class="bi bi-lock-fill me-1"></i>Mit Blattschutz ({{ mit_schutz }})
   </a>
   <a href="{{ url_for('funde.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
+    class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
     <i class="bi bi-check-circle me-1"></i>Bereits registriert
   </a>
   <a href="{{ url_for('funde.list_funde', filter='zur_registrierung', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-info' if filt == 'zur_registrierung' else 'btn-outline-info' }}">
+    class="btn btn-sm {{ 'btn-info' if filt == 'zur_registrierung' else 'btn-outline-info' }}">
     <i class="bi bi-pencil-square me-1"></i>Zur Registrierung ({{ zur_registrierung }})
   </a>
   <a href="{{ url_for('funde.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
+    class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
     <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
   </a>
   {% if duplikate_anzahl %}
   <a href="{{ url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt, sort=sort, order=order) }}"
-     class="btn btn-sm {{ 'btn-danger' if filt == 'duplikate' else 'btn-outline-danger' }}">
+    class="btn btn-sm {{ 'btn-danger' if filt == 'duplikate' else 'btn-outline-danger' }}">
     <i class="bi bi-copy me-1"></i>Duplikate ({{ duplikate_anzahl }} Gruppen)
   </a>
   {% endif %}
@@ -267,19 +261,21 @@
                       filter=filt, share_root=share_root_filt,
                       dir_path=dir_path_filt, scan_run=scan_run_id_filt,
                       page=1, per_page=per_page) }}"
-     class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
+    class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
     {{ label }}
     {% if sort == col %}
-      <i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>
+    <i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>
     {% else %}
-      <i class="bi bi-arrow-down-up text-muted" style="opacity:.35;font-size:.7em"></i>
+    <i class="bi bi-arrow-down-up text-muted" style="opacity:.35;font-size:.7em"></i>
     {% endif %}
   </a>
 </th>
 {% endmacro %}
 
 <!-- ── Pagination + Variablen (vor dem Bulk-Formular setzen) ──────── -->
-{% set url_extra = {'filter': filt, 'share_root': share_root_filt, 'dir_path': dir_path_filt, 'scan_run': scan_run_id_filt, 'sort': sort, 'order': order, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'date_to': date_to} %}
+{% set url_extra = {'filter': filt, 'share_root': share_root_filt, 'dir_path': dir_path_filt, 'scan_run':
+scan_run_id_filt, 'sort': sort, 'order': order, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'date_to':
+date_to} %}
 {% set endpoint = 'funde.list_funde' %}
 {% include 'funde/_pagination.html' %}
 
@@ -328,47 +324,37 @@
         <i class="bi bi-check2-square me-1"></i>
         <span id="bulk-count">0</span> ausgewählt
       </span>
-      <button type="submit" name="aktion" value="ignorieren"
-              id="btn-ignorieren"
-              class="btn btn-sm btn-outline-secondary"
-              title="Nur für Excel-Dateien ohne Formeln verfügbar">
+      <button type="submit" name="aktion" value="ignorieren" id="btn-ignorieren"
+        class="btn btn-sm btn-outline-secondary" title="Nur für Excel-Dateien ohne Formeln verfügbar">
         <i class="bi bi-eye-slash me-1"></i>Ignorieren
       </button>
-      <button type="submit" name="aktion" value="nicht_mehr_ignorieren"
-              id="btn-nicht-mehr-ignorieren"
-              class="btn btn-sm btn-outline-secondary"
-              title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
+      <button type="submit" name="aktion" value="nicht_mehr_ignorieren" id="btn-nicht-mehr-ignorieren"
+        class="btn btn-sm btn-outline-secondary" title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
         <i class="bi bi-eye me-1"></i>Nicht mehr ignorieren
       </button>
-      <button type="submit" name="aktion" value="zur_registrierung"
-              class="btn btn-sm btn-outline-info">
+      <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
         <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
       </button>
-      <button type="submit" name="aktion" value="nicht_wesentlich"
-              class="btn btn-sm btn-outline-secondary"
-              title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
+      <button type="submit" name="aktion" value="nicht_wesentlich" class="btn btn-sm btn-outline-secondary"
+        title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
         <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
       </button>
-      <button type="submit" name="aktion" value="zusammenfassen"
-              class="btn btn-sm btn-outline-primary"
-              title="Ausgewählte Dateien als Eigenentwicklungs-Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
-        <i class="bi bi-diagram-3 me-1"></i>Zu Eigenentwicklungs-Projekt zusammenfassen
+      <button type="submit" name="aktion" value="zusammenfassen" class="btn btn-sm btn-outline-primary"
+        title="Ausgewählte Dateien als Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+        <i class="bi bi-diagram-3 me-1"></i>Zu Projekt zusammenfassen
       </button>
-      <button type="submit" name="aktion" value="bewertung_anfordern"
-              class="btn btn-sm btn-outline-primary"
-              title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
+      <button type="submit" name="aktion" value="bewertung_anfordern" class="btn btn-sm btn-outline-primary"
+        title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
         <i class="bi bi-envelope me-1"></i>Bewertung anfordern
       </button>
-      <button type="button" class="btn btn-sm btn-outline-warning"
-              data-bs-toggle="modal" data-bs-target="#ownerModal"
-              title="Dateieigentümer für ausgewählte Dateien setzen">
+      <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#ownerModal"
+        title="Dateieigentümer für ausgewählte Dateien setzen">
         <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
       </button>
       {% if is_admin %}
-      <button type="submit" name="aktion" value="loeschen"
-              class="btn btn-sm btn-outline-danger"
-              data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
-              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Eigenentwicklungs-Verknüpfung)">
+      <button type="submit" name="aktion" value="loeschen" class="btn btn-sm btn-outline-danger"
+        data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Verknüpfung)">
         <i class="bi bi-trash me-1"></i>Löschen
       </button>
       {% endif %}
@@ -415,152 +401,142 @@
         </thead>
         <tbody>
           {% if filt == 'duplikate' %}
-            {# ── Duplikat-Gruppenansicht ── #}
-            {% for hash_val, gruppe in dateien | groupby('file_hash') %}
-              {% set grp = gruppe | list %}
-              {% set gid = 'dup-' ~ hash_val[:8] %}
-              {# Gruppen-Header-Zeile (VULN-K: gid wird über data-Attribut übergeben,
-                  damit keine dynamischen Jinja-Werte in JS-String-Literale fließen) #}
-              <tr class="table-warning dup-group-header" style="cursor:pointer"
-                  data-gid="{{ gid }}">
-                <td class="text-center">
-                  {% for f in grp %}
-                  <input type="checkbox" name="file_ids" value="{{ f.id }}"
-                         class="form-check-input row-check dup-group-cb" style="display:none">
-                  {% endfor %}
-                  <input type="checkbox" class="form-check-input dup-master-cb"
-                         data-gid="{{ gid }}">
-                </td>
-                <td colspan="12">
-                  <span class="fw-600">
-                    <i class="bi bi-copy me-1 text-danger"></i>
-                    {{ grp | length }} identische Dateien
-                  </span>
-                  <span class="badge bg-danger ms-2">{{ grp | length }}×</span>
-                  <span class="font-monospace text-muted ms-2" style="font-size:.72rem"
-                        title="SHA-256: {{ hash_val }}">
-                    <i class="bi bi-fingerprint me-1"></i>{{ hash_val[:16] }}…
-                  </span>
-                  <span class="text-muted ms-2" style="font-size:.78rem">
-                    <i class="bi bi-chevron-down" id="{{ gid }}-icon"></i>
-                  </span>
-                </td>
-                <td></td>
-              </tr>
-              {# Detail-Zeilen (eingeklappt) #}
+          {# ── Duplikat-Gruppenansicht ── #}
+          {% for hash_val, gruppe in dateien | groupby('file_hash') %}
+          {% set grp = gruppe | list %}
+          {% set gid = 'dup-' ~ hash_val[:8] %}
+          {# Gruppen-Header-Zeile (VULN-K: gid wird über data-Attribut übergeben,
+          damit keine dynamischen Jinja-Werte in JS-String-Literale fließen) #}
+          <tr class="table-warning dup-group-header" style="cursor:pointer" data-gid="{{ gid }}">
+            <td class="text-center">
               {% for f in grp %}
-              <tr id="file-{{ f.id }}"
-                  class="{{ gid }}-row d-none"
-                  data-formula-count="{{ f.formula_count or 0 }}"
-                  data-has-idv="{{ '1' if f.reg_idv_id else '0' }}">
-                <td></td>
-
-                <td>
-                  <span class="fw-500 ms-3">
-                    <i class="bi bi-file-earmark me-1 text-muted"></i>{{ f.file_name }}
-                  </span>
-                  {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
-                  <div class="ms-3">
-                    <span class="font-monospace text-muted" style="font-size:.68rem"
-                          title="SHA-256: {{ f.file_hash }}">
-                      <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
-                    </span>
-                  </div>
-                  {% endif %}
-                </td>
-
-                <td>
-                  {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
-                  <span class="badge bg-light text-dark border">{{ typ }}</span>
-                </td>
-
-                <td style="min-width:180px;max-width:280px" title="{{ f.dir_path or '' }}">
-                  {% if f.dir_path %}
-                  {% set crumbs = f.dir_path | path_breadcrumbs %}
-                  {% if crumbs %}
-                    {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.list_funde',
-                                       extra={'filter': filt, 'share_root': share_root_filt,
-                                              'scan_run': scan_run_id_filt,
-                                              'sort': sort, 'order': order}) }}
-                  {% else %}
-                    {{ dir_fallback(f.dir_path) }}
-                  {% endif %}
-                  {% endif %}
-                </td>
-
-                <td class="text-nowrap" style="font-size:.76rem">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
-                <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
-                <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
-                <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                    title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} (Office-Autor: {{ f.office_author }}){% endif %}">
-                  {{ f.file_owner or f.office_author or '–' }}
-                </td>
-                <td class="text-center">
-                  {% if f.has_macros %}<span class="badge bg-danger">VBA</span>
-                  {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
-                </td>
-                <td class="text-center">
-                  {% if f.formula_count %}
-                  <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
-                    <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
-                  </span>
-                  {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
-                </td>
-                <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
-                <td>
-                  {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
-                  {% if bs == 'Registriert' %}<span class="badge bg-success">Registriert</span>
-                  {% elif bs == 'Zur Registrierung' %}<span class="badge bg-info text-dark">Zur Registrierung</span>
-                  {% elif bs == 'Ignoriert' %}<span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Ignoriert</span>
-                  {% else %}<span class="badge bg-light text-dark border">Neu</span>{% endif %}
-                </td>
-                <td>
-                  {% if f.reg_idv_id %}
-                  <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                     class="badge bg-success text-decoration-none">{{ f.reg_idv_id }}</a>
-                  {% else %}<span class="badge bg-warning text-dark">–</span>{% endif %}
-                </td>
-                <td class="text-nowrap">
-                  {% if not f.reg_idv_id %}
-                  <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
-                     class="btn btn-xs btn-primary text-nowrap">
-                    <i class="bi bi-plus-lg me-1"></i>Registrieren
-                  </a>
-                  {% endif %}
-                  {% if is_admin and not f.reg_idv_id %}
-                  <button type="button" class="btn btn-xs btn-outline-danger"
-                          title="Eintrag löschen (Admin)"
-                          data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}"
-                          data-filename="{{ f.file_name }}"
-                          data-action="deleteScannerfund">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                  {% endif %}
-                </td>
-              </tr>
+              <input type="checkbox" name="file_ids" value="{{ f.id }}" class="form-check-input row-check dup-group-cb"
+                style="display:none">
               {% endfor %}
-            {% else %}
-            <tr>
-              <td colspan="14" class="text-center text-muted py-5">
-                <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
-              </td>
-            </tr>
-            {% endfor %}
+              <input type="checkbox" class="form-check-input dup-master-cb" data-gid="{{ gid }}">
+            </td>
+            <td colspan="12">
+              <span class="fw-600">
+                <i class="bi bi-copy me-1 text-danger"></i>
+                {{ grp | length }} identische Dateien
+              </span>
+              <span class="badge bg-danger ms-2">{{ grp | length }}×</span>
+              <span class="font-monospace text-muted ms-2" style="font-size:.72rem" title="SHA-256: {{ hash_val }}">
+                <i class="bi bi-fingerprint me-1"></i>{{ hash_val[:16] }}…
+              </span>
+              <span class="text-muted ms-2" style="font-size:.78rem">
+                <i class="bi bi-chevron-down" id="{{ gid }}-icon"></i>
+              </span>
+            </td>
+            <td></td>
+          </tr>
+          {# Detail-Zeilen (eingeklappt) #}
+          {% for f in grp %}
+          <tr id="file-{{ f.id }}" class="{{ gid }}-row d-none" data-formula-count="{{ f.formula_count or 0 }}"
+            data-has-idv="{{ '1' if f.reg_idv_id else '0' }}">
+            <td></td>
+
+            <td>
+              <span class="fw-500 ms-3">
+                <i class="bi bi-file-earmark me-1 text-muted"></i>{{ f.file_name }}
+              </span>
+              {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
+              <div class="ms-3">
+                <span class="font-monospace text-muted" style="font-size:.68rem" title="SHA-256: {{ f.file_hash }}">
+                  <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
+                </span>
+              </div>
+              {% endif %}
+            </td>
+
+            <td>
+              {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+              <span class="badge bg-light text-dark border">{{ typ }}</span>
+            </td>
+
+            <td style="min-width:180px;max-width:280px" title="{{ f.dir_path or '' }}">
+              {% if f.dir_path %}
+              {% set crumbs = f.dir_path | path_breadcrumbs %}
+              {% if crumbs %}
+              {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.list_funde',
+              extra={'filter': filt, 'share_root': share_root_filt,
+              'scan_run': scan_run_id_filt,
+              'sort': sort, 'order': order}) }}
+              {% else %}
+              {{ dir_fallback(f.dir_path) }}
+              {% endif %}
+              {% endif %}
+            </td>
+
+            <td class="text-nowrap" style="font-size:.76rem">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
+            <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
+            <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
+            <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} (Office-Autor: {{ f.office_author }}){% endif %}">
+              {{ f.file_owner or f.office_author or '–' }}
+            </td>
+            <td class="text-center">
+              {% if f.has_macros %}<span class="badge bg-danger">VBA</span>
+              {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
+            </td>
+            <td class="text-center">
+              {% if f.formula_count %}
+              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              </span>
+              {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
+            </td>
+            <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
+            <td>
+              {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
+              {% if bs == 'Registriert' %}<span class="badge bg-success">Registriert</span>
+              {% elif bs == 'Zur Registrierung' %}<span class="badge bg-info text-dark">Zur Registrierung</span>
+              {% elif bs == 'Ignoriert' %}<span class="badge bg-secondary"><i
+                  class="bi bi-eye-slash me-1"></i>Ignoriert</span>
+              {% else %}<span class="badge bg-light text-dark border">Neu</span>{% endif %}
+            </td>
+            <td>
+              {% if f.reg_idv_id %}
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                class="badge bg-success text-decoration-none">{{ f.reg_idv_id }}</a>
+              {% else %}<span class="badge bg-warning text-dark">–</span>{% endif %}
+            </td>
+            <td class="text-nowrap">
+              {% if not f.reg_idv_id %}
+              <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
+                class="btn btn-xs btn-primary text-nowrap">
+                <i class="bi bi-plus-lg me-1"></i>Registrieren
+              </a>
+              {% endif %}
+              {% if is_admin and not f.reg_idv_id %}
+              <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
+                data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
+                data-action="deleteScannerfund">
+                <i class="bi bi-trash"></i>
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="14" class="text-center text-muted py-5">
+              <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
+            </td>
+          </tr>
+          {% endfor %}
 
           {% else %}
-            {# ── Normale Listenansicht ── #}
+          {# ── Normale Listenansicht ── #}
           {% for f in dateien %}
-          <tr id="file-{{ f.id }}"
-              class="{{ 'table-secondary text-muted' if f.status == 'archiviert' else '' }}"
-              data-formula-count="{{ f.formula_count or 0 }}"
-              data-has-idv="{{ '1' if f.reg_idv_id else '0' }}">
+          <tr id="file-{{ f.id }}" class="{{ 'table-secondary text-muted' if f.status == 'archiviert' else '' }}"
+            data-formula-count="{{ f.formula_count or 0 }}" data-has-idv="{{ '1' if f.reg_idv_id else '0' }}">
 
             <!-- Checkbox -->
             <td class="text-center align-middle">
               {% if filt != 'archiv' %}
-              <input type="checkbox" name="file_ids" value="{{ f.id }}"
-                     class="form-check-input row-check"
-                     data-bearbeitungsstatus="{{ f.bearbeitungsstatus or 'Neu' }}">
+              <input type="checkbox" name="file_ids" value="{{ f.id }}" class="form-check-input row-check"
+                data-bearbeitungsstatus="{{ f.bearbeitungsstatus or 'Neu' }}">
               {% endif %}
             </td>
 
@@ -568,7 +544,7 @@
             <td>
               <span class="fw-500">
                 {% if f.status == 'archiviert' %}
-                  <i class="bi bi-archive me-1 text-secondary"></i>
+                <i class="bi bi-archive me-1 text-secondary"></i>
                 {% endif %}
                 {{ f.file_name }}
               </span>
@@ -576,20 +552,18 @@
               <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
                 {% if f.file_hash in duplicate_hashes %}
                 <span class="badge bg-warning text-dark"
-                      title="Dieser SHA-256-Hash kommt in der aktuellen Ansicht mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
+                  title="Dieser SHA-256-Hash kommt in der aktuellen Ansicht mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
                   <i class="bi bi-copy me-1"></i>Duplikat
                 </span>
                 {% endif %}
-                <span class="font-monospace text-muted"
-                      style="font-size:.68rem"
-                      title="SHA-256: {{ f.file_hash }}">
+                <span class="font-monospace text-muted" style="font-size:.68rem" title="SHA-256: {{ f.file_hash }}">
                   <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
                 </span>
               </div>
               {% elif f.file_hash == 'HASH_ERROR' %}
               <div class="mt-1">
                 <span class="text-danger" style="font-size:.7rem"
-                      title="Hash konnte nicht berechnet werden (Zugriffsfehler oder Datei zu groß)">
+                  title="Hash konnte nicht berechnet werden (Zugriffsfehler oder Datei zu groß)">
                   <i class="bi bi-exclamation-triangle me-1"></i>Hash-Fehler
                 </span>
               </div>
@@ -607,12 +581,12 @@
               {% if f.dir_path %}
               {% set crumbs = f.dir_path | path_breadcrumbs %}
               {% if crumbs %}
-                {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.list_funde',
-                                   extra={'filter': filt, 'share_root': share_root_filt,
-                                          'scan_run': scan_run_id_filt,
-                                          'sort': sort, 'order': order}) }}
+              {{ dir_breadcrumbs(crumbs, dir_path_filt, 'funde.list_funde',
+              extra={'filter': filt, 'share_root': share_root_filt,
+              'scan_run': scan_run_id_filt,
+              'sort': sort, 'order': order}) }}
               {% else %}
-                {{ dir_fallback(f.dir_path) }}
+              {{ dir_fallback(f.dir_path) }}
               {% endif %}
               {% endif %}
             </td>
@@ -621,8 +595,7 @@
             <td class="text-nowrap" style="font-size:.76rem">
               {% if f.sr_id %}
               <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id, filter=filt, sort=sort, order=order) }}"
-                 class="text-decoration-none text-muted"
-                 title="#{{ f.sr_id }} – Nach diesem Scan-Lauf filtern">
+                class="text-decoration-none text-muted" title="#{{ f.sr_id }} – Nach diesem Scan-Lauf filtern">
                 {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
               </a>
               {% else %}
@@ -632,55 +605,56 @@
 
             <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
             <td class="text-nowrap">
-              {{ f.last_seen_at|datefmt if (filt == 'archiv' and f.last_seen_at) else (f.modified_at|datefmt if f.modified_at else '–') }}
+              {{ f.last_seen_at|datefmt if (filt == 'archiv' and f.last_seen_at) else (f.modified_at|datefmt if
+              f.modified_at else '–') }}
             </td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
+              title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
               {{ f.file_owner or f.office_author or '–' }}
             </td>
 
             <!-- Makros -->
             <td class="text-center">
               {% if f.has_macros %}
-                <span class="badge bg-danger">VBA</span>
+              <span class="badge bg-danger">VBA</span>
               {% else %}
-                <i class="bi bi-dash text-muted"></i>
+              <i class="bi bi-dash text-muted"></i>
               {% endif %}
             </td>
 
             <!-- Formeln -->
             <td class="text-center">
               {% if f.formula_count %}
-                <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
-                  <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
-                </span>
+              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              </span>
               {% else %}
-                <i class="bi bi-dash text-muted"></i>
+              <i class="bi bi-dash text-muted"></i>
               {% endif %}
             </td>
 
             <!-- Blattschutz -->
             <td class="text-center">
               {% if f.has_sheet_protection %}
-                {% if f.workbook_protected %}
-                  <span class="badge bg-warning text-dark"
-                        title="{{ f.protected_sheets_count }} Blatt geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %} + Arbeitsmappenschutz">
-                    <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
-                    <i class="bi bi-journals ms-1"></i>
-                  </span>
-                {% else %}
-                  <span class="badge bg-warning text-dark"
-                        title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blätter geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %}">
-                    <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
-                    {% if f.sheet_protection_has_pw %}<i class="bi bi-key-fill ms-1"></i>{% endif %}
-                  </span>
-                {% endif %}
-              {% elif f.workbook_protected %}
-                <span class="badge bg-secondary" title="Arbeitsmappenschutz">
-                  <i class="bi bi-journals"></i>
-                </span>
+              {% if f.workbook_protected %}
+              <span class="badge bg-warning text-dark"
+                title="{{ f.protected_sheets_count }} Blatt geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %} + Arbeitsmappenschutz">
+                <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
+                <i class="bi bi-journals ms-1"></i>
+              </span>
               {% else %}
-                <i class="bi bi-dash text-muted"></i>
+              <span class="badge bg-warning text-dark"
+                title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blätter geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %}">
+                <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
+                {% if f.sheet_protection_has_pw %}<i class="bi bi-key-fill ms-1"></i>{% endif %}
+              </span>
+              {% endif %}
+              {% elif f.workbook_protected %}
+              <span class="badge bg-secondary" title="Arbeitsmappenschutz">
+                <i class="bi bi-journals"></i>
+              </span>
+              {% else %}
+              <i class="bi bi-dash text-muted"></i>
               {% endif %}
             </td>
 
@@ -688,49 +662,46 @@
             <td>
               {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
               {% if bs == 'Registriert' %}
-                <span class="badge bg-success">Registriert</span>
+              <span class="badge bg-success">Registriert</span>
               {% elif bs == 'Zur Registrierung' %}
-                <span class="badge bg-info text-dark">Zur Registrierung</span>
+              <span class="badge bg-info text-dark">Zur Registrierung</span>
               {% elif bs == 'Ignoriert' %}
-                <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Ignoriert</span>
+              <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Ignoriert</span>
               {% else %}
-                <span class="badge bg-light text-dark border">Neu</span>
+              <span class="badge bg-light text-dark border">Neu</span>
               {% endif %}
             </td>
 
             <!-- Eigenentwicklungs-Verknüpfung -->
             <td>
               {% if f.reg_idv_id %}
-                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                   class="badge bg-success text-decoration-none">
-                  {{ f.reg_idv_id }}
-                </a>
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                class="badge bg-success text-decoration-none">
+                {{ f.reg_idv_id }}
+              </a>
               {% else %}
-                <span class="badge bg-warning text-dark">–</span>
+              <span class="badge bg-warning text-dark">–</span>
               {% endif %}
             </td>
 
             <td class="text-nowrap">
               {% if filt != 'archiv' %}
-                {% if not f.reg_idv_id %}
-                <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
-                   class="btn btn-xs btn-primary text-nowrap">
-                  <i class="bi bi-plus-lg me-1"></i>Registrieren
-                </a>
-                {% else %}
-                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                   class="btn btn-xs btn-outline-secondary">
-                  <i class="bi bi-eye"></i>
-                </a>
-                {% endif %}
+              {% if not f.reg_idv_id %}
+              <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
+                class="btn btn-xs btn-primary text-nowrap">
+                <i class="bi bi-plus-lg me-1"></i>Registrieren
+              </a>
+              {% else %}
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                class="btn btn-xs btn-outline-secondary">
+                <i class="bi bi-eye"></i>
+              </a>
+              {% endif %}
               {% endif %}
               {% if is_admin and not f.reg_idv_id %}
-              <button type="button"
-                      class="btn btn-xs btn-outline-danger"
-                      title="Eintrag löschen (Admin)"
-                      data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}"
-                      data-filename="{{ f.file_name }}"
-                      data-action="deleteScannerfund">
+              <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
+                data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
+                data-action="deleteScannerfund">
                 <i class="bi bi-trash"></i>
               </button>
               {% endif %}
@@ -759,176 +730,185 @@
 {% endif %}
 
 <style>
-.btn-xs { padding: .15rem .45rem; font-size: .75rem; }
-.fw-600 { font-weight: 600; }
-.fw-500 { font-weight: 500; }
+  .btn-xs {
+    padding: .15rem .45rem;
+    font-size: .75rem;
+  }
+
+  .fw-600 {
+    font-weight: 600;
+  }
+
+  .fw-500 {
+    font-weight: 500;
+  }
 </style>
 
 <script>
-function toggleDupGroup(gid) {
-  const rows  = document.querySelectorAll('.' + gid + '-row');
-  const icon  = document.getElementById(gid + '-icon');
-  const open  = rows.length && !rows[0].classList.contains('d-none');
-  rows.forEach(r => r.classList.toggle('d-none', open));
-  if (icon) {
-    icon.classList.toggle('bi-chevron-down', open);
-    icon.classList.toggle('bi-chevron-up',   !open);
-  }
-}
-
-function masterCbChange(masterCb) {
-  const gid  = masterCb.dataset.gid;
-  const rows = document.querySelectorAll('.' + gid + '-row');
-  if (masterCb.checked) {
-    rows.forEach(r => r.classList.remove('d-none'));
+  function toggleDupGroup(gid) {
+    const rows = document.querySelectorAll('.' + gid + '-row');
     const icon = document.getElementById(gid + '-icon');
-    if (icon) { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
+    const open = rows.length && !rows[0].classList.contains('d-none');
+    rows.forEach(r => r.classList.toggle('d-none', open));
+    if (icon) {
+      icon.classList.toggle('bi-chevron-down', open);
+      icon.classList.toggle('bi-chevron-up', !open);
+    }
   }
-  const headerRow = masterCb.closest('tr');
-  headerRow.querySelectorAll('.dup-group-cb').forEach(cb => {
-    cb.checked = masterCb.checked;
+
+  function masterCbChange(masterCb) {
+    const gid = masterCb.dataset.gid;
+    const rows = document.querySelectorAll('.' + gid + '-row');
+    if (masterCb.checked) {
+      rows.forEach(r => r.classList.remove('d-none'));
+      const icon = document.getElementById(gid + '-icon');
+      if (icon) { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
+    }
+    const headerRow = masterCb.closest('tr');
+    headerRow.querySelectorAll('.dup-group-cb').forEach(cb => {
+      cb.checked = masterCb.checked;
+    });
+    updateBar();
+  }
+
+  // VULN-K: Event-Delegation statt Inline-Handler mit Jinja-Interpolation.
+  document.addEventListener('click', function (ev) {
+    const header = ev.target.closest('.dup-group-header');
+    if (header && !ev.target.closest('.dup-master-cb')) {
+      toggleDupGroup(header.dataset.gid);
+    }
+    if (ev.target.classList.contains('dup-master-cb')) {
+      ev.stopPropagation();
+    }
   });
-  updateBar();
-}
+  document.addEventListener('change', function (ev) {
+    if (ev.target.classList.contains('dup-master-cb')) {
+      masterCbChange(ev.target);
+    }
+  });
 
-// VULN-K: Event-Delegation statt Inline-Handler mit Jinja-Interpolation.
-document.addEventListener('click', function (ev) {
-  const header = ev.target.closest('.dup-group-header');
-  if (header && !ev.target.closest('.dup-master-cb')) {
-    toggleDupGroup(header.dataset.gid);
+  // VULN-M: wird über data-action="deleteScannerfund" aufgerufen; this = Button.
+  function deleteScannerfund() {
+    const btn = this;
+    const name = btn.dataset.filename;
+    if (!confirm('Scannerfund "' + name + '" wirklich löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden.')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = btn.dataset.deleteUrl;
+    // CSRF-Token aus der Meta-Tag nachziehen, damit Flask-WTF den POST akzeptiert.
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) {
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'csrf_token';
+      inp.value = meta.content;
+      form.appendChild(inp);
+    }
+    document.body.appendChild(form);
+    form.submit();
   }
-  if (ev.target.classList.contains('dup-master-cb')) {
-    ev.stopPropagation();
-  }
-});
-document.addEventListener('change', function (ev) {
-  if (ev.target.classList.contains('dup-master-cb')) {
-    masterCbChange(ev.target);
-  }
-});
+  window.deleteScannerfund = deleteScannerfund;
 
-// VULN-M: wird über data-action="deleteScannerfund" aufgerufen; this = Button.
-function deleteScannerfund() {
-  const btn = this;
-  const name = btn.dataset.filename;
-  if (!confirm('Scannerfund "' + name + '" wirklich löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden.')) return;
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = btn.dataset.deleteUrl;
-  // CSRF-Token aus der Meta-Tag nachziehen, damit Flask-WTF den POST akzeptiert.
-  const meta = document.querySelector('meta[name="csrf-token"]');
-  if (meta) {
-    const inp = document.createElement('input');
-    inp.type = 'hidden';
-    inp.name = 'csrf_token';
-    inp.value = meta.content;
-    form.appendChild(inp);
-  }
-  document.body.appendChild(form);
-  form.submit();
-}
-window.deleteScannerfund = deleteScannerfund;
+  (function () {
+    const selectAll = document.getElementById('select-all');
+    const bulkBar = document.getElementById('bulk-bar');
+    const bulkCount = document.getElementById('bulk-count');
+    const btnIgn = document.getElementById('btn-ignorieren');
+    const btnNichtMehrIgn = document.getElementById('btn-nicht-mehr-ignorieren');
+    const btnDeselect = document.getElementById('btn-deselect-all');
 
-(function () {
-  const selectAll   = document.getElementById('select-all');
-  const bulkBar          = document.getElementById('bulk-bar');
-  const bulkCount        = document.getElementById('bulk-count');
-  const btnIgn           = document.getElementById('btn-ignorieren');
-  const btnNichtMehrIgn  = document.getElementById('btn-nicht-mehr-ignorieren');
-  const btnDeselect      = document.getElementById('btn-deselect-all');
+    function updateBar() {
+      const checked = document.querySelectorAll('.row-check:checked');
+      const n = checked.length;
+      bulkCount.textContent = n;
+      bulkBar.classList.toggle('d-none', n === 0);
 
-  function updateBar() {
-    const checked = document.querySelectorAll('.row-check:checked');
-    const n = checked.length;
-    bulkCount.textContent = n;
-    bulkBar.classList.toggle('d-none', n === 0);
-
-    // "Ignorieren" nur aktiv wenn alle Selektierten keine Formeln haben und keiner Eigenentwicklung zugeordnet sind
-    if (btnIgn) {
-      const allNoFormula = [...checked].every(cb => {
-        const row = cb.closest('tr');
-        return parseInt(row.dataset.formulaCount || '0') === 0
+      // "Ignorieren" nur aktiv wenn alle Selektierten keine Formeln haben und keiner Eigenentwicklung zugeordnet sind
+      if (btnIgn) {
+        const allNoFormula = [...checked].every(cb => {
+          const row = cb.closest('tr');
+          return parseInt(row.dataset.formulaCount || '0') === 0
             && row.dataset.hasIdv === '0';
-      });
-      btnIgn.disabled = !allNoFormula;
-      btnIgn.title = allNoFormula
-        ? 'Alle ausgewählten Dateien haben keine Formeln – Ignorieren möglich'
-        : 'Eine oder mehrere Dateien haben Formeln oder sind bereits registriert';
-    }
-    if (btnNichtMehrIgn) {
-      const anyIgnoriert = [...checked].some(cb => cb.dataset.bearbeitungsstatus === 'Ignoriert');
-      btnNichtMehrIgn.disabled = !anyIgnoriert;
-    }
-  }
-
-  document.querySelectorAll('.row-check').forEach(cb => {
-    cb.addEventListener('change', updateBar);
-  });
-
-  if (selectAll) {
-    selectAll.addEventListener('change', function () {
-      document.querySelectorAll('.row-check').forEach(cb => {
-        cb.checked = selectAll.checked;
-      });
-      updateBar();
-    });
-  }
-
-  if (btnDeselect) {
-    btnDeselect.addEventListener('click', function () {
-      document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
-      if (selectAll) selectAll.checked = false;
-      updateBar();
-    });
-  }
-
-  // Eigentümer-Modal: Zähler aktualisieren wenn Modal geöffnet wird
-  const ownerModal = document.getElementById('ownerModal');
-  if (ownerModal) {
-    ownerModal.addEventListener('show.bs.modal', function () {
-      const n = document.querySelectorAll('.row-check:checked').length;
-      const el = document.getElementById('owner-modal-count');
-      if (el) el.textContent = n;
-      const inp = document.getElementById('owner-modal-input');
-      if (inp) inp.value = '';
-    });
-    document.getElementById('owner-modal-confirm').addEventListener('click', function () {
-      const val = document.getElementById('owner-modal-input').value.trim();
-      if (!val) {
-        document.getElementById('owner-modal-input').classList.add('is-invalid');
-        return;
+        });
+        btnIgn.disabled = !allNoFormula;
+        btnIgn.title = allNoFormula
+          ? 'Alle ausgewählten Dateien haben keine Formeln – Ignorieren möglich'
+          : 'Eine oder mehrere Dateien haben Formeln oder sind bereits registriert';
       }
-      document.getElementById('hidden-new-owner').value = val;
-      // Hidden submit button mit aktion=owner_aendern
-      const btn = document.createElement('input');
-      btn.type = 'hidden'; btn.name = 'aktion'; btn.value = 'owner_aendern';
-      document.getElementById('bulk-form').appendChild(btn);
-      bootstrap.Modal.getInstance(ownerModal).hide();
-      document.getElementById('bulk-form').submit();
-    });
-    document.getElementById('owner-modal-input').addEventListener('input', function () {
-      this.classList.remove('is-invalid');
-    });
-  }
-})();
-
-// ── Spaltensortierung wird zentral im extra_head-Block aus dem
-// sessionStorage wiederhergestellt – siehe oben. ─────────────────────
-
-{% if highlight_id %}
-(function () {
-  var row = document.getElementById('file-{{ highlight_id }}');
-  if (!row) return;
-  // Duplikat-Gruppe aufklappen falls die Zeile versteckt ist
-  if (row.classList.contains('d-none')) {
-    var groupClass = Array.from(row.classList).find(function (c) { return /^dup-[a-f0-9]+-row$/.test(c); });
-    if (groupClass) {
-      toggleDupGroup(groupClass.replace(/-row$/, ''));
+      if (btnNichtMehrIgn) {
+        const anyIgnoriert = [...checked].some(cb => cb.dataset.bearbeitungsstatus === 'Ignoriert');
+        btnNichtMehrIgn.disabled = !anyIgnoriert;
+      }
     }
-  }
-  row.classList.add('table-warning');
-  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-})();
-{% endif %}
+
+    document.querySelectorAll('.row-check').forEach(cb => {
+      cb.addEventListener('change', updateBar);
+    });
+
+    if (selectAll) {
+      selectAll.addEventListener('change', function () {
+        document.querySelectorAll('.row-check').forEach(cb => {
+          cb.checked = selectAll.checked;
+        });
+        updateBar();
+      });
+    }
+
+    if (btnDeselect) {
+      btnDeselect.addEventListener('click', function () {
+        document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
+        if (selectAll) selectAll.checked = false;
+        updateBar();
+      });
+    }
+
+    // Eigentümer-Modal: Zähler aktualisieren wenn Modal geöffnet wird
+    const ownerModal = document.getElementById('ownerModal');
+    if (ownerModal) {
+      ownerModal.addEventListener('show.bs.modal', function () {
+        const n = document.querySelectorAll('.row-check:checked').length;
+        const el = document.getElementById('owner-modal-count');
+        if (el) el.textContent = n;
+        const inp = document.getElementById('owner-modal-input');
+        if (inp) inp.value = '';
+      });
+      document.getElementById('owner-modal-confirm').addEventListener('click', function () {
+        const val = document.getElementById('owner-modal-input').value.trim();
+        if (!val) {
+          document.getElementById('owner-modal-input').classList.add('is-invalid');
+          return;
+        }
+        document.getElementById('hidden-new-owner').value = val;
+        // Hidden submit button mit aktion=owner_aendern
+        const btn = document.createElement('input');
+        btn.type = 'hidden'; btn.name = 'aktion'; btn.value = 'owner_aendern';
+        document.getElementById('bulk-form').appendChild(btn);
+        bootstrap.Modal.getInstance(ownerModal).hide();
+        document.getElementById('bulk-form').submit();
+      });
+      document.getElementById('owner-modal-input').addEventListener('input', function () {
+        this.classList.remove('is-invalid');
+      });
+    }
+  })();
+
+  // ── Spaltensortierung wird zentral im extra_head-Block aus dem
+  // sessionStorage wiederhergestellt – siehe oben. ─────────────────────
+
+  {% if highlight_id %}
+  (function () {
+    var row = document.getElementById('file-{{ highlight_id }}');
+    if (!row) return;
+    // Duplikat-Gruppe aufklappen falls die Zeile versteckt ist
+    if (row.classList.contains('d-none')) {
+      var groupClass = Array.from(row.classList).find(function (c) { return /^dup-[a-f0-9]+-row$/.test(c); });
+      if (groupClass) {
+        toggleDupGroup(groupClass.replace(/-row$/, ''));
+      }
+    }
+    row.classList.add('table-warning');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  })();
+  {% endif %}
 </script>
 {% endblock %}

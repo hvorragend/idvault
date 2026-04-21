@@ -57,8 +57,11 @@ hiddenimports = [
     'excel_export',
     # Eigene Module
     'ssl_utils',
+    'db_pragmas',
+    'db_write_tx',
     'webapp',
     'webapp.db_flask',
+    'webapp.db_writer',
     'webapp.email_service',
     'webapp.reports',
     'webapp.routes',
@@ -107,6 +110,15 @@ hiddenimports = [
     *jinja2_h,
     *werkzeug_h,
     *openpyxl_h,
+    # Produktiver WSGI-Server (cheroot); Submodule werden dynamisch geladen
+    # und ohne expliziten Hint nicht von PyInstaller erkannt.
+    'cheroot',
+    'cheroot.wsgi',
+    'cheroot.ssl',
+    'cheroot.ssl.builtin',
+    'cheroot.server',
+    'cheroot.connections',
+    'cheroot.workers.threadpool',
 ]
 
 # ---------------------------------------------------------------------------

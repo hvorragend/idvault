@@ -172,7 +172,14 @@ Noch offene Punkte vor bzw. kurz nach Produktivstart:
 - [ ] HTTPS aktivieren (direkt via `IDV_HTTPS=1` oder per Reverse-Proxy)
 - [ ] `SECRET_KEY` aus KeyVault/HSM beziehen (Betriebsauflage)
 - [ ] In regulierten Umgebungen: Sidecar-Updates in der Admin-Oberfläche (`Administration → Update`) deaktivieren und Updates ausschließlich über signierte EXE-Builds einspielen
-- [ ] Bei Multi-Worker-Deployment (gunicorn): Flask-Limiter-Storage auf Redis umstellen
+- [ ] **Single-Process-Betrieb beibehalten.** Die Anwendung verwendet einen
+      In-Process-Writer-Thread (`webapp/db_writer.py`), um SQLite-Locks unter
+      parallelem Scan + Web-Traffic zu vermeiden. Mehrere Worker-Prozesse
+      (gunicorn `--workers >1`, uwsgi `--processes >1`) bringen die
+      `database is locked`-Race zurück — **immer `--workers 1`** verwenden
+      und stattdessen Threads skalieren (gunicorn `--threads`, waitress
+      `threads=`, cheroot `numthreads=`). Bei Multi-Worker-Deployment
+      zusaetzlich: Flask-Limiter-Storage auf Redis umstellen.
 - [ ] Externer Penetrationstest beauftragen
 - [ ] Test-Suite (pytest) mit ≥ 70 % Abdeckung der Kernlogik (Sprint 4)
 

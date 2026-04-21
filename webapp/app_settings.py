@@ -54,12 +54,27 @@ def get_setting(db, key: str, default: str | None = None) -> str | None:
 
 
 def set_setting(db, key: str, value: str) -> None:
-    """Schreibt einen Wert nach ``app_settings`` (INSERT OR REPLACE)."""
-    db.execute(
-        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
-        (key, value if value is not None else ""),
-    )
-    db.commit()
+    """Schreibt einen Wert nach ``app_settings`` (INSERT OR REPLACE).
+
+    Writes werden ueber den globalen Writer-Thread serialisiert, damit die
+    Web-App keine konkurrierenden BEGIN IMMEDIATE-Transaktionen gegen die
+    SQLite-Datei faehrt. Der ``db``-Parameter bleibt als Teil der API
+    erhalten, wird beim Write aber ignoriert (der Writer-Thread nutzt
+    seine eigene Connection).
+    """
+    from .db_writer import get_writer
+    from db_write_tx import write_tx
+
+    val = value if value is not None else ""
+
+    def _apply(c):
+        with write_tx(c):
+            c.execute(
+                "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+                (key, val),
+            )
+
+    get_writer().submit(_apply, wait=True)
 
 
 def get_json(db, key: str, default: Any = None) -> Any:

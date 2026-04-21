@@ -2,7 +2,18 @@
 idvault – Startpunkt
 ====================
 Entwicklung:  python run.py
-Produktion:   gunicorn "run:app" --workers 2 --bind 0.0.0.0:5000
+Produktion:   gunicorn "run:app" --workers 1 --bind 0.0.0.0:5000
+              (oder cheroot/waitress mit genau 1 Prozess; siehe unten)
+
+WICHTIG — Single-Process-Constraint:
+  Ab der Einfuehrung des db_writer-Threads (webapp/db_writer.py) darf die
+  App nur in *einem* Prozess laufen. Mehrere Worker-Prozesse haetten je
+  ihren eigenen Writer-Thread und damit wieder konkurrierende Writer, was
+  die database-is-locked-Race zurueckbringt.
+
+  - gunicorn: --workers 1
+  - waitress / cheroot: single-process (Default)
+  - uwsgi:   --processes 1  (Threads statt Prozesse verwenden)
 
 Konfiguration (config.json):
   Beim ersten Start wird config.json mit einem zufälligen SECRET_KEY
@@ -149,6 +160,8 @@ if not os.path.isfile(_config_file):
         "IDV_DB_PATH": "instance/idvault.db",
         "IDV_INSTANCE_PATH": "instance",
         "IDV_SERVICE_NAME": "idvault",
+        # Demo-Daten beim Erststart: true = einmalig einspielen, false = kein Seeding.
+        "IDV_DEMO_DATA": False,
         # VULN-F: Lokale Benutzer. Leere Liste = kein lokaler Login möglich
         # (nur LDAP). Pro Eintrag entweder 'password_hash' (empfohlen,
         # werkzeug-Format) oder 'password' (Klartext, optional – wird beim
@@ -256,14 +269,20 @@ if '--service-run' not in sys.argv:
 
 # Optional: Demo-Daten beim ersten Start laden
 def _seed_if_empty(app):
+    from webapp import config_store
+    if not config_store.get_bool("IDV_DEMO_DATA", False):
+        return
     with app.app_context():
         from webapp.routes import get_db
+        from webapp.app_settings import get_setting, set_setting
         from db import insert_demo_data
         db = get_db()
-        count = db.execute("SELECT COUNT(*) FROM idv_register").fetchone()[0]
-        if count == 0:
-            print("  → Keine Eigenentwicklungen gefunden – Demo-Daten werden eingefügt.")
-            insert_demo_data(db)
+        if get_setting(db, "demo_data_seeded", "0") == "1":
+            print("  → Demo-Daten bereits eingespielt, wird übersprungen.")
+            return
+        print("  → Erstinstallation: Demo-Daten werden eingespielt (IDV_DEMO_DATA=true).")
+        insert_demo_data(db)
+        set_setting(db, "demo_data_seeded", "1")
 
 
 def _run_server(service_mode: bool = False):
@@ -278,7 +297,7 @@ def _run_server(service_mode: bool = False):
     # kann hier nicht mehr zuschlagen.
     _build_app()
 
-    from ssl_utils import build_ssl_context, https_enabled
+    from ssl_utils import build_ssl_context, https_enabled, resolve_ssl_paths
     from webapp import config_store
 
     debug = config_store.get_bool("DEBUG", False)
@@ -357,12 +376,48 @@ def _run_server(service_mode: bool = False):
             )
 
     _seed_if_empty(app)
-    if service_mode:
-        app.logger.warning("[startup] Werkzeug-Server bindet an %s:%s …", "0.0.0.0", port)
-    # use_reloader=False: Im EXE-Bundle gibt es keine .py-Dateien zum Beobachten;
-    # der Reloader würde nutzlos einen zweiten Prozess spawnen.
-    app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context,
-            use_reloader=not getattr(sys, 'frozen', False))
+
+    # Produktiv-Pfad: cheroot (pure Python, threaded, nativer SSL-Support,
+    # PyInstaller-kompatibel). In DEBUG bzw. wenn cheroot nicht verfuegbar
+    # ist, faellt die Funktion auf den Werkzeug-Dev-Server zurueck.
+    try:
+        from cheroot.wsgi import Server as CherootWSGI
+        use_cheroot = not debug
+    except ImportError:
+        CherootWSGI = None
+        use_cheroot = False
+
+    if use_cheroot:
+        num_threads = config_store.get_int("IDV_WSGI_THREADS", 16) or 16
+        server = CherootWSGI(
+            ("0.0.0.0", port), app,
+            numthreads=num_threads, server_name="idvault",
+        )
+        ssl_paths = resolve_ssl_paths(_instance_path) if https_enabled() else None
+        if ssl_paths is not None:
+            from cheroot.ssl.builtin import BuiltinSSLAdapter
+            cert_path, key_path = ssl_paths
+            server.ssl_adapter = BuiltinSSLAdapter(
+                certificate=cert_path, private_key=key_path
+            )
+        if service_mode:
+            app.logger.warning(
+                "[startup] cheroot bindet an 0.0.0.0:%s (threads=%d, ssl=%s)",
+                port, num_threads, ssl_paths is not None,
+            )
+        try:
+            server.start()          # blockierend
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.stop()           # graceful drain
+    else:
+        if service_mode:
+            app.logger.warning("[startup] Werkzeug-Server bindet an %s:%s …", "0.0.0.0", port)
+        # use_reloader=False: Im EXE-Bundle gibt es keine .py-Dateien zum Beobachten;
+        # der Reloader würde nutzlos einen zweiten Prozess spawnen.
+        app.run(host="0.0.0.0", port=port, debug=debug, ssl_context=ssl_context,
+                use_reloader=not getattr(sys, 'frozen', False))
 
 
 # ── Windows-Dienst-Framework (nur als EXE auf Windows) ──────────────────────
@@ -417,6 +472,21 @@ def _make_service_class():
             except Exception:
                 pass
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+
+            # Writer-Queue drainen, damit keine Writes bei Prozessende
+            # verloren gehen. Muss *vor* dem Event-Signal passieren, weil
+            # SvcDoRun() sofort nach dem Signal os._exit(0) ruft.
+            try:
+                from webapp.db_writer import stop_writer
+                stop_writer()
+            except Exception:
+                try:
+                    servicemanager.LogErrorMsg(
+                        "idvault: db_writer-Drain fehlgeschlagen (siehe Crash-Log)"
+                    )
+                except Exception:
+                    pass
+
             win32event.SetEvent(self._stop_evt)
 
         def SvcDoRun(self):
@@ -521,4 +591,7 @@ if __name__ == "__main__":
             sys.exit(0)
     # ─────────────────────────────────────────────────────────────────────────
 
-    _run_server()
+    try:
+        _run_server()
+    except KeyboardInterrupt:
+        pass
