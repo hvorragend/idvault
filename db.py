@@ -480,7 +480,7 @@ def get_dashboard_stats(conn: sqlite3.Connection, person_id: Optional[int] = Non
 
     return {
         "gesamt_aktiv":         scalar("SELECT COUNT(*) FROM idv_register WHERE status NOT IN ('Archiviert')"),
-        "genehmigt":            scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Freigegeben'"),
+        "genehmigt":            scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Genehmigt'"),
         "entwurf":              scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'Entwurf'"),
         "in_pruefung":          scalar("SELECT COUNT(*) FROM idv_register WHERE status = 'In Prüfung'"),
         "wesentlich":           scalar("""
