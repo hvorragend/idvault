@@ -1070,7 +1070,7 @@ CREATE INDEX IF NOT EXISTS idx_notif_log_sent_date ON notification_log(sent_date
 -- -----------------------------------------------------------------------------
 -- MIGRATION: Risikoklasse entfernen (rückstandslos)
 -- Die risikoklassen-Tabelle und die Spalte risikoklasse_id werden über die
--- Python-Funktion _migrate_risikoklasse() in db.py aus bestehenden Datenbanken
--- entfernt. Die Reihenfolge (erst FK-Spalte, dann Tabelle) wird dort korrekt
--- sichergestellt.
+-- Alembic-Revision ``0003_drop_risikoklasse`` aus bestehenden Datenbanken
+-- entfernt (Reihenfolge: erst FK-Spalte, dann Tabelle). Neue Datenbanken
+-- werden über das Migrationsframework ohnehin ohne diese Strukturen angelegt.
 -- -----------------------------------------------------------------------------

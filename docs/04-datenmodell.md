@@ -400,14 +400,27 @@ Performance-relevante Indizes auf häufig gefilterte Spalten:
 
 ## 11 Migrationsstrategie
 
-idvault verwendet **keine** versionierten Migrationen. Das Schema wird
-ausschließlich über `schema.sql` verwaltet:
+idvault nutzt seit Issue A6 **Alembic** als Migrationsframework
+(`alembic/versions/`). Der Ablauf:
 
-- `db.py::init_register_db()` spielt `schema.sql` bei jedem Start ein.
-- Alle `CREATE TABLE`/`CREATE VIEW`/`CREATE INDEX`-Statements nutzen
-  `IF NOT EXISTS`; Default-Seeds werden mit `INSERT OR IGNORE` eingespielt.
-- Schemaänderungen werden ausschließlich in `schema.sql` gepflegt; die
-  Datenbank wird bei Major-Upgrades gezielt neu erzeugt.
+- `db.py::init_register_db()` startet beim App-Start `alembic upgrade head`.
+  Für leere Datenbanken werden alle Revisionen (beginnend mit
+  `0001_initial_schema`) ausgeführt.
+- `0001_initial_schema` liest `schema.sql` und spielt die enthaltenen
+  idempotenten Statements (`CREATE TABLE IF NOT EXISTS`,
+  `CREATE INDEX IF NOT EXISTS`, `INSERT OR IGNORE`) als einzelne
+  SQL-Anweisungen ein. `schema.sql` ist damit die Quelle der Initial-Revision
+  und dient zusätzlich als menschenlesbare Gesamtübersicht des Schemas.
+- Bestehende Legacy-Datenbanken (Stand vor Alembic) erkennt
+  `init_register_db` an der fehlenden `alembic_version`-Tabelle und stampt
+  sie automatisch auf den passenden Revisionsstand (`0001`, `0002` oder
+  `head`), bevor `upgrade head` die offenen Migrationen ausführt. Die alten
+  Python-Funktionen `_migrate_risikoklasse` und `_migrate_bearbeiter_name`
+  entfallen dadurch.
+- **Neue Schemaänderungen** werden ausschließlich als nummerierte
+  Alembic-Revisions in `alembic/versions/` gepflegt; `schema.sql` darf
+  weiterhin aktualisiert werden, damit es den aktuellen Zielzustand für
+  neue Installationen beschreibt.
 
 ## 12 Datenklassifikation
 
