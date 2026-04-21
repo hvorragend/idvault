@@ -5,6 +5,8 @@ from datetime import datetime, timezone, date as _date
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import get_klassifizierungen
+from db_write_tx import write_tx
+from ..db_writer import get_writer
 from ..security import ensure_can_read_idv, ensure_can_write_idv
 
 bp = Blueprint("reviews", __name__, url_prefix="/pruefungen")
@@ -52,29 +54,31 @@ def new_review(idv_db_id):
         befunde = request.form.get("befunde") or None
         naechste = request.form.get("naechste_pruefung") or None
         kommentar = request.form.get("kommentar") or None
+        pruefungsart = request.form.get("pruefungsart", "Regelprüfung")
 
-        db.execute("""
-            INSERT INTO pruefungen
-              (idv_id, pruefungsart, pruefungsdatum, pruefer_id, ergebnis,
-               befunde, naechste_pruefung, kommentar, erstellt_am)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """, (idv_db_id, request.form.get("pruefungsart","Regelprüfung"),
-              pruefungsdatum, pruefer_id, ergebnis,
-              befunde, naechste, kommentar, now))
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    INSERT INTO pruefungen
+                      (idv_id, pruefungsart, pruefungsdatum, pruefer_id, ergebnis,
+                       befunde, naechste_pruefung, kommentar, erstellt_am)
+                    VALUES (?,?,?,?,?,?,?,?,?)
+                """, (idv_db_id, pruefungsart,
+                      pruefungsdatum, pruefer_id, ergebnis,
+                      befunde, naechste, kommentar, now))
 
-        # Nächste Prüfung im Register aktualisieren
-        if naechste:
-            db.execute("""
-                UPDATE idv_register SET letzte_pruefung=?, naechste_pruefung=?, aktualisiert_am=?
-                WHERE id=?
-            """, (pruefungsdatum, naechste, now, idv_db_id))
+                if naechste:
+                    c.execute("""
+                        UPDATE idv_register SET letzte_pruefung=?, naechste_pruefung=?, aktualisiert_am=?
+                        WHERE id=?
+                    """, (pruefungsdatum, naechste, now, idv_db_id))
 
-        db.execute("""
-            INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_am)
-            VALUES (?,?,?,?)
-        """, (idv_db_id, "geprueft", f"Prüfung {ergebnis} am {pruefungsdatum}", now))
+                c.execute("""
+                    INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_am)
+                    VALUES (?,?,?,?)
+                """, (idv_db_id, "geprueft", f"Prüfung {ergebnis} am {pruefungsdatum}", now))
 
-        db.commit()
+        get_writer().submit(_do, wait=True)
         flash("Prüfung gespeichert.", "success")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
