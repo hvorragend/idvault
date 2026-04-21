@@ -160,6 +160,8 @@ if not os.path.isfile(_config_file):
         "IDV_DB_PATH": "instance/idvault.db",
         "IDV_INSTANCE_PATH": "instance",
         "IDV_SERVICE_NAME": "idvault",
+        # Demo-Daten beim Erststart: true = einmalig einspielen, false = kein Seeding.
+        "IDV_DEMO_DATA": False,
         # VULN-F: Lokale Benutzer. Leere Liste = kein lokaler Login möglich
         # (nur LDAP). Pro Eintrag entweder 'password_hash' (empfohlen,
         # werkzeug-Format) oder 'password' (Klartext, optional – wird beim
@@ -267,14 +269,20 @@ if '--service-run' not in sys.argv:
 
 # Optional: Demo-Daten beim ersten Start laden
 def _seed_if_empty(app):
+    from webapp import config_store
+    if not config_store.get_bool("IDV_DEMO_DATA", False):
+        return
     with app.app_context():
         from webapp.routes import get_db
+        from webapp.app_settings import get_setting, set_setting
         from db import insert_demo_data
         db = get_db()
-        count = db.execute("SELECT COUNT(*) FROM idv_register").fetchone()[0]
-        if count == 0:
-            print("  → Keine Eigenentwicklungen gefunden – Demo-Daten werden eingefügt.")
-            insert_demo_data(db)
+        if get_setting(db, "demo_data_seeded", "0") == "1":
+            print("  → Demo-Daten bereits eingespielt, wird übersprungen.")
+            return
+        print("  → Erstinstallation: Demo-Daten werden eingespielt (IDV_DEMO_DATA=true).")
+        insert_demo_data(db)
+        set_setting(db, "demo_data_seeded", "1")
 
 
 def _run_server(service_mode: bool = False):
