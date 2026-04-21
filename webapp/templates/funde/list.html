@@ -73,16 +73,10 @@ Standardsortierung zu sehen bekommt. #}
 
 <!-- ── Letzter Scan + DB-Pfad-Hinweis ─────────────────────────────── -->
 {% if gesamt == 0 %}
-<div class="alert alert-warning">
-  <i class="bi bi-exclamation-triangle-fill me-2"></i>
-  <strong>Keine Scannerfunde in dieser Datenbank.</strong>
-  Stelle sicher, dass der Scanner mit dem korrekten <code>db_path</code> konfiguriert ist
-  und auf dieselbe Datenbankdatei zeigt wie die Webapp.
-  Passe dazu unter <strong>Admin → Scanner-Einstellungen</strong> den Datenbankpfad an:
-  <pre class="mt-2 mb-0 bg-light p-2 rounded" style="font-size:.82rem">{
-  "db_path": "{{ webapp_db_path }}",
-  ...
-}</pre>
+<div class="alert alert-light border text-muted" style="font-size:.88rem">
+  <i class="bi bi-info-circle me-2"></i>
+  Noch keine Scanner-Funde vorhanden. Sobald ein Scan-Lauf durchgeführt wurde, erscheinen die gefundenen Dateien hier.
+  Den Scanner können Sie unter <a href="{{ url_for('admin.scanner_einstellungen') }}" class="text-decoration-none">Admin → Scanner-Einstellungen</a> starten.
 </div>
 {% else %}
 
