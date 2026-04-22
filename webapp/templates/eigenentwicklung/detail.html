@@ -664,6 +664,16 @@
                   </a>
                   {% endif %}
 
+                  {% if f and is_admin and f.status in ('Erledigt', 'Nicht erledigt') %}
+                  <form method="post" action="{{ url_for('freigaben.wieder_oeffnen', freigabe_id=f.id) }}"
+                    data-confirm="{{ schritt_name }} wieder öffnen? Das bisherige Ergebnis wird verworfen." class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-xs btn-outline-warning" title="Wieder öffnen (Admin)">
+                      <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                  </form>
+                  {% endif %}
+
                   {% if f and is_admin %}
                   <form method="post" action="{{ url_for('freigaben.loeschen', freigabe_id=f.id) }}"
                     data-confirm="{{ schritt_name }} löschen?" class="d-inline">
