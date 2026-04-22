@@ -166,22 +166,41 @@ def _get_aktiver_stellvertreter_id(db, person_id: int):
     return row["stellvertreter_id"] if row else None
 
 
+def _is_pool_member(db, pool_id: int, person_id: int) -> bool:
+    """True wenn person_id Mitglied des angegebenen Freigabe-Pools ist."""
+    if not pool_id or not person_id:
+        return False
+    row = db.execute(
+        "SELECT 1 FROM freigabe_pool_members WHERE pool_id = ? AND person_id = ? LIMIT 1",
+        (pool_id, person_id),
+    ).fetchone()
+    return row is not None
+
+
 def _can_complete_schritt(db, freigabe, person_id: int) -> bool:
     """Prüft ob person_id diesen Schritt abschließen/ablehnen darf.
 
-    Admins dürfen immer. Sonst nur die zugewiesene Person oder deren aktiver
-    Stellvertreter (wenn abwesend_bis >= heute und stellvertreter_id gesetzt).
-    Ohne Zuweisung ist kein Nicht-Admin berechtigt.
+    Admins dürfen immer. Sonst: die zugewiesene Person, deren aktiver
+    Stellvertreter, oder (wenn der Schritt an einen Pool gebunden ist) jedes
+    Pool-Mitglied.
     """
     from . import ROLE_ADMIN
     if session.get("user_role") == ROLE_ADMIN:
         return True
     zugewiesen_id = freigabe["zugewiesen_an_id"]
-    if not zugewiesen_id:
-        return False
-    if person_id == zugewiesen_id:
+    if zugewiesen_id:
+        if person_id == zugewiesen_id:
+            return True
+        if _get_aktiver_stellvertreter_id(db, zugewiesen_id) == person_id:
+            return True
+    pool_id = None
+    try:
+        pool_id = freigabe["pool_id"]
+    except (KeyError, IndexError):
+        pool_id = None
+    if pool_id and _is_pool_member(db, pool_id, person_id):
         return True
-    return _get_aktiver_stellvertreter_id(db, zugewiesen_id) == person_id
+    return False
 
 
 def _phase1_komplett_erledigt(db, idv_db_id: int) -> bool:
@@ -847,14 +866,18 @@ def schritt_anlegen(idv_db_id):
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     zugewiesen = _int_or_none(request.form.get("zugewiesen_an_id"))
+    pool_id    = _int_or_none(request.form.get("pool_id"))
+    # Bei Pool-Zuweisung: persönliche Zuweisung löschen (Entscheidung fällt bei Übernahme)
+    if pool_id:
+        zugewiesen = None
 
     def _do(c):
         with write_tx(c):
             c.execute("""
                 INSERT INTO idv_freigaben
-                    (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
-                VALUES (?, ?, 'Ausstehend', ?, ?, ?)
-            """, (idv_db_id, schritt, person_id, now, zugewiesen))
+                    (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id, pool_id)
+                VALUES (?, ?, 'Ausstehend', ?, ?, ?, ?)
+            """, (idv_db_id, schritt, person_id, now, zugewiesen, pool_id))
 
             if schritt in _PHASE_1:
                 _ensure_test_eintraege(c, idv_db_id)
@@ -903,6 +926,65 @@ def loeschen(freigabe_id):
 
 # ---------------------------------------------------------------------------
 # Freigabe-Schritt weiterleiten (an Dritte delegieren)
+# ---------------------------------------------------------------------------
+
+
+@bp.route("/<int:freigabe_id>/uebernehmen", methods=["POST"])
+@login_required
+def uebernehmen(freigabe_id):
+    """Pool-Mitglied übernimmt eine Pool-Aufgabe persönlich (U-D4).
+
+    Setzt zugewiesen_an_id auf den Aufrufer und hebt die Pool-Bindung auf.
+    Nur Mitglieder des zugewiesenen Pools (oder Admins) dürfen übernehmen.
+    """
+    db        = get_db()
+    person_id = current_person_id()
+    now       = datetime.now(timezone.utc).isoformat()
+
+    freigabe = db.execute(
+        "SELECT * FROM idv_freigaben WHERE id = ?", (freigabe_id,)
+    ).fetchone()
+    if not freigabe or freigabe["status"] != "Ausstehend":
+        flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
+
+    pool_id = None
+    try:
+        pool_id = freigabe["pool_id"]
+    except (KeyError, IndexError):
+        pool_id = None
+    if not pool_id:
+        flash("Dieser Schritt ist keinem Pool zugewiesen.", "warning")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+    from . import ROLE_ADMIN
+    is_admin = session.get("user_role") == ROLE_ADMIN
+    if not is_admin and not _is_pool_member(db, pool_id, person_id):
+        flash("Sie sind kein Mitglied des zugewiesenen Pools.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+    if not person_id:
+        flash("Kein Personendatensatz für diesen Account.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE idv_freigaben SET zugewiesen_an_id = ?, pool_id = NULL WHERE id = ?",
+                (person_id, freigabe_id),
+            )
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (freigabe["idv_id"], "freigabe_uebernommen",
+                 f"{freigabe['schritt']} aus Pool übernommen", person_id,
+                 session.get("user_name", "") or None),
+            )
+
+    get_writer().submit(_do, wait=True)
+    flash(f"'{freigabe['schritt']}' übernommen – die Aufgabe ist jetzt Ihnen zugewiesen.", "success")
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+
 # ---------------------------------------------------------------------------
 
 @bp.route("/<int:freigabe_id>/weiterleiten", methods=["POST"])

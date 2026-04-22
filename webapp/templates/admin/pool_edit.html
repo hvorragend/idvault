@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Pool bearbeiten{% endblock %}
+{% block page_title %}<i class="bi bi-people me-2"></i>Pool: {{ pool.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-600">Name <span class="text-danger">*</span></label>
+              <input type="text" name="name" class="form-control" value="{{ pool.name }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-600">Status</label>
+              <div class="form-check form-switch mt-2">
+                <input type="checkbox" class="form-check-input" id="aktiv" name="aktiv" value="1"
+                       {% if pool.aktiv %}checked{% endif %}>
+                <label class="form-check-label" for="aktiv">Aktiv</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-600">Beschreibung</label>
+              <textarea name="beschreibung" class="form-control" rows="2">{{ pool.beschreibung or '' }}</textarea>
+            </div>
+          </div>
+
+          <hr>
+
+          <label class="form-label fw-600">
+            <i class="bi bi-person-check me-1"></i>Mitglieder
+            <small class="text-muted ms-2" style="font-size:.78rem">
+              (<span id="member-count">{{ members|length }}</span> gewählt)
+            </small>
+          </label>
+          <input type="text" id="member-filter" class="form-control form-control-sm mb-2"
+                 placeholder="Filter nach Name oder Kürzel …">
+          <div class="border rounded p-2" style="max-height:400px;overflow-y:auto">
+            {% for p in alle_personen %}
+            <div class="form-check member-row" data-search="{{ (p.nachname ~ ' ' ~ p.vorname ~ ' ' ~ (p.kuerzel or '')) | lower }}">
+              <input type="checkbox" class="form-check-input member-cb" id="m{{ p.id }}"
+                     name="member_ids" value="{{ p.id }}"
+                     {% if p.id in member_ids %}checked{% endif %}>
+              <label class="form-check-label" for="m{{ p.id }}">
+                {{ p.nachname }}, {{ p.vorname }}
+                {% if p.kuerzel %}<span class="text-muted">({{ p.kuerzel }})</span>{% endif %}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Speichern</button>
+            <a href="{{ url_for('admin.list_pools') }}" class="btn btn-outline-secondary">Zurück</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var filter = document.getElementById('member-filter');
+    var rows   = document.querySelectorAll('.member-row');
+    var countEl = document.getElementById('member-count');
+
+    function refreshCount() {
+      countEl.textContent = document.querySelectorAll('.member-cb:checked').length;
+    }
+
+    filter.addEventListener('input', function () {
+      var q = filter.value.trim().toLowerCase();
+      rows.forEach(function (r) {
+        r.style.display = q && r.dataset.search.indexOf(q) === -1 ? 'none' : '';
+      });
+    });
+    document.querySelectorAll('.member-cb').forEach(function (cb) {
+      cb.addEventListener('change', refreshCount);
+    });
+  })();
+</script>
+
+<style>.fw-600{font-weight:600}</style>
+{% endblock %}

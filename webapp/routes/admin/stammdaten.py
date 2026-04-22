@@ -1082,3 +1082,126 @@ def api_new_gp():
 
     label = f"{gp_nummer}: {bezeichnung}" if gp_nummer else bezeichnung
     return jsonify({"ok": True, "id": new_id, "label": label})
+
+
+# ── Freigabe-Pools (U-D4) ─────────────────────────────────────────────────
+
+@bp.route("/pools", methods=["GET"])
+@admin_required
+def list_pools():
+    """Übersicht aller Freigabe-Pools mit Mitgliederzahl."""
+    db = get_db()
+    pools = db.execute("""
+        SELECT p.id, p.name, p.beschreibung, p.aktiv,
+               (SELECT COUNT(*) FROM freigabe_pool_members m WHERE m.pool_id = p.id) AS n_mitglieder,
+               (SELECT COUNT(*) FROM idv_freigaben f WHERE f.pool_id = p.id AND f.status = 'Ausstehend') AS n_offen
+        FROM freigabe_pools p
+        ORDER BY p.aktiv DESC, p.name
+    """).fetchall()
+    return render_template("admin/pools.html", pools=pools)
+
+
+@bp.route("/pools/neu", methods=["POST"])
+@admin_required
+def new_pool():
+    name         = request.form.get("name", "").strip()
+    beschreibung = request.form.get("beschreibung", "").strip() or None
+    if not name:
+        flash("Name ist erforderlich.", "error")
+        return redirect(url_for("admin.list_pools"))
+
+    now = _now()
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "INSERT INTO freigabe_pools (name, beschreibung, aktiv, created_at) VALUES (?,?,1,?)",
+                (name, beschreibung, now),
+            )
+            return c.lastrowid
+
+    try:
+        new_id = get_writer().submit(_do, wait=True)
+    except Exception as exc:
+        flash(f"Pool konnte nicht angelegt werden: {exc}", "error")
+        return redirect(url_for("admin.list_pools"))
+
+    flash(f"Pool '{name}' angelegt.", "success")
+    return redirect(url_for("admin.edit_pool", pool_id=new_id))
+
+
+@bp.route("/pools/<int:pool_id>/bearbeiten", methods=["GET", "POST"])
+@admin_required
+def edit_pool(pool_id):
+    db   = get_db()
+    pool = db.execute("SELECT * FROM freigabe_pools WHERE id = ?", (pool_id,)).fetchone()
+    if not pool:
+        flash("Pool nicht gefunden.", "error")
+        return redirect(url_for("admin.list_pools"))
+
+    if request.method == "POST":
+        name         = request.form.get("name", "").strip() or pool["name"]
+        beschreibung = request.form.get("beschreibung", "").strip() or None
+        aktiv        = 1 if request.form.get("aktiv") else 0
+        member_ids   = [int(i) for i in request.form.getlist("member_ids") if i.isdigit()]
+
+        def _do(c):
+            with write_tx(c):
+                c.execute(
+                    "UPDATE freigabe_pools SET name=?, beschreibung=?, aktiv=? WHERE id=?",
+                    (name, beschreibung, aktiv, pool_id),
+                )
+                c.execute("DELETE FROM freigabe_pool_members WHERE pool_id = ?", (pool_id,))
+                for pid in member_ids:
+                    c.execute(
+                        "INSERT OR IGNORE INTO freigabe_pool_members (pool_id, person_id) VALUES (?, ?)",
+                        (pool_id, pid),
+                    )
+
+        try:
+            get_writer().submit(_do, wait=True)
+            flash("Pool gespeichert.", "success")
+        except Exception as exc:
+            flash(f"Speichern fehlgeschlagen: {exc}", "error")
+        return redirect(url_for("admin.edit_pool", pool_id=pool_id))
+
+    members = db.execute("""
+        SELECT p.id, p.kuerzel, p.nachname, p.vorname
+        FROM persons p
+        JOIN freigabe_pool_members m ON m.person_id = p.id
+        WHERE m.pool_id = ?
+        ORDER BY p.nachname, p.vorname
+    """, (pool_id,)).fetchall()
+    member_ids = {m["id"] for m in members}
+    alle_personen = db.execute(
+        "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+    ).fetchall()
+    return render_template("admin/pool_edit.html",
+                           pool=pool, members=members, member_ids=member_ids,
+                           alle_personen=alle_personen)
+
+
+@bp.route("/pools/<int:pool_id>/loeschen", methods=["POST"])
+@admin_required
+def delete_pool(pool_id):
+    db   = get_db()
+    pool = db.execute("SELECT name FROM freigabe_pools WHERE id = ?", (pool_id,)).fetchone()
+    if not pool:
+        flash("Pool nicht gefunden.", "error")
+        return redirect(url_for("admin.list_pools"))
+
+    in_use = db.execute(
+        "SELECT 1 FROM idv_freigaben WHERE pool_id = ? LIMIT 1", (pool_id,)
+    ).fetchone()
+    if in_use:
+        flash("Pool ist noch an aktive Freigabe-Schritte gebunden und kann nicht gelöscht werden.", "error")
+        return redirect(url_for("admin.list_pools"))
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM freigabe_pool_members WHERE pool_id = ?", (pool_id,))
+            c.execute("DELETE FROM freigabe_pools WHERE id = ?", (pool_id,))
+
+    get_writer().submit(_do, wait=True)
+    flash(f"Pool '{pool['name']}' gelöscht.", "success")
+    return redirect(url_for("admin.list_pools"))

@@ -14,6 +14,12 @@
       </a>
     </li>
     <li class="nav-item">
+      <a href="{{ url_for('admin.list_pools') }}"
+         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.list_pools','admin.edit_pool') %}active{% endif %}">
+        <i class="bi bi-people-fill me-1"></i>Freigabe-Pools
+      </a>
+    </li>
+    <li class="nav-item">
       <a href="{{ url_for('admin.scanner_einstellungen') }}"
          class="nav-link py-1 px-3 {% if request.endpoint in ('admin.scanner_einstellungen','admin.teams_einstellungen') %}active{% endif %}">
         <i class="bi bi-search me-1"></i>Scanner
