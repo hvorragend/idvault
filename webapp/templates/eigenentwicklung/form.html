@@ -6,6 +6,10 @@
 {% endblock %}
 
 {% block content %}
+{% if idv %}
+<div class="row g-4">
+<div class="col-lg-8">
+{% endif %}
 {# ── Hash-Dubletten-Warnung (P4: Auto-Gruppierung) – außerhalb der Haupt-Form, ─────
    da sie eine eigene Form (Verknüpfen) enthält und Form-Verschachtelung ungültig ist. #}
 {% if hash_duplikate %}
@@ -110,7 +114,8 @@
 
   <!-- ── Buttons oben ─────────────────────────────────────────── -->
   <div class="d-flex justify-content-between mb-3">
-    <a href="{{ url_for('eigenentwicklung.list_idv') }}" class="btn btn-outline-secondary" data-esc-cancel>
+    <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) if idv else url_for('eigenentwicklung.list_idv') }}"
+       class="btn btn-outline-secondary" data-esc-cancel>
       <i class="bi bi-arrow-left me-1"></i>Abbrechen
     </a>
     <div class="d-flex gap-2">
@@ -657,7 +662,8 @@
 
   <!-- ── Speichern ─────────────────────────────────────────────── -->
   <div class="d-flex justify-content-between">
-    <a href="{{ url_for('eigenentwicklung.list_idv') }}" class="btn btn-outline-secondary" data-esc-cancel>
+    <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) if idv else url_for('eigenentwicklung.list_idv') }}"
+       class="btn btn-outline-secondary" data-esc-cancel>
       <i class="bi bi-arrow-left me-1"></i>Abbrechen
     </a>
     <div class="d-flex gap-2">
@@ -680,6 +686,12 @@
   </div>
 
 </form>
+
+{% if idv %}
+</div><!-- /col-lg-8 -->
+{% include 'eigenentwicklung/_sidebar.html' %}
+</div><!-- /row -->
+{% endif %}
 
 {# U-C3: Smart-Default-Inferenz. Beim Typ-Wechsel werden Entwicklungsart
    und Prüfintervall automatisch vorgeschlagen – aber nur, wenn der Benutzer

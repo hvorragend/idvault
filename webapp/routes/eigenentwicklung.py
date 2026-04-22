@@ -1155,7 +1155,19 @@ def edit_idv(idv_db_id):
     db  = get_db()
     # VULN-E: einheitlicher Ownership-Guard.
     ensure_can_write_idv(db, idv_db_id)
-    idv = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
+    idv = db.execute("""
+        SELECT r.*,
+          p_fv.nachname || ', ' || p_fv.vorname AS fachverantwortlicher,
+          p_en.nachname || ', ' || p_en.vorname AS entwickler,
+          ou.bezeichnung AS org_einheit,
+          v.pruefstatus, v.naechste_pruefung, v.letzte_pruefung
+        FROM idv_register r
+        LEFT JOIN v_idv_uebersicht v ON v.idv_id = r.idv_id
+        LEFT JOIN persons p_fv ON r.fachverantwortlicher_id = p_fv.id
+        LEFT JOIN persons p_en ON r.idv_entwickler_id = p_en.id
+        LEFT JOIN org_units ou ON r.org_unit_id = ou.id
+        WHERE r.id = ?
+    """, (idv_db_id,)).fetchone()
     if not idv:
         flash("Eigenentwicklung nicht gefunden.", "error")
         return redirect(url_for("eigenentwicklung.list_idv"))
@@ -1190,10 +1202,147 @@ def edit_idv(idv_db_id):
             d["id"] for d in row.get("details") or [] if d.get("gewaehlt")
         ]
         wesentlichkeit_antworten[row["kriterium_id"]] = ant
-    return render_template("eigenentwicklung/form.html", idv=idv, fund=None, prefill={},
-                           wesentlichkeit_antworten=wesentlichkeit_antworten,
-                           can_write=can_write(),
-                           **_form_lookups(db))
+
+    file = db.execute(
+        "SELECT * FROM idv_files WHERE id=?", (idv["file_id"],)
+    ).fetchone() if idv["file_id"] else None
+
+    try:
+        extra_files = db.execute("""
+            SELECT f.*, lnk.id AS link_id, lnk.linked_at
+            FROM idv_file_links lnk JOIN idv_files f ON f.id = lnk.file_id
+            WHERE lnk.idv_db_id = ? ORDER BY lnk.linked_at
+        """, (idv_db_id,)).fetchall()
+    except Exception:
+        extra_files = []
+
+    _raw_history = db.execute("""
+        SELECT h.*, COALESCE(p.nachname||', '||p.vorname, h.bearbeiter_name) AS person
+        FROM idv_history h LEFT JOIN persons p ON h.durchgefuehrt_von_id = p.id
+        WHERE h.idv_id = ? ORDER BY h.durchgefuehrt_am DESC LIMIT 50
+    """, (idv_db_id,)).fetchall()
+    _FELD_LABELS = {
+        "bezeichnung":"Bezeichnung","version":"Version","idv_typ":"Typ",
+        "entwicklungsart":"Art","status":"Status",
+        "fachverantwortlicher_id":"Fachverantwortlicher",
+        "idv_entwickler_id":"Entwickler","org_unit_id":"Org.-Einheit",
+        "gp_id":"Geschäftsprozess","naechste_pruefung":"Nächste Prüfung",
+        "pruefintervall_monate":"Prüfintervall","teststatus":"Teststatus",
+    }
+    history = []
+    for h in _raw_history:
+        row = dict(h)
+        row["aenderungen_summary"] = ""
+        if h["geaenderte_felder"]:
+            try:
+                chg = json.loads(h["geaenderte_felder"])
+                row["aenderungen_summary"] = ", ".join(
+                    _FELD_LABELS.get(k, k) for k in chg)
+            except Exception:
+                pass
+        history.append(row)
+
+    massnahmen = db.execute("""
+        SELECT m.*, p.nachname||', '||p.vorname AS verantwortlicher,
+               CASE WHEN m.faellig_am < date('now')
+                         AND m.status IN ('Offen','In Bearbeitung')
+                    THEN 'ÜBERFÄLLIG' ELSE 'OK' END AS faelligkeitsstatus
+        FROM massnahmen m LEFT JOIN persons p ON m.verantwortlicher_id = p.id
+        WHERE m.idv_id = ? ORDER BY m.faellig_am ASC
+    """, (idv_db_id,)).fetchall()
+
+    wesentlichkeit    = get_idv_wesentlichkeit(db, idv_db_id)
+    ist_wesentlich    = any(k["erfuellt"] for k in wesentlichkeit)
+
+    vorgaenger = None
+    if idv["vorgaenger_idv_id"]:
+        vorgaenger = db.execute(
+            "SELECT id,idv_id,bezeichnung,version,status "
+            "FROM idv_register WHERE id=?",
+            (idv["vorgaenger_idv_id"],)
+        ).fetchone()
+    nachfolger = db.execute(
+        """SELECT id,idv_id,bezeichnung,version,status,
+                  letzte_aenderungsart,letzte_aenderungsbegruendung
+           FROM idv_register WHERE vorgaenger_idv_id=?""",
+        (idv_db_id,)
+    ).fetchall()
+
+    try:
+        freigaben = db.execute("""
+            SELECT f.*,
+                   p_b.nachname||', '||p_b.vorname AS beauftragt_von,
+                   p_d.nachname||', '||p_d.vorname AS durchgefuehrt_von,
+                   p_z.nachname||', '||p_z.vorname AS zugewiesen_an,
+                   pool.name AS pool_name
+            FROM idv_freigaben f
+            LEFT JOIN persons p_b ON f.beauftragt_von_id    = p_b.id
+            LEFT JOIN persons p_d ON f.durchgefuehrt_von_id = p_d.id
+            LEFT JOIN persons p_z ON f.zugewiesen_an_id     = p_z.id
+            LEFT JOIN freigabe_pools pool ON f.pool_id      = pool.id
+            WHERE f.idv_id = ? ORDER BY f.erstellt_am
+        """, (idv_db_id,)).fetchall()
+    except Exception:
+        freigaben = []
+
+    freigabe_persons = db.execute(
+        "SELECT id,nachname,vorname,rolle FROM persons "
+        "WHERE aktiv=1 ORDER BY nachname"
+    ).fetchall()
+    try:
+        freigabe_pools = db.execute(
+            "SELECT id,name FROM freigabe_pools WHERE aktiv=1 ORDER BY name"
+        ).fetchall()
+    except Exception:
+        freigabe_pools = []
+
+    _PHASE_1 = ["Fachlicher Test","Technischer Test"]
+    _PHASE_2 = ["Fachliche Abnahme","Technische Abnahme"]
+    _PHASE_3 = ["Archivierung Originaldatei"]
+    phase1_schritte  = [f for f in freigaben if f["schritt"] in _PHASE_1]
+    phase2_schritte  = [f for f in freigaben if f["schritt"] in _PHASE_2]
+    phase3_schritte  = [f for f in freigaben if f["schritt"] in _PHASE_3]
+    phase1_gestartet = len(phase1_schritte) > 0
+    phase1_erledigt  = (
+        {f["schritt"] for f in phase1_schritte if f["status"]=="Erledigt"}
+        == set(_PHASE_1)
+    )
+    phase2_gestartet = len(phase2_schritte) > 0
+    phase2_erledigt  = (
+        {f["schritt"] for f in phase2_schritte if f["status"]=="Erledigt"}
+        == set(_PHASE_2)
+    )
+    phase3_gestartet = len(phase3_schritte) > 0
+    hat_offenen_schritt = any(
+        f["status"] == "Ausstehend" and f["schritt"] not in _PHASE_3
+        for f in freigaben
+    )
+    fachliche_testfaelle = get_fachliche_testfaelle(db, idv_db_id)
+    technischer_test     = get_technischer_test(db, idv_db_id)
+    fachlich_vorhanden   = bool(fachliche_testfaelle)
+    technisch_vorhanden  = technischer_test is not None
+
+    return render_template("eigenentwicklung/form.html",
+        idv=idv, fund=None, prefill={},
+        wesentlichkeit_antworten=wesentlichkeit_antworten,
+        can_write=can_write(), can_create=can_create(),
+        file=file, extra_files=extra_files, history=history,
+        massnahmen=massnahmen,
+        wesentlichkeit=wesentlichkeit, ist_wesentlich=ist_wesentlich,
+        vorgaenger=vorgaenger, nachfolger=nachfolger,
+        freigaben=freigaben,
+        freigabe_persons=freigabe_persons, freigabe_pools=freigabe_pools,
+        phase1_gestartet=phase1_gestartet, phase1_erledigt=phase1_erledigt,
+        phase2_gestartet=phase2_gestartet, phase2_erledigt=phase2_erledigt,
+        phase3_gestartet=phase3_gestartet,
+        hat_offenen_schritt=hat_offenen_schritt,
+        teststatus_werte=_TESTSTATUS_WERTE,
+        fachliche_testfaelle=fachliche_testfaelle,
+        technischer_test=technischer_test,
+        fachlich_vorhanden=fachlich_vorhanden,
+        technisch_vorhanden=technisch_vorhanden,
+        entwicklungsart_label=ENTWICKLUNGSART_LABEL,
+        **_form_lookups(db))
 
 
 # ── Status ─────────────────────────────────────────────────────────────────
