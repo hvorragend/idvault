@@ -2,6 +2,10 @@
 {% block title %}Administration – E-Mail{% endblock %}
 {% block page_title %}<i class="bi bi-gear me-2"></i>Administration{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/quill-1.3.7/quill.snow.css') }}">
+{% endblock %}
+
 {% block content %}
 {% include 'admin/_subnav.html' %}
 
@@ -183,9 +187,16 @@
                              value="{{ settings.get(subj_key) or default_subj }}">
                     </div>
                     <div class="mb-2">
-                      <label class="form-label form-label-sm fw-600" id="body-label-{{ tpl_key }}">
-                        {% if cur_mode == 'text' %}Text-Inhalt{% else %}HTML-Inhalt{% endif %}
-                      </label>
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label form-label-sm fw-600 mb-0" id="body-label-{{ tpl_key }}">
+                          {% if cur_mode == 'text' %}Text-Inhalt{% else %}HTML-Inhalt{% endif %}
+                        </label>
+                        <button type="button"
+                                class="btn btn-xs btn-outline-primary open-quill-btn{% if cur_mode == 'text' %} d-none{% endif %}"
+                                id="quill-btn-{{ tpl_key }}" data-tpl="{{ tpl_key }}">
+                          <i class="bi bi-pencil-square me-1"></i>Im Editor öffnen
+                        </button>
+                      </div>
                       <textarea name="{{ body_key }}" class="form-control form-control-sm tpl-body-textarea" rows="8"
                                 id="body-{{ tpl_key }}"
                                 data-tpl="{{ tpl_key }}"
@@ -293,40 +304,76 @@
 
 </div>
 
+<!-- ── Quill WYSIWYG-Modal ───────────────────────────────────────────────── -->
+<div class="modal fade" id="quill-modal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-600"><i class="bi bi-pencil-square me-2"></i>E-Mail-Inhalt bearbeiten</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info py-2 mb-2" style="font-size:.8rem">
+          <i class="bi bi-info-circle me-1"></i>
+          Der Editor eignet sich für einfache Textformatierung. Komplexe HTML-Elemente
+          (Tabellen, inline&nbsp;CSS) werden vereinfacht dargestellt – der originale
+          HTML-Quelltext im Textfeld bleibt unberührt bis Sie <strong>Übernehmen</strong> klicken.
+        </div>
+        <div id="quill-editor" style="min-height:320px;font-size:14px"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="button" class="btn btn-sm btn-primary" id="quill-apply-btn">
+          <i class="bi bi-check-lg me-1"></i>HTML übernehmen
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-// Modus-Toggle: HTML ↔ Nur Text
+// ── Modus-Toggle: HTML ↔ Nur Text ────────────────────────────────────────────
 document.addEventListener('change', function (ev) {
-  var radio = ev.target.closest('.tpl-mode-radio');
+  var radio    = ev.target.closest('.tpl-mode-radio');
   if (!radio) return;
   var tpl      = radio.dataset.tpl;
   var mode     = radio.value;
   var bodyEl   = document.getElementById('body-' + tpl);
   var hintEl   = document.getElementById('mode-hint-' + tpl);
   var labelEl  = document.getElementById('body-label-' + tpl);
+  var quillBtn = document.getElementById('quill-btn-' + tpl);
 
   if (mode === 'text') {
     bodyEl.style.fontFamily = 'inherit';
-    if (hintEl)  hintEl.textContent = 'Einfacher Text, kein HTML nötig.';
-    if (labelEl) labelEl.textContent = 'Text-Inhalt';
-    // Wenn aktuell HTML im Textarea steht: anbieten, Tags zu entfernen
+    if (hintEl)   hintEl.textContent  = 'Einfacher Text, kein HTML nötig.';
+    if (labelEl)  labelEl.textContent = 'Text-Inhalt';
+    if (quillBtn) quillBtn.classList.add('d-none');
     var cur = bodyEl.value;
     if (/<[a-z][\s\S]*>/i.test(cur)) {
-      var stripped = cur
+      bodyEl.dataset.savedHtml = cur;   // Original-HTML sichern
+      bodyEl.value = cur
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/?(p|div|h[1-6]|li|tr|td|th)[^>]*>/gi, '\n')
         .replace(/<[^>]+>/g, '')
-        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-        .replace(/\n{3,}/g, '\n\n').trim();
-      bodyEl.value = stripped || radio.dataset.defaultText || '';
+        .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'")
+        .replace(/\n{3,}/g, '\n\n').trim()
+        || radio.dataset.defaultText || '';
     }
   } else {
     bodyEl.style.fontFamily = 'monospace';
-    if (hintEl)  hintEl.textContent = 'HTML-Markup möglich.';
-    if (labelEl) labelEl.textContent = 'HTML-Inhalt';
+    if (hintEl)   hintEl.textContent  = 'HTML-Markup möglich.';
+    if (labelEl)  labelEl.textContent = 'HTML-Inhalt';
+    if (quillBtn) quillBtn.classList.remove('d-none');
+    // Original-HTML wiederherstellen, falls der User noch nichts im Text-Modus geändert hat
+    if (bodyEl.dataset.savedHtml !== undefined) {
+      bodyEl.value = bodyEl.dataset.savedHtml;
+      delete bodyEl.dataset.savedHtml;
+    }
   }
 });
 
-// VULN-K: Event-Delegation für die "Auf Standard zurücksetzen"-Buttons.
+// ── "Auf Standard zurücksetzen" ──────────────────────────────────────────────
+// VULN-K: Schlüssel per data-Attribut statt Jinja-Interpolation in onclick.
 document.addEventListener('click', function (ev) {
   var btn = ev.target.closest('.mail-reset-btn');
   if (!btn) return;
@@ -339,8 +386,8 @@ document.addEventListener('click', function (ev) {
   var bodyEl   = body.querySelector('textarea[name="' + bodyKey + '"]');
   var modeHtml = body.querySelector('input[name="' + modeKey + '"][value="html"]');
 
-  if (subj)     subj.value = '';
-  if (bodyEl)   bodyEl.value = '';
+  if (subj)   subj.value = '';
+  if (bodyEl) { bodyEl.value = ''; delete bodyEl.dataset.savedHtml; }
   if (modeHtml && !modeHtml.checked) {
     modeHtml.checked = true;
     modeHtml.dispatchEvent(new Event('change', {bubbles: true}));
@@ -348,7 +395,7 @@ document.addEventListener('click', function (ev) {
   btn.remove();
 });
 
-// SMTP-Test
+// ── SMTP-Test ────────────────────────────────────────────────────────────────
 document.getElementById('smtp-test-btn').addEventListener('click', function () {
   var email  = document.getElementById('smtp-test-email').value.trim();
   var result = document.getElementById('smtp-test-result');
@@ -406,5 +453,47 @@ function _esc(s) {
 <style>
   .fw-600 { font-weight: 600; }
   .btn-xs { font-size: .75rem; line-height: 1.4; }
+  #quill-editor .ql-editor { font-family: Arial, sans-serif; font-size: 14px; min-height: 280px; }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/quill-1.3.7/quill.min.js') }}"></script>
+<script>
+// ── Quill WYSIWYG-Modal ───────────────────────────────────────────────────────
+var _quill       = null;
+var _quillTarget = null;
+
+document.addEventListener('click', function (ev) {
+  var btn = ev.target.closest('.open-quill-btn');
+  if (!btn) return;
+  _quillTarget = document.getElementById('body-' + btn.dataset.tpl);
+
+  // Quill-Container zurücksetzen und neu erstellen
+  var container = document.getElementById('quill-editor');
+  container.innerHTML = '';
+  _quill = new Quill(container, {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        [{ color: [] }, { background: [] }],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link', 'blockquote'],
+        ['clean']
+      ]
+    }
+  });
+  _quill.clipboard.dangerouslyPasteHTML(_quillTarget.value || '');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('quill-modal')).show();
+});
+
+document.getElementById('quill-apply-btn').addEventListener('click', function () {
+  if (_quill && _quillTarget) {
+    _quillTarget.value = _quill.root.innerHTML;
+  }
+  bootstrap.Modal.getInstance(document.getElementById('quill-modal')).hide();
+});
+</script>
 {% endblock %}
