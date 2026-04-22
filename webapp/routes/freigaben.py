@@ -22,7 +22,7 @@ Statuswerte (idv_freigaben.status):
 import hashlib
 import os
 from flask import (Blueprint, request, flash, redirect, url_for, abort,
-                   session, current_app, send_from_directory, render_template)
+                   session, current_app, send_from_directory, send_file, render_template)
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 from . import login_required, own_write_required, admin_required, get_db, current_person_id
@@ -546,9 +546,11 @@ def erledigt_seite(freigabe_id):
 
     # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend, sonst Lesemodus
     readonly = freigabe["status"] != "Ausstehend"
+    scanner_dateien = _verfuegbare_scanner_dateien(db, idv["id"]) if not readonly else []
     return render_template("freigaben/bestanden_form.html",
                            freigabe=freigabe, idv=idv, readonly=readonly,
-                           vertreter_name=vertreter_name, persons=persons)
+                           vertreter_name=vertreter_name, persons=persons,
+                           scanner_dateien=scanner_dateien)
 
 
 # ---------------------------------------------------------------------------
@@ -599,6 +601,13 @@ def abschliessen(freigabe_id):
             nachweis_pfad, nachweis_name = saved, orig
         else:
             flash("Ungültiges Dateiformat für Nachweis-Upload.", "warning")
+    elif request.form.get("scanner_file_id"):
+        sf_id = _int_or_none(request.form.get("scanner_file_id"))
+        if sf_id:
+            sf = db.execute("SELECT file_name FROM idv_files WHERE id=?", (sf_id,)).fetchone()
+            if sf:
+                nachweis_pfad = f"scanner:{sf_id}"
+                nachweis_name = sf["file_name"]
 
     schritt = freigabe["schritt"]
 
@@ -1286,6 +1295,23 @@ def nachweis_download(freigabe_id):
     if not row or not row["pfad"]:
         abort(404)
     ensure_can_read_idv(db, row["idv_db_id"])
+
+    # Referenz auf Scanner-Datei (gespeichert als "scanner:{id}")
+    if row["pfad"].startswith("scanner:"):
+        try:
+            sf_id = int(row["pfad"][8:])
+        except ValueError:
+            abort(404)
+        sf = db.execute(
+            "SELECT full_path, file_name FROM idv_files WHERE id=?", (sf_id,)
+        ).fetchone()
+        if not sf or not sf["full_path"]:
+            abort(404)
+        return send_file(
+            sf["full_path"],
+            as_attachment=True,
+            download_name=row["name"] or sf["file_name"],
+        )
 
     # Letzter Defense-in-Depth-Check: der gespeicherte Pfad darf nur ein
     # reiner Dateiname sein – keine ``../``-Traversals aus Altbeständen.

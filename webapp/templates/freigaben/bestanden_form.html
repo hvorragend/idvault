@@ -129,10 +129,72 @@
 
           <div class="col-12">
             <label class="form-label fw-500">Nachweis-Datei <span class="text-muted fw-normal">(optional)</span></label>
-            <input type="file" name="nachweis_datei" class="form-control"
+            {% if scanner_dateien %}
+            <div class="mb-2">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="text-muted" style="font-size:.82rem">Aus verknüpften Scanner-Dateien wählen:</span>
+              </div>
+              <div class="d-flex flex-wrap gap-2" id="scanner-file-pills">
+                {% for sf in scanner_dateien %}
+                <button type="button" class="btn btn-sm btn-outline-secondary scanner-file-btn"
+                        data-sf-id="{{ sf.id }}" data-sf-name="{{ sf.file_name | e }}"
+                        title="{{ sf.full_path | e }}">
+                  <i class="bi bi-file-earmark me-1"></i>{{ sf.file_name }}
+                </button>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="scanner_file_id" id="scanner_file_id_val">
+              <div id="scanner-file-selected" class="mt-1 text-success" style="font-size:.82rem;display:none">
+                <i class="bi bi-check2-circle me-1"></i>
+                <span id="scanner-file-selected-name"></span>
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-muted"
+                        id="scanner-file-clear" style="font-size:.75rem">× Auswahl aufheben</button>
+              </div>
+              <div class="form-text mt-1">– oder Datei direkt hochladen:</div>
+            </div>
+            {% endif %}
+            <input type="file" name="nachweis_datei" id="nachweis_datei_upload" class="form-control"
               accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
             <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
           </div>
+          {% if scanner_dateien %}
+          <script>
+          (function () {
+            var pills = document.querySelectorAll('.scanner-file-btn');
+            var hiddenId = document.getElementById('scanner_file_id_val');
+            var selectedBox = document.getElementById('scanner-file-selected');
+            var selectedName = document.getElementById('scanner-file-selected-name');
+            var clearBtn = document.getElementById('scanner-file-clear');
+            var uploadField = document.getElementById('nachweis_datei_upload');
+
+            pills.forEach(function (btn) {
+              btn.addEventListener('click', function () {
+                pills.forEach(function (b) { b.classList.remove('btn-secondary'); b.classList.add('btn-outline-secondary'); });
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-secondary');
+                hiddenId.value = btn.dataset.sfId;
+                selectedName.textContent = btn.dataset.sfName;
+                selectedBox.style.display = '';
+                uploadField.value = '';
+              });
+            });
+
+            clearBtn.addEventListener('click', function () {
+              pills.forEach(function (b) { b.classList.remove('btn-secondary'); b.classList.add('btn-outline-secondary'); });
+              hiddenId.value = '';
+              selectedBox.style.display = 'none';
+            });
+
+            uploadField.addEventListener('change', function () {
+              if (uploadField.files.length) {
+                pills.forEach(function (b) { b.classList.remove('btn-secondary'); b.classList.add('btn-outline-secondary'); });
+                hiddenId.value = '';
+                selectedBox.style.display = 'none';
+              }
+            });
+          })();
+          </script>
+          {% endif %}
 
         </div>
       </div>

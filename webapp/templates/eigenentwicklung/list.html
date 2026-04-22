@@ -339,16 +339,82 @@
     }
     rowChecks().forEach(c => c.addEventListener('change', updateBulkUI));
 
+    // ── Vorschau-Modal (U-QW4 + U-QW5) ──────────────────────────────────────
+    let _onConfirm = null;
+    const modal = document.getElementById('bulk-preview-modal');
+    const modalBackdrop = document.getElementById('bulk-modal-backdrop');
+    document.getElementById('bulk-modal-cancel').addEventListener('click', () => {
+      modalBackdrop.style.display = 'none';
+    });
+    document.getElementById('bulk-modal-confirm').addEventListener('click', () => {
+      modalBackdrop.style.display = 'none';
+      if (typeof _onConfirm === 'function') _onConfirm();
+    });
+    modalBackdrop.addEventListener('click', e => {
+      if (e.target === modalBackdrop) modalBackdrop.style.display = 'none';
+    });
+
+    function showBulkModal({ title, body, confirmLabel, confirmVariant, onConfirm }) {
+      document.getElementById('bulk-modal-title').textContent = title;
+      document.getElementById('bulk-modal-body').innerHTML = body;
+      const btn = document.getElementById('bulk-modal-confirm');
+      btn.textContent = confirmLabel || 'Bestätigen';
+      btn.className = 'btn btn-sm ' + (confirmVariant || 'btn-primary');
+      _onConfirm = onConfirm;
+      modalBackdrop.style.display = 'flex';
+    }
+
+    function selectedNames() {
+      return [...rowChecks()].filter(c => c.checked).map(c => {
+        const row = c.closest('tr');
+        const nameCell = row ? row.querySelector('td:nth-child(2) a') : null;
+        return nameCell ? nameCell.textContent.trim() : '(unbekannt)';
+      });
+    }
+
     window.confirmBulkDelete = function () {
-      const n = [...rowChecks()].filter(c => c.checked).length;
-      return confirm(`${n} Eigenentwicklung(en) unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`);
+      const names = selectedNames();
+      if (!names.length) return false;
+      showBulkModal({
+        title: `${names.length} Eigenentwicklung(en) löschen`,
+        body: `<div class="alert alert-danger py-2 mb-2" style="font-size:.85rem">
+                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                 <strong>Unwiderruflich!</strong> Alle verknüpften Prüfungen, Maßnahmen,
+                 Freigaben und Dateiverknüpfungen werden ebenfalls gelöscht.
+               </div>
+               <ul style="font-size:.88rem;max-height:200px;overflow-y:auto;padding-left:1.2rem">
+                 ${names.map(n => `<li>${n.replace(/</g,'&lt;')}</li>`).join('')}
+               </ul>`,
+        confirmLabel: `${names.length} Einträge löschen`,
+        confirmVariant: 'btn-danger',
+        onConfirm: () => {
+          document.getElementById('btn-bulk-delete').closest('form').submit();
+        }
+      });
+      return false;
     };
 
     window.confirmBulkStatus = function () {
       const sel = document.getElementById('bulk-status-select');
       if (!sel || !sel.value) { alert('Bitte zuerst einen Zielstatus wählen.'); return false; }
-      const n = [...rowChecks()].filter(c => c.checked).length;
-      return confirm(`Status von ${n} Eigenentwicklung(en) auf „${sel.value}" setzen?`);
+      const names = selectedNames();
+      if (!names.length) return false;
+      showBulkModal({
+        title: `Status ändern: → „${sel.value}"`,
+        body: `<p style="font-size:.88rem;color:#374151">
+                 Folgende ${names.length} Eigenentwicklung(en) erhalten den Status
+                 <strong>${sel.value.replace(/</g,'&lt;')}</strong>:
+               </p>
+               <ul style="font-size:.88rem;max-height:200px;overflow-y:auto;padding-left:1.2rem">
+                 ${names.map(n => `<li>${n.replace(/</g,'&lt;')}</li>`).join('')}
+               </ul>`,
+        confirmLabel: `${names.length} Einträge ändern`,
+        confirmVariant: 'btn-primary',
+        onConfirm: () => {
+          document.getElementById('btn-bulk-status').closest('form').submit();
+        }
+      });
+      return false;
     };
   })();
 </script>
@@ -414,4 +480,21 @@
     }
   })();
 </script>
+
+<!-- U-QW4 + U-QW5: Bulk-Bestätigungs-Modal ──────────────────────────── -->
+<div id="bulk-modal-backdrop"
+     style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:1055;
+            background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
+  <div id="bulk-preview-modal"
+       style="background:#fff;border-radius:10px;padding:1.5rem;
+              min-width:360px;max-width:min(560px,95vw);max-height:80vh;overflow-y:auto;
+              box-shadow:0 20px 60px rgba(0,0,0,.25);">
+    <h6 id="bulk-modal-title" class="mb-3"></h6>
+    <div id="bulk-modal-body" class="mb-3"></div>
+    <div class="d-flex gap-2 justify-content-end">
+      <button id="bulk-modal-cancel" class="btn btn-outline-secondary btn-sm">Abbrechen</button>
+      <button id="bulk-modal-confirm" class="btn btn-sm btn-primary"></button>
+    </div>
+  </div>
+</div>
 {% endblock %}

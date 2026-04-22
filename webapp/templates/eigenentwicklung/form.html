@@ -222,18 +222,18 @@
         var _gpList = [
           {% for gp in geschaeftsprozesse %}
         {
-        id: { { gp.id } },
-        nr: "{{ gp.gp_nummer | e }}",
+          id: {{ gp.id }},
+          nr: "{{ gp.gp_nummer | e }}",
           bez: "{{ gp.bezeichnung | e }}",
-            kritisch: { { 1 if gp.ist_kritisch else 0 } },
-        wesentlich: { { 1 if gp.ist_wesentlich else 0 } }
-      },
-      {% endfor %}
+          kritisch: {{ 1 if gp.ist_kritisch else 0 }},
+          wesentlich: {{ 1 if gp.ist_wesentlich else 0 }}
+        },
+        {% endfor %}
       ];
       var _gpSchutz = {
         {% for gp in geschaeftsprozesse %}
-      { { gp.id } }: { a: "{{ gp.schutzbedarf_a or '' }}", c: "{{ gp.schutzbedarf_c or '' }}", i: "{{ gp.schutzbedarf_i or '' }}", n: "{{ gp.schutzbedarf_n or '' }}" },
-      {% endfor %}
+        {{ gp.id }}: { a: "{{ gp.schutzbedarf_a or '' }}", c: "{{ gp.schutzbedarf_c or '' }}", i: "{{ gp.schutzbedarf_i or '' }}", n: "{{ gp.schutzbedarf_n or '' }}" },
+        {% endfor %}
       };
 
       // ── Elements ───────────────────────────────────────────────────
