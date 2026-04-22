@@ -511,18 +511,18 @@
                   {% if not f and can_create %}
                   {# Freigabe-Schritt wurde gelöscht → Anlage anbieten #}
                   <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
-                    class="d-flex align-items-center gap-1 flex-wrap">
+                    class="d-flex flex-column gap-1 w-100">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="schritt" value="{{ schritt_name }}">
                     {% if freigabe_pools %}
-                    <select name="pool_id" class="form-select form-select-sm" style="max-width:160px" title="Optional: Pool zuweisen">
+                    <select name="pool_id" class="form-select form-select-sm" title="Optional: Pool zuweisen">
                       <option value="">Kein Pool</option>
                       {% for pool in freigabe_pools %}
                       <option value="{{ pool.id }}">{{ pool.name }}</option>
                       {% endfor %}
                     </select>
                     {% endif %}
-                    <button type="submit" class="btn btn-xs btn-primary">
+                    <button type="submit" class="btn btn-xs btn-primary align-self-start">
                       <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
                     </button>
                   </form>
@@ -633,18 +633,18 @@
                   {% if not f and can_create %}
                   {# Abnahme-Schritt wurde gelöscht → Anlage anbieten #}
                   <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
-                    class="d-flex align-items-center gap-1 flex-wrap">
+                    class="d-flex flex-column gap-1 w-100">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="schritt" value="{{ schritt_name }}">
                     {% if freigabe_pools %}
-                    <select name="pool_id" class="form-select form-select-sm" style="max-width:160px" title="Optional: Pool zuweisen">
+                    <select name="pool_id" class="form-select form-select-sm" title="Optional: Pool zuweisen">
                       <option value="">Kein Pool</option>
                       {% for pool in freigabe_pools %}
                       <option value="{{ pool.id }}">{{ pool.name }}</option>
                       {% endfor %}
                     </select>
                     {% endif %}
-                    <button type="submit" class="btn btn-xs btn-primary">
+                    <button type="submit" class="btn btn-xs btn-primary align-self-start">
                       <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
                     </button>
                   </form>
@@ -927,12 +927,20 @@
               </p>
               <div class="mb-2">
                 <label class="form-label fw-500">Weiterleiten an <span class="text-danger">*</span></label>
-                <select name="weiterleiten_an_id" class="form-select" required>
+                <select name="weiterleiten_an_id" class="form-select">
                   <option value="">– Person auswählen –</option>
                   {% for p in freigabe_persons %}
                   <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
                   {% endfor %}
                 </select>
+                {% if freigabe_pools %}
+                <select name="pool_id" class="form-select mt-2 text-muted">
+                  <option value="">– oder Pool zuweisen –</option>
+                  {% for pool in freigabe_pools %}
+                  <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
+                  {% endfor %}
+                </select>
+                {% endif %}
               </div>
             </div>
             <div class="modal-footer">

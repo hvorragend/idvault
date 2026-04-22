@@ -576,6 +576,13 @@ def erledigt_seite(freigabe_id):
         "SELECT id, nachname || ', ' || vorname AS name FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
 
+    try:
+        freigabe_pools = db.execute(
+            "SELECT id, name FROM freigabe_pools WHERE aktiv=1 ORDER BY name"
+        ).fetchall()
+    except Exception:
+        freigabe_pools = []
+
     # Phase 3: Archivierungs-Schritt → spezialisierte Maske
     if freigabe["schritt"] in _PHASE_3:
         readonly = freigabe["status"] != "Ausstehend"
@@ -583,7 +590,8 @@ def erledigt_seite(freigabe_id):
         return render_template("freigaben/archiv_form.html",
                                freigabe=freigabe, idv=idv, readonly=readonly,
                                scanner_dateien=scanner_dateien,
-                               vertreter_name=vertreter_name, persons=persons)
+                               vertreter_name=vertreter_name, persons=persons,
+                               freigabe_pools=freigabe_pools)
 
     # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend, sonst Lesemodus
     readonly = freigabe["status"] != "Ausstehend"
@@ -591,7 +599,8 @@ def erledigt_seite(freigabe_id):
     return render_template("freigaben/bestanden_form.html",
                            freigabe=freigabe, idv=idv, readonly=readonly,
                            vertreter_name=vertreter_name, persons=persons,
-                           scanner_dateien=scanner_dateien)
+                           scanner_dateien=scanner_dateien,
+                           freigabe_pools=freigabe_pools)
 
 
 # ---------------------------------------------------------------------------
@@ -1045,9 +1054,41 @@ def weiterleiten(freigabe_id):
     ensure_can_write_idv(db, idv_db_id)
 
     neuer_id = _int_or_none(request.form.get("weiterleiten_an_id"))
-    if not neuer_id:
-        flash("Bitte eine Person für die Weiterleitung auswählen.", "error")
+    pool_id  = _int_or_none(request.form.get("pool_id"))
+    if not neuer_id and not pool_id:
+        flash("Bitte eine Person oder einen Pool für die Weiterleitung auswählen.", "error")
         return redirect(url_for("freigaben.erledigt_seite", freigabe_id=freigabe_id))
+
+    schritt   = freigabe["schritt"]
+    user_name = session.get("user_name", "") or None
+
+    if pool_id:
+        pool = db.execute(
+            "SELECT name FROM freigabe_pools WHERE id=? AND aktiv=1", (pool_id,)
+        ).fetchone()
+        if not pool:
+            flash("Ausgewählter Pool nicht gefunden.", "error")
+            return redirect(url_for("freigaben.erledigt_seite", freigabe_id=freigabe_id))
+
+        ziel_name = f"Pool: {pool['name']}"
+
+        def _do(c):
+            with write_tx(c):
+                c.execute(
+                    "UPDATE idv_freigaben SET zugewiesen_an_id=NULL, pool_id=? WHERE id=?",
+                    (pool_id, freigabe_id)
+                )
+                c.execute(
+                    "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                    (idv_db_id, "freigabe_weitergeleitet",
+                     f"{schritt} weitergeleitet an {ziel_name}",
+                     person_id, user_name),
+                )
+
+        get_writer().submit(_do, wait=True)
+        _notify_schritte(db, idv_db_id, [schritt], {schritt: None})
+        flash(f"'{schritt}' wurde an {ziel_name} weitergeleitet.", "success")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     p = db.execute(
         "SELECT nachname, vorname FROM persons WHERE id=? AND aktiv=1", (neuer_id,)
@@ -1056,14 +1097,12 @@ def weiterleiten(freigabe_id):
         flash("Ausgewählte Person nicht gefunden.", "error")
         return redirect(url_for("freigaben.erledigt_seite", freigabe_id=freigabe_id))
 
-    schritt   = freigabe["schritt"]
     p_name    = f"{p['nachname']}, {p['vorname']}"
-    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
             c.execute(
-                "UPDATE idv_freigaben SET zugewiesen_an_id=? WHERE id=?",
+                "UPDATE idv_freigaben SET zugewiesen_an_id=?, pool_id=NULL WHERE id=?",
                 (neuer_id, freigabe_id)
             )
             c.execute(
