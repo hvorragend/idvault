@@ -35,16 +35,16 @@
       <input type="hidden" name="idv_db_id" value="{{ hash_duplikate[0].idv_db_id }}">
       <input type="hidden" name="file_ids" value="{{ prefill.file_id }}">
       {% for ef in extra_fonds %}<input type="hidden" name="file_ids" value="{{ ef.id }}">{% endfor %}
-      <button type="submit" class="btn btn-sm btn-warning">
-        <i class="bi bi-link-45deg me-1"></i>Mit {{ hash_duplikate[0].idv_id }} verknüpfen
+      <button type="submit" class="btn btn-sm btn-primary">
+        <i class="bi bi-link-45deg me-1"></i>Mit {{ hash_duplikate[0].idv_id }} verknüpfen (empfohlen)
       </button>
     </form>
-    <span class="text-muted ms-2" style="font-size:.8rem">oder unten trotzdem neu anlegen.</span>
+    <a href="#idv-form" class="ms-2 text-muted" style="font-size:.8rem">oder trotzdem neu anlegen ↓</a>
   </div>
 </div>
 {% endif %}
 
-<form method="post">
+<form id="idv-form" method="post" data-dirty-guard>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <!-- ── Scannerfund-Banner ───────────────────────────────────── -->

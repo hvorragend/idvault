@@ -897,6 +897,8 @@ def change_teststatus(idv_db_id):
     ensure_can_write_idv(db, idv_db_id)
     val = request.form.get("teststatus", "")
     if val not in _TESTSTATUS_WERTE:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify(ok=False, error="Ungültiger Teststatus."), 400
         flash("Ungültiger Teststatus.", "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
     person_id = session.get("person_id")
@@ -916,6 +918,8 @@ def change_teststatus(idv_db_id):
             )
 
     get_writer().submit(_do, wait=True)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify(ok=True, teststatus=val)
     flash(f"Teststatus geändert zu: {val}", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
