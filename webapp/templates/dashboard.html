@@ -106,6 +106,40 @@
   </div>
 </div>
 
+<!-- ── Meine Aufgaben (persönliche Inbox) ──────────────────────────── -->
+{% if meine_schritte %}
+<div class="card border-0 shadow-sm mb-4 border-start border-4 border-primary">
+  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-inbox-fill me-2 text-primary"></i>Meine offenen Freigabe-Schritte</span>
+    <span class="badge bg-primary">{{ meine_schritte|length }}</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0" style="font-size:.88rem">
+      <tbody>
+        {% for s in meine_schritte %}
+        <tr>
+          <td class="ps-3 py-2">
+            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=s.idv_db_id) }}" class="text-decoration-none text-muted fw-500">{{ s.idv_id }}</a>
+          </td>
+          <td class="py-2 text-truncate" style="max-width:220px" title="{{ s.bezeichnung }}">{{ s.bezeichnung }}</td>
+          <td class="py-2">
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary" style="font-size:.78rem">{{ s.schritt }}</span>
+            {% if s.als_vertreter %}<span class="badge bg-secondary ms-1" style="font-size:.72rem" title="Sie vertreten den regulären Bearbeiter">Vertretung</span>{% endif %}
+          </td>
+          <td class="py-2 pe-3 text-end">
+            <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=s.freigabe_id) }}"
+               class="btn btn-sm btn-primary">
+              <i class="bi bi-check2-circle me-1"></i>Öffnen
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <!-- ── Zwei-Spalten-Layout ─────────────────────────────────────────── -->
 <div class="row g-4">
 

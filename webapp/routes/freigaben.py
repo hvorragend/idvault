@@ -1342,7 +1342,11 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
         if not idv:
             return
 
-        from ..email_service import notify_freigabe_schritt
+        from ..email_service import notify_freigabe_schritt, get_app_base_url
+        from ..tokens import make_freigabe_token
+
+        secret_key = current_app.config["SECRET_KEY"]
+        base_url = get_app_base_url(db)
 
         for schritt in schritte:
             recipient_set = set()
@@ -1367,8 +1371,22 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
                     recipient_set.add(p["email"])
 
             recipients = list(recipient_set)
-            if recipients:
-                notify_freigabe_schritt(db, idv, schritt, recipients)
+            if not recipients:
+                continue
+
+            # Magic-Link generieren, wenn Freigabe-ID und App-URL bekannt
+            action_url = None
+            if base_url:
+                fr = db.execute(
+                    "SELECT id FROM idv_freigaben "
+                    "WHERE idv_db_id=? AND schritt=? AND status='Ausstehend'",
+                    (idv_db_id, schritt)
+                ).fetchone()
+                if fr:
+                    token = make_freigabe_token(secret_key, fr["id"])
+                    action_url = f"{base_url}/quick/freigabe/{fr['id']}?token={token}"
+
+            notify_freigabe_schritt(db, idv, schritt, recipients, action_url=action_url)
     except Exception as exc:
         # VULN-011: Benachrichtigungsfehler dürfen den Freigabe-Prozess nicht
         # blockieren, werden aber geloggt, damit SMTP-Konfigurationsfehler

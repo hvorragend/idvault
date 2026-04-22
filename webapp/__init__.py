@@ -427,18 +427,19 @@ def create_app(db_path: str = None) -> Flask:
             app.logger.warning("updates/db_migrate.py fehlgeschlagen: %s", _me)
 
     # Blueprints registrieren
-    from .routes.auth       import bp as auth_bp
-    from .routes.dashboard  import bp as dash_bp
+    from .routes.auth          import bp as auth_bp
+    from .routes.dashboard     import bp as dash_bp
     from .routes.eigenentwicklung import bp as eigenentwicklung_bp
-    from .routes.reviews    import bp as rev_bp
-    from .routes.measures   import bp as meas_bp
-    from .routes.admin      import bp as admin_bp
-    from .routes.funde      import bp as funde_bp
-    from .routes.reports    import bp as reports_bp
-    from .routes.freigaben  import bp as freigaben_bp
-    from .routes.tests      import bp as tests_bp
-    from .routes.cognos     import bp as cognos_bp
-    from .routes.info       import bp as info_bp
+    from .routes.reviews       import bp as rev_bp
+    from .routes.measures      import bp as meas_bp
+    from .routes.admin         import bp as admin_bp
+    from .routes.funde         import bp as funde_bp
+    from .routes.reports       import bp as reports_bp
+    from .routes.freigaben     import bp as freigaben_bp
+    from .routes.tests         import bp as tests_bp
+    from .routes.cognos        import bp as cognos_bp
+    from .routes.info          import bp as info_bp
+    from .routes.quick_actions import bp as quick_actions_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
@@ -452,6 +453,7 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(tests_bp)
     app.register_blueprint(cognos_bp)
     app.register_blueprint(info_bp)
+    app.register_blueprint(quick_actions_bp)
 
     # -----------------------------------------------------------------------
     # /healthz: öffentlicher JSON-Health-Check für Load-Balancer / Monitoring.
