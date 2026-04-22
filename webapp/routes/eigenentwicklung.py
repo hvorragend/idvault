@@ -492,6 +492,15 @@ def bulk_loeschen():
     def _do(c):
         with write_tx(c):
             for idv_db_id in existing_ids:
+                c.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus='Neu' "
+                    "WHERE bearbeitungsstatus='Registriert' AND id IN ("
+                    "  SELECT file_id FROM idv_register WHERE id=? AND file_id IS NOT NULL"
+                    "  UNION"
+                    "  SELECT file_id FROM idv_file_links WHERE idv_db_id=?"
+                    ")",
+                    (idv_db_id, idv_db_id),
+                )
                 c.execute("DELETE FROM idv_history        WHERE idv_id = ?", (idv_db_id,))
                 c.execute("DELETE FROM massnahmen          WHERE idv_id = ?", (idv_db_id,))
                 c.execute("DELETE FROM pruefungen          WHERE idv_id = ?", (idv_db_id,))
