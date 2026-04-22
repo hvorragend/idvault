@@ -13,6 +13,7 @@ from ..db_writer import get_writer
 from ..security import (ensure_can_read_idv, ensure_can_write_idv,
                         user_can_read_idv, in_clause)
 from ..helpers import _EXT_TO_TYP, _idv_typ_vorschlag, _int_or_none
+from ..app_settings import get_bool as _get_bool
 
 bp = Blueprint("eigenentwicklung", __name__, url_prefix="/eigenentwicklung")
 
@@ -75,6 +76,7 @@ def _form_lookups(db):
         "nutzungsfrequenzen":      get_klassifizierungen(db, "nutzungsfrequenz"),
         "wesentlichkeitskriterien": get_wesentlichkeitskriterien(db, nur_aktive=True),
         "entwicklungsarten":       ENTWICKLUNGSARTEN,
+        "suggestions_enabled":     _get_bool(db, "suggestions_enabled", True),
     }
     g._form_lookups_cache = result
     return result
@@ -296,6 +298,8 @@ def api_infer():
     übernimmt die Werte nur, wenn der Benutzer das Feld noch nicht explizit
     geändert hat.
     """
+    if not _get_bool(get_db(), "suggestions_enabled", True):
+        return jsonify({}), 204
     typ = (request.args.get("idv_typ") or "").strip()
     defaults = _TYP_DEFAULTS.get(typ, _TYP_DEFAULTS["unklassifiziert"])
     return jsonify({
