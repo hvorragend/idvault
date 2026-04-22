@@ -31,13 +31,9 @@
             <i class="bi bi-arrow-left me-1"></i>Abbrechen
           </a>
           {% if testfall %}
-          <form method="post"
-                action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}" data-confirm="Fachlichen Test löschen?">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-outline-danger btn-sm">
-              <i class="bi bi-trash me-1"></i>Löschen
-            </button>
-          </form>
+          <button type="submit" form="form-delete-testfall" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-trash me-1"></i>Löschen
+          </button>
           {% endif %}
         </div>
         <button type="submit" class="btn btn-primary btn-sm">
@@ -169,13 +165,9 @@
             <i class="bi bi-arrow-left me-1"></i>Abbrechen
           </a>
           {% if testfall %}
-          <form method="post"
-                action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}" data-confirm="Fachlichen Test löschen?">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-outline-danger">
-              <i class="bi bi-trash me-1"></i>Löschen
-            </button>
-          </form>
+          <button type="submit" form="form-delete-testfall" class="btn btn-outline-danger">
+            <i class="bi bi-trash me-1"></i>Löschen
+          </button>
           {% endif %}
         </div>
         <button type="submit" class="btn btn-primary">
@@ -227,6 +219,13 @@
 
   </div><!-- /row -->
 </form>
+{% if testfall %}
+<form id="form-delete-testfall" method="post"
+      action="{{ url_for('tests.delete_fachlicher_testfall_route', testfall_id=testfall.id) }}"
+      data-confirm="Fachlichen Test löschen?">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
