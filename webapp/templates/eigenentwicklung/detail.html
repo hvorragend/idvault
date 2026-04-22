@@ -6,6 +6,10 @@
 <span class="font-monospace text-muted ms-2" style="font-size:.7rem">{{ idv.idv_id }}</span>
 {% endblock %}
 
+{% block extra_head %}
+<style>.btn-xs{padding:.15rem .5rem;font-size:.72rem;line-height:1.3}</style>
+{% endblock %}
+
 {% block content %}
 
 <!-- ── Header-Leiste ──────────────────────────────────────────────── -->
@@ -537,10 +541,12 @@
                     <i class="bi bi-pencil"></i>
                   </a>
                   {% endif %}
-                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                    class="btn btn-xs btn-outline-secondary" title="Delegieren / Weiterleiten">
-                    <i class="bi bi-person-plus me-1"></i>Delegieren
-                  </a>
+                  <button type="button" class="btn btn-xs btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#modal-delegieren-inline"
+                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}"
+                    title="Delegieren / Weiterleiten">
+                    <i class="bi bi-person-plus"></i>
+                  </button>
                   {% elif f %}
                   {# Read-only-Zugriff #}
                   <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
@@ -621,18 +627,22 @@
                   {% elif f and f.status == 'Ausstehend' and can_create %}
                   <button type="button" class="btn btn-xs btn-success"
                     data-bs-toggle="modal" data-bs-target="#modal-abnahme-inline"
-                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}">
+                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}"
+                    title="Schritt abschließen">
                     <i class="bi bi-check2-circle me-1"></i>Abschließen
                   </button>
                   <button type="button" class="btn btn-xs btn-outline-danger"
                     data-bs-toggle="modal" data-bs-target="#modal-ablehnen-inline"
-                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}">
-                    <i class="bi bi-x-circle me-1"></i>Ablehnen
+                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}"
+                    title="Schritt ablehnen">
+                    <i class="bi bi-x-circle"></i>
                   </button>
-                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                    class="btn btn-xs btn-outline-secondary" title="Delegieren / Weiterleiten">
-                    <i class="bi bi-person-plus me-1"></i>Delegieren
-                  </a>
+                  <button type="button" class="btn btn-xs btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#modal-delegieren-inline"
+                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}"
+                    title="Delegieren / Weiterleiten">
+                    <i class="bi bi-person-plus"></i>
+                  </button>
                   {% elif f %}
                   <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
                     class="btn btn-xs btn-outline-secondary" title="Öffnen">
@@ -869,6 +879,44 @@
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
               <button type="submit" class="btn btn-success" id="inline-abnahme-submit">
                 <i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Inline-Delegieren (Phase 1 & 2) -->
+    <div class="modal fade" id="modal-delegieren-inline" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-person-plus me-2"></i><span id="delegieren-schritt-name"></span> weiterleiten
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form id="delegieren-inline-form" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-body">
+              <p class="text-muted" style="font-size:.9rem">
+                Leitet diesen Schritt an eine andere Person weiter. Die Person wird
+                benachrichtigt und als neue Verantwortliche eingetragen.
+              </p>
+              <div class="mb-2">
+                <label class="form-label fw-500">Weiterleiten an <span class="text-danger">*</span></label>
+                <select name="weiterleiten_an_id" class="form-select" required>
+                  <option value="">– Person auswählen –</option>
+                  {% for p in freigabe_persons %}
+                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-arrow-right-circle me-1"></i>Weiterleiten
               </button>
             </div>
           </form>
@@ -1362,6 +1410,20 @@
       btn.disabled = false;
       btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Schritt ablehnen';
     });
+  });
+})();
+
+(function () {
+  var modal = document.getElementById('modal-delegieren-inline');
+  if (!modal) return;
+  var form = document.getElementById('delegieren-inline-form');
+
+  modal.addEventListener('show.bs.modal', function (e) {
+    var trigger = e.relatedTarget;
+    document.getElementById('delegieren-schritt-name').textContent = trigger.dataset.schrittName;
+    form.action =
+      '{{ url_for("freigaben.weiterleiten", freigabe_id=0) }}'.replace('/0/', '/' + trigger.dataset.freigabeId + '/');
+    form.reset();
   });
 })();
 </script>
