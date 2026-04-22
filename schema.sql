@@ -752,7 +752,7 @@ INSERT INTO wesentlichkeitskriterien
     (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
 SELECT 'Rechnungslegungs-Relevanz (GoB)',
        'Anwendung verarbeitet automatisierte Daten, die nach der Verarbeitung Eingang in die Buchführung finden, z. B. Generierung von Buchungsbelegen/ -listen, Import aus Schnittstellen etc. oder wenn anhand von Anwendungen Bilanznachweise (z. B. Berechnung von Rückstellungen) erstellt werden; allerdings nur, falls keine weiteren Nachweise vorhanden sind (s.a. IDW RS FAIT 1). Die Anwendung unterliegt den GoBD-Anforderungen (Buchführungspflicht, steuerrechtliche Aufbewahrungspflicht).',
-       1, 1, 1
+       0, 1, 1
 WHERE NOT EXISTS (SELECT 1 FROM wesentlichkeitskriterien
                   WHERE bezeichnung = 'Rechnungslegungs-Relevanz (GoB)');
 
@@ -760,7 +760,7 @@ INSERT INTO wesentlichkeitskriterien
     (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
 SELECT 'Risiko / Steuerungs-Relevanz im Sinne der MaRisk',
        'Anwendung verarbeitet Daten, deren Ergebnisse für wesentliche geschäftspolitische Entscheidungen bzw. die Unternehmenssteuerung inklusive IKS-Maßnahmen zur Überwachung und Kontrolle der Geschäftstätigkeit herangezogen werden. Relevant sind dabei insbesondere Auswertungen, die zur Erfüllung von bankaufsichtsrechtlichen Anforderungen der MaRisk Verwendung finden. Hierzu zählen beispielsweise Risikoberichte und weitere Auswertungen/Anwendungen, deren Erstellung auf Grund der Regelungen bzw. zur Erfüllung der Anforderungen der MaRisk zwingend erforderlich sind.',
-       1, 2, 1
+       0, 2, 1
 WHERE NOT EXISTS (SELECT 1 FROM wesentlichkeitskriterien
                   WHERE bezeichnung = 'Risiko / Steuerungs-Relevanz im Sinne der MaRisk');
 
@@ -768,7 +768,7 @@ INSERT INTO wesentlichkeitskriterien
     (bezeichnung, beschreibung, begruendung_pflicht, sort_order, aktiv)
 SELECT 'Kritische oder wichtige Funktionen',
        'Mindestens eine kritische oder wichtige Funktion ist vollständig von dem IKT-Asset/der IKT-Dienstleistung abhängig (=Abhängigkeitsgrad 4).',
-       1, 3, 1
+       0, 3, 1
 WHERE NOT EXISTS (SELECT 1 FROM wesentlichkeitskriterien
                   WHERE bezeichnung = 'Kritische oder wichtige Funktionen');
 

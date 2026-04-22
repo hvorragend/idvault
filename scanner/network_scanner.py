@@ -1297,10 +1297,10 @@ def run_scan(config: dict, logger: logging.Logger,
         _cf_row = conn.execute(
             "SELECT value FROM app_settings WHERE key='auto_classify_by_filename'"
         ).fetchone()
-        # Default: aktiviert (kein Eintrag = "1")
-        runtime_classify_filename = (_cf_row["value"] != "0") if _cf_row else True
+        # Default: deaktiviert (kein Eintrag = "0")
+        runtime_classify_filename = (_cf_row["value"] == "1") if _cf_row else False
     except Exception:
-        runtime_classify_filename = True
+        runtime_classify_filename = False
 
     if runtime_auto_ignore:
         logger.info("Laufzeit-Auto-Ignore aktiv: neue Excel-Dateien ohne Formeln werden sofort ignoriert")
