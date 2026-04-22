@@ -101,9 +101,9 @@
             <hr class="my-2">
             <h6 class="fw-600 mb-3"><i class="bi bi-envelope-paper me-1"></i>E-Mail-Vorlagen</h6>
             <p class="text-muted mb-3" style="font-size:.82rem">
-              Alle E-Mail-Texte sind konfigurierbar. Leere Felder verwenden den
-              eingebauten Standard-Text. Platzhalter im Format <code>{name}</code>
-              werden beim Versand automatisch ersetzt.
+              Alle E-Mail-Texte sind konfigurierbar. Platzhalter im Format <code>{name}</code>
+              werden beim Versand automatisch ersetzt. Leere Felder nach dem Speichern
+              werden auf den eingebauten Standard-Text zurückgesetzt.
             </p>
 
             <div class="accordion" id="email-tpl-accordion">
@@ -113,7 +113,9 @@
               {% set enabled_key = 'notify_enabled_' + tpl_key %}
               {% set default_subj = email_defaults.get(tpl_key + '_subject', '') %}
               {% set default_body = email_defaults.get(tpl_key + '_body', '') %}
-              {% set has_custom = settings.get(subj_key, '') or settings.get(body_key, '') %}
+              {% set _sv = settings.get(subj_key, '') %}
+              {% set _bv = settings.get(body_key, '') %}
+              {% set has_custom = (_sv and _sv != default_subj) or (_bv and _bv != default_body) %}
               {% set is_enabled = settings.get(enabled_key, '1') == '1' %}
               <div class="accordion-item">
                 <h2 class="accordion-header">
@@ -152,14 +154,12 @@
                     <div class="mb-2">
                       <label class="form-label form-label-sm fw-600">Betreff</label>
                       <input type="text" name="{{ subj_key }}" class="form-control form-control-sm"
-                             value="{{ settings.get(subj_key, '') }}"
-                             placeholder="{{ default_subj }}">
+                             value="{{ settings.get(subj_key) or default_subj }}">
                     </div>
                     <div class="mb-2">
                       <label class="form-label form-label-sm fw-600">HTML-Inhalt</label>
                       <textarea name="{{ body_key }}" class="form-control form-control-sm" rows="8"
-                                style="font-family:monospace;font-size:.76rem"
-                                placeholder="Standard-Vorlage wird verwendet wenn leer">{{ settings.get(body_key, '') }}</textarea>
+                                style="font-family:monospace;font-size:.76rem">{{ settings.get(body_key) or default_body }}</textarea>
                     </div>
                     {% if has_custom %}
                     <div class="text-end">
