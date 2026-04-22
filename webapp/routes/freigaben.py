@@ -169,16 +169,16 @@ def _get_aktiver_stellvertreter_id(db, person_id: int):
 def _can_complete_schritt(db, freigabe, person_id: int) -> bool:
     """Prüft ob person_id diesen Schritt abschließen/ablehnen darf.
 
-    Admins dürfen immer. Ohne zugewiesene Person darf jeder Schreibberechtigte.
-    Sonst nur die zugewiesene Person oder deren aktiver Stellvertreter
-    (wenn abwesend_bis >= heute und stellvertreter_id gesetzt).
+    Admins dürfen immer. Sonst nur die zugewiesene Person oder deren aktiver
+    Stellvertreter (wenn abwesend_bis >= heute und stellvertreter_id gesetzt).
+    Ohne Zuweisung ist kein Nicht-Admin berechtigt.
     """
     from . import ROLE_ADMIN
     if session.get("user_role") == ROLE_ADMIN:
         return True
     zugewiesen_id = freigabe["zugewiesen_an_id"]
     if not zugewiesen_id:
-        return True
+        return False
     if person_id == zugewiesen_id:
         return True
     return _get_aktiver_stellvertreter_id(db, zugewiesen_id) == person_id
