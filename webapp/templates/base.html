@@ -833,7 +833,6 @@
       // Strg+K / Cmd+K öffnet die Suche
       document.addEventListener('keydown', e => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openSearch(); }
-        if (e.key === 'Escape') closeSearch();
       });
 
       input.addEventListener('input', () => {
@@ -950,7 +949,6 @@
 
       document.addEventListener('keydown', function (e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if (e.key === 'Escape') { hideHelp(); return; }
         if (inInput()) return;
         switch (e.key) {
           case '?':
@@ -968,20 +966,32 @@
         }
       });
 
-      // Strg+S / Strg+Umschalt+S – funktioniert in allen Formularen
+      // Strg+S / Strg+Umschalt+S – funktioniert in allen Formularen.
+      // Fallback nur auf explizit markierte Buttons (data-shortcut-save),
+      // um versehentliches Klicken von Logout/Löschen-Buttons zu vermeiden.
       document.addEventListener('keydown', function (e) {
         if (!(e.ctrlKey || e.metaKey) || e.key !== 's') return;
         e.preventDefault();
         var btn;
         if (e.shiftKey) {
           btn = document.querySelector('button[name="save_action"][value="save_and_close"]')
-             || document.querySelector('button[name="save_action"][value="save_and_new"]');
+             || document.querySelector('button[name="save_action"][value="save_and_new"]')
+             || document.querySelector('button[data-shortcut-save]');
         } else {
           btn = document.querySelector('button[name="save_action"][value="save"]')
-             || document.querySelector('form [type="submit"]');
+             || document.querySelector('button[data-shortcut-save]');
         }
         if (btn) btn.click();
       });
+
+      // ESC im Capture-Mode: feuert vor Quill / Bootstrap / anderen Handlern.
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        var qs = document.getElementById('qs-modal');
+        if (qs && qs.style.display !== 'none') { closeSearch(); return; }
+        var kh = document.getElementById('kbd-help');
+        if (kh && kh.style.display !== 'none') { kh.style.display = 'none'; return; }
+      }, true);
     })();
   </script>
   {% endif %}
