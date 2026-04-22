@@ -524,8 +524,8 @@
                     <i class="bi bi-plus-circle me-1"></i>Anlage Technischer Test
                   </a>
                   {% endif %}
-                  {% elif f and can_create %}
-                  {# Testdaten vorhanden → Bearbeiten #}
+                  {% elif f and f.status == 'Ausstehend' and can_create %}
+                  {# Testdaten vorhanden → Bearbeiten + Delegieren #}
                   {% if schritt_name == 'Fachlicher Test' %}
                   <a href="{{ url_for('tests.edit_fachlicher_testfall', testfall_id=fachliche_testfaelle[0].id) }}?freigabe_id={{ f.id }}"
                     class="btn btn-xs btn-outline-primary" title="Bearbeiten">
@@ -537,6 +537,10 @@
                     <i class="bi bi-pencil"></i>
                   </a>
                   {% endif %}
+                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                    class="btn btn-xs btn-outline-secondary" title="Delegieren / Weiterleiten">
+                    <i class="bi bi-person-plus me-1"></i>Delegieren
+                  </a>
                   {% elif f %}
                   {# Read-only-Zugriff #}
                   <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
@@ -615,15 +619,19 @@
                     </button>
                   </form>
                   {% elif f and f.status == 'Ausstehend' and can_create %}
-                  <button type="button" class="btn btn-xs btn-outline-success"
+                  <button type="button" class="btn btn-xs btn-success"
                     data-bs-toggle="modal" data-bs-target="#modal-abnahme-inline"
-                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}"
-                    title="Inline erledigen">
-                    <i class="bi bi-check2-circle"></i>
+                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}">
+                    <i class="bi bi-check2-circle me-1"></i>Abschließen
+                  </button>
+                  <button type="button" class="btn btn-xs btn-outline-danger"
+                    data-bs-toggle="modal" data-bs-target="#modal-ablehnen-inline"
+                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}">
+                    <i class="bi bi-x-circle me-1"></i>Ablehnen
                   </button>
                   <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                    class="btn btn-xs btn-outline-secondary" title="Vollansicht öffnen">
-                    <i class="bi bi-box-arrow-up-right"></i>
+                    class="btn btn-xs btn-outline-secondary" title="Delegieren / Weiterleiten">
+                    <i class="bi bi-person-plus me-1"></i>Delegieren
                   </a>
                   {% elif f %}
                   <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
@@ -861,6 +869,42 @@
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
               <button type="submit" class="btn btn-success" id="inline-abnahme-submit">
                 <i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Inline-Ablehnen (Phase 2) -->
+    <div class="modal fade" id="modal-ablehnen-inline" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-x-circle me-2 text-danger"></i><span id="ablehnen-schritt-name"></span> ablehnen
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form id="ablehnen-inline-form" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-body">
+              <div id="ablehnen-inline-error" class="alert alert-danger py-2 d-none" role="alert"></div>
+              <div class="mb-3">
+                <label class="form-label fw-500">Befunde / Ablehnungsgrund <span class="text-danger">*</span></label>
+                <textarea name="befunde" class="form-control" rows="3" required
+                  placeholder="Begründung der Ablehnung, gefundene Mängel …"></textarea>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-500">Kommentar <span class="text-muted fw-normal">(optional)</span></label>
+                <textarea name="kommentar" class="form-control" rows="2"
+                  placeholder="Ergänzende Hinweise …"></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+              <button type="submit" class="btn btn-danger" id="ablehnen-inline-submit">
+                <i class="bi bi-x-circle me-1"></i>Schritt ablehnen
               </button>
             </div>
           </form>
@@ -1242,7 +1286,9 @@
     })
     .then(function (res) {
       if (res.data.ok) {
-        window.location.assign(res.data.redirect_url);
+        var hash = (res.data.redirect_url || '').split('#')[1];
+        if (hash) { window.history.replaceState(null, '', '#' + hash); }
+        window.location.reload();
       } else {
         errorBox.textContent = res.data.error || 'Unbekannter Fehler.';
         errorBox.classList.remove('d-none');
@@ -1255,6 +1301,66 @@
       errorBox.classList.remove('d-none');
       btn.disabled = false;
       btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren';
+    });
+  });
+})();
+
+(function () {
+  var modal = document.getElementById('modal-ablehnen-inline');
+  if (!modal) return;
+
+  modal.addEventListener('show.bs.modal', function (e) {
+    var trigger = e.relatedTarget;
+    document.getElementById('ablehnen-schritt-name').textContent = trigger.dataset.schrittName;
+    document.getElementById('ablehnen-inline-form').dataset.action =
+      '{{ url_for("freigaben.ablehnen", freigabe_id=0) }}'.replace('/0/', '/' + trigger.dataset.freigabeId + '/');
+    var form = document.getElementById('ablehnen-inline-form');
+    form.reset();
+    var err = document.getElementById('ablehnen-inline-error');
+    err.classList.add('d-none');
+    err.textContent = '';
+    var btn = document.getElementById('ablehnen-inline-submit');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Schritt ablehnen';
+  });
+
+  document.getElementById('ablehnen-inline-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var form = this;
+    var err = document.getElementById('ablehnen-inline-error');
+    var btn = document.getElementById('ablehnen-inline-submit');
+    if (!form.querySelector('[name="befunde"]').value.trim()) {
+      err.textContent = 'Bitte einen Ablehnungsgrund angeben.';
+      err.classList.remove('d-none');
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Speichern…';
+    err.classList.add('d-none');
+
+    fetch(form.dataset.action, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: new FormData(form)
+    })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      if (res.data.ok) {
+        var hash = (res.data.redirect_url || '').split('#')[1];
+        if (hash) { window.history.replaceState(null, '', '#' + hash); }
+        window.location.reload();
+      } else {
+        err.textContent = res.data.error || 'Unbekannter Fehler.';
+        err.classList.remove('d-none');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Schritt ablehnen';
+      }
+    })
+    .catch(function () {
+      err.textContent = 'Netzwerkfehler – bitte Seite neu laden.';
+      err.classList.remove('d-none');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Schritt ablehnen';
     });
   });
 })();
