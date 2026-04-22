@@ -3,12 +3,13 @@
 {% block page_title %}
 <i class="bi bi-collection me-2"></i>Bulk-Registrierung
 <small class="text-muted ms-2" style="font-size:.75rem">
-  {{ vorschlaege|length }} Scannerfund(e) → je eigene Eigenentwicklung
+  <span id="row-count">{{ vorschlaege|length }}</span> Scannerfund(e) → je eigene Eigenentwicklung
 </small>
 {% endblock %}
 
 {% block content %}
-<form method="post" action="{{ url_for('eigenentwicklung.bulk_neu') }}">
+{% set pc = prefill_common or {} %}
+<form method="post" action="{{ url_for('eigenentwicklung.bulk_neu') }}" id="bulk-neu-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <div class="alert alert-info d-flex align-items-start gap-3 mb-3" style="font-size:.85rem">
@@ -19,6 +20,7 @@
       <strong>Koordinator</strong>, <strong>Entwicklungsart</strong> und
       <strong>Prüfintervall</strong> gelten einheitlich für alle Einträge.
       Bezeichnung, IDV-Typ und Entwickler können pro Zeile feinjustiert werden.
+      Ungewünschte Zeilen können direkt aus der Liste entfernt werden.
     </div>
   </div>
 
@@ -34,7 +36,7 @@
           <select name="org_unit_id" class="form-select form-select-sm">
             <option value="">— bitte wählen —</option>
             {% for o in org_units %}
-            <option value="{{ o.id }}">{{ o.bezeichnung }}</option>
+            <option value="{{ o.id }}" {% if pc.get('org_unit_id')==o.id %}selected{% endif %}>{{ o.bezeichnung }}</option>
             {% endfor %}
           </select>
         </div>
@@ -43,7 +45,7 @@
           <select name="fachverantwortlicher_id" class="form-select form-select-sm">
             <option value="">— bitte wählen —</option>
             {% for p in persons %}
-            <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}</option>
+            <option value="{{ p.id }}" {% if pc.get('fachverantwortlicher_id')==p.id %}selected{% endif %}>{{ p.nachname }}, {{ p.vorname }}</option>
             {% endfor %}
           </select>
         </div>
@@ -52,7 +54,7 @@
           <select name="idv_koordinator_id" class="form-select form-select-sm">
             <option value="">— optional —</option>
             {% for p in persons %}
-            <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}</option>
+            <option value="{{ p.id }}" {% if pc.get('idv_koordinator_id')==p.id %}selected{% endif %}>{{ p.nachname }}, {{ p.vorname }}</option>
             {% endfor %}
           </select>
         </div>
@@ -60,7 +62,7 @@
           <label class="form-label">Entwicklungsart</label>
           <select name="entwicklungsart" class="form-select form-select-sm">
             {% for key, label, desc in entwicklungsarten %}
-            <option value="{{ key }}" {% if key=='arbeitshilfe' %}selected{% endif %}>{{ label }}</option>
+            <option value="{{ key }}" {% if pc.get('entwicklungsart')==key or (not pc.get('entwicklungsart') and key=='arbeitshilfe') %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
@@ -68,7 +70,7 @@
           <label class="form-label">Prüfintervall (Monate)</label>
           <select name="pruefintervall_monate" class="form-select form-select-sm">
             {% for k in pruefintervalle %}
-            <option value="{{ k.wert }}" {% if k.wert|string=='12' %}selected{% endif %}>{{ k.bezeichnung }}</option>
+            <option value="{{ k.wert }}" {% if (pc.get('pruefintervall_monate') and pc.get('pruefintervall_monate')|string==k.wert|string) or (not pc.get('pruefintervall_monate') and k.wert|string=='12') %}selected{% endif %}>{{ k.bezeichnung }}</option>
             {% endfor %}
           </select>
         </div>
@@ -78,25 +80,29 @@
 
   <!-- Zeilen pro Datei -->
   <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white fw-600">
-      <i class="bi bi-files me-1"></i>Zu registrierende Dateien
+    <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-files me-1"></i>Zu registrierende Dateien</span>
+      <span class="text-muted" style="font-size:.78rem">
+        <span id="valid-count">0</span>/<span id="total-count">{{ vorschlaege|length }}</span> bereit
+      </span>
     </div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
+      <table class="table table-sm table-hover mb-0" style="font-size:.85rem" id="bulk-neu-table">
         <thead>
           <tr>
             <th>Datei</th>
-            <th style="min-width:220px">Bezeichnung</th>
+            <th style="min-width:220px">Bezeichnung <span class="text-danger">*</span></th>
             <th style="min-width:180px">IDV-Typ</th>
             <th style="min-width:220px">Entwickler</th>
+            <th style="width:40px"></th>
           </tr>
         </thead>
         <tbody>
           {% for v in vorschlaege %}
           {% set d = v.datei %}
-          <tr>
+          <tr class="bulk-row" data-file-id="{{ d.id }}">
             <td class="align-top">
-              <input type="hidden" name="file_ids" value="{{ d.id }}">
+              <input type="hidden" name="file_ids" value="{{ d.id }}" class="file-id-input">
               <div class="font-monospace">{{ d.file_name }}</div>
               <div class="text-muted" style="font-size:.75rem">{{ d.full_path }}</div>
               {% if d.has_macros %}
@@ -104,9 +110,11 @@
               {% endif %}
             </td>
             <td>
-              <input type="text" class="form-control form-control-sm"
+              <input type="text"
+                     class="form-control form-control-sm bez-input{% if not v.bezeichnung %} is-invalid{% endif %}"
                      name="bezeichnung_{{ d.id }}"
                      value="{{ v.bezeichnung }}" required>
+              <div class="invalid-feedback">Bezeichnung erforderlich.</div>
             </td>
             <td>
               <select name="idv_typ_{{ d.id }}" class="form-select form-select-sm">
@@ -124,8 +132,21 @@
                 {% endfor %}
               </select>
             </td>
+            <td class="text-center align-top">
+              <button type="button" class="btn btn-sm btn-outline-danger row-remove-btn"
+                      title="Diese Zeile aus der Bulk-Registrierung entfernen"
+                      data-action="bulkNeuRemoveRow">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </td>
           </tr>
           {% endfor %}
+          <tr id="empty-row" class="d-none">
+            <td colspan="5" class="text-center text-muted py-4">
+              <i class="bi bi-inbox fs-3 d-block mb-2"></i>Alle Zeilen entfernt.
+              <a href="{{ url_for('funde.list_funde') }}">Zurück zur Fund-Liste</a>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -135,9 +156,78 @@
     <a href="{{ url_for('funde.list_funde') }}" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left me-1"></i>Abbrechen
     </a>
-    <button type="submit" class="btn btn-primary">
-      <i class="bi bi-check-lg me-1"></i>{{ vorschlaege|length }} Eigenentwicklung(en) anlegen
+    <button type="submit" class="btn btn-primary" id="bulk-submit-btn" disabled>
+      <i class="bi bi-check-lg me-1"></i><span id="btn-label"><span id="btn-count">{{ vorschlaege|length }}</span> Eigenentwicklung(en) anlegen</span>
     </button>
   </div>
 </form>
+
+<script>
+  (function () {
+    var form     = document.getElementById('bulk-neu-form');
+    var tbody    = document.querySelector('#bulk-neu-table tbody');
+    var countEl  = document.getElementById('row-count');
+    var totalEl  = document.getElementById('total-count');
+    var validEl  = document.getElementById('valid-count');
+    var btnCount = document.getElementById('btn-count');
+    var submit   = document.getElementById('bulk-submit-btn');
+    var emptyRow = document.getElementById('empty-row');
+
+    function refresh() {
+      var rows = tbody.querySelectorAll('tr.bulk-row:not(.d-none)');
+      var total = rows.length;
+      var valid = 0;
+      rows.forEach(function (row) {
+        var inp = row.querySelector('.bez-input');
+        if (inp && inp.value.trim()) {
+          inp.classList.remove('is-invalid');
+          valid++;
+        } else if (inp) {
+          inp.classList.add('is-invalid');
+        }
+      });
+      if (countEl)  countEl.textContent  = total;
+      if (totalEl)  totalEl.textContent  = total;
+      if (validEl)  validEl.textContent  = valid;
+      if (btnCount) btnCount.textContent = valid;
+      submit.disabled = valid === 0;
+      emptyRow.classList.toggle('d-none', total > 0);
+    }
+
+    tbody.addEventListener('input', function (ev) {
+      if (ev.target.classList.contains('bez-input')) refresh();
+    });
+
+    window.bulkNeuRemoveRow = function () {
+      var row = this.closest('tr.bulk-row');
+      if (!row) return;
+      row.classList.add('d-none');
+      var hidden = row.querySelector('.file-id-input');
+      if (hidden) hidden.disabled = true;
+      refresh();
+    };
+
+    form.addEventListener('submit', function (ev) {
+      var rows = tbody.querySelectorAll('tr.bulk-row:not(.d-none)');
+      var allOk = true;
+      rows.forEach(function (row) {
+        var inp = row.querySelector('.bez-input');
+        if (inp && !inp.value.trim()) {
+          inp.classList.add('is-invalid');
+          allOk = false;
+        }
+      });
+      if (!allOk) {
+        ev.preventDefault();
+        var first = tbody.querySelector('.bez-input.is-invalid');
+        if (first) {
+          first.focus();
+          first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    });
+
+    refresh();
+  })();
+</script>
 {% endblock %}

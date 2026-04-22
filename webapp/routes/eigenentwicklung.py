@@ -838,14 +838,14 @@ def bulk_neu():
 
         # Alle Formulardaten im Request-Kontext einlesen – der Writer-Thread
         # hat keinen Zugriff auf flask.request.
-        per_file = []
-        errors   = []
+        per_file  = []
+        error_fids = []
         for fid in file_ids:
             bez = (request.form.get(f"bezeichnung_{fid}") or "").strip()
             typ = (request.form.get(f"idv_typ_{fid}") or "unklassifiziert").strip()
             entw = _int_or_none(request.form.get(f"idv_entwickler_id_{fid}"))
             if not bez:
-                errors.append(fid)
+                error_fids.append(fid)
                 continue
             per_file.append({
                 "file_id":           fid,
@@ -855,28 +855,55 @@ def bulk_neu():
             })
 
         created = []
-        try:
-            def _do(c):
-                out = []
-                with write_tx(c):
-                    for entry in per_file:
-                        data = dict(common)
-                        data.update(entry)
-                        new_id = create_idv(c, data, erfasser_id=person_id,
-                                            bearbeiter_name=user_name, commit=False)
-                        out.append((entry["file_id"], new_id))
-                return out
+        if per_file:
+            try:
+                def _do(c):
+                    out = []
+                    with write_tx(c):
+                        for entry in per_file:
+                            data = dict(common)
+                            data.update(entry)
+                            new_id = create_idv(c, data, erfasser_id=person_id,
+                                                bearbeiter_name=user_name, commit=False)
+                            out.append((entry["file_id"], new_id))
+                    return out
 
-            created = get_writer().submit(_do, wait=True) or []
-        except Exception as exc:
-            flash(f"Fehler beim Anlegen: {exc}", "error")
-            return redirect(url_for("eigenentwicklung.bulk_neu",
-                                     **{"file_ids": file_ids}))
+                created = get_writer().submit(_do, wait=True) or []
+            except Exception as exc:
+                flash(f"Fehler beim Anlegen: {exc}", "error")
+                # Alle als fehlgeschlagen behandeln, damit der Nutzer seine Eingaben behält
+                error_fids = list(file_ids)
+
+        # Partial-Success: Fehlgeschlagene Zeilen erneut anzeigen mit eingegebenen Werten
+        if error_fids:
+            if created:
+                flash(
+                    f"{len(created)} Eigenentwicklung(en) angelegt. "
+                    f"{len(error_fids)} Zeile(n) fehlen noch – bitte Bezeichnung nachtragen.",
+                    "warning",
+                )
+            else:
+                flash("Bitte für alle Zeilen eine Bezeichnung eintragen.", "error")
+            ph, ph_params = in_clause(error_fids)
+            dateien = db.execute(
+                f"SELECT * FROM idv_files WHERE id IN ({ph}) ORDER BY file_name",
+                ph_params,
+            ).fetchall()
+            vorschlaege = []
+            for d in dateien:
+                vorschlaege.append({
+                    "datei":             d,
+                    "bezeichnung":       (request.form.get(f"bezeichnung_{d['id']}") or "").strip(),
+                    "idv_typ":           (request.form.get(f"idv_typ_{d['id']}") or "unklassifiziert").strip(),
+                    "idv_entwickler_id": _int_or_none(request.form.get(f"idv_entwickler_id_{d['id']}")),
+                })
+            return render_template("eigenentwicklung/bulk_neu.html",
+                                   vorschlaege=vorschlaege,
+                                   prefill_common=common,
+                                   **_form_lookups(db))
 
         if created:
             flash(f"{len(created)} Eigenentwicklung(en) angelegt.", "success")
-        if errors:
-            flash(f"{len(errors)} Datei(en) übersprungen (keine Bezeichnung).", "warning")
         return redirect(url_for("eigenentwicklung.list_idv"))
 
     # ── GET ──
