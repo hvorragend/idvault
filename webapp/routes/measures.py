@@ -119,7 +119,13 @@ def edit_measure(m_id):
         if not titel:
             flash("Titel ist ein Pflichtfeld.", "error")
         else:
-            now = datetime.now(timezone.utc).isoformat()
+            now          = datetime.now(timezone.utc).isoformat()
+            beschreibung = request.form.get("beschreibung") or None
+            mtyp         = request.form.get("massnahmentyp") or None
+            prioritaet   = request.form.get("prioritaet", "Mittel")
+            verantw_id   = request.form.get("verantwortlicher_id") or None
+            faellig_am   = request.form.get("faellig_am") or None
+            status       = request.form.get("status", m["status"])
 
             def _do(c):
                 with write_tx(c):
@@ -128,16 +134,8 @@ def edit_measure(m_id):
                             titel=?, beschreibung=?, massnahmentyp=?, prioritaet=?,
                             verantwortlicher_id=?, faellig_am=?, status=?, aktualisiert_am=?
                         WHERE id=?
-                    """, (
-                        titel,
-                        request.form.get("beschreibung") or None,
-                        request.form.get("massnahmentyp") or None,
-                        request.form.get("prioritaet", "Mittel"),
-                        request.form.get("verantwortlicher_id") or None,
-                        request.form.get("faellig_am") or None,
-                        request.form.get("status", m["status"]),
-                        now, m_id,
-                    ))
+                    """, (titel, beschreibung, mtyp, prioritaet,
+                          verantw_id, faellig_am, status, now, m_id))
 
             get_writer().submit(_do, wait=True)
             flash("Maßnahme aktualisiert.", "success")
