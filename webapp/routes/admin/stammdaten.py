@@ -1005,11 +1005,11 @@ def api_new_oe():
 
     def _do(c):
         with write_tx(c):
-            c.execute(
+            cur = c.execute(
                 "INSERT INTO org_units (bezeichnung, parent_id, created_at) VALUES (?,?,?)",
                 (bezeichnung, parent_id, now),
             )
-            return c.lastrowid
+            return cur.lastrowid
 
     try:
         new_id = get_writer().submit(_do, wait=True)
@@ -1037,11 +1037,11 @@ def api_new_person():
 
     def _do(c):
         with write_tx(c):
-            c.execute("""
+            cur = c.execute("""
                 INSERT INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id, created_at)
                 VALUES (?,?,?,?,?,?,?)
             """, (kuerzel, nachname, vorname, email, rolle, org_unit_id, now))
-            return c.lastrowid
+            return cur.lastrowid
 
     try:
         new_id = get_writer().submit(_do, wait=True)
@@ -1067,12 +1067,12 @@ def api_new_gp():
 
     def _do(c):
         with write_tx(c):
-            c.execute("""
+            cur = c.execute("""
                 INSERT INTO geschaeftsprozesse
                     (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich, created_at, updated_at)
                 VALUES (?,?,?,0,0,?,?)
             """, (gp_nummer, bezeichnung, bereich, now, now))
-            return c.lastrowid
+            return cur.lastrowid
 
     try:
         new_id = get_writer().submit(_do, wait=True)
@@ -1114,11 +1114,11 @@ def new_pool():
 
     def _do(c):
         with write_tx(c):
-            c.execute(
+            cur = c.execute(
                 "INSERT INTO freigabe_pools (name, beschreibung, aktiv, created_at) VALUES (?,?,1,?)",
                 (name, beschreibung, now),
             )
-            return c.lastrowid
+            return cur.lastrowid
 
     try:
         new_id = get_writer().submit(_do, wait=True)
