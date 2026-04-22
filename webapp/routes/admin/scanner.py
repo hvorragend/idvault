@@ -1121,7 +1121,7 @@ def scanner_einstellungen():
                            path_mappings=path_mappings,
                            auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"),
                            discard_no_formula=(discard_nf["value"] if discard_nf else "0"),
-                           auto_classify_by_filename=(classify_fn["value"] if classify_fn else "1"),
+                           auto_classify_by_filename=(classify_fn["value"] if classify_fn else "0"),
                            schedule=schedule,
                            schedule_next=_next_scheduled_scan(schedule),
                            weekday_names=_WEEKDAY_NAMES,
