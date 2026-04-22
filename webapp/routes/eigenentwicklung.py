@@ -132,6 +132,8 @@ def list_idv():
     if status:
         where_parts.append("v.status = ?")
         params.append(status)
+    else:
+        where_parts.append("v.status != 'Archiviert'")
     if oe_id:
         where_parts.append("r.org_unit_id = ?")
         params.append(oe_id)
@@ -290,7 +292,7 @@ def wesentliche_idvs():
         WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
     )"""
 
-    where_parts = [_WESENTLICH]
+    where_parts = [_WESENTLICH, "v.status != 'Archiviert'"]
     params: list = []
 
     if q:
@@ -1631,7 +1633,7 @@ def nicht_wesentliche_idvs():
         WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
     )"""
 
-    where_parts = [f"NOT {_WESENTLICH}"]
+    where_parts = [f"NOT {_WESENTLICH}", "v.status != 'Archiviert'"]
     params: list = []
 
     if q:

@@ -623,13 +623,14 @@ LEFT JOIN org_units            ou  ON r.org_unit_id = ou.id
 LEFT JOIN persons              p_fv ON r.fachverantwortlicher_id = p_fv.id
 LEFT JOIN persons              p_en ON r.idv_entwickler_id = p_en.id
 LEFT JOIN idv_files            f   ON r.file_id = f.id
-WHERE r.status NOT IN ('Archiviert');
+;
 
 -- Wesentliche IDVs (mindestens ein Wesentlichkeitskriterium erfüllt)
 DROP VIEW IF EXISTS v_kritische_idvs;
 CREATE VIEW v_kritische_idvs AS
 SELECT * FROM v_idv_uebersicht
 WHERE ist_wesentlich = 'Ja'
+  AND status != 'Archiviert'
 ORDER BY bezeichnung;
 
 -- Offene Maßnahmen mit Fälligkeit
