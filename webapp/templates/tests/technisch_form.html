@@ -15,7 +15,7 @@
 {% endblock %}
 
 {% block content %}
-<form method="post" enctype="multipart/form-data">
+<form id="form-save" method="post" enctype="multipart/form-data">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if freigabe_id %}<input type="hidden" name="freigabe_id" value="{{ freigabe_id }}">{% endif %}
   <div class="row g-4">
@@ -191,7 +191,7 @@
     if (hidden && hidden.value) q.clipboard.dangerouslyPasteHTML(0, hidden.value);
     editors.push({ q: q, h: hidden });
   });
-  document.querySelector('form').addEventListener('submit', function () {
+  document.getElementById('form-save').addEventListener('submit', function () {
     editors.forEach(function (e) {
       if (e.h) e.h.value = e.q.root.innerHTML;
     });
