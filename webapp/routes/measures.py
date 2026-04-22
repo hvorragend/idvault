@@ -100,7 +100,12 @@ def detail_measure(m_id):
     if not m:
         flash("Maßnahme nicht gefunden.", "error")
         return redirect(url_for("measures.list_measures"))
-    return render_template("measures/detail.html", m=m)
+    idv = db.execute("SELECT * FROM idv_register WHERE id=?", (m["idv_id"],)).fetchone()
+    ist_wesentlich = bool(db.execute(
+        "SELECT 1 FROM idv_wesentlichkeit WHERE idv_db_id=? AND erfuellt=1 LIMIT 1",
+        (m["idv_id"],),
+    ).fetchone())
+    return render_template("measures/detail.html", m=m, idv=idv, ist_wesentlich=ist_wesentlich)
 
 
 @bp.route("/<int:m_id>/bearbeiten", methods=["GET", "POST"])
