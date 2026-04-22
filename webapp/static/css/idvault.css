@@ -112,12 +112,18 @@ body {
 }
 
 #sidebar .brand {
+  display: block;
   padding: 1.25rem 1rem .75rem;
   font-size: 1.25rem;
   font-weight: 700;
   color: #fff;
   letter-spacing: -.3px;
+  text-decoration: none;
+  transition: opacity var(--t-fast);
 }
+
+#sidebar .brand:hover,
+#sidebar .brand:focus-visible { color: #fff; opacity: .85; }
 
 #sidebar .brand span { color: var(--amber-500); }
 

@@ -25,7 +25,7 @@
   {% set _is_koord = _role == 'IDV-Koordinator' %}
   {% set _can_create = _role in ('IDV-Administrator','IDV-Koordinator','Fachverantwortlicher') %}
   <nav id="sidebar">
-    <div class="brand">idv<span>ault</span></div>
+    <a href="{{ url_for('dashboard.index') }}" class="brand">idv<span>ault</span></a>
 
     <div class="nav-label">Übersicht</div>
     <a href="{{ url_for('dashboard.index') }}"
