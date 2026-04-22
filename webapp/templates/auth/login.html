@@ -6,18 +6,19 @@
   <title>idvault – Anmeldung</title>
   <link href="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.min.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/idvault.css') }}" rel="stylesheet">
   <style>
-    body { background: #f0f4f8; }
-    .login-card { max-width: 420px; border-radius: 14px; border: none; }
-    .brand { font-size: 2rem; font-weight: 700; color: #1a3a5c; letter-spacing: -1px; }
-    .brand span { color: #e8650a; }
+    body { background: var(--idv-bg); }
+    .login-card { max-width: 420px; border-radius: var(--radius-xl); border: none; box-shadow: var(--shadow-lg); }
+    .brand { font-size: 2rem; font-weight: 700; color: var(--slate-900); letter-spacing: -1px; }
+    .brand span { color: var(--amber-500); }
   </style>
 </head>
 <body class="d-flex align-items-center justify-content-center min-vh-100">
   <div class="login-card card shadow-lg p-4 w-100 mx-3">
     <div class="text-center mb-4">
       <div class="brand">idv<span>ault</span></div>
-      <div class="text-muted" style="font-size:.85rem">Register · MaRisk AT 7.2 / DORA</div>
+      <div class="text-muted small">Register · MaRisk AT 7.2 / DORA</div>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -27,7 +28,7 @@
     {% endwith %}
 
     {% if ldap_active %}
-    <div class="alert alert-info py-2 mb-3" style="font-size:.82rem">
+    <div class="alert alert-info py-2 mb-3 small">
       <i class="bi bi-diagram-3 me-1"></i>
       <strong>Active Directory aktiv</strong> – AD-Anmeldename oder lokales Kürzel und Passwort eingeben.
     </div>

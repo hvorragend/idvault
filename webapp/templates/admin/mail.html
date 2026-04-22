@@ -72,7 +72,7 @@
           <div class="col-12 mt-3">
             <hr class="my-2">
             <h6 class="fw-600 mb-2"><i class="bi bi-alarm me-1"></i>Fristen-Benachrichtigungen</h6>
-            <p class="text-muted mb-3" style="font-size:.82rem">
+            <p class="text-muted mb-3 small">
               Einmal täglich werden Verantwortliche per E-Mail an überfällige
               Maßnahmen und Prüfungen erinnert. Dedup-Fenster: 7&nbsp;Tage
               pro Datensatz.
@@ -104,7 +104,7 @@
           <div class="col-12 mt-3" id="email-vorlagen">
             <hr class="my-2">
             <h6 class="fw-600 mb-3"><i class="bi bi-envelope-paper me-1"></i>E-Mail-Vorlagen</h6>
-            <p class="text-muted mb-3" style="font-size:.82rem">
+            <p class="text-muted mb-3 small">
               Alle E-Mail-Texte sind konfigurierbar. Platzhalter im Format <code>{name}</code>
               werden beim Versand automatisch ersetzt. Leere Felder nach dem Speichern
               werden auf den eingebauten Standard-Text zurückgesetzt.
@@ -126,16 +126,16 @@
               {% set is_enabled = settings.get(enabled_key, '1') == '1' %}
               <div class="accordion-item">
                 <h2 class="accordion-header">
-                  <button class="accordion-button collapsed py-2" type="button"
+                  <button class="accordion-button collapsed py-2 small" type="button"
                           data-bs-toggle="collapse" data-bs-target="#tpl-{{ tpl_key }}"
-                          style="font-size:.85rem">
+                         >
                     <i class="bi bi-envelope me-2 {% if is_enabled %}text-primary{% else %}text-muted{% endif %}"></i>
                     {{ tpl_meta.label }}
                     {% if not is_enabled %}
-                    <span class="badge bg-secondary ms-2" style="font-size:.68rem">deaktiviert</span>
+                    <span class="badge bg-secondary ms-2 fs-8">deaktiviert</span>
                     {% endif %}
                     {% if has_custom %}
-                    <span class="badge bg-info ms-2" style="font-size:.68rem">angepasst</span>
+                    <span class="badge bg-info ms-2 fs-8">angepasst</span>
                     {% endif %}
                   </button>
                 </h2>
@@ -152,7 +152,7 @@
                       </div>
                     </div>
                     <div class="mb-2">
-                      <span class="text-muted" style="font-size:.78rem">Platzhalter:
+                      <span class="text-muted fs-7">Platzhalter:
                         {% for ph in tpl_meta.placeholders %}
                         <code>{<span>{{ ph }}</span>}</code>{{ ', ' if not loop.last }}
                         {% endfor %}
@@ -177,7 +177,7 @@
                           <i class="bi bi-type me-1"></i>Nur Text
                         </label>
                       </div>
-                      <span id="mode-hint-{{ tpl_key }}" class="ms-2 text-muted" style="font-size:.78rem">
+                      <span id="mode-hint-{{ tpl_key }}" class="ms-2 text-muted fs-7">
                         {% if cur_mode == 'text' %}Einfacher Text, kein HTML nötig.{% else %}HTML-Markup möglich.{% endif %}
                       </span>
                     </div>
@@ -197,10 +197,10 @@
                           <i class="bi bi-pencil-square me-1"></i>Im Editor öffnen
                         </button>
                       </div>
-                      <textarea name="{{ body_key }}" class="form-control form-control-sm tpl-body-textarea" rows="8"
+                      <textarea name="{{ body_key }}" class="form-control form-control-sm tpl-body-textarea fs-7" rows="8"
                                 id="body-{{ tpl_key }}"
                                 data-tpl="{{ tpl_key }}"
-                                style="font-family:{{ 'monospace' if cur_mode == 'html' else 'inherit' }};font-size:.76rem">{{ settings.get(body_key) or eff_default_body }}</textarea>
+                                style="font-family:{{ 'monospace' if cur_mode == 'html' else 'inherit' }}">{{ settings.get(body_key) or eff_default_body }}</textarea>
                     </div>
                     {% if has_custom %}
                     <div class="text-end">
@@ -234,7 +234,7 @@
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600"><i class="bi bi-send-check me-2"></i>SMTP-Verbindungstest</div>
       <div class="card-body">
-        <p class="text-muted mb-3" style="font-size:.85rem">
+        <p class="text-muted mb-3 small">
           Sendet eine Test-E-Mail mit den aktuell <strong>im Formular eingetragenen</strong>
           Einstellungen (auch ohne vorheriges Speichern). Ein leeres Passwort-Feld nutzt das
           gespeicherte Passwort aus der Datenbank.
@@ -259,12 +259,12 @@
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600 d-flex align-items-center justify-content-between">
         <span><i class="bi bi-journal-text me-2"></i>SMTP-Versandlog</span>
-        <span class="badge bg-secondary" style="font-size:.72rem">letzte 50 Einträge</span>
+        <span class="badge bg-secondary fs-8">letzte 50 Einträge</span>
       </div>
       <div class="card-body p-0">
         {% if smtp_log %}
         <div class="table-responsive">
-          <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+          <table class="table table-sm table-hover mb-0 small">
             <thead class="table-light">
               <tr>
                 <th style="width:155px">Zeitpunkt</th>
@@ -287,14 +287,14 @@
                 </td>
                 <td>{{ entry.recipients }}</td>
                 <td>{{ entry.subject }}</td>
-                <td class="text-danger" style="font-size:.75rem">{{ entry.error_msg or '' }}</td>
+                <td class="text-danger fs-7">{{ entry.error_msg or '' }}</td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
         {% else %}
-        <div class="text-muted p-3" style="font-size:.85rem">
+        <div class="text-muted p-3 small">
           <i class="bi bi-info-circle me-1"></i>Noch keine Versandversuche protokolliert.
         </div>
         {% endif %}
@@ -313,7 +313,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="alert alert-info py-2 mb-2" style="font-size:.8rem">
+        <div class="alert alert-info py-2 mb-2 fs-7">
           <i class="bi bi-info-circle me-1"></i>
           Der Editor eignet sich für einfache Textformatierung. Komplexe HTML-Elemente
           (Tabellen, inline&nbsp;CSS) werden vereinfacht dargestellt – der originale
@@ -402,7 +402,7 @@ document.getElementById('smtp-test-btn').addEventListener('click', function () {
   var btn    = this;
 
   if (!email) {
-    result.innerHTML = '<div class="alert alert-warning py-2 mb-0" style="font-size:.85rem"><i class="bi bi-exclamation-triangle me-1"></i>Bitte eine Empfänger-Adresse eingeben.</div>';
+    result.innerHTML = '<div class="alert alert-warning py-2 mb-0 small"><i class="bi bi-exclamation-triangle me-1"></i>Bitte eine Empfänger-Adresse eingeben.</div>';
     result.style.display = 'block';
     return;
   }
@@ -429,14 +429,14 @@ document.getElementById('smtp-test-btn').addEventListener('click', function () {
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (data.success) {
-        result.innerHTML = '<div class="alert alert-success py-2 mb-0" style="font-size:.85rem"><i class="bi bi-check-circle me-1"></i>' + _esc(data.message) + '</div>';
+        result.innerHTML = '<div class="alert alert-success py-2 mb-0 small"><i class="bi bi-check-circle me-1"></i>' + _esc(data.message) + '</div>';
       } else {
-        result.innerHTML = '<div class="alert alert-danger py-2 mb-0" style="font-size:.85rem"><i class="bi bi-x-circle me-1"></i>' + _esc(data.message) + '</div>';
+        result.innerHTML = '<div class="alert alert-danger py-2 mb-0 small"><i class="bi bi-x-circle me-1"></i>' + _esc(data.message) + '</div>';
       }
       result.style.display = 'block';
     })
     .catch(function (err) {
-      result.innerHTML = '<div class="alert alert-danger py-2 mb-0" style="font-size:.85rem"><i class="bi bi-x-circle me-1"></i>Netzwerkfehler: ' + _esc(String(err)) + '</div>';
+      result.innerHTML = '<div class="alert alert-danger py-2 mb-0 small"><i class="bi bi-x-circle me-1"></i>Netzwerkfehler: ' + _esc(String(err)) + '</div>';
       result.style.display = 'block';
     })
     .finally(function () {
@@ -451,8 +451,6 @@ function _esc(s) {
 </script>
 
 <style>
-  .fw-600 { font-weight: 600; }
-  .btn-xs { font-size: .75rem; line-height: 1.4; }
   #quill-editor .ql-editor { font-family: Arial, sans-serif; font-size: 14px; min-height: 280px; }
 </style>
 {% endblock %}

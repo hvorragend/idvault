@@ -46,7 +46,7 @@ Standardsortierung zu sehen bekommt. #}
       <div class="stat-val text-primary">{{ gesamt }}</div>
       <div class="stat-lbl">Aktive Dateien
         {% if ignoriert %}
-        <span class="d-block text-muted" style="font-size:.72rem">{{ ignoriert }} ignoriert</span>
+        <span class="d-block text-muted fs-8">{{ ignoriert }} ignoriert</span>
         {% endif %}
       </div>
     </div>
@@ -73,7 +73,7 @@ Standardsortierung zu sehen bekommt. #}
 
 <!-- ── Letzter Scan + DB-Pfad-Hinweis ─────────────────────────────── -->
 {% if gesamt == 0 %}
-<div class="alert alert-light border text-muted" style="font-size:.88rem">
+<div class="alert alert-light border text-muted">
   <i class="bi bi-info-circle me-2"></i>
   Noch keine Scanner-Funde vorhanden. Sobald ein Scan-Lauf durchgeführt wurde, erscheinen die gefundenen Dateien hier.
   Den Scanner können Sie unter <a href="{{ url_for('admin.scanner_einstellungen') }}" class="text-decoration-none">Admin → Scanner-Einstellungen</a> starten.
@@ -82,7 +82,7 @@ Standardsortierung zu sehen bekommt. #}
 
 <!-- Letzter Scan-Info-Banner -->
 {% if letzter_scan %}
-<div class="alert alert-light border py-2 mb-3 d-flex align-items-center gap-3" style="font-size:.82rem">
+<div class="alert alert-light border py-2 mb-3 d-flex align-items-center gap-3 small">
   <i class="bi bi-clock-history text-secondary fs-5 flex-shrink-0"></i>
   <div>
     <strong>Letzter Scan-Lauf:</strong>
@@ -256,7 +256,7 @@ verloren geht. #}
     <div>
       <strong>Was bedeutet „archiviert"?</strong><br>
       Dateien werden automatisch archiviert, wenn der Scanner sie beim letzten Scan-Lauf an ihrem bisherigen Speicherort nicht mehr findet – zum Beispiel weil sie verschoben, umbenannt oder gelöscht wurden.<br>
-      <span class="text-muted" style="font-size:.88rem">
+      <span class="text-muted">
         Die Verknüpfung zur Eigenentwicklung im Register bleibt erhalten. Wurde die Datei nur umbenannt oder verschoben,
         wird sie beim nächsten Scan als neuer Fund erkannt und kann dann erneut zugeordnet werden.
       </span>
@@ -302,7 +302,7 @@ date_to} %}
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body py-2">
-        <p class="text-muted mb-2" style="font-size:.82rem">
+        <p class="text-muted mb-2 small">
           Neuen Eigentümer für <strong id="owner-modal-count">0</strong> ausgewählte Datei(en) setzen.
         </p>
         <select id="owner-modal-input" class="form-select form-select-sm">
@@ -391,12 +391,12 @@ date_to} %}
         {{ dateien|length }} Datei{{ 'en' if dateien|length != 1 }}
         {% endif %}
       </span>
-      <span class="text-muted" style="font-size:.78rem">
+      <span class="text-muted fs-7">
         Sortiert nach: <strong>{{ sort }}</strong> ({{ 'absteigend' if order == 'desc' else 'aufsteigend' }})
       </span>
     </div>
     <div class="table-responsive">
-      <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+      <table class="table table-hover mb-0 table-idv small">
         <thead>
           <tr>
             <th style="width:32px"></th>
@@ -438,10 +438,10 @@ date_to} %}
                 {{ grp | length }} identische Dateien
               </span>
               <span class="badge bg-danger ms-2">{{ grp | length }}×</span>
-              <span class="font-monospace text-muted ms-2" style="font-size:.72rem" title="SHA-256: {{ hash_val }}">
+              <span class="font-monospace text-muted ms-2 fs-8" title="SHA-256: {{ hash_val }}">
                 <i class="bi bi-fingerprint me-1"></i>{{ hash_val[:16] }}…
               </span>
-              <span class="text-muted ms-2" style="font-size:.78rem">
+              <span class="text-muted ms-2 fs-7">
                 <i class="bi bi-chevron-down" id="{{ gid }}-icon"></i>
               </span>
             </td>
@@ -459,7 +459,7 @@ date_to} %}
               </span>
               {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
               <div class="ms-3">
-                <span class="font-monospace text-muted" style="font-size:.68rem" title="SHA-256: {{ f.file_hash }}">
+                <span class="font-monospace text-muted fs-8" title="SHA-256: {{ f.file_hash }}">
                   <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
                 </span>
               </div>
@@ -485,7 +485,7 @@ date_to} %}
               {% endif %}
             </td>
 
-            <td class="text-nowrap" style="font-size:.76rem">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
+            <td class="text-nowrap fs-7">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
             <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
             <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
@@ -573,13 +573,13 @@ date_to} %}
                   <i class="bi bi-copy me-1"></i>Duplikat
                 </span>
                 {% endif %}
-                <span class="font-monospace text-muted" style="font-size:.68rem" title="SHA-256: {{ f.file_hash }}">
+                <span class="font-monospace text-muted fs-8" title="SHA-256: {{ f.file_hash }}">
                   <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
                 </span>
               </div>
               {% elif f.file_hash == 'HASH_ERROR' %}
               <div class="mt-1">
-                <span class="text-danger" style="font-size:.7rem"
+                <span class="text-danger fs-8"
                   title="Hash konnte nicht berechnet werden (Zugriffsfehler oder Datei zu groß)">
                   <i class="bi bi-exclamation-triangle me-1"></i>Hash-Fehler
                 </span>
@@ -609,7 +609,7 @@ date_to} %}
             </td>
 
             <!-- Scan-Lauf -->
-            <td class="text-nowrap" style="font-size:.76rem">
+            <td class="text-nowrap fs-7">
               {% if f.sr_id %}
               <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id, filter=filt, sort=sort, order=order) }}"
                 class="text-decoration-none text-muted" title="#{{ f.sr_id }} – Nach diesem Scan-Lauf filtern">
@@ -714,7 +714,7 @@ date_to} %}
                   {{ ms.score }}%
                 </span>
                 <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=ms.idv_db_id) }}"
-                  class="text-decoration-none text-truncate d-inline-block" style="max-width:120px;font-size:.72rem"
+                  class="text-decoration-none text-truncate d-inline-block fs-8" style="max-width:120px"
                   title="{{ ms.bezeichnung }}">
                   {{ ms.idv_id }}
                 </a>
@@ -778,21 +778,6 @@ date_to} %}
 {% include 'funde/_pagination.html' %}
 
 {% endif %}
-
-<style>
-  .btn-xs {
-    padding: .15rem .45rem;
-    font-size: .75rem;
-  }
-
-  .fw-600 {
-    font-weight: 600;
-  }
-
-  .fw-500 {
-    font-weight: 500;
-  }
-</style>
 
 <script>
   function toggleDupGroup(gid) {

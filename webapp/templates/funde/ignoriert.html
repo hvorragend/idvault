@@ -9,7 +9,7 @@
   {% include 'funde/_scan_button.html' %}
 </div>
 
-<p class="text-muted mb-4" style="font-size:.87rem">
+<p class="text-muted mb-4">
   Als <strong>Ignoriert</strong> markierte Scanner-Funde. Diese Dateien enthalten keine relevanten
   Formeln oder wurden bewusst von der Registrierungspflicht ausgenommen.
   Sie erscheinen nicht mehr in der regulären Scanner-Funde-Ansicht.
@@ -87,7 +87,7 @@
     </div>
   </div>
   <div class="table-responsive">
-    <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+    <table class="table table-hover mb-0 table-idv small">
       <thead>
         <tr>
           <th style="width:2rem">
@@ -122,7 +122,7 @@
             {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
             <span class="badge bg-light text-dark border">{{ typ }}</span>
           </td>
-          <td style="font-size:.80rem">
+          <td class="fs-7">
             {{ f.file_owner or f.office_author or '–' }}
           </td>
           <td style="max-width:280px" title="{{ f.full_path }}">
@@ -135,10 +135,10 @@
             {% endif %}
             {% endif %}
           </td>
-          <td class="text-nowrap" style="font-size:.76rem">
+          <td class="text-nowrap fs-7">
             {{ f.modified_at|datefmt if f.modified_at else '–' }}
           </td>
-          <td class="text-nowrap" style="font-size:.76rem">
+          <td class="text-nowrap fs-7">
             {% if f.sr_id %}
             <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id) }}"
                class="text-decoration-none text-muted"
@@ -186,11 +186,6 @@
 <!-- ── Pagination unten ───────────────────────────────────────────── -->
 {% include 'funde/_pagination.html' %}
 
-<style>
-.btn-xs { padding: .15rem .45rem; font-size: .75rem; }
-.fw-600 { font-weight: 600; }
-.fw-500 { font-weight: 500; }
-</style>
 <script>
 (function () {
   const checkAll    = document.getElementById('check-all');

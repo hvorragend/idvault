@@ -6,7 +6,7 @@
 {% include 'admin/_subnav.html' %}
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <span class="text-muted" style="font-size:.88rem">
+  <span class="text-muted">
     Benutzer aus Active Directory laden und als Personen importieren
   </span>
   <div class="d-flex gap-2">
@@ -116,7 +116,7 @@
     </div>
 
     <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0" id="ldapTable" style="font-size:.82rem">
+      <table class="table table-sm table-hover mb-0 small" id="ldapTable">
         <thead class="table-light">
           <tr>
             <th style="width:2.5rem">
@@ -198,7 +198,7 @@
 
 <!-- ── Hinweise ────────────────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm border-start border-4 border-info mt-3">
-  <div class="card-body" style="font-size:.85rem">
+  <div class="card-body small">
     <strong><i class="bi bi-info-circle me-1"></i>Hinweise:</strong>
     <ul class="mb-0 mt-2">
       <li>Es werden nur <strong>aktivierte</strong> AD-Benutzerkonten angezeigt.</li>
@@ -212,7 +212,6 @@
 
 {% endif %}
 
-<style>.fw-600 { font-weight: 600; }</style>
 <script>
 function setAction(val) {
   document.getElementById('ldapAction').value = val;

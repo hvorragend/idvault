@@ -19,7 +19,7 @@
         <i class="bi bi-files me-2"></i>Ausgewählte Dateien ({{ dateien|length }})
       </div>
       <div class="table-responsive">
-        <table class="table table-hover mb-0" style="font-size:.83rem">
+        <table class="table table-hover mb-0 small">
           <thead>
             <tr>
               <th>Dateiname</th>
@@ -36,15 +36,15 @@
               <td>
                 <span class="fw-500">{{ f.file_name }}</span>
                 {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
-                <br><span class="badge bg-light text-dark border" style="font-size:.7rem">{{ typ }}</span>
+                <br><span class="badge bg-light text-dark border fs-8">{{ typ }}</span>
               </td>
               <td class="text-muted" style="max-width:260px">
                 {% if f.share_root %}
-                <span class="badge bg-primary" style="font-size:.7rem;font-family:monospace">
+                <span class="badge bg-primary fs-8" style="font-family:monospace">
                   <i class="bi bi-folder-fill me-1"></i>{{ f.share_root | map_path }}
                 </span>
                 {% endif %}
-                <div class="text-truncate hash-mono" style="font-size:.72rem;max-width:250px"
+                <div class="text-truncate hash-mono fs-8" style="max-width:250px"
                   title="{{ f.full_path | map_path }}">
                   {{ f.relative_path or (f.full_path | map_path) }}
                 </div>
@@ -73,7 +73,7 @@
         <i class="bi bi-plus-circle me-2 text-primary"></i>Option A – Neue Eigenentwicklung anlegen
       </div>
       <div class="card-body">
-        <p class="text-muted mb-3" style="font-size:.88rem">
+        <p class="text-muted mb-3">
           Legt ein neue Eigenentwicklung an. Eine Datei wird als Primärdatei gewählt;
           alle weiteren werden automatisch als zusätzliche Projektdateien verknüpft.
         </p>
@@ -94,7 +94,7 @@
                 id="prim-{{ f.id }}" {{ 'checked' if loop.first }}>
               <label class="form-check-label" for="prim-{{ f.id }}">
                 <span class="fw-500">{{ f.file_name }}</span>
-                <span class="text-muted ms-1" style="font-size:.8rem">
+                <span class="text-muted ms-1 fs-7">
                   {{ f.relative_path or f.full_path }}
                 </span>
               </label>
@@ -115,7 +115,7 @@
         <i class="bi bi-link-45deg me-2 text-success"></i>Option B – Zu bestehender Eigenentwicklung hinzufügen
       </div>
       <div class="card-body">
-        <p class="text-muted mb-3" style="font-size:.88rem">
+        <p class="text-muted mb-3">
           Alle ausgewählten Dateien werden als zusätzliche Projektdateien mit einem
           bestehenden Eigenentwicklungs-Eintrag verknüpft.
         </p>
@@ -157,7 +157,7 @@
       <div class="card-header bg-white fw-600">
         <i class="bi bi-info-circle me-2"></i>Hinweise
       </div>
-      <div class="card-body" style="font-size:.85rem">
+      <div class="card-body small">
         <ul class="mb-0 ps-3">
           <li class="mb-2">
             <strong>Duplikate</strong> (gleicher SHA-256-Hash) stellen
@@ -189,13 +189,4 @@
   </div>
 </div>
 
-<style>
-  .fw-600 {
-    font-weight: 600;
-  }
-
-  .fw-500 {
-    font-weight: 500;
-  }
-</style>
 {% endblock %}

@@ -43,7 +43,7 @@
       </div>
 
       {% if freigabe.durchgefuehrt_von %}
-      <div class="mb-2" style="font-size:.85rem">
+      <div class="mb-2 small">
         <span class="text-muted">Durchgeführt von:</span>
         <strong class="ms-1">{{ freigabe.durchgefuehrt_von }}</strong>
         {% if freigabe.durchgefuehrt_am %}
@@ -53,27 +53,27 @@
       {% endif %}
 
       {% if freigabe.befunde %}
-      <div class="alert alert-danger py-2 mb-2" style="font-size:.85rem">
+      <div class="alert alert-danger py-2 mb-2 small">
         <i class="bi bi-exclamation-triangle me-1"></i><strong>Befunde:</strong> {{ freigabe.befunde }}
       </div>
       {% endif %}
 
       {% if freigabe.nachweise_text %}
       <div class="mb-2">
-        <div class="form-label text-muted" style="font-size:.82rem">Nachweise / Protokoll</div>
-        <div class="border rounded p-2" style="font-size:.9rem">{{ freigabe.nachweise_text|safe }}</div>
+        <div class="form-label text-muted small">Nachweise / Protokoll</div>
+        <div class="border rounded p-2">{{ freigabe.nachweise_text|safe }}</div>
       </div>
       {% endif %}
 
       {% if freigabe.kommentar %}
       <div class="mb-2">
-        <div class="form-label text-muted" style="font-size:.82rem">Kommentar</div>
-        <div class="border rounded p-2" style="font-size:.9rem">{{ freigabe.kommentar }}</div>
+        <div class="form-label text-muted small">Kommentar</div>
+        <div class="border rounded p-2">{{ freigabe.kommentar }}</div>
       </div>
       {% endif %}
 
       {% if freigabe.nachweis_datei_name %}
-      <div class="mt-2" style="font-size:.85rem">
+      <div class="mt-2 small">
         <i class="bi bi-paperclip me-1 text-muted"></i>
         <a href="{{ url_for('freigaben.nachweis_download', freigabe_id=freigabe.id) }}"
            class="text-decoration-none">{{ freigabe.nachweis_datei_name }}</a>
@@ -81,7 +81,7 @@
       {% endif %}
 
       {% if not freigabe.nachweise_text and not freigabe.kommentar and not freigabe.nachweis_datei_name and not freigabe.befunde %}
-      <div class="text-muted" style="font-size:.85rem">Keine Protokolldaten erfasst.</div>
+      <div class="text-muted small">Keine Protokolldaten erfasst.</div>
       {% endif %}
     </div>
 
@@ -132,7 +132,7 @@
             {% if scanner_dateien %}
             <div class="mb-2">
               <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="text-muted" style="font-size:.82rem">Aus verknüpften Scanner-Dateien wählen:</span>
+                <span class="text-muted small">Aus verknüpften Scanner-Dateien wählen:</span>
               </div>
               <div class="d-flex flex-wrap gap-2" id="scanner-file-pills">
                 {% for sf in scanner_dateien %}
@@ -144,11 +144,11 @@
                 {% endfor %}
               </div>
               <input type="hidden" name="scanner_file_id" id="scanner_file_id_val">
-              <div id="scanner-file-selected" class="mt-1 text-success" style="font-size:.82rem;display:none">
+              <div id="scanner-file-selected" class="mt-1 text-success small" style="display:none">
                 <i class="bi bi-check2-circle me-1"></i>
                 <span id="scanner-file-selected-name"></span>
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-muted"
-                        id="scanner-file-clear" style="font-size:.75rem">× Auswahl aufheben</button>
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-muted fs-7"
+                        id="scanner-file-clear">× Auswahl aufheben</button>
               </div>
               <div class="form-text mt-1">– oder Datei direkt hochladen:</div>
             </div>
@@ -246,7 +246,7 @@
           <div class="detail-label">Beauftragt an</div>
           <div class="fw-500">{{ freigabe.zugewiesen_an }}</div>
           {% if vertreter_name %}
-          <div class="mt-1 text-warning" style="font-size:.8rem">
+          <div class="mt-1 text-warning fs-7">
             <i class="bi bi-person-check me-1"></i>Aktuell vertreten durch <strong>{{ vertreter_name }}</strong>
           </div>
           {% endif %}
@@ -281,7 +281,7 @@
         <form method="post" action="{{ url_for('freigaben.weiterleiten', freigabe_id=freigabe.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="modal-body">
-            <p class="text-muted" style="font-size:.9rem">
+            <p class="text-muted">
               Leitet „{{ freigabe.schritt }}" an eine andere Person weiter.
               Diese Person wird benachrichtigt und wird als neue Verantwortliche eingetragen.
             </p>

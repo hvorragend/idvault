@@ -13,7 +13,7 @@
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <span class="fw-600">
           <i class="bi bi-list-ul me-1"></i>Einträge ({{ glossar_eintraege | length }})
-          <span class="badge bg-secondary ms-2" style="font-weight:400;font-size:.75rem">{{ glossar_eintraege | selectattr('aktiv') | list | length }} aktiv</span>
+          <span class="badge bg-secondary ms-2 fs-7" style="font-weight:400">{{ glossar_eintraege | selectattr('aktiv') | list | length }} aktiv</span>
         </span>
         <a href="{{ url_for('admin.new_glossar') }}" class="btn btn-sm btn-primary">
           <i class="bi bi-plus-circle me-1"></i>Neuer Eintrag
@@ -36,11 +36,11 @@
           <tbody>
             {% for g in glossar_eintraege %}
             <tr class="{{ '' if g.aktiv else 'text-muted' }}">
-              <td class="text-muted" style="font-size:.78rem">{{ g.sort_order }}</td>
+              <td class="text-muted fs-7">{{ g.sort_order }}</td>
               <td class="fw-500">{{ g.begriff }}</td>
-              <td style="font-size:.83rem">{{ g.entwickler or '–' }}</td>
-              <td style="font-size:.83rem">{{ g.ort or '–' }}</td>
-              <td style="font-size:.78rem;color:#6c757d">{{ g.fokus or '–' }}</td>
+              <td class="small">{{ g.entwickler or '–' }}</td>
+              <td class="small">{{ g.ort or '–' }}</td>
+              <td class="fs-7" style="color:#6c757d">{{ g.fokus or '–' }}</td>
               <td class="text-center">
                 {% if g.im_register %}<span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
                 {% else %}<span class="badge bg-light text-muted border">Oberbegriff</span>{% endif %}
@@ -65,7 +65,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-center text-muted py-3" style="font-size:.83rem">
+            <tr><td colspan="8" class="text-center text-muted py-3 small">
               Keine Glossar-Einträge vorhanden.
             </td></tr>
             {% endfor %}
@@ -87,14 +87,14 @@
       <div class="card-body">
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label fw-600 mb-1" style="font-size:.83rem">Info-Box oben</label>
-            <div class="form-control bg-light" style="min-height:3rem;font-size:.83rem;color:#495057">
+            <label class="form-label fw-600 mb-1 small">Info-Box oben</label>
+            <div class="form-control bg-light small" style="min-height:3rem; color:#495057">
               {{ settings.get('glossar_hintergrund_text') or '–' }}
             </div>
           </div>
           <div class="col-md-6">
-            <label class="form-label fw-600 mb-1" style="font-size:.83rem">Info-Box unten</label>
-            <div class="form-control bg-light" style="min-height:3rem;font-size:.83rem;color:#495057;white-space:pre-wrap">{{ (settings.get('glossar_info_unten') or '–') | truncate(200) }}</div>
+            <label class="form-label fw-600 mb-1 small">Info-Box unten</label>
+            <div class="form-control bg-light small" style="min-height:3rem; color:#495057; white-space:pre-wrap">{{ (settings.get('glossar_info_unten') or '–') | truncate(200) }}</div>
           </div>
         </div>
       </div>
@@ -103,9 +103,4 @@
 
 </div>
 
-<style>
-  .fw-600 { font-weight: 600; }
-  .fw-500 { font-weight: 500; }
-  .btn-xs { font-size: .75rem; line-height: 1.4; }
-</style>
 {% endblock %}

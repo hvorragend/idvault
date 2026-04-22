@@ -40,7 +40,7 @@
       <i class="bi bi-alarm-fill text-danger fs-5"></i>
       <div>
         <strong>{{ stats.pruefung_ueberfaellig }} Prüfung(en) überfällig</strong>
-        <div style="font-size:.8rem"><a href="{{ url_for('reviews.list_reviews') }}?filter=ueberfaellig">Jetzt anzeigen
+        <div class="fs-7"><a href="{{ url_for('reviews.list_reviews') }}?filter=ueberfaellig">Jetzt anzeigen
             →</a></div>
       </div>
     </div>
@@ -52,7 +52,7 @@
       <i class="bi bi-exclamation-triangle-fill fs-5"></i>
       <div>
         <strong>{{ stats.massnahmen_ueberfaellig }} Maßnahme(n) überfällig</strong>
-        <div style="font-size:.8rem"><a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig">Jetzt
+        <div class="fs-7"><a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig">Jetzt
             anzeigen →</a></div>
       </div>
     </div>
@@ -66,11 +66,11 @@
     <div class="d-flex flex-wrap align-items-center gap-3">
       <div class="d-flex align-items-center gap-2">
         <i class="bi bi-search text-primary fs-5"></i>
-        <span class="fw-600" style="font-size:.88rem">Letzter Scan</span>
+        <span class="fw-600">Letzter Scan</span>
       </div>
 
       {% if letzter_scan %}
-        <span class="text-muted" style="font-size:.85rem">
+        <span class="text-muted small">
           {{ (letzter_scan.finished_at or letzter_scan.started_at)|datetimefmt }}
         </span>
         <span class="badge
@@ -80,7 +80,7 @@
           {%- else %} bg-warning text-dark{%- endif %}">
           {{ letzter_scan.scan_status|capitalize }}
         </span>
-        <div class="d-flex gap-3 ms-2" style="font-size:.82rem;color:#555">
+        <div class="d-flex gap-3 ms-2 small" style="color:#555">
           <span><i class="bi bi-files me-1 text-muted"></i>{{ letzter_scan.total_files or 0 }} Dateien</span>
           <span><i class="bi bi-plus-circle me-1 text-success"></i>{{ letzter_scan.new_files or 0 }} Neu</span>
           <span><i class="bi bi-arrow-repeat me-1 text-warning"></i>{{ letzter_scan.changed_files or 0 }} Geändert</span>
@@ -94,7 +94,7 @@
           {% endif %}
         </div>
       {% else %}
-        <span class="text-muted" style="font-size:.85rem">Noch kein Scan durchgeführt.</span>
+        <span class="text-muted small">Noch kein Scan durchgeführt.</span>
       {% endif %}
 
       <div class="ms-auto">
@@ -114,7 +114,7 @@
     <span class="badge bg-primary">{{ meine_schritte|length }}</span>
   </div>
   <div class="card-body p-0">
-    <table class="table table-hover mb-0" style="font-size:.88rem">
+    <table class="table table-hover mb-0">
       <tbody>
         {% for s in meine_schritte %}
         <tr>
@@ -123,9 +123,9 @@
           </td>
           <td class="py-2 text-truncate" style="max-width:220px" title="{{ s.bezeichnung }}">{{ s.bezeichnung }}</td>
           <td class="py-2">
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary" style="font-size:.78rem">{{ s.schritt }}</span>
-            {% if s.als_vertreter == 1 %}<span class="badge bg-secondary ms-1" style="font-size:.72rem" title="Sie vertreten den regulären Bearbeiter">Vertretung</span>{% endif %}
-            {% if s.als_vertreter == 2 %}<span class="badge bg-info text-dark ms-1" style="font-size:.72rem" title="Diese Aufgabe ist dem Pool '{{ s.pool_name }}' zugewiesen und noch nicht übernommen">Pool: {{ s.pool_name }}</span>{% endif %}
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary fs-7">{{ s.schritt }}</span>
+            {% if s.als_vertreter == 1 %}<span class="badge bg-secondary ms-1 fs-8" title="Sie vertreten den regulären Bearbeiter">Vertretung</span>{% endif %}
+            {% if s.als_vertreter == 2 %}<span class="badge bg-info text-dark ms-1 fs-8" title="Diese Aufgabe ist dem Pool '{{ s.pool_name }}' zugewiesen und noch nicht übernommen">Pool: {{ s.pool_name }}</span>{% endif %}
           </td>
           <td class="py-2 pe-3 text-end">
             {% if s.als_vertreter == 2 %}
@@ -177,7 +177,7 @@
                   r.idv_id }}</a></td>
               <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
               <td>
-                <span class="badge bg-danger" style="font-size:.72rem">Wesentlich</span>
+                <span class="badge bg-danger fs-8">Wesentlich</span>
               </td>
               <td><span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span></td>
               <td>
@@ -217,13 +217,13 @@
             <div>
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="text-decoration-none fw-500">{{ r.idv_id
                 }}</a>
-              <div class="text-muted" style="font-size:.78rem">{{ r.bezeichnung|truncate(35) }}</div>
+              <div class="text-muted fs-7">{{ r.bezeichnung|truncate(35) }}</div>
             </div>
             <div class="text-end">
               {% if r.faelligkeit == 'ÜBERFÄLLIG' %}
               <span class="badge bg-danger">ÜBERFÄLLIG</span>
               {% else %}
-              <span class="text-muted" style="font-size:.8rem">{{ r.naechste_pruefung|datefmt }}</span>
+              <span class="text-muted fs-7">{{ r.naechste_pruefung|datefmt }}</span>
               {% endif %}
             </div>
           </li>
@@ -245,12 +245,12 @@
           {% for m in offene_massnahmen[:5] %}
           <li class="list-group-item px-3 py-2">
             <div class="d-flex justify-content-between">
-              <span class="fw-500" style="font-size:.85rem">{{ m.titel|truncate(40) }}</span>
+              <span class="fw-500 small">{{ m.titel|truncate(40) }}</span>
               <span
                 class="badge bg-{{ 'danger' if m.prioritaet == 'Kritisch' else 'warning text-dark' if m.prioritaet == 'Hoch' else 'secondary' }}">{{
                 m.prioritaet }}</span>
             </div>
-            <div class="text-muted" style="font-size:.77rem">{{ m.idv_bezeichnung|truncate(30) }} · fällig {{
+            <div class="text-muted fs-7">{{ m.idv_bezeichnung|truncate(30) }} · fällig {{
               m.faellig_am|datefmt }}</div>
           </li>
           {% else %}

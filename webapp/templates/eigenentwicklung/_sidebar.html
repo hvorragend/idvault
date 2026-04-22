@@ -40,11 +40,11 @@
         {# ── Phase 1 ── #}
         <div class="mb-3">
           <div class="d-flex align-items-center mb-2">
-            <span class="fw-600 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
+            <span class="fw-600 text-muted fs-7" style="text-transform:uppercase; letter-spacing:.05em">
               <i class="bi bi-1-circle me-1"></i>Phase 1 – Tests
             </span>
             {% if phase1_erledigt %}
-            <span class="badge bg-success ms-2" style="font-size:.65rem">Beide Tests erledigt</span>
+            <span class="badge bg-success ms-2 fs-9">Beide Tests erledigt</span>
             {% endif %}
           </div>
 
@@ -74,19 +74,15 @@
                   {% elif f.status == 'Ausstehend' %}<i class="bi bi-hourglass-split text-warning"></i>
                   {% else %}<i class="bi bi-slash-circle text-secondary"></i>
                   {% endif %}
-                  <span class="fw-500" style="font-size:.82rem">{{ schritt_name }}</span>
+                  <span class="fw-500 small">{{ schritt_name }}</span>
                   {% if f %}
-                  <span class="badge ms-auto
-                    {% if f.status == 'Erledigt' %}bg-success
-                    {% elif f.status == 'Nicht erledigt' %}bg-danger
-                    {% elif f.status == 'Ausstehend' %}bg-warning text-dark
-                    {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
+                  <span class="badge ms-auto {% if f.status == 'Erledigt' %}bg-success {% elif f.status == 'Nicht erledigt' %}bg-danger {% elif f.status == 'Ausstehend' %}bg-warning text-dark {% else %}bg-secondary{% endif %} fs-9">{{ f.status }}</span>
                   {% else %}
-                  <span class="badge ms-auto bg-light text-muted border" style="font-size:.6rem">gelöscht</span>
+                  <span class="badge ms-auto bg-light text-muted border fs-9">gelöscht</span>
                   {% endif %}
                 </div>
                 {% if f and (f.zugewiesen_an or f.durchgefuehrt_von or f.pool_name) %}
-                <div class="text-muted mt-1" style="font-size:.72rem">
+                <div class="text-muted mt-1 fs-8">
                   {% if f.status in ('Erledigt', 'Nicht erledigt') %}
                     <i class="bi bi-person me-1"></i>{{ f.durchgefuehrt_von or f.zugewiesen_an }}
                   {% elif f.zugewiesen_an %}
@@ -166,11 +162,11 @@
         {% if phase2_gestartet %}
         <div class="mb-2">
           <div class="d-flex align-items-center mb-2">
-            <span class="fw-600 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">
+            <span class="fw-600 text-muted fs-7" style="text-transform:uppercase; letter-spacing:.05em">
               <i class="bi bi-2-circle me-1"></i>Phase 2 – Abnahmen
             </span>
             {% if phase2_erledigt %}
-            <span class="badge bg-success ms-2" style="font-size:.65rem">Beide Abnahmen erledigt</span>
+            <span class="badge bg-success ms-2 fs-9">Beide Abnahmen erledigt</span>
             {% endif %}
           </div>
           <div class="row g-2">
@@ -191,19 +187,15 @@
                   {% elif f.status == 'Ausstehend' %}<i class="bi bi-hourglass-split text-warning"></i>
                   {% else %}<i class="bi bi-slash-circle text-secondary"></i>
                   {% endif %}
-                  <span class="fw-500" style="font-size:.82rem">{{ schritt_name }}</span>
+                  <span class="fw-500 small">{{ schritt_name }}</span>
                   {% if f %}
-                  <span class="badge ms-auto
-                    {% if f.status == 'Erledigt' %}bg-success
-                    {% elif f.status == 'Nicht erledigt' %}bg-danger
-                    {% elif f.status == 'Ausstehend' %}bg-warning text-dark
-                    {% else %}bg-secondary{% endif %}" style="font-size:.6rem">{{ f.status }}</span>
+                  <span class="badge ms-auto {% if f.status == 'Erledigt' %}bg-success {% elif f.status == 'Nicht erledigt' %}bg-danger {% elif f.status == 'Ausstehend' %}bg-warning text-dark {% else %}bg-secondary{% endif %} fs-9">{{ f.status }}</span>
                   {% else %}
-                  <span class="badge ms-auto bg-light text-muted border" style="font-size:.6rem">gelöscht</span>
+                  <span class="badge ms-auto bg-light text-muted border fs-9">gelöscht</span>
                   {% endif %}
                 </div>
                 {% if f and (f.zugewiesen_an or f.durchgefuehrt_von or f.pool_name) %}
-                <div class="text-muted mt-1" style="font-size:.72rem">
+                <div class="text-muted mt-1 fs-8">
                   {% if f.status in ('Erledigt', 'Nicht erledigt') %}
                     <i class="bi bi-person me-1"></i>{{ f.durchgefuehrt_von or f.zugewiesen_an }}
                   {% elif f.zugewiesen_an %}
@@ -299,7 +291,7 @@
 
         {# Status-Hinweis wenn ein Schritt offen läuft #}
         {% if hat_offenen_schritt and not (phase1_erledigt and not phase2_gestartet) %}
-        <div class="text-muted text-center" style="font-size:.8rem">
+        <div class="text-muted text-center fs-7">
           <i class="bi bi-hourglass-split me-1"></i>Verfahren läuft – Schritte in Bearbeitung
         </div>
         {% endif %}
@@ -326,7 +318,7 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-              <p class="text-muted mb-3" style="font-size:.85rem">
+              <p class="text-muted mb-3 small">
                 <i class="bi bi-info-circle me-1"></i>
                 Fachlicher Test und Technischer Test werden <strong>gleichzeitig</strong> gestartet.
                 Bitte wählen Sie die verantwortlichen Personen aus.
@@ -376,7 +368,7 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-              <p class="text-muted mb-3" style="font-size:.85rem">
+              <p class="text-muted mb-3 small">
                 <i class="bi bi-info-circle me-1"></i>
                 Fachliche Abnahme und Technische Abnahme werden <strong>gleichzeitig</strong> gestartet.
                 Bitte wählen Sie die verantwortlichen Personen aus.
@@ -482,7 +474,7 @@
                 <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
               </div>
               <div class="mt-3 pt-2 border-top">
-                <a id="inline-full-page-link" href="#" class="text-muted" style="font-size:.8rem">
+                <a id="inline-full-page-link" href="#" class="text-muted fs-7">
                   <i class="bi bi-box-arrow-up-right me-1"></i>Vollansicht mit Weiterleiten-Option öffnen
                 </a>
               </div>
@@ -511,7 +503,7 @@
           <form id="delegieren-inline-form" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-body">
-              <p class="text-muted" style="font-size:.9rem">
+              <p class="text-muted">
                 Leitet diesen Schritt an eine andere Person weiter. Die Person wird
                 benachrichtigt und als neue Verantwortliche eingetragen.
               </p>
@@ -562,7 +554,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="schritt" id="schritt-anlegen-schritt" value="">
             <div class="modal-body">
-              <p class="text-muted" style="font-size:.9rem">
+              <p class="text-muted">
                 Wählen Sie die verantwortliche Person oder weisen Sie einen Pool zu.
               </p>
               <div class="mb-2">
@@ -643,21 +635,16 @@
       <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
         <span><i class="bi bi-archive me-2"></i>Archivierung Originaldatei</span>
         {% if archiv_f %}
-        <span class="badge
-          {% if archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}bg-success
-          {% elif archiv_f.status == 'Erledigt' %}bg-success
-          {% elif archiv_f.status == 'Ausstehend' %}bg-warning text-dark
-          {% elif archiv_f.status == 'Abgebrochen' %}bg-secondary
-          {% else %}bg-secondary{% endif %}" style="font-size:.7rem">
+        <span class="badge {% if archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}bg-success {% elif archiv_f.status == 'Erledigt' %}bg-success {% elif archiv_f.status == 'Ausstehend' %}bg-warning text-dark {% elif archiv_f.status == 'Abgebrochen' %}bg-secondary {% else %}bg-secondary{% endif %} fs-8">
           {% if archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 1 %}Archiviert
           {% elif archiv_f.status == 'Erledigt' and archiv_f.datei_verfuegbar == 0 %}Nicht verfügbar
           {% else %}{{ archiv_f.status }}{% endif %}
         </span>
         {% endif %}
       </div>
-      <div class="card-body px-3 py-3" style="font-size:.83rem">
+      <div class="card-body px-3 py-3 small">
         {% if not archiv_f %}
-        <p class="text-muted mb-3" style="font-size:.82rem">
+        <p class="text-muted mb-3 small">
           Originaldatei revisionssicher ablegen (MaRisk AT 7.2). Ist die Datei
           nicht verfügbar (z.B. Cognos-Bericht), kann dies mit Begründung dokumentiert werden.
         </p>
@@ -692,7 +679,7 @@
             archiv_f.archiv_datei_name }}</a>
         </div>
         {% if archiv_f.archiv_datei_sha256 %}
-        <div class="text-muted font-monospace mt-1" style="font-size:.7rem;word-break:break-all">SHA-256: {{
+        <div class="text-muted font-monospace mt-1 fs-8" style="word-break:break-all">SHA-256: {{
           archiv_f.archiv_datei_sha256 }}</div>
         {% endif %}
         {% endif %}
@@ -744,21 +731,21 @@
           <div class="detail-label text-muted">Vorgänger</div>
           <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=vorgaenger.id) }}"
             class="text-decoration-none fw-500">
-            <span class="font-monospace me-1" style="font-size:.8rem">{{ vorgaenger.idv_id }}</span>
+            <span class="font-monospace me-1 fs-7">{{ vorgaenger.idv_id }}</span>
             v{{ vorgaenger.version }}
           </a>
-          <span class="badge status-{{ vorgaenger.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{
+          <span class="badge status-{{ vorgaenger.status|replace(' ', '-') }} ms-1 fs-9">{{
             vorgaenger.status }}</span>
         </li>
         {% endif %}
         <li class="list-group-item px-3 py-2 bg-light">
           <div class="detail-label text-muted">Aktuelle Version</div>
           <span class="fw-600">v{{ idv.version }}</span>
-          <span class="badge bg-primary ms-1" style="font-size:.6rem">Diese Version</span>
+          <span class="badge bg-primary ms-1 fs-9">Diese Version</span>
           {% if idv.letzte_aenderungsart %}
           <span
-            class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
-            style="font-size:.6rem" {% if idv.letzte_aenderungsbegruendung
+            class="badge ms-1 {% if idv.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %} fs-9"
+            {% if idv.letzte_aenderungsbegruendung
             %}title="{{ idv.letzte_aenderungsbegruendung }}" {% endif %}>
             {{ idv.letzte_aenderungsart }}
           </span>
@@ -768,15 +755,15 @@
         <li class="list-group-item px-3 py-2">
           <div class="detail-label text-muted">Nachfolger</div>
           <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=nf.id) }}" class="text-decoration-none fw-500">
-            <span class="font-monospace me-1" style="font-size:.8rem">{{ nf.idv_id }}</span>
+            <span class="font-monospace me-1 fs-7">{{ nf.idv_id }}</span>
             v{{ nf.version }}
           </a>
-          <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1" style="font-size:.6rem">{{ nf.status
+          <span class="badge status-{{ nf.status|replace(' ', '-') }} ms-1 fs-9">{{ nf.status
             }}</span>
           {% if nf.letzte_aenderungsart %}
           <span
-            class="badge ms-1 {% if nf.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %}"
-            style="font-size:.6rem" {% if nf.letzte_aenderungsbegruendung
+            class="badge ms-1 {% if nf.letzte_aenderungsart == 'wesentlich' %}bg-danger{% else %}bg-success{% endif %} fs-9"
+            {% if nf.letzte_aenderungsbegruendung
             %}title="{{ nf.letzte_aenderungsbegruendung }}" {% endif %}>
             {{ nf.letzte_aenderungsart }}
           </span>
@@ -784,7 +771,7 @@
         </li>
         {% endfor %}
         {% if not vorgaenger and not nachfolger %}
-        <li class="list-group-item text-muted text-center py-2" style="font-size:.83rem">
+        <li class="list-group-item text-muted text-center py-2 small">
           Keine Vorgänger/Nachfolger.
         </li>
         {% endif %}
@@ -796,7 +783,7 @@
           <i class="bi bi-plus-circle me-1"></i>Neue Version anlegen
         </button>
         {% if ist_wesentlich %}
-        <div class="mt-1 text-muted text-center" style="font-size:.75rem">
+        <div class="mt-1 text-muted text-center fs-7">
           <i class="bi bi-info-circle me-1"></i>Wesentliche Eigenentwicklung: neue Version erfordert erneute Freigabe
         </div>
         {% endif %}
@@ -831,7 +818,7 @@
                     Begründung warum es sich um eine wesentliche bzw. unwesentliche Änderung handelt.
                   </div>
                 </div>
-                <div class="alert alert-info py-2 mb-0 mt-2" style="font-size:.82rem">
+                <div class="alert alert-info py-2 mb-0 mt-2 small">
                   <i class="bi bi-info-circle me-1"></i>
                   Die aktuelle Eigenentwicklung wird als Vorgänger verknüpft. Eine <strong>wesentliche Änderung</strong>
                   erfordert ein erneutes Test- und Freigabeverfahren.
@@ -908,15 +895,15 @@
         <li class="list-group-item px-3 py-2">
           <div class="d-flex justify-content-between">
             <a href="{{ url_for('measures.detail_measure', m_id=m.id) }}"
-               class="text-decoration-none" style="font-size:.83rem;font-weight:500">{{ m.titel|truncate(30) }}</a>
+               class="text-decoration-none small" style="font-weight:500">{{ m.titel|truncate(30) }}</a>
             <span
               class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' }}">{{
               m.status }}</span>
           </div>
-          <div class="text-muted" style="font-size:.75rem">fällig {{ m.faellig_am|datefmt }}</div>
+          <div class="text-muted fs-7">fällig {{ m.faellig_am|datefmt }}</div>
         </li>
         {% else %}
-        <li class="list-group-item text-muted text-center py-3" style="font-size:.83rem">Keine Maßnahmen.</li>
+        <li class="list-group-item text-muted text-center py-3 small">Keine Maßnahmen.</li>
         {% endfor %}
       </ul>
       <div class="card-footer bg-white">
@@ -936,12 +923,12 @@
           <div class="d-flex gap-2">
             <div class="timeline-dot mt-1"></div>
             <div>
-              <div style="font-size:.82rem;font-weight:500">{{ h.aktion }}</div>
-              {% if h.kommentar %}<div class="text-muted" style="font-size:.77rem">{{ h.kommentar|truncate(80) }}</div>
-              {% elif h.aenderungen_summary %}<div class="text-muted" style="font-size:.77rem">Geändert: {{
+              <div class="small" style="font-weight:500">{{ h.aktion }}</div>
+              {% if h.kommentar %}<div class="text-muted fs-7">{{ h.kommentar|truncate(80) }}</div>
+              {% elif h.aenderungen_summary %}<div class="text-muted fs-7">Geändert: {{
                 h.aenderungen_summary }}</div>
               {% endif %}
-              <div class="text-muted" style="font-size:.75rem">
+              <div class="text-muted fs-7">
                 {{ h.durchgefuehrt_am|datefmt('%d.%m.%Y %H:%M') }}
                 {% if h.person %}<span class="ms-1">· {{ h.person }}</span>{% endif %}
               </div>

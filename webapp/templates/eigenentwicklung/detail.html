@@ -2,8 +2,8 @@
 {% block title %}{{ idv.bezeichnung }} – {{ idv.idv_id }}{% endblock %}
 {% block page_title %}
 {{ idv.bezeichnung }}
-<span class="text-muted fw-400 ms-2" style="font-size:.8rem">v{{ idv.version or '1.0' }}</span>
-<span class="font-monospace text-muted ms-2" style="font-size:.7rem">{{ idv.idv_id }}</span>
+<span class="text-muted fw-400 ms-2 fs-7">v{{ idv.version or '1.0' }}</span>
+<span class="font-monospace text-muted ms-2 fs-8">{{ idv.idv_id }}</span>
 {% endblock %}
 
 {% block extra_head %}
@@ -62,7 +62,7 @@
 {% set testverfahren_noetig = ist_wesentlich and idv.letzte_aenderungsart != 'unwesentlich' %}
 <div class="d-flex gap-3 align-items-center mb-4 flex-wrap p-3 bg-light rounded border">
   <div class="d-flex align-items-center gap-2">
-    <span class="text-muted" style="font-size:.8rem;white-space:nowrap">Teststatus:</span>
+    <span class="text-muted fs-7" style="white-space:nowrap">Teststatus:</span>
     {% if not testverfahren_noetig %}
     <span class="badge bg-secondary">Nicht erforderlich</span>
     {% else %}
@@ -159,7 +159,7 @@
           <div class="detail-value">{{ idv.produktiv_seit|datefmt }}</div>
         </div>
         <div class="col-12">
-          <span class="text-muted font-monospace" style="font-size:.72rem">{{ idv.idv_id }}</span>
+          <span class="text-muted font-monospace fs-8">{{ idv.idv_id }}</span>
         </div>
       </div>
     </div>
@@ -174,11 +174,11 @@
           <div class="detail-label">Geschäftsprozess</div>
           <div class="detail-value">
             {% if idv.geschaeftsprozess %}
-            <span class="font-monospace me-1" style="font-size:.82rem">{{ idv.gp_nummer }}</span>{{
+            <span class="font-monospace me-1 small">{{ idv.gp_nummer }}</span>{{
             idv.geschaeftsprozess }}
             {% elif idv.gp_freitext %}
-            {{ idv.gp_freitext }} <span class="badge bg-light text-muted border ms-1"
-              style="font-size:.6rem">Freitext</span>
+            {{ idv.gp_freitext }} <span class="badge bg-light text-muted border ms-1 fs-9"
+             >Freitext</span>
             {% else %}
             <span class="text-muted">–</span>
             {% endif %}
@@ -193,15 +193,15 @@
         {% if k.kriterium_aktiv or k.erfuellt %}
         <div class="col-sm-4">
           <div class="detail-label">
-            <span class="badge bg-secondary me-1" style="font-size:.6rem">{{ loop.index }}</span>
+            <span class="badge bg-secondary me-1 fs-9">{{ loop.index }}</span>
             {{ k.bezeichnung }}
-            {% if not k.kriterium_aktiv %}<span class="badge bg-warning text-dark ms-1"
-              style="font-size:.6rem">inaktiv</span>{% endif %}
+            {% if not k.kriterium_aktiv %}<span class="badge bg-warning text-dark ms-1 fs-9"
+             >inaktiv</span>{% endif %}
           </div>
           <div class="detail-value">{{ k.erfuellt|yesno }}</div>
           {% set gewaehlt = k.details | selectattr('gewaehlt') | list %}
           {% if gewaehlt %}
-          <ul class="mb-0 mt-1 ps-3" style="font-size:.8rem">
+          <ul class="mb-0 mt-1 ps-3 fs-7">
             {% for d in gewaehlt %}
             <li>{{ d.bezeichnung }}</li>
             {% endfor %}
@@ -221,10 +221,10 @@
     <!-- Schutzbedarf (aus Geschäftsprozess, lesend) -->
     {% if idv.schutzbedarf_a or idv.schutzbedarf_c or idv.schutzbedarf_i or idv.schutzbedarf_n %}
     <div class="form-section">
-      <div class="form-section-title" style="font-size:.88rem">
+      <div class="form-section-title">
         Schutzbedarf <small class="text-muted fw-normal">(aus Geschäftsprozess)</small>
       </div>
-      <div class="d-flex flex-wrap gap-3" style="font-size:.82rem">
+      <div class="d-flex flex-wrap gap-3 small">
         {% for label, letter, val in [
         ('Verfügbarkeit', 'A', idv.schutzbedarf_a),
         ('Vertraulichkeit', 'C', idv.schutzbedarf_c),
@@ -232,7 +232,7 @@
         ('Authentizität', 'N', idv.schutzbedarf_n),
         ] %}
         <div class="text-muted">
-          <span class="badge bg-secondary" style="font-size:.6rem">{{ letter }}</span>
+          <span class="badge bg-secondary fs-9">{{ letter }}</span>
           {{ label }}:
           <strong class="text-body">{{ val or '–' }}</strong>
         </div>
@@ -301,7 +301,7 @@
             <span class="fw-500">{{ file.file_name }}</span>
           </div>
         </div>
-        <div class="row g-2 mt-1" style="font-size:.82rem">
+        <div class="row g-2 mt-1 small">
           <div class="col-12">
             <div class="detail-label">Pfad</div>
             <div class="hash-mono">{{ file.full_path | map_path }}</div>
@@ -342,7 +342,7 @@
           <div>
             <span class="badge bg-secondary me-1">Projektdatei</span>
             <span class="fw-500">{{ ef.file_name }}</span>
-            <span class="text-muted ms-2" style="font-size:.78rem">verknüpft {{ ef.linked_at[:10] if ef.linked_at else
+            <span class="text-muted ms-2 fs-7">verknüpft {{ ef.linked_at[:10] if ef.linked_at else
               '' }}</span>
           </div>
           {% if can_create %}
@@ -356,7 +356,7 @@
           </form>
           {% endif %}
         </div>
-        <div class="row g-2 mt-1" style="font-size:.82rem">
+        <div class="row g-2 mt-1 small">
           <div class="col-12">
             <div class="detail-label">Pfad</div>
             <div class="hash-mono text-truncate" title="{{ ef.full_path | map_path }}">{{ ef.full_path | map_path }}

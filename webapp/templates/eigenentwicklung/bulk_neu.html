@@ -2,7 +2,7 @@
 {% block title %}Bulk-Registrierung{% endblock %}
 {% block page_title %}
 <i class="bi bi-collection me-2"></i>Bulk-Registrierung
-<small class="text-muted ms-2" style="font-size:.75rem">
+<small class="text-muted ms-2 fs-7">
   <span id="row-count">{{ vorschlaege|length }}</span> Scannerfund(e) → je eigene Eigenentwicklung
 </small>
 {% endblock %}
@@ -12,7 +12,7 @@
 <form method="post" action="{{ url_for('eigenentwicklung.bulk_neu') }}" id="bulk-neu-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  <div class="alert alert-info d-flex align-items-start gap-3 mb-3" style="font-size:.85rem">
+  <div class="alert alert-info d-flex align-items-start gap-3 mb-3 small">
     <i class="bi bi-info-circle fs-5 flex-shrink-0 mt-1"></i>
     <div>
       Für jede ausgewählte Datei wird ein eigener IDV-Register-Eintrag angelegt.
@@ -82,12 +82,12 @@
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
       <span><i class="bi bi-files me-1"></i>Zu registrierende Dateien</span>
-      <span class="text-muted" style="font-size:.78rem">
+      <span class="text-muted fs-7">
         <span id="valid-count">0</span>/<span id="total-count">{{ vorschlaege|length }}</span> bereit
       </span>
     </div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0" style="font-size:.85rem" id="bulk-neu-table">
+      <table class="table table-sm table-hover mb-0 small" id="bulk-neu-table">
         <thead>
           <tr>
             <th>Datei</th>
@@ -104,7 +104,7 @@
             <td class="align-top">
               <input type="hidden" name="file_ids" value="{{ d.id }}" class="file-id-input">
               <div class="font-monospace">{{ d.file_name }}</div>
-              <div class="text-muted" style="font-size:.75rem">{{ d.full_path }}</div>
+              <div class="text-muted fs-7">{{ d.full_path }}</div>
               {% if d.has_macros %}
               <span class="badge bg-danger mt-1">VBA-Makros</span>
               {% endif %}

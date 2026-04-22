@@ -29,7 +29,7 @@
         <tr class="{{ 'table-danger' if m.faelligkeitsstatus == 'ÜBERFÄLLIG' else '' }}">
           <td>
             <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=m.idv_id) }}"
-               class="text-decoration-none fw-500" style="font-size:.82rem">
+               class="text-decoration-none fw-500 small">
               {{ m.idv_bezeichnung|truncate(30) }}
             </a>
           </td>
@@ -42,8 +42,8 @@
               {{ m.prioritaet }}
             </span>
           </td>
-          <td style="font-size:.82rem">{{ m.verantwortlicher or '–' }}</td>
-          <td style="font-size:.82rem">
+          <td class="small">{{ m.verantwortlicher or '–' }}</td>
+          <td class="small">
             {% if m.faelligkeitsstatus == 'ÜBERFÄLLIG' %}
               <span class="text-danger fw-bold"><i class="bi bi-alarm me-1"></i>{{ m.faellig_am|datefmt }}</span>
             {% else %}
@@ -84,5 +84,4 @@
   </div>
 </div>
 
-<style>.btn-xs { padding: .15rem .4rem; font-size: .75rem; } .fw-600 { font-weight:600; }</style>
 {% endblock %}
