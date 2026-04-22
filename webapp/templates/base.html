@@ -516,6 +516,14 @@
           <kbd style="font-size:.7rem;background:#f1f5f9;border:1px solid #cbd5e1;
                       border-radius:3px;padding:.1rem .3rem;color:#1e293b;">Strg K</kbd>
         </button>
+        <button data-action="showHelp" title="Tastatur-Shortcuts anzeigen" style="background:none;border:1px solid var(--idv-border);border-radius:6px;
+                       padding:.3rem .7rem;cursor:pointer;color:#6b7280;font-size:.8rem;
+                       display:flex;align-items:center;gap:.4rem;white-space:nowrap;">
+          <i class="bi bi-keyboard"></i>
+          <span class="d-none d-md-inline">Shortcuts</span>
+          <kbd style="font-size:.7rem;background:#f1f5f9;border:1px solid #cbd5e1;
+                      border-radius:3px;padding:.1rem .3rem;color:#1e293b;">?</kbd>
+        </button>
         {% endif %}
         {% if session.user_name %}
         <span class="text-muted" style="font-size:.82rem;">
@@ -938,6 +946,7 @@
       }
       function showHelp() { var m = getHelp(); m.style.display = 'flex'; }
       function hideHelp() { if (helpEl) helpEl.style.display = 'none'; }
+      window.showHelp = showHelp;
 
       document.addEventListener('keydown', function (e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
