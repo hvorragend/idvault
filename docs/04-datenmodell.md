@@ -400,7 +400,7 @@ Performance-relevante Indizes auf häufig gefilterte Spalten:
 
 ## 11 Migrationsstrategie
 
-idvault nutzt **Alembic** als Migrationsframework (`alembic/versions/`):
+idvault nutzt **Alembic** als Migrationsframework (`migrations/versions/`):
 
 - `db.py::init_register_db()` startet beim App-Start `alembic upgrade head`.
 - `0001_initial_schema` liest `schema.sql` und spielt die enthaltenen
@@ -410,9 +410,12 @@ idvault nutzt **Alembic** als Migrationsframework (`alembic/versions/`):
   der Initial-Revision und als menschenlesbare Gesamtübersicht des
   Zielschemas.
 - **Neue Schemaänderungen** werden als nummerierte Alembic-Revisions in
-  `alembic/versions/` gepflegt; `schema.sql` wird dabei im gleichen Commit
-  aktualisiert, damit es den aktuellen Zielzustand für neue Installationen
-  beschreibt.
+  `migrations/versions/` gepflegt; `schema.sql` wird dabei im gleichen
+  Commit aktualisiert, damit es den aktuellen Zielzustand für neue
+  Installationen beschreibt.
+- Der Ordner heißt bewusst `migrations/` (nicht `alembic/`): sonst würde
+  er beim direkten Start von `run.py` (Projektroot in `sys.path[0]`) das
+  installierte `alembic`-Package überschatten.
 
 ## 12 Datenklassifikation
 
