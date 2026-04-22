@@ -306,7 +306,85 @@
   }
 </style>
 
+
+<script>
+  (function () {
+    const STORE_KEY = 'idv_list_sort';
+    const table = document.getElementById('idv-table');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const headers = [...table.querySelectorAll('thead th.sortable')];
+    const allThs = [...table.querySelectorAll('thead tr th')];
+
+    function sortBy(th, dir) {
+      const colIdx = allThs.indexOf(th);
+      headers.forEach(h => h.classList.remove('asc', 'desc'));
+      th.classList.toggle('asc', dir === 1);
+      th.classList.toggle('desc', dir === -1);
+
+      const rows = [...tbody.querySelectorAll('tr')];
+      rows.sort((a, b) => {
+        const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
+        const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
+        const da = parseDate(ta), db = parseDate(tb);
+        if (da !== null && db !== null) return dir * (da - db);
+        return dir * ta.localeCompare(tb, 'de');
+      });
+      rows.forEach(r => tbody.appendChild(r));
+
+      // Sortierung in sessionStorage merken
+      try {
+        sessionStorage.setItem(STORE_KEY, JSON.stringify({
+          colText: th.innerText.trim(),
+          dir: dir
+        }));
+      } catch (e) { }
+    }
+
+    headers.forEach(th => {
+      let dir = 0;
+      th.addEventListener('click', () => {
+        dir = dir === 1 ? -1 : 1;
+        sortBy(th, dir);
+      });
+    });
+
+    // Letzte Sortierung beim Laden wiederherstellen
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
+      if (saved) {
+        const th = headers.find(h => h.innerText.trim() === saved.colText);
+        if (th) sortBy(th, saved.dir);
+      }
+    } catch (e) { }
+
+    function parseDate(s) {
+      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+      m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+      if (m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
+      return null;
+    }
+  })();
+</script>
+
+<!-- U-QW4 + U-QW5: Bulk-Bestätigungs-Modal ──────────────────────────── -->
 {% if can_write %}
+<div id="bulk-modal-backdrop"
+     style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:1055;
+            background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
+  <div id="bulk-preview-modal"
+       style="background:#fff;border-radius:10px;padding:1.5rem;
+              min-width:360px;max-width:min(560px,95vw);max-height:80vh;overflow-y:auto;
+              box-shadow:0 20px 60px rgba(0,0,0,.25);">
+    <h6 id="bulk-modal-title" class="mb-3"></h6>
+    <div id="bulk-modal-body" class="mb-3"></div>
+    <div class="d-flex gap-2 justify-content-end">
+      <button id="bulk-modal-cancel" class="btn btn-outline-secondary btn-sm">Abbrechen</button>
+      <button id="bulk-modal-confirm" class="btn btn-sm btn-primary"></button>
+    </div>
+  </div>
+</div>
 <script>
   (function () {
     const selectAll = document.getElementById('select-all');
@@ -341,7 +419,6 @@
 
     // ── Vorschau-Modal (U-QW4 + U-QW5) ──────────────────────────────────────
     let _onConfirm = null;
-    const modal = document.getElementById('bulk-preview-modal');
     const modalBackdrop = document.getElementById('bulk-modal-backdrop');
     document.getElementById('bulk-modal-cancel').addEventListener('click', () => {
       modalBackdrop.style.display = 'none';
@@ -436,7 +513,7 @@
               alert(json.msg || 'Fehler beim Statuswechsel.');
             }
           }).catch(() => {
-            form.querySelector('#btn-bulk-status').click();
+            form.submit();
           });
         }
       });
@@ -468,82 +545,4 @@
   })();
 </script>
 {% endif %}
-
-<script>
-  (function () {
-    const STORE_KEY = 'idv_list_sort';
-    const table = document.getElementById('idv-table');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    const headers = [...table.querySelectorAll('thead th.sortable')];
-    const allThs = [...table.querySelectorAll('thead tr th')];
-
-    function sortBy(th, dir) {
-      const colIdx = allThs.indexOf(th);
-      headers.forEach(h => h.classList.remove('asc', 'desc'));
-      th.classList.toggle('asc', dir === 1);
-      th.classList.toggle('desc', dir === -1);
-
-      const rows = [...tbody.querySelectorAll('tr')];
-      rows.sort((a, b) => {
-        const ta = (a.cells[colIdx] ? a.cells[colIdx].innerText : '').trim().toLowerCase();
-        const tb = (b.cells[colIdx] ? b.cells[colIdx].innerText : '').trim().toLowerCase();
-        const da = parseDate(ta), db = parseDate(tb);
-        if (da !== null && db !== null) return dir * (da - db);
-        return dir * ta.localeCompare(tb, 'de');
-      });
-      rows.forEach(r => tbody.appendChild(r));
-
-      // Sortierung in sessionStorage merken
-      try {
-        sessionStorage.setItem(STORE_KEY, JSON.stringify({
-          colText: th.innerText.trim(),
-          dir: dir
-        }));
-      } catch (e) { }
-    }
-
-    headers.forEach(th => {
-      let dir = 0;
-      th.addEventListener('click', () => {
-        dir = dir === 1 ? -1 : 1;
-        sortBy(th, dir);
-      });
-    });
-
-    // Letzte Sortierung beim Laden wiederherstellen
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null');
-      if (saved) {
-        const th = headers.find(h => h.innerText.trim() === saved.colText);
-        if (th) sortBy(th, saved.dir);
-      }
-    } catch (e) { }
-
-    function parseDate(s) {
-      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
-      m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-      if (m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
-      return null;
-    }
-  })();
-</script>
-
-<!-- U-QW4 + U-QW5: Bulk-Bestätigungs-Modal ──────────────────────────── -->
-<div id="bulk-modal-backdrop"
-     style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:1055;
-            background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
-  <div id="bulk-preview-modal"
-       style="background:#fff;border-radius:10px;padding:1.5rem;
-              min-width:360px;max-width:min(560px,95vw);max-height:80vh;overflow-y:auto;
-              box-shadow:0 20px 60px rgba(0,0,0,.25);">
-    <h6 id="bulk-modal-title" class="mb-3"></h6>
-    <div id="bulk-modal-body" class="mb-3"></div>
-    <div class="d-flex gap-2 justify-content-end">
-      <button id="bulk-modal-cancel" class="btn btn-outline-secondary btn-sm">Abbrechen</button>
-      <button id="bulk-modal-confirm" class="btn btn-sm btn-primary"></button>
-    </div>
-  </div>
-</div>
 {% endblock %}
