@@ -508,9 +508,17 @@
                   {% if not f and can_create %}
                   {# Freigabe-Schritt wurde gelöscht → Anlage anbieten #}
                   <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
-                    class="d-inline">
+                    class="d-flex align-items-center gap-1 flex-wrap">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="schritt" value="{{ schritt_name }}">
+                    {% if freigabe_pools %}
+                    <select name="pool_id" class="form-select form-select-sm" style="max-width:160px" title="Optional: Pool zuweisen">
+                      <option value="">Kein Pool</option>
+                      {% for pool in freigabe_pools %}
+                      <option value="{{ pool.id }}">{{ pool.name }}</option>
+                      {% endfor %}
+                    </select>
+                    {% endif %}
                     <button type="submit" class="btn btn-xs btn-primary">
                       <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
                     </button>
@@ -617,9 +625,17 @@
                   {% if not f and can_create %}
                   {# Abnahme-Schritt wurde gelöscht → Anlage anbieten #}
                   <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
-                    class="d-inline">
+                    class="d-flex align-items-center gap-1 flex-wrap">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="schritt" value="{{ schritt_name }}">
+                    {% if freigabe_pools %}
+                    <select name="pool_id" class="form-select form-select-sm" style="max-width:160px" title="Optional: Pool zuweisen">
+                      <option value="">Kein Pool</option>
+                      {% for pool in freigabe_pools %}
+                      <option value="{{ pool.id }}">{{ pool.name }}</option>
+                      {% endfor %}
+                    </select>
+                    {% endif %}
                     <button type="submit" class="btn btn-xs btn-primary">
                       <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
                     </button>
@@ -723,26 +739,25 @@
                 Fachlicher Test und Technischer Test werden <strong>gleichzeitig</strong> gestartet.
                 Bitte wählen Sie die verantwortlichen Personen aus.
               </p>
+              {% for schritt_key, schritt_label in [('fachlicher_test', 'Fachlicher Test'), ('technischer_test', 'Technischer Test')] %}
               <div class="mb-3">
-                <label class="form-label fw-500">Empfänger Fachlicher Test</label>
-                <select name="zugewiesen_fachlicher_test" class="form-select form-select-sm">
+                <label class="form-label fw-500">{{ schritt_label }}</label>
+                <select name="zugewiesen_{{ schritt_key }}" class="form-select form-select-sm mb-1">
                   <option value="">– Person auswählen –</option>
                   {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif
-                    %}</option>
+                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
                   {% endfor %}
                 </select>
-              </div>
-              <div class="mb-2">
-                <label class="form-label fw-500">Empfänger Technischer Test</label>
-                <select name="zugewiesen_technischer_test" class="form-select form-select-sm">
-                  <option value="">– Person auswählen –</option>
-                  {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif
-                    %}</option>
+                {% if freigabe_pools %}
+                <select name="pool_id_{{ schritt_key }}" class="form-select form-select-sm text-muted">
+                  <option value="">– oder Pool zuweisen –</option>
+                  {% for pool in freigabe_pools %}
+                  <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
                   {% endfor %}
                 </select>
+                {% endif %}
               </div>
+              {% endfor %}
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
@@ -771,26 +786,25 @@
                 Fachliche Abnahme und Technische Abnahme werden <strong>gleichzeitig</strong> gestartet.
                 Bitte wählen Sie die verantwortlichen Personen aus.
               </p>
+              {% for schritt_key, schritt_label in [('fachliche_abnahme', 'Fachliche Abnahme'), ('technische_abnahme', 'Technische Abnahme')] %}
               <div class="mb-3">
-                <label class="form-label fw-500">Empfänger Fachliche Abnahme</label>
-                <select name="zugewiesen_fachliche_abnahme" class="form-select form-select-sm">
+                <label class="form-label fw-500">{{ schritt_label }}</label>
+                <select name="zugewiesen_{{ schritt_key }}" class="form-select form-select-sm mb-1">
                   <option value="">– Person auswählen –</option>
                   {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif
-                    %}</option>
+                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
                   {% endfor %}
                 </select>
-              </div>
-              <div class="mb-2">
-                <label class="form-label fw-500">Empfänger Technische Abnahme</label>
-                <select name="zugewiesen_technische_abnahme" class="form-select form-select-sm">
-                  <option value="">– Person auswählen –</option>
-                  {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif
-                    %}</option>
+                {% if freigabe_pools %}
+                <select name="pool_id_{{ schritt_key }}" class="form-select form-select-sm text-muted">
+                  <option value="">– oder Pool zuweisen –</option>
+                  {% for pool in freigabe_pools %}
+                  <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
                   {% endfor %}
                 </select>
+                {% endif %}
               </div>
+              {% endfor %}
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
