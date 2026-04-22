@@ -1,13 +1,13 @@
-"""LDAP-Konfiguration, Gruppen-Mapping und Benutzer-Import."""
+"""Admin-Sub-Modul: LDAP-Konfiguration, Gruppen-Mapping, LDAP-Import."""
 from datetime import datetime, timezone
 
 from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
 
-from . import bp
+from db_write_tx import write_tx
+
 from .. import admin_required, get_db
 from ...db_writer import get_writer
-
-from db_write_tx import write_tx
+from . import bp
 
 
 _LDAP_ROLLEN = [
