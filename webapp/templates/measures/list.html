@@ -51,13 +51,24 @@
             {% endif %}
           </td>
           <td><span class="badge bg-{{ 'secondary' if m.status == 'Offen' else 'primary' }}">{{ m.status }}</span></td>
-          <td>
+          <td class="text-nowrap">
             <form method="post" action="{{ url_for('measures.complete_measure', m_id=m.id) }}" class="d-inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-xs btn-outline-success" title="Als erledigt markieren" data-confirm="Maßnahme als erledigt markieren?">
                 <i class="bi bi-check-lg"></i>
               </button>
             </form>
+            {% if session.user_role == 'IDV-Administrator' %}
+            <a href="{{ url_for('measures.edit_measure', m_id=m.id) }}" class="btn btn-xs btn-outline-secondary ms-1" title="Bearbeiten">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{{ url_for('measures.delete_measure', m_id=m.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-xs btn-outline-danger" title="Löschen" data-confirm="Maßnahme „{{ m.titel }}" löschen?">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% else %}

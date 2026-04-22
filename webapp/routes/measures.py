@@ -1,6 +1,6 @@
 """Maßnahmen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from . import login_required, own_write_required, get_db
+from . import login_required, own_write_required, admin_required, get_db
 from datetime import datetime, timezone
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -104,14 +104,13 @@ def detail_measure(m_id):
 
 
 @bp.route("/<int:m_id>/bearbeiten", methods=["GET", "POST"])
-@own_write_required
+@admin_required
 def edit_measure(m_id):
     db = get_db()
     m  = db.execute("SELECT * FROM massnahmen WHERE id=?", (m_id,)).fetchone()
     if not m:
         flash("Maßnahme nicht gefunden.", "error")
         return redirect(url_for("measures.list_measures"))
-    ensure_can_write_idv(db, m["idv_id"])
     idv = db.execute("SELECT * FROM idv_register WHERE id=?", (m["idv_id"],)).fetchone()
 
     if request.method == "POST":
@@ -151,6 +150,25 @@ def edit_measure(m_id):
         massnahmentypen=get_klassifizierungen(db, "massnahmentyp"),
         prioritaeten=get_klassifizierungen(db, "massnahmen_prioritaet"),
         statuswerte=["Offen", "In Bearbeitung", "Zurückgestellt"])
+
+
+@bp.route("/<int:m_id>/loeschen", methods=["POST"])
+@admin_required
+def delete_measure(m_id):
+    db  = get_db()
+    row = db.execute("SELECT idv_id, titel FROM massnahmen WHERE id=?", (m_id,)).fetchone()
+    if not row:
+        flash("Maßnahme nicht gefunden.", "error")
+        return redirect(url_for("measures.list_measures"))
+    idv_db_id = row["idv_id"]
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM massnahmen WHERE id=?", (m_id,))
+
+    get_writer().submit(_do, wait=True)
+    flash(f"Maßnahme „{row['titel']}" gelöscht.", "success")
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
 @bp.route("/<int:m_id>/erledigen", methods=["POST"])
