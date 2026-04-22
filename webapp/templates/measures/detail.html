@@ -6,57 +6,73 @@
 <div class="row g-4">
   <div class="col-lg-8">
 
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
-        <span>{{ m.titel }}</span>
-        <span class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' if m.status == 'Offen' else 'primary' if m.status == 'In Bearbeitung' else 'success' }}">
-          {{ m.status }}
-        </span>
-      </div>
-      <ul class="list-group list-group-flush">
-        <li class="list-group-item px-3 py-2">
+    <div class="form-section">
+      <div class="form-section-title">Maßnahme</div>
+      <div class="row g-3">
+
+        <div class="col-12">
+          <div class="detail-label">Titel</div>
+          <div class="fw-500">{{ m.titel }}</div>
+        </div>
+
+        <div class="col-md-4">
           <div class="detail-label">Typ</div>
           <span class="badge bg-light text-dark border">{{ m.massnahmentyp or '–' }}</span>
-        </li>
-        <li class="list-group-item px-3 py-2">
+        </div>
+
+        <div class="col-md-4">
           <div class="detail-label">Priorität</div>
           <span class="badge bg-{{ 'danger' if m.prioritaet == 'Kritisch' else 'warning text-dark' if m.prioritaet == 'Hoch' else 'secondary' }}">
             {{ m.prioritaet }}
           </span>
-        </li>
-        <li class="list-group-item px-3 py-2">
-          <div class="detail-label">Verantwortlicher</div>
-          <div class="fw-500">{{ m.verantwortlicher or '–' }}</div>
-        </li>
-        <li class="list-group-item px-3 py-2">
+        </div>
+
+        <div class="col-md-4">
           <div class="detail-label">Fällig am</div>
-          <div class="fw-500 {{ 'text-danger' if m.faelligkeitsstatus == 'ÜBERFÄLLIG' }}">
-            {% if m.faelligkeitsstatus == 'ÜBERFÄLLIG' %}
-              <i class="bi bi-alarm me-1"></i>
-            {% endif %}
+          <div class="{{ 'text-danger fw-500' if m.faelligkeitsstatus == 'ÜBERFÄLLIG' }}">
+            {% if m.faelligkeitsstatus == 'ÜBERFÄLLIG' %}<i class="bi bi-alarm me-1"></i>{% endif %}
             {{ m.faellig_am|datefmt if m.faellig_am else '–' }}
           </div>
-        </li>
-        {% if m.beschreibung %}
-        <li class="list-group-item px-3 py-2">
+        </div>
+
+        <div class="col-md-4">
+          <div class="detail-label">Status</div>
+          <span class="badge bg-{{ 'danger' if m.status == 'Offen' and m.faelligkeitsstatus == 'ÜBERFÄLLIG' else 'secondary' if m.status == 'Offen' else 'primary' if m.status == 'In Bearbeitung' else 'success' }}">
+            {{ m.status }}
+          </span>
+        </div>
+
+        <div class="col-md-8">
+          <div class="detail-label">Verantwortlicher</div>
+          <div class="fw-500">{{ m.verantwortlicher or '–' }}</div>
+        </div>
+
+        <div class="col-12">
           <div class="detail-label">Beschreibung</div>
-          <div style="white-space:pre-wrap;font-size:.9rem">{{ m.beschreibung }}</div>
-        </li>
-        {% endif %}
+          <div style="white-space:pre-wrap;font-size:.9rem">{{ m.beschreibung or '–' }}</div>
+        </div>
+
         {% if m.status == 'Erledigt' %}
-        <li class="list-group-item px-3 py-2">
+        <div class="col-md-4">
           <div class="detail-label">Erledigt am</div>
           <div class="fw-500">{{ m.erledigt_am|datefmt if m.erledigt_am else '–' }}</div>
-        </li>
+        </div>
         {% if m.erledigung_kommentar %}
-        <li class="list-group-item px-3 py-2">
+        <div class="col-md-8">
           <div class="detail-label">Erledigungskommentar</div>
           <div style="white-space:pre-wrap;font-size:.9rem">{{ m.erledigung_kommentar }}</div>
-        </li>
+        </div>
         {% endif %}
         {% endif %}
-      </ul>
-      <div class="card-footer bg-white d-flex gap-2">
+
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between">
+      <a href="{{ url_for('measures.list_measures') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Zurück zur Übersicht
+      </a>
+      <div class="d-flex gap-2">
         {% if m.status != 'Erledigt' %}
         <form method="post" action="{{ url_for('measures.complete_measure', m_id=m.id) }}" class="d-inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -66,7 +82,7 @@
         </form>
         {% endif %}
         {% if session.user_role == 'IDV-Administrator' %}
-        <a href="{{ url_for('measures.edit_measure', m_id=m.id) }}" class="btn btn-sm btn-outline-secondary ms-auto">
+        <a href="{{ url_for('measures.edit_measure', m_id=m.id) }}" class="btn btn-sm btn-outline-secondary">
           <i class="bi bi-pencil me-1"></i>Bearbeiten
         </a>
         <form method="post" action="{{ url_for('measures.delete_measure', m_id=m.id) }}" class="d-inline">
@@ -79,10 +95,6 @@
       </div>
     </div>
 
-    <a href="{{ url_for('measures.list_measures') }}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left me-1"></i>Zurück zur Übersicht
-    </a>
-
   </div>
 
   <div class="col-lg-4">
@@ -93,6 +105,22 @@
           <div class="detail-label">Bezeichnung</div>
           <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=m.idv_id) }}"
              class="fw-500 text-decoration-none">{{ m.idv_bezeichnung }}</a>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">ID</div>
+          <div class="fw-500 font-monospace">{{ idv.idv_id }}</div>
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Wesentlichkeit</div>
+          {% if ist_wesentlich %}
+          <span class="badge bg-danger">Wesentlich</span>
+          {% else %}
+          <span class="text-muted" style="font-size:.82rem">Nicht wesentlich</span>
+          {% endif %}
+        </li>
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Status</div>
+          <span class="badge status-{{ idv.status|replace(' ', '-') }}">{{ idv.status }}</span>
         </li>
       </ul>
     </div>
