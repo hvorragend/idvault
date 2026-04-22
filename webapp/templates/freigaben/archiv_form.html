@@ -286,19 +286,22 @@
             <div class="mb-3">
               <label class="form-label fw-500">Weiterleiten an</label>
               <select name="weiterleiten_an_id" class="form-select">
-                <option value="">– Person auswählen –</option>
-                {% for p in persons %}
-                <option value="{{ p.id }}">{{ p.name }}</option>
-                {% endfor %}
+                <option value="">– Zuweisen an –</option>
+                {% if persons %}
+                <optgroup label="Personen">
+                  {% for p in persons %}
+                  <option value="{{ p.id }}">{{ p.name }}</option>
+                  {% endfor %}
+                </optgroup>
+                {% endif %}
+                {% if freigabe_pools %}
+                <optgroup label="Pools">
+                  {% for pool in freigabe_pools %}
+                  <option value="pool_{{ pool.id }}">{{ pool.name }}</option>
+                  {% endfor %}
+                </optgroup>
+                {% endif %}
               </select>
-              {% if freigabe_pools %}
-              <select name="pool_id" class="form-select mt-2 text-muted">
-                <option value="">– oder Pool zuweisen –</option>
-                {% for pool in freigabe_pools %}
-                <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
-                {% endfor %}
-              </select>
-              {% endif %}
             </div>
           </div>
           <div class="modal-footer">
