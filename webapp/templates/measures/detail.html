@@ -56,16 +56,19 @@
         {% endif %}
         {% endif %}
       </ul>
-      {% if m.status != 'Erledigt' %}
-      <div class="card-footer bg-white">
+      <div class="card-footer bg-white d-flex gap-2">
+        <a href="{{ url_for('measures.edit_measure', m_id=m.id) }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-pencil me-1"></i>Bearbeiten
+        </a>
+        {% if m.status != 'Erledigt' %}
         <form method="post" action="{{ url_for('measures.complete_measure', m_id=m.id) }}" class="d-inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-sm btn-outline-success" data-confirm="Maßnahme als erledigt markieren?">
             <i class="bi bi-check-lg me-1"></i>Als erledigt markieren
           </button>
         </form>
+        {% endif %}
       </div>
-      {% endif %}
     </div>
 
     <a href="{{ url_for('measures.list_measures') }}" class="btn btn-outline-secondary btn-sm">

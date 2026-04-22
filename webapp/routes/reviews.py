@@ -97,6 +97,42 @@ def new_review(idv_db_id):
         pruefungs_ergebnisse=get_klassifizierungen(db, "pruefungs_ergebnis"))
 
 
+@bp.route("/<int:p_id>/loeschen", methods=["POST"])
+@own_write_required
+def delete_review(p_id):
+    db = get_db()
+    p  = db.execute("SELECT * FROM pruefungen WHERE id=?", (p_id,)).fetchone()
+    if not p:
+        flash("Prüfung nicht gefunden.", "error")
+        return redirect(url_for("reviews.list_reviews"))
+    idv_db_id = p["idv_id"]
+    ensure_can_write_idv(db, idv_db_id)
+    now = datetime.now(timezone.utc).isoformat()
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("DELETE FROM pruefungen WHERE id=?", (p_id,))
+            latest = c.execute("""
+                SELECT pruefungsdatum, naechste_pruefung
+                FROM pruefungen WHERE idv_id=?
+                ORDER BY pruefungsdatum DESC LIMIT 1
+            """, (idv_db_id,)).fetchone()
+            if latest:
+                c.execute("""
+                    UPDATE idv_register SET letzte_pruefung=?, naechste_pruefung=?, aktualisiert_am=?
+                    WHERE id=?
+                """, (latest["pruefungsdatum"], latest["naechste_pruefung"], now, idv_db_id))
+            else:
+                c.execute("""
+                    UPDATE idv_register SET letzte_pruefung=NULL, naechste_pruefung=NULL, aktualisiert_am=?
+                    WHERE id=?
+                """, (now, idv_db_id))
+
+    get_writer().submit(_do, wait=True)
+    flash("Prüfung gelöscht.", "success")
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+
 @bp.context_processor
 def inject_today():
     return {"today": _date.today().isoformat()}
