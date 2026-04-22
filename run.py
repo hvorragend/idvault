@@ -33,8 +33,29 @@ Konfiguration (config.json):
   BUNDLED_VERSION, die run.py selbst setzt.
 """
 
+import gc
 import os
 import sys
+
+
+def _suppress_cheroot_late_close(unraisable):
+    # Cheroot erzeugt per socket.makefile() BufferedWriter, die vom GC
+    # erst nach server.stop() finalisiert werden. IOBase.__del__ ruft dann
+    # flush() auf einem bereits geschlossenen Socket auf → unter Windows
+    # WinError 10038 ("not a socket"). Harmlos, aber Konsolen-Rauschen.
+    exc = unraisable.exc_value
+    tb = unraisable.exc_traceback
+    if isinstance(exc, OSError):
+        t = tb
+        while t is not None:
+            filename = (t.tb_frame.f_code.co_filename or "").replace("\\", "/")
+            if "cheroot/makefile.py" in filename:
+                return
+            t = t.tb_next
+    sys.__unraisablehook__(unraisable)
+
+
+sys.unraisablehook = _suppress_cheroot_late_close
 
 # Projektverzeichnis zum Pfad hinzufügen
 sys.path.insert(0, os.path.dirname(__file__))
@@ -411,6 +432,10 @@ def _run_server(service_mode: bool = False):
             pass
         finally:
             server.stop()           # graceful drain
+            try:
+                gc.collect()        # cheroot-makefile-Writer deterministisch finalisieren
+            except Exception:
+                pass
             try:
                 from webapp.process_lock import release as _lock_release
                 _lock_release()
