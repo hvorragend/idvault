@@ -53,9 +53,12 @@ def _alembic_config(db_path: str):
         raise FileNotFoundError(f"alembic.ini nicht gefunden: {ini_path}")
 
     cfg = Config(str(ini_path))
-    # script_location absolut setzen: PyInstaller legt alembic/ unter
-    # _MEIPASS/alembic ab, nicht am CWD.
-    cfg.set_main_option("script_location", str(_resource_path("alembic")))
+    # script_location absolut setzen: PyInstaller legt migrations/ unter
+    # _MEIPASS/migrations ab, nicht am CWD. Der Ordnername ist bewusst
+    # nicht ``alembic/`` – der Projektroot steht beim direkten Start von
+    # run.py in sys.path[0], ein gleichnamiger lokaler Ordner würde das
+    # installierte alembic-Package überschatten.
+    cfg.set_main_option("script_location", str(_resource_path("migrations")))
     # SQLite-URL für den aktuellen DB-Pfad – der alembic.ini-Default
     # (instance/idvault.db) ist nur ein Platzhalter für Offline-Aufrufe.
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")

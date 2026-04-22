@@ -40,9 +40,11 @@ datas = [
     ('version.json', '.'),
     # Pflicht: Alembic-Konfiguration + Migrationen. init_register_db()
     # startet "alembic upgrade head" beim App-Start; ohne diese Dateien
-    # schlägt der erste Lauf fehl.
+    # schlägt der erste Lauf fehl. Der Ordnername ``migrations/`` ist
+    # bewusst gewählt, damit er das installierte alembic-Package nicht
+    # überschattet (Kollision mit sys.path[0] bei ``python run.py``).
     ('alembic.ini',       '.'),
-    ('alembic',           'alembic'),
+    ('migrations',        'migrations'),
     # Pflicht: alle Jinja2-Templates
     ('webapp/templates', 'webapp/templates'),
     # Pflicht: lokale Frontend-Assets (Bootstrap, Bootstrap Icons, QuillJS).
