@@ -434,7 +434,7 @@ def list_funde():
     gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
 
     # Match-Score-Vorschläge nur berechnen wenn relevante Filter aktiv sind und Funktion aktiv
-    if filt not in ("archiv", "duplikate", "mit_idv") and _get_bool(db, "suggestions_enabled", True):
+    if filt not in ("archiv", "duplikate", "mit_idv") and _get_bool(db, "match_suggestions_enabled", True):
         match_scores = _compute_match_scores(dateien, db)
     else:
         match_scores = {}

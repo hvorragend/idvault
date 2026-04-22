@@ -1084,12 +1084,14 @@ def scanner_einstellungen():
             val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
             val_dc = "1" if request.form.get("discard_no_formula") == "1" else "0"
             val_cf = "1" if request.form.get("auto_classify_by_filename") == "1" else "0"
-            val_sg = "1" if request.form.get("suggestions_enabled") == "1" else "0"
+            val_ms = "1" if request.form.get("match_suggestions_enabled") == "1" else "0"
+            val_sd = "1" if request.form.get("smart_defaults_enabled") == "1" else "0"
             _settings = [
-                ("auto_ignore_no_formula",    val_ai),
-                ("discard_no_formula",        val_dc),
-                ("auto_classify_by_filename", val_cf),
-                ("suggestions_enabled",       val_sg),
+                ("auto_ignore_no_formula",       val_ai),
+                ("discard_no_formula",           val_dc),
+                ("auto_classify_by_filename",    val_cf),
+                ("match_suggestions_enabled",    val_ms),
+                ("smart_defaults_enabled",       val_sd),
                 ("scan_schedule_enabled",     sched_enabled),
                 ("scan_schedule_type",        sched_type),
                 ("scan_schedule_time",        sched_time),
@@ -1116,8 +1118,11 @@ def scanner_einstellungen():
     classify_fn = db.execute(
         "SELECT value FROM app_settings WHERE key='auto_classify_by_filename'"
     ).fetchone()
-    suggestions = db.execute(
-        "SELECT value FROM app_settings WHERE key='suggestions_enabled'"
+    match_sug = db.execute(
+        "SELECT value FROM app_settings WHERE key='match_suggestions_enabled'"
+    ).fetchone()
+    smart_def = db.execute(
+        "SELECT value FROM app_settings WHERE key='smart_defaults_enabled'"
     ).fetchone()
     schedule = _load_schedule_settings(db)
     runas = _load_scanner_runas()
@@ -1127,7 +1132,8 @@ def scanner_einstellungen():
                            auto_ignore_no_formula=(auto_ignore["value"] if auto_ignore else "0"),
                            discard_no_formula=(discard_nf["value"] if discard_nf else "0"),
                            auto_classify_by_filename=(classify_fn["value"] if classify_fn else "0"),
-                           suggestions_enabled=(suggestions["value"] if suggestions else "1"),
+                           match_suggestions_enabled=(match_sug["value"] if match_sug else "1"),
+                           smart_defaults_enabled=(smart_def["value"] if smart_def else "1"),
                            schedule=schedule,
                            schedule_next=_next_scheduled_scan(schedule),
                            weekday_names=_WEEKDAY_NAMES,
