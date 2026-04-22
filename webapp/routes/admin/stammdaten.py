@@ -4,7 +4,7 @@ import csv
 import io
 import sqlite3
 
-from flask import render_template, request, redirect, url_for, flash, Response, current_app
+from flask import render_template, request, redirect, url_for, flash, Response, current_app, jsonify
 
 from . import bp, _upload_rate_limit, _hash_pw, _now, _KLASSIFIZIERUNGS_BEREICHE
 from .. import login_required, admin_required, get_db
@@ -988,3 +988,97 @@ def import_geschaeftsprozesse():
     created, updated = get_writer().submit(_do, wait=True)
     flash(f"GP-Import: {created} neu, {updated} aktualisiert, {errors} Fehler.", "success")
     return redirect(url_for("admin.index") + "#geschaeftsprozesse")
+
+
+# ── JSON-Schnellanlage-APIs (für Inline-Modals in Formularen) ─────────────
+
+@bp.route("/api/oe", methods=["POST"])
+@login_required
+def api_new_oe():
+    """Legt eine neue OE an und gibt id + label als JSON zurück."""
+    bezeichnung = request.form.get("bezeichnung", "").strip()
+    if not bezeichnung:
+        return jsonify({"ok": False, "error": "Bezeichnung ist erforderlich."}), 400
+    parent_id = request.form.get("parent_id") or None
+    now = _now()
+    new_id = None
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "INSERT INTO org_units (bezeichnung, parent_id, created_at) VALUES (?,?,?)",
+                (bezeichnung, parent_id, now),
+            )
+            return c.lastrowid
+
+    try:
+        new_id = get_writer().submit(_do, wait=True)
+    except Exception as exc:
+        current_app.logger.warning("api_new_oe: %s", exc)
+        return jsonify({"ok": False, "error": "Datenbankfehler beim Anlegen der OE."}), 500
+
+    return jsonify({"ok": True, "id": new_id, "label": bezeichnung})
+
+
+@bp.route("/api/person", methods=["POST"])
+@login_required
+def api_new_person():
+    """Legt eine neue Person an und gibt id + label als JSON zurück."""
+    nachname = request.form.get("nachname", "").strip()
+    vorname  = request.form.get("vorname", "").strip()
+    if not nachname or not vorname:
+        return jsonify({"ok": False, "error": "Nachname und Vorname sind erforderlich."}), 400
+    kuerzel     = request.form.get("kuerzel", "").strip().upper() or ""
+    email       = request.form.get("email", "").strip() or None
+    rolle       = request.form.get("rolle", "").strip() or None
+    org_unit_id = request.form.get("org_unit_id") or None
+    now = _now()
+    new_id = None
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id, created_at)
+                VALUES (?,?,?,?,?,?,?)
+            """, (kuerzel, nachname, vorname, email, rolle, org_unit_id, now))
+            return c.lastrowid
+
+    try:
+        new_id = get_writer().submit(_do, wait=True)
+    except Exception as exc:
+        current_app.logger.warning("api_new_person: %s", exc)
+        return jsonify({"ok": False, "error": "Datenbankfehler beim Anlegen der Person."}), 500
+
+    label = f"{nachname}, {vorname}"
+    return jsonify({"ok": True, "id": new_id, "label": label})
+
+
+@bp.route("/api/gp", methods=["POST"])
+@login_required
+def api_new_gp():
+    """Legt einen neuen Geschäftsprozess an und gibt id + label als JSON zurück."""
+    gp_nummer   = request.form.get("gp_nummer", "").strip()
+    bezeichnung = request.form.get("bezeichnung", "").strip()
+    if not bezeichnung:
+        return jsonify({"ok": False, "error": "Bezeichnung ist erforderlich."}), 400
+    bereich = request.form.get("bereich", "").strip() or None
+    now = _now()
+    new_id = None
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                INSERT INTO geschaeftsprozesse
+                    (gp_nummer, bezeichnung, bereich, ist_kritisch, ist_wesentlich, created_at, updated_at)
+                VALUES (?,?,?,0,0,?,?)
+            """, (gp_nummer, bezeichnung, bereich, now, now))
+            return c.lastrowid
+
+    try:
+        new_id = get_writer().submit(_do, wait=True)
+    except Exception as exc:
+        current_app.logger.warning("api_new_gp: %s", exc)
+        return jsonify({"ok": False, "error": "Datenbankfehler beim Anlegen des Geschäftsprozesses."}), 500
+
+    label = f"{gp_nummer}: {bezeichnung}" if gp_nummer else bezeichnung
+    return jsonify({"ok": True, "id": new_id, "label": label})

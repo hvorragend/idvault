@@ -201,6 +201,10 @@
             style="display:none" tabindex="-1">
             <i class="bi bi-x-lg"></i>
           </button>
+          <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
+            data-bs-target="#modal-schnell-gp" title="Neuen Geschäftsprozess anlegen" tabindex="-1">
+            <i class="bi bi-plus-circle"></i>
+          </button>
         </div>
         <!-- Dropdown list -->
         <div id="gp_listbox" role="listbox" style="display:none; position:absolute; z-index:1050; left:0; right:0; top:100%;
@@ -564,9 +568,15 @@
     <div class="form-section-title">4. Verantwortliche</div>
     <div class="row g-3">
       <div class="col-md-6">
-        <label class="form-label">Organisationseinheit <span class="required-star">*</span></label>
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <label class="form-label mb-0">Organisationseinheit <span class="required-star">*</span></label>
+          <button type="button" class="btn btn-link btn-sm p-0 text-primary" style="font-size:.8rem"
+            data-bs-toggle="modal" data-bs-target="#modal-schnell-oe" title="Neue OE anlegen">
+            <i class="bi bi-plus-circle me-1"></i>Neu
+          </button>
+        </div>
         {% set _prefill_ou = prefill.get('org_unit_id') if prefill else none %}
-        <select name="org_unit_id" class="form-select" required>
+        <select name="org_unit_id" id="select-org-unit" class="form-select" required>
           <option value="">– bitte wählen –</option>
           {% for ou in org_units %}
           <option value="{{ ou.id }}" {{ 'selected' if (idv and idv.org_unit_id==ou.id) or (not idv and _prefill_ou==ou.id) }}>{{
@@ -585,8 +595,15 @@
         </select>
       </div>
       <div class="col-md-6">
-        <label class="form-label">Fachverantwortlicher <span class="required-star">*</span></label>
-        <select name="fachverantwortlicher_id" class="form-select" required>
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <label class="form-label mb-0">Fachverantwortlicher <span class="required-star">*</span></label>
+          <button type="button" class="btn btn-link btn-sm p-0 text-primary" style="font-size:.8rem"
+            data-bs-toggle="modal" data-bs-target="#modal-schnell-person"
+            data-target-select="fachverantwortlicher_id" title="Neue Person anlegen">
+            <i class="bi bi-plus-circle me-1"></i>Neu
+          </button>
+        </div>
+        <select name="fachverantwortlicher_id" id="select-fachverantwortlicher" class="form-select" required>
           <option value="">– bitte wählen –</option>
           {% for p in persons %}
           <option value="{{ p.id }}" {{ 'selected' if idv and idv.fachverantwortlicher_id==p.id }}>{{ p.nachname }}, {{
@@ -595,8 +612,15 @@
         </select>
       </div>
       <div class="col-md-6">
-        <label class="form-label">Entwickler / Ersteller</label>
-        <select name="idv_entwickler_id" class="form-select">
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <label class="form-label mb-0">Entwickler / Ersteller</label>
+          <button type="button" class="btn btn-link btn-sm p-0 text-primary" style="font-size:.8rem"
+            data-bs-toggle="modal" data-bs-target="#modal-schnell-person"
+            data-target-select="idv_entwickler_id" title="Neue Person anlegen">
+            <i class="bi bi-plus-circle me-1"></i>Neu
+          </button>
+        </div>
+        <select name="idv_entwickler_id" id="select-entwickler" class="form-select">
           <option value="">–</option>
           {% for p in persons %}
           <option value="{{ p.id }}" {{ 'selected' if (idv and idv.idv_entwickler_id==p.id) or (not idv and
@@ -665,4 +689,202 @@
   })();
 </script>
 {% endif %}
+
+<!-- ── Schnellanlage-Modals (U-C2) ─────────────────────────────────── -->
+
+<!-- Modal: Neue OE -->
+<div class="modal fade" id="modal-schnell-oe" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" style="font-size:.95rem">
+          <i class="bi bi-plus-circle me-2 text-primary"></i>Neue Organisationseinheit
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-schnell-oe">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body">
+          <div id="err-schnell-oe" class="alert alert-danger py-2 d-none" role="alert"></div>
+          <div class="mb-3">
+            <label class="form-label fw-500">Bezeichnung <span class="required-star">*</span></label>
+            <input type="text" name="bezeichnung" class="form-control" required
+              placeholder="z.B. Risikocontrolling">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="btn-schnell-oe">
+            <i class="bi bi-plus me-1"></i>Anlegen &amp; auswählen
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Neue Person -->
+<div class="modal fade" id="modal-schnell-person" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" style="font-size:.95rem">
+          <i class="bi bi-plus-circle me-2 text-primary"></i>Neue Person
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-schnell-person">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" id="person-target-select" value="">
+        <div class="modal-body">
+          <div id="err-schnell-person" class="alert alert-danger py-2 d-none" role="alert"></div>
+          <div class="row g-2">
+            <div class="col-7">
+              <label class="form-label fw-500">Nachname <span class="required-star">*</span></label>
+              <input type="text" name="nachname" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-5">
+              <label class="form-label fw-500">Vorname <span class="required-star">*</span></label>
+              <input type="text" name="vorname" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-500">E-Mail <span class="text-muted fw-normal">(optional)</span></label>
+              <input type="email" name="email" class="form-control form-control-sm"
+                placeholder="name@beispiel.de">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="btn-schnell-person">
+            <i class="bi bi-plus me-1"></i>Anlegen &amp; auswählen
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Neuer Geschäftsprozess -->
+<div class="modal fade" id="modal-schnell-gp" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" style="font-size:.95rem">
+          <i class="bi bi-plus-circle me-2 text-primary"></i>Neuer Geschäftsprozess
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-schnell-gp">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body">
+          <div id="err-schnell-gp" class="alert alert-danger py-2 d-none" role="alert"></div>
+          <div class="mb-2">
+            <label class="form-label fw-500">GP-Nummer <span class="text-muted fw-normal">(optional)</span></label>
+            <input type="text" name="gp_nummer" class="form-control form-control-sm"
+              placeholder="z.B. GP-042">
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-500">Bezeichnung <span class="required-star">*</span></label>
+            <input type="text" name="bezeichnung" class="form-control form-control-sm" required
+              placeholder="z.B. Kreditvergabe">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="btn-schnell-gp">
+            <i class="bi bi-plus me-1"></i>Anlegen &amp; auswählen
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var _apiOe     = '{{ url_for("admin.api_new_oe") }}';
+  var _apiPerson = '{{ url_for("admin.api_new_person") }}';
+  var _apiGp     = '{{ url_for("admin.api_new_gp") }}';
+
+  function _quickSubmit(formId, apiUrl, btnId, errId, onSuccess) {
+    var form = document.getElementById(formId);
+    var btn  = document.getElementById(btnId);
+    var err  = document.getElementById(errId);
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      err.classList.add('d-none');
+      btn.disabled = true;
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new FormData(form)
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          form.reset();
+          err.classList.add('d-none');
+          onSuccess(d.id, d.label);
+          bootstrap.Modal.getInstance(form.closest('.modal')).hide();
+        } else {
+          err.textContent = d.error || 'Unbekannter Fehler.';
+          err.classList.remove('d-none');
+          btn.disabled = false;
+        }
+      })
+      .catch(function () {
+        err.textContent = 'Netzwerkfehler – bitte erneut versuchen.';
+        err.classList.remove('d-none');
+        btn.disabled = false;
+      });
+    });
+    form.closest('.modal').addEventListener('show.bs.modal', function () {
+      form.reset();
+      err.classList.add('d-none');
+      btn.disabled = false;
+    });
+  }
+
+  function _addOption(selectId, id, label) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    var opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = label;
+    sel.appendChild(opt);
+    sel.value = id;
+  }
+
+  // OE
+  _quickSubmit('form-schnell-oe', _apiOe, 'btn-schnell-oe', 'err-schnell-oe', function (id, label) {
+    _addOption('select-org-unit', id, label);
+  });
+
+  // Person (shared modal, target select set via data attribute)
+  var personModal = document.getElementById('modal-schnell-person');
+  if (personModal) {
+    personModal.addEventListener('show.bs.modal', function (e) {
+      var targetSelect = (e.relatedTarget && e.relatedTarget.dataset.targetSelect) || 'fachverantwortlicher_id';
+      document.getElementById('person-target-select').value = targetSelect;
+    });
+    _quickSubmit('form-schnell-person', _apiPerson, 'btn-schnell-person', 'err-schnell-person', function (id, label) {
+      var targetSelect = document.getElementById('person-target-select').value || 'fachverantwortlicher_id';
+      _addOption(targetSelect === 'idv_entwickler_id' ? 'select-entwickler' : 'select-fachverantwortlicher', id, label);
+    });
+  }
+
+  // GP
+  _quickSubmit('form-schnell-gp', _apiGp, 'btn-schnell-gp', 'err-schnell-gp', function (id, label) {
+    var hiddenId = document.getElementById('gp_id_val');
+    var input    = document.getElementById('gp_search');
+    var clearBtn = document.getElementById('gp_clear_btn');
+    if (hiddenId) hiddenId.value = id;
+    if (input)    input.value   = label;
+    if (clearBtn) clearBtn.style.display = '';
+  });
+})();
+</script>
+
 {% endblock %}
