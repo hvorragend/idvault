@@ -99,103 +99,133 @@ owner_filt} %}
 {% include 'funde/_pagination.html' %}
 
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm mt-2">
-  <div class="card-header bg-white d-flex justify-content-between align-items-center">
-    <span class="fw-600">
-      <i class="bi bi-dash-circle me-2 text-secondary"></i>
-      {% if total > per_page %}
-      {{ nicht_wesentliche|length }} von {{ total }} Einträgen (Seite {{ page }})
-      {% else %}
-      {{ total }} Einträge
-      {% endif %}
-    </span>
-    <div class="d-flex gap-2">
-      <a href="{{ url_for('eigenentwicklung.export_excel') }}" class="btn btn-sm btn-outline-success">
-        <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
-      </a>
-      {% if can_write %}
-      <a href="{{ url_for('eigenentwicklung.new_idv') }}" class="btn btn-sm btn-primary">
-        <i class="bi bi-plus-lg me-1"></i>Neue Eigenentwicklung
-      </a>
-      {% endif %}
-      <a href="{{ url_for('eigenentwicklung.list_idv', filter='nicht_wesentlich') }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-box-arrow-up-right me-1"></i>In Liste öffnen
-      </a>
+<form id="bulk-form" method="post" action="{{ url_for('eigenentwicklung.bulk_status') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card border-0 shadow-sm mt-2">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <span class="fw-600">
+        <i class="bi bi-dash-circle me-2 text-secondary"></i>
+        {% if total > per_page %}
+        {{ nicht_wesentliche|length }} von {{ total }} Einträgen (Seite {{ page }})
+        {% else %}
+        {{ total }} Einträge
+        {% endif %}
+      </span>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        {% if can_write %}
+        <span id="bulk-info" class="text-muted me-1" style="font-size:.82rem;display:none">
+          <span id="bulk-count">0</span> ausgewählt —
+        </span>
+        <select name="neuer_status" id="bulk-status-select" class="form-select form-select-sm d-none"
+          style="width:auto;min-width:160px">
+          <option value="">Status wählen …</option>
+          {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
+          <option value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" id="btn-bulk-status" class="btn btn-sm btn-outline-primary d-none"
+          formaction="{{ url_for('eigenentwicklung.bulk_status') }}" data-submit-validate="confirmBulkStatus">
+          <i class="bi bi-arrow-repeat me-1"></i>Status ändern
+        </button>
+        {% endif %}
+        {% if is_admin %}
+        <button type="submit" id="btn-bulk-delete" class="btn btn-sm btn-danger d-none"
+          formaction="{{ url_for('eigenentwicklung.bulk_loeschen') }}" data-submit-validate="confirmBulkDelete">
+          <i class="bi bi-trash me-1"></i>Löschen
+        </button>
+        {% endif %}
+        <a href="{{ url_for('eigenentwicklung.export_excel') }}" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
+        </a>
+        {% if can_write %}
+        <a href="{{ url_for('eigenentwicklung.new_idv') }}" class="btn btn-sm btn-primary">
+          <i class="bi bi-plus-lg me-1"></i>Neue Eigenentwicklung
+        </a>
+        {% endif %}
+        <a href="{{ url_for('eigenentwicklung.list_idv', filter='nicht_wesentlich') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-box-arrow-up-right me-1"></i>In Liste öffnen
+        </a>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 table-idv" id="nw-table" style="font-size:.82rem">
+        <thead>
+          <tr>
+            {% if can_write %}<th style="width:36px"><input type="checkbox" id="select-all" class="form-check-input"
+                title="Alle auswählen"></th>{% endif %}
+            <th class="sortable">Bezeichnung</th>
+            <th class="sortable">Typ</th>
+            <th>Version / Dateien</th>
+            <th class="sortable">Status</th>
+            <th class="sortable">Fachverantwortlicher</th>
+            <th>Eigentümer</th>
+            <th>Geändert</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in nicht_wesentliche %}
+          <tr>
+            {% if can_write %}
+            <td><input type="checkbox" name="idv_ids" value="{{ r.id }}" class="form-check-input row-check"></td>
+            {% endif %}
+            <td class="text-truncate" style="max-width:240px" title="{{ r.bezeichnung }}">
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">
+                {{ r.bezeichnung }}
+              </a>
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
+            </td>
+            <td style="white-space:nowrap;font-size:.78rem">
+              {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
+              <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige Eigenentwicklung"></i>
+              {% endif %}
+              <span class="text-muted">v{{ r.version or '1.0' }}</span>
+              {% if r.datei_anzahl %}
+              <span class="badge bg-secondary ms-1" title="{{ r.datei_anzahl }} verknüpfte Datei(en)">
+                <i class="bi bi-file-earmark me-1"></i>{{ r.datei_anzahl }}
+              </span>
+              {% endif %}
+              {% if r.file_has_macros %}
+              <span class="badge bg-danger ms-1" title="VBA-Makros vorhanden">VBA</span>
+              {% endif %}
+              {% if r.file_has_sheet_protection %}
+              <span class="badge bg-warning text-dark ms-1" title="Blattschutz aktiv"><i
+                  class="bi bi-lock-fill"></i></span>
+              {% endif %}
+              {% if r.file_formula_count %}
+              <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{
+                r.file_formula_count }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
+            </td>
+            <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
+            <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
+            <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}
+            </td>
+            <td>
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
+                title="Detail">
+                <i class="bi bi-eye"></i>
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{{ 9 if can_write else 8 }}" class="text-center text-muted py-5">
+              <i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>
+              Keine nicht wesentlichen Eigenentwicklungen gefunden.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0 table-idv" id="nw-table" style="font-size:.82rem">
-      <thead>
-        <tr>
-          <th class="sortable">Bezeichnung</th>
-          <th class="sortable">Typ</th>
-          <th>Version / Dateien</th>
-          <th class="sortable">Status</th>
-          <th class="sortable">Fachverantwortlicher</th>
-          <th>Eigentümer</th>
-          <th>Geändert</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in nicht_wesentliche %}
-        <tr>
-          <td class="text-truncate" style="max-width:240px" title="{{ r.bezeichnung }}">
-            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">
-              {{ r.bezeichnung }}
-            </a>
-          </td>
-          <td>
-            <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
-          </td>
-          <td style="white-space:nowrap;font-size:.78rem">
-            {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
-            <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige Eigenentwicklung"></i>
-            {% endif %}
-            <span class="text-muted">v{{ r.version or '1.0' }}</span>
-            {% if r.datei_anzahl %}
-            <span class="badge bg-secondary ms-1" title="{{ r.datei_anzahl }} verknüpfte Datei(en)">
-              <i class="bi bi-file-earmark me-1"></i>{{ r.datei_anzahl }}
-            </span>
-            {% endif %}
-            {% if r.file_has_macros %}
-            <span class="badge bg-danger ms-1" title="VBA-Makros vorhanden">VBA</span>
-            {% endif %}
-            {% if r.file_has_sheet_protection %}
-            <span class="badge bg-warning text-dark ms-1" title="Blattschutz aktiv"><i
-                class="bi bi-lock-fill"></i></span>
-            {% endif %}
-            {% if r.file_formula_count %}
-            <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{
-              r.file_formula_count }}</span>
-            {% endif %}
-          </td>
-          <td>
-            <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
-          </td>
-          <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
-          <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
-          <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}
-          </td>
-          <td>
-            <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
-              title="Detail">
-              <i class="bi bi-eye"></i>
-            </a>
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="8" class="text-center text-muted py-5">
-            <i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>
-            Keine nicht wesentlichen Eigenentwicklungen gefunden.
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+</form>
 
 <!-- ── Pagination unten ───────────────────────────────────────────── -->
 {% include 'funde/_pagination.html' %}
@@ -276,4 +306,180 @@ owner_filt} %}
     }
   })();
 </script>
+
+<!-- Bulk-Bestätigungs-Modal ──────────────────────────── -->
+{% if can_write %}
+<div id="bulk-modal-backdrop"
+     style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:1055;
+            background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
+  <div id="bulk-preview-modal"
+       style="background:#fff;border-radius:10px;padding:1.5rem;
+              min-width:360px;max-width:min(560px,95vw);max-height:80vh;overflow-y:auto;
+              box-shadow:0 20px 60px rgba(0,0,0,.25);">
+    <h6 id="bulk-modal-title" class="mb-3"></h6>
+    <div id="bulk-modal-body" class="mb-3"></div>
+    <div class="d-flex gap-2 justify-content-end">
+      <button id="bulk-modal-cancel" class="btn btn-outline-secondary btn-sm">Abbrechen</button>
+      <button id="bulk-modal-confirm" class="btn btn-sm btn-primary"></button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    const selectAll = document.getElementById('select-all');
+    const rowChecks = () => document.querySelectorAll('.row-check');
+    const btnDelete = document.getElementById('btn-bulk-delete');
+    const btnStatus = document.getElementById('btn-bulk-status');
+    const statusSelect = document.getElementById('bulk-status-select');
+    const bulkInfo = document.getElementById('bulk-info');
+    const bulkCount = document.getElementById('bulk-count');
+
+    function updateBulkUI() {
+      const n = [...rowChecks()].filter(c => c.checked).length;
+      bulkCount.textContent = n;
+      const show = n > 0;
+      bulkInfo.style.display = show ? '' : 'none';
+      if (statusSelect) { statusSelect.classList.toggle('d-none', !show); }
+      if (btnStatus) { btnStatus.classList.toggle('d-none', !show); }
+      if (btnDelete) { btnDelete.classList.toggle('d-none', !show); }
+      if (selectAll) {
+        selectAll.indeterminate = n > 0 && n < rowChecks().length;
+        selectAll.checked = n > 0 && n === rowChecks().length;
+      }
+    }
+
+    if (selectAll) {
+      selectAll.addEventListener('change', () => {
+        rowChecks().forEach(c => c.checked = selectAll.checked);
+        updateBulkUI();
+      });
+    }
+    rowChecks().forEach(c => c.addEventListener('change', updateBulkUI));
+
+    let _onConfirm = null;
+    const modalBackdrop = document.getElementById('bulk-modal-backdrop');
+    document.getElementById('bulk-modal-cancel').addEventListener('click', () => {
+      modalBackdrop.style.display = 'none';
+    });
+    document.getElementById('bulk-modal-confirm').addEventListener('click', () => {
+      modalBackdrop.style.display = 'none';
+      if (typeof _onConfirm === 'function') _onConfirm();
+    });
+    modalBackdrop.addEventListener('click', e => {
+      if (e.target === modalBackdrop) modalBackdrop.style.display = 'none';
+    });
+
+    function showBulkModal({ title, body, confirmLabel, confirmVariant, onConfirm }) {
+      document.getElementById('bulk-modal-title').textContent = title;
+      document.getElementById('bulk-modal-body').innerHTML = body;
+      const btn = document.getElementById('bulk-modal-confirm');
+      btn.textContent = confirmLabel || 'Bestätigen';
+      btn.className = 'btn btn-sm ' + (confirmVariant || 'btn-primary');
+      _onConfirm = onConfirm;
+      modalBackdrop.style.display = 'flex';
+    }
+
+    function selectedNames() {
+      return [...rowChecks()].filter(c => c.checked).map(c => {
+        const row = c.closest('tr');
+        const nameCell = row ? row.querySelector('td:nth-child(2) a') : null;
+        return nameCell ? nameCell.textContent.trim() : '(unbekannt)';
+      });
+    }
+
+    window.confirmBulkDelete = function () {
+      const names = selectedNames();
+      if (!names.length) return false;
+      showBulkModal({
+        title: `${names.length} Eigenentwicklung(en) löschen`,
+        body: `<div class="alert alert-danger py-2 mb-2" style="font-size:.85rem">
+                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                 <strong>Unwiderruflich!</strong> Alle verknüpften Prüfungen, Maßnahmen,
+                 Freigaben und Dateiverknüpfungen werden ebenfalls gelöscht.
+               </div>
+               <ul style="font-size:.88rem;max-height:200px;overflow-y:auto;padding-left:1.2rem">
+                 ${names.map(n => `<li>${n.replace(/</g,'&lt;')}</li>`).join('')}
+               </ul>`,
+        confirmLabel: `${names.length} Einträge löschen`,
+        confirmVariant: 'btn-danger',
+        onConfirm: () => {
+          document.getElementById('btn-bulk-delete').closest('form').submit();
+        }
+      });
+      return false;
+    };
+
+    window.confirmBulkStatus = function () {
+      const sel = document.getElementById('bulk-status-select');
+      if (!sel || !sel.value) { alert('Bitte zuerst einen Zielstatus wählen.'); return false; }
+      const names = selectedNames();
+      if (!names.length) return false;
+      showBulkModal({
+        title: `Status ändern: → „${sel.value}"`,
+        body: `<p style="font-size:.88rem;color:#374151">
+                 Folgende ${names.length} Eigenentwicklung(en) erhalten den Status
+                 <strong>${sel.value.replace(/</g,'&lt;')}</strong>:
+               </p>
+               <ul style="font-size:.88rem;max-height:200px;overflow-y:auto;padding-left:1.2rem">
+                 ${names.map(n => `<li>${n.replace(/</g,'&lt;')}</li>`).join('')}
+               </ul>`,
+        confirmLabel: `${names.length} Einträge ändern`,
+        confirmVariant: 'btn-primary',
+        onConfirm: () => {
+          const form = document.getElementById('bulk-form');
+          const neuerStatus = sel.value;
+          const data = new FormData(form);
+          fetch("{{ url_for('eigenentwicklung.bulk_status') }}", {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: data,
+          }).then(r => r.json()).then(json => {
+            if (json.ok) {
+              [...document.querySelectorAll('.row-check:checked')].forEach(cb => {
+                const row = cb.closest('tr');
+                if (!row) return;
+                const badge = row.querySelector('td span.badge[class*="status-"]');
+                if (badge) {
+                  badge.className = 'badge status-' + neuerStatus.replace(/ /g, '-');
+                  badge.textContent = neuerStatus;
+                }
+                cb.checked = false;
+              });
+              updateBulkUI();
+              showInlineAlert(json.msg, json.errors ? 'warning' : 'success');
+            } else {
+              alert(json.msg || 'Fehler beim Statuswechsel.');
+            }
+          }).catch(() => {
+            form.submit();
+          });
+        }
+      });
+      return false;
+    };
+
+    function showInlineAlert(msg, type) {
+      const existing = document.getElementById('bulk-inline-alert');
+      if (existing) existing.remove();
+      const div = document.createElement('div');
+      div.id = 'bulk-inline-alert';
+      div.className = `alert alert-${type} alert-dismissible py-2 px-3 mt-2`;
+      div.style.fontSize = '.88rem';
+      div.innerHTML = msg + '<button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>';
+      const card = document.querySelector('#nw-table')?.closest('.card');
+      if (card) card.insertAdjacentElement('beforebegin', div);
+    }
+
+    document.querySelectorAll('[data-submit-validate]').forEach(btn => {
+      btn.addEventListener('click', function (e) {
+        const fn = window[this.dataset.submitValidate];
+        if (typeof fn === 'function') {
+          e.preventDefault();
+          fn();
+        }
+      });
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}
