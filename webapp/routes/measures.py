@@ -167,7 +167,7 @@ def delete_measure(m_id):
             c.execute("DELETE FROM massnahmen WHERE id=?", (m_id,))
 
     get_writer().submit(_do, wait=True)
-    flash(f"Maßnahme „{row['titel']}" gelöscht.", "success")
+    flash(f'Maßnahme "{row["titel"]}" gelöscht.', "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
