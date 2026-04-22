@@ -251,6 +251,11 @@
           </div>
           {% endif %}
         </li>
+        {% elif freigabe.pool_name %}
+        <li class="list-group-item px-3 py-2">
+          <div class="detail-label">Beauftragt an</div>
+          <div class="fw-500"><i class="bi bi-people me-1"></i>Pool: {{ freigabe.pool_name }}</div>
+        </li>
         {% endif %}
       </ul>
       {% if not readonly %}
