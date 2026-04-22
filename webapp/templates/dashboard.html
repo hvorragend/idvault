@@ -83,12 +83,12 @@
           <span><i class="bi bi-plus-circle me-1 text-success"></i>{{ letzter_scan.new_files or 0 }} Neu</span>
           <span><i class="bi bi-arrow-repeat me-1 text-warning"></i>{{ letzter_scan.changed_files or 0 }} Geändert</span>
           {% if unverknuepfte_funde > 0 %}
-          <a href="{{ url_for('funde.list_funde') }}" class="text-decoration-none"
+          <a href="{{ url_for('funde.list_funde') }}" class="status-line status-line-warn text-decoration-none"
              title="Scanner-Funde ohne Zuordnung zu einer Eigenentwicklung">
-            <i class="bi bi-exclamation-circle me-1 text-danger"></i>{{ unverknuepfte_funde }} zu prüfen
+            <i class="bi bi-exclamation-circle"></i>{{ unverknuepfte_funde }} zu prüfen
           </a>
           {% else %}
-          <span class="text-success"><i class="bi bi-check-circle me-1"></i>Alle zugeordnet</span>
+          <span class="status-line status-line-done"><i class="bi bi-check-circle"></i>Alle zugeordnet</span>
           {% endif %}
         </div>
       {% else %}

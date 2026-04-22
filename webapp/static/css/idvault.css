@@ -268,12 +268,13 @@ body {
 
 /* 6. Tabellen ─────────────────────────────────────────────────────────────── */
 .table-idv thead th {
-  background: var(--slate-100);
-  color: var(--slate-700);
-  font-weight: 600;
+  background: var(--slate-50);
+  color: var(--slate-500);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .04em;
-  font-size: .72rem;
+  letter-spacing: .08em;
+  font-size: .7rem;
+  padding: .65rem .6rem;
   border-bottom: 1px solid var(--idv-border);
   white-space: nowrap;
 }
@@ -952,17 +953,16 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 .status-line-fail    { color: #b91c1c; }
 .status-line-muted   { color: var(--slate-500); font-weight: 500; }
 
-/* 23. Softer Primary-Button (dusty indigo-slate) ──────────────────────────── */
-/* User-Wunsch: weicher als Slate-900. Dusty-Blue, bleibt klar „primär". */
+/* 23. Primary-Button: Slate-900 (kräftig, hoher Kontrast) ─────────────────── */
 .btn-primary {
-  --bs-btn-bg:          #5b6ea8;
-  --bs-btn-border-color: #5b6ea8;
-  --bs-btn-hover-bg:    #4c5e96;
-  --bs-btn-hover-border-color: #4c5e96;
-  --bs-btn-active-bg:   #4c5e96;
-  --bs-btn-active-border-color: #4c5e96;
-  --bs-btn-disabled-bg: #9ca8c7;
-  --bs-btn-disabled-border-color: #9ca8c7;
+  --bs-btn-bg:          var(--slate-900);
+  --bs-btn-border-color: var(--slate-900);
+  --bs-btn-hover-bg:    var(--slate-800);
+  --bs-btn-hover-border-color: var(--slate-800);
+  --bs-btn-active-bg:   var(--slate-800);
+  --bs-btn-active-border-color: var(--slate-800);
+  --bs-btn-disabled-bg: var(--slate-500);
+  --bs-btn-disabled-border-color: var(--slate-500);
 }
 
 /* 24. Accessibility: reduzierte Bewegung ──────────────────────────────────── */

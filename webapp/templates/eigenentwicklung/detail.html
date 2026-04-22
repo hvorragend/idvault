@@ -275,15 +275,20 @@
           <div class="detail-label">Erstellt für / Verwendungszweck</div>
           <div>{{ idv.erstellt_fuer or '–' }}</div>
         </div>
-        <div class="d-flex flex-wrap gap-3">
+        <div class="col-12 mt-2">
           {% for label, val in [
           ('Anwenderdokumentation vorhanden', idv.anwenderdokumentation),
           ('Datenschutzbestimmungen eingehalten', idv.datenschutz_beachtet),
           ('Rechenformeln durch Zellschutz gesichert', idv.zellschutz_formeln),
           ] %}
-          <div>
-            <span class="detail-label">{{ label }}</span>
-            <div class="detail-value">{{ val|yesno }}</div>
+          {% set ok = val == 1 or val == '1' or val == True or val == 'Ja' %}
+          {% set unset = val is none or val == '' %}
+          <div class="quality-box {% if ok %}quality-box-ok{% elif unset %}quality-box-info{% else %}quality-box-fail{% endif %}">
+            <i class="bi q-icon {% if ok %}bi-check-circle-fill{% elif unset %}bi-dash-circle{% else %}bi-x-circle-fill{% endif %}"></i>
+            <div>
+              <div class="q-title">{{ label }}</div>
+              <div class="q-text">{% if ok %}Vorhanden{% elif unset %}Nicht dokumentiert{% else %}Fehlt{% endif %}</div>
+            </div>
           </div>
           {% endfor %}
         </div>
