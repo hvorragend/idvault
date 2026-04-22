@@ -908,6 +908,8 @@
         helpEl.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:2000;' +
           'background:rgba(0,0,0,.5);align-items:center;justify-content:center;';
         var rows = [
+          ['Strg S', 'Formular speichern'],
+          ['Strg ⇧ S', 'Speichern &amp; Schließen (zur Liste)'],
           ['Strg K', 'Schnellsuche öffnen'],
           ['N', 'Neue Eigenentwicklung anlegen'],
           ['E', 'Eigenentwicklung bearbeiten (Detailseite)'],
@@ -939,12 +941,11 @@
 
       document.addEventListener('keydown', function (e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.key === 'Escape') { hideHelp(); return; }
         if (inInput()) return;
         switch (e.key) {
           case '?':
             e.preventDefault(); showHelp(); break;
-          case 'Escape':
-            hideHelp(); break;
           case 'n': case 'N': {
             var lnk = document.querySelector('a[href*="/neu"]');
             if (lnk) { e.preventDefault(); location.href = lnk.href; }
@@ -956,6 +957,21 @@
             break;
           }
         }
+      });
+
+      // Strg+S / Strg+Umschalt+S – funktioniert in allen Formularen
+      document.addEventListener('keydown', function (e) {
+        if (!(e.ctrlKey || e.metaKey) || e.key !== 's') return;
+        e.preventDefault();
+        var btn;
+        if (e.shiftKey) {
+          btn = document.querySelector('button[name="save_action"][value="save_and_close"]')
+             || document.querySelector('button[name="save_action"][value="save_and_new"]');
+        } else {
+          btn = document.querySelector('button[name="save_action"][value="save"]')
+             || document.querySelector('form [type="submit"]');
+        }
+        if (btn) btn.click();
       });
     })();
   </script>
