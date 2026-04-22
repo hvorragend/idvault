@@ -22,7 +22,7 @@ Statuswerte (idv_freigaben.status):
 import hashlib
 import os
 from flask import (Blueprint, request, flash, redirect, url_for, abort,
-                   session, current_app, send_from_directory, send_file, render_template)
+                   session, current_app, send_from_directory, send_file, render_template, jsonify)
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 from . import login_required, own_write_required, admin_required, get_db, current_person_id
@@ -565,10 +565,14 @@ def abschliessen(freigabe_id):
     person_id = current_person_id()
     now       = datetime.now(timezone.utc).isoformat()
 
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
     freigabe = db.execute(
         "SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)
     ).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
+        if is_xhr:
+            return jsonify({"ok": False, "error": "Freigabe-Schritt nicht gefunden oder bereits abgeschlossen."}), 400
         flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
         return redirect(url_for("eigenentwicklung.list_idv"))
 
@@ -576,17 +580,18 @@ def abschliessen(freigabe_id):
     ensure_can_write_idv(db, idv_db_id)
 
     if not _funktionstrennung_ok(db, idv_db_id, person_id):
-        flash(
-            "Funktionstrennung: Sie sind als Entwickler dieser Eigenentwicklung eingetragen "
-            "und dürfen keine Freigabe-Schritte abschließen.", "error"
-        )
+        err = ("Funktionstrennung: Sie sind als Entwickler dieser Eigenentwicklung eingetragen "
+               "und dürfen keine Freigabe-Schritte abschließen.")
+        if is_xhr:
+            return jsonify({"ok": False, "error": err}), 403
+        flash(err, "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     if not _can_complete_schritt(db, freigabe, person_id):
-        flash(
-            "Nur die zugewiesene Person oder deren aktiver Stellvertreter "
-            "darf diesen Schritt abschließen.", "error"
-        )
+        err = "Nur die zugewiesene Person oder deren aktiver Stellvertreter darf diesen Schritt abschließen."
+        if is_xhr:
+            return jsonify({"ok": False, "error": err}), 403
+        flash(err, "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     kommentar = request.form.get("kommentar", "").strip() or None
@@ -600,6 +605,8 @@ def abschliessen(freigabe_id):
         if saved:
             nachweis_pfad, nachweis_name = saved, orig
         else:
+            if is_xhr:
+                return jsonify({"ok": False, "error": "Ungültiges Dateiformat für Nachweis-Upload."}), 400
             flash("Ungültiges Dateiformat für Nachweis-Upload.", "warning")
     elif request.form.get("scanner_file_id"):
         sf_id = _int_or_none(request.form.get("scanner_file_id"))
@@ -646,30 +653,32 @@ def abschliessen(freigabe_id):
 
     if freigegeben:
         _notify_freigabe_erteilt(db, idv_db_id)
-        flash("Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben.", "phase_transition")
-        return redirect(detail_url + "#freigabeverfahren")
+        msg = "Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben."
+        cat = "phase_transition"
+        redirect_url = detail_url + "#freigabeverfahren"
     elif phase2_done:
         if archiv_neu:
-            flash(
-                f"'{schritt}' erledigt – Phase 2 vollständig. "
-                "Die Archivierung wurde automatisch angelegt (Phase 3).",
-                "phase_transition"
-            )
-            return redirect(detail_url + "#archivierung")
-        flash(
-            f"'{schritt}' erledigt – Phase 2 vollständig.",
-            "phase_transition"
-        )
-        return redirect(detail_url + "#freigabeverfahren")
+            msg = (f"'{schritt}' erledigt – Phase 2 vollständig. "
+                   "Die Archivierung wurde automatisch angelegt (Phase 3).")
+            cat = "phase_transition"
+            redirect_url = detail_url + "#archivierung"
+        else:
+            msg = f"'{schritt}' erledigt – Phase 2 vollständig."
+            cat = "phase_transition"
+            redirect_url = detail_url + "#freigabeverfahren"
     elif phase1_done:
-        flash(
-            f"'{schritt}' erledigt – Phase 1 vollständig. Phase 2 (Abnahmen) ist nun startbereit.",
-            "phase_transition"
-        )
-        return redirect(detail_url + "#freigabeverfahren")
+        msg = f"'{schritt}' erledigt – Phase 1 vollständig. Phase 2 (Abnahmen) ist nun startbereit."
+        cat = "phase_transition"
+        redirect_url = detail_url + "#freigabeverfahren"
+    else:
+        msg = f"'{schritt}' als Erledigt markiert."
+        cat = "success"
+        redirect_url = detail_url + "#freigabeverfahren"
 
-    flash(f"'{schritt}' als Erledigt markiert.", "success")
-    return redirect(detail_url + "#freigabeverfahren")
+    if is_xhr:
+        return jsonify({"ok": True, "msg": msg, "cat": cat, "redirect_url": redirect_url})
+    flash(msg, cat)
+    return redirect(redirect_url)
 
 
 # ---------------------------------------------------------------------------
