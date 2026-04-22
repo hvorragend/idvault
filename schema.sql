@@ -130,6 +130,8 @@ CREATE TABLE IF NOT EXISTS persons (
     user_id         TEXT,                            -- Login-Name (LDAP / Windows)
     ad_name         TEXT,                            -- AD-Distinguished-Name
     password_hash   TEXT,                            -- SHA-256 (Fallback-Login)
+    stellvertreter_id INTEGER REFERENCES persons(id), -- allg. Stellvertreter (MaRisk AT 7.2)
+    abwesend_bis    TEXT,                             -- ISO-Date bis wann abwesend (z.B. "2026-05-01")
     created_at      TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );
 
