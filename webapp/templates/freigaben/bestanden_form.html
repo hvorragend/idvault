@@ -87,7 +87,7 @@
 
     {% else %}
     <!-- ── Bearbeitungsmodus ── -->
-    <form method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=freigabe.id) }}"
+    <form id="form-save" method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=freigabe.id) }}"
           enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -326,7 +326,7 @@
     });
     editors.push({ q: q, h: hidden });
   });
-  document.querySelector('form').addEventListener('submit', function () {
+  document.getElementById('form-save').addEventListener('submit', function () {
     editors.forEach(function (e) {
       if (e.h) e.h.value = e.q.root.innerHTML;
     });

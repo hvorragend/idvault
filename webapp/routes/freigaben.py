@@ -238,7 +238,7 @@ def _phase3_komplett_erledigt(db, idv_db_id: int) -> bool:
 
 def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int,
                             zugewiesen_an_id: int = None,
-                            user_name: str = None) -> bool:
+                            bearbeiter_name: str = None) -> bool:
     """Legt den Archivierungs-Schritt (Phase 3) an, sofern er noch nicht existiert.
 
     Idempotent und commit-frei: der Aufrufer muss bereits innerhalb einer
@@ -260,13 +260,13 @@ def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int,
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "archivierung_beauftragt",
          "Archivierung Originaldatei beauftragt.",
-         person_id, user_name)
+         person_id, bearbeiter_name)
     )
     return True
 
 
 def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int,
-                                         user_name: str = None) -> bool:
+                                         bearbeiter_name: str = None) -> bool:
     """Setzt `teststatus = 'Freigegeben'`, sobald Phase 2 UND Phase 3 komplett sind.
 
     Commit-frei: muss innerhalb einer umschliessenden write_tx(conn)-
@@ -291,7 +291,7 @@ def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int,
     conn.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "freigabe_erteilt",
-         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id, user_name)
+         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id, bearbeiter_name)
     )
     return True
 
@@ -350,6 +350,7 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
 
     idv_db_id = freigabe["idv_id"]
     schritt = freigabe["schritt"]
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         row = c.execute(
@@ -371,8 +372,8 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
             freigegeben = False
             archiv_neu  = False
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
-                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, user_name=user_name)
-                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, user_name=user_name)
+                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, bearbeiter_name=user_name)
+                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
         return freigegeben, archiv_neu
 
     freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
@@ -663,8 +664,8 @@ def abschliessen(freigabe_id):
             archiv_neu  = False
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
                 phase2_done = True
-                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, user_name=user_name)
-                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, user_name=user_name)
+                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, bearbeiter_name=user_name)
+                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
             elif schritt in _PHASE_1 and _phase1_komplett_erledigt(c, idv_db_id):
                 phase1_done = True
         return phase2_done, phase1_done, freigegeben, archiv_neu
@@ -1033,8 +1034,8 @@ def weiterleiten(freigabe_id):
         flash("Ausgewählte Person nicht gefunden.", "error")
         return redirect(url_for("freigaben.erledigt_seite", freigabe_id=freigabe_id))
 
-    schritt  = freigabe["schritt"]
-    p_name   = f"{p['nachname']}, {p['vorname']}"
+    schritt   = freigabe["schritt"]
+    p_name    = f"{p['nachname']}, {p['vorname']}"
     user_name = session.get("user_name", "") or None
 
     def _do(c):
@@ -1341,7 +1342,7 @@ def archivieren(freigabe_id):
                 (idv_db_id, aktion, hist_kom, person_id, user_name),
             )
 
-            freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, user_name=user_name)
+            freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
         return freigegeben
 
     freigegeben = get_writer().submit(_do, wait=True)
