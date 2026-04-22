@@ -1,7 +1,9 @@
 """Funde-Blueprint (Scanner-Ergebnisse)"""
 import json
 import logging
-from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session
+import os
+import re
+from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session, jsonify
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
 from ..db_writer import get_writer
 from db_write_tx import write_tx
@@ -71,6 +73,94 @@ _DIR_PATH_EXPR_PLAIN = """CASE WHEN file_name IS NOT NULL AND full_path IS NOT N
 
 
 _VALID_PER_PAGE = (25, 50, 100, 200, 500)
+
+_MATCH_NOISE_WORDS = frozenset({
+    "", "der", "die", "das", "und", "fur", "für", "von", "mit", "zu", "in",
+    "v1", "v2", "v3", "final", "neu", "alt", "copy", "backup", "temp", "tmp",
+    "test", "neu", "old", "new", "1", "2", "3",
+})
+
+
+def _compute_match_scores(dateien, db):
+    """For unregistered funds compute the best-matching IDV score.
+
+    Returns {file_id: {"score": int, "idv_db_id": int, "idv_id": str, "bezeichnung": str}}.
+    Only entries with score >= 30 are included.
+    """
+    unregistered = [f for f in dateien if not f["reg_idv_id"]]
+    if not unregistered:
+        return {}
+
+    idv_candidates = db.execute("""
+        SELECT r.id, r.idv_id, r.bezeichnung, r.idv_typ,
+               p_e.kuerzel  AS dev_kuerzel,
+               p_e.ad_name  AS dev_ad,
+               p_e.user_id  AS dev_uid,
+               p_f.kuerzel  AS fv_kuerzel,
+               p_f.ad_name  AS fv_ad
+        FROM idv_register r
+        LEFT JOIN persons p_e ON r.idv_entwickler_id      = p_e.id
+        LEFT JOIN persons p_f ON r.fachverantwortlicher_id = p_f.id
+        WHERE r.status NOT IN ('Außer Betrieb', 'Abgelöst')
+    """).fetchall()
+
+    if not idv_candidates:
+        return {}
+
+    result = {}
+    for fund in unregistered:
+        fund_typ   = _idv_typ_vorschlag(fund["extension"], fund["has_macros"])
+        fund_owner = (fund["file_owner"] or "").lower().strip()
+        name_stem  = os.path.splitext(fund["file_name"] or "")[0].lower()
+        fund_words = set(re.split(r"[\W_]+", name_stem)) - _MATCH_NOISE_WORDS
+
+        best_score = 0
+        best_idv   = None
+
+        for idv in idv_candidates:
+            score = 0
+
+            # Typ-Match (30 pts)
+            if fund_typ == idv["idv_typ"] and fund_typ != "unklassifiziert":
+                score += 30
+
+            # Owner/Developer-Match (40 pts)
+            if fund_owner:
+                dev_ids = {
+                    (idv["dev_kuerzel"] or "").lower(),
+                    (idv["dev_ad"]      or "").lower(),
+                    (idv["dev_uid"]     or "").lower(),
+                    (idv["fv_kuerzel"]  or "").lower(),
+                    (idv["fv_ad"]       or "").lower(),
+                }
+                dev_ids.discard("")
+                if fund_owner in dev_ids:
+                    score += 40
+
+            # Namensähnlichkeit (30 pts)
+            if fund_words:
+                idv_words = (
+                    set(re.split(r"[\W_]+", (idv["bezeichnung"] or "").lower()))
+                    - _MATCH_NOISE_WORDS
+                )
+                if idv_words:
+                    overlap = fund_words & idv_words
+                    ratio   = len(overlap) / max(len(fund_words), len(idv_words))
+                    score  += int(ratio * 30)
+
+            if score > best_score:
+                best_score = score
+                best_idv   = idv
+
+        if best_score >= 30 and best_idv:
+            result[fund["id"]] = {
+                "score":       best_score,
+                "idv_db_id":   best_idv["id"],
+                "idv_id":      best_idv["idv_id"],
+                "bezeichnung": best_idv["bezeichnung"],
+            }
+
+    return result
 
 
 _FUNDE_SORT_COLS = {
@@ -341,6 +431,13 @@ def list_funde():
     ).fetchall()
 
     gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
+
+    # Match-Score-Vorschläge nur berechnen wenn relevante Filter aktiv sind
+    if filt not in ("archiv", "duplikate", "mit_idv"):
+        match_scores = _compute_match_scores(dateien, db)
+    else:
+        match_scores = {}
+
     return render_template("funde/list.html",
         dateien=dateien, filt=filt,
         total=total, total_pages=total_pages, page=page, per_page=per_page,
@@ -370,8 +467,49 @@ def list_funde():
         date_to=date_to,
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
+        match_scores=match_scores,
         **_scan_btn_ctx(),
     )
+
+
+@bp.route("/<int:file_id>/quick-assign", methods=["POST"])
+@own_write_required
+def quick_assign(file_id):
+    """1-Klick-Zuordnung eines Scanner-Funds zu einer IDV (AJAX)."""
+    try:
+        idv_db_id = int(request.form.get("idv_db_id", ""))
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "error": "Ungültige IDV-ID."}), 400
+
+    db = get_db()
+    idv = db.execute(
+        "SELECT id, idv_id FROM idv_register WHERE id = ?", (idv_db_id,)
+    ).fetchone()
+    if not idv:
+        return jsonify({"ok": False, "error": "Eigenentwicklung nicht gefunden."}), 404
+
+    datei = db.execute("SELECT id FROM idv_files WHERE id = ?", (file_id,)).fetchone()
+    if not datei:
+        return jsonify({"ok": False, "error": "Fund nicht gefunden."}), 404
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                (idv_db_id, file_id),
+            )
+            c.execute(
+                "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id = ?",
+                (file_id,),
+            )
+
+    get_writer().submit(_do, wait=True)
+    return jsonify({
+        "ok":        True,
+        "idv_id":    idv["idv_id"],
+        "idv_db_id": idv_db_id,
+        "detail_url": url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id),
+    })
 
 
 @bp.route("/eingang")

@@ -400,6 +400,7 @@ date_to} %}
             <th class="text-center">Schutz</th>
             <th>Status</th>
             <th>Eigenentwicklung</th>
+            {% if match_scores %}<th title="Automatisch berechneter Übereinstimmungs-Score mit vorhandenen IDVs">Vorschlag</th>{% endif %}
             <th></th>
           </tr>
         </thead>
@@ -688,6 +689,39 @@ date_to} %}
               {% endif %}
             </td>
 
+            {% if match_scores %}
+            <!-- Matching-Vorschlag -->
+            <td class="text-nowrap">
+              {% set ms = match_scores.get(f.id) %}
+              {% if ms and not f.reg_idv_id %}
+              {% if ms.score >= 70 %}{% set badge_cls = 'bg-success' %}
+              {% elif ms.score >= 40 %}{% set badge_cls = 'bg-warning text-dark' %}
+              {% else %}{% set badge_cls = 'bg-secondary' %}{% endif %}
+              <div class="d-flex flex-column gap-1">
+                <span class="badge {{ badge_cls }}" title="{{ ms.score }}/100 Übereinstimmung">
+                  {{ ms.score }}%
+                </span>
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=ms.idv_db_id) }}"
+                  class="text-decoration-none text-truncate d-inline-block" style="max-width:120px;font-size:.72rem"
+                  title="{{ ms.bezeichnung }}">
+                  {{ ms.idv_id }}
+                </a>
+                <button type="button" class="btn btn-xs btn-outline-primary"
+                  data-action="quickAssign"
+                  data-assign-url="{{ url_for('funde.quick_assign', file_id=f.id) }}"
+                  data-idv-db-id="{{ ms.idv_db_id }}"
+                  data-idv-id="{{ ms.idv_id }}"
+                  data-detail-url="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=ms.idv_db_id) }}"
+                  title="Diesem IDV zuordnen: {{ ms.bezeichnung }}">
+                  <i class="bi bi-link-45deg me-1"></i>Zuordnen
+                </button>
+              </div>
+              {% else %}
+              <i class="bi bi-dash text-muted"></i>
+              {% endif %}
+            </td>
+            {% endif %}
+
             <td class="text-nowrap">
               {% if filt != 'archiv' %}
               {% if not f.reg_idv_id %}
@@ -714,7 +748,7 @@ date_to} %}
           </tr>
           {% else %}
           <tr>
-            <td colspan="14" class="text-center text-muted py-5">
+            <td colspan="{{ 15 if match_scores else 14 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Dateien gefunden.
             </td>
@@ -812,6 +846,57 @@ date_to} %}
     form.submit();
   }
   window.deleteScannerfund = deleteScannerfund;
+
+  // VULN-M: wird über data-action="quickAssign" aufgerufen; this = Button.
+  function quickAssign() {
+    var btn = this;
+    var assignUrl  = btn.dataset.assignUrl;
+    var idvId      = btn.dataset.idvId;
+    var idvDbId    = btn.dataset.idvDbId;
+    var detailUrl  = btn.dataset.detailUrl;
+    if (!confirm('Fund dem IDV "' + idvId + '" zuordnen?')) return;
+
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrf = csrfMeta ? csrfMeta.content : '';
+    var fd = new FormData();
+    fd.append('csrf_token', csrf);
+    fd.append('idv_db_id', idvDbId);
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    fetch(assignUrl, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd,
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          var row = btn.closest('tr');
+          if (row) {
+            var idvCell = row.querySelector('td:nth-last-child(3)');
+            if (idvCell) {
+              idvCell.innerHTML = '<a href="' + detailUrl + '" class="badge bg-success text-decoration-none">' + data.idv_id + '</a>';
+            }
+            var vorschlagCell = btn.closest('td');
+            if (vorschlagCell) {
+              vorschlagCell.innerHTML = '<span class="badge bg-success"><i class="bi bi-check2 me-1"></i>Zugeordnet</span>';
+            }
+          }
+        } else {
+          alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Zuordnen';
+        }
+      })
+      .catch(function () {
+        alert('Netzwerkfehler beim Zuordnen.');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Zuordnen';
+      });
+  }
+  window.quickAssign = quickAssign;
 
   (function () {
     const selectAll = document.getElementById('select-all');
