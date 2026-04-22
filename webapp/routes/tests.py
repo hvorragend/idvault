@@ -196,8 +196,19 @@ def new_fachlicher_testfall(idv_db_id):
                 if freigabe_id:
                     from . import current_person_id
                     from .freigaben import complete_freigabe_schritt
-                    complete_freigabe_schritt(db, freigabe_id, current_person_id())
-                    flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                    abgeschlossen = complete_freigabe_schritt(
+                        db, freigabe_id, current_person_id()
+                    )
+                    if abgeschlossen:
+                        flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                    else:
+                        flash(
+                            "Test gespeichert. Der Freigabe-Schritt wurde NICHT "
+                            "abgeschlossen: Sie sind entweder als Entwickler dieser "
+                            "Eigenentwicklung eingetragen (Funktionstrennung) oder "
+                            "nicht als Prüfer/Stellvertreter/Pool-Mitglied zugewiesen.",
+                            "warning",
+                        )
                 else:
                     flash("Test gespeichert.", "success")
             else:
@@ -260,8 +271,19 @@ def edit_fachlicher_testfall(testfall_id):
                 if freigabe_id:
                     from . import current_person_id
                     from .freigaben import complete_freigabe_schritt
-                    complete_freigabe_schritt(db, freigabe_id, current_person_id())
-                    flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                    abgeschlossen = complete_freigabe_schritt(
+                        db, freigabe_id, current_person_id()
+                    )
+                    if abgeschlossen:
+                        flash("Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                    else:
+                        flash(
+                            "Test gespeichert. Der Freigabe-Schritt wurde NICHT "
+                            "abgeschlossen: Sie sind entweder als Entwickler dieser "
+                            "Eigenentwicklung eingetragen (Funktionstrennung) oder "
+                            "nicht als Prüfer/Stellvertreter/Pool-Mitglied zugewiesen.",
+                            "warning",
+                        )
                 else:
                     flash("Test gespeichert.", "success")
             else:
@@ -346,8 +368,19 @@ def edit_technischer_test(idv_db_id):
             if freigabe_id:
                 from . import current_person_id
                 from .freigaben import complete_freigabe_schritt
-                complete_freigabe_schritt(db, freigabe_id, current_person_id())
-                flash("Technischer Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                abgeschlossen = complete_freigabe_schritt(
+                    db, freigabe_id, current_person_id()
+                )
+                if abgeschlossen:
+                    flash("Technischer Test gespeichert und Freigabe-Schritt abgeschlossen.", "success")
+                else:
+                    flash(
+                        "Technischer Test gespeichert. Der Freigabe-Schritt wurde NICHT "
+                        "abgeschlossen: Sie sind entweder als Entwickler dieser "
+                        "Eigenentwicklung eingetragen (Funktionstrennung) oder "
+                        "nicht als Prüfer/Stellvertreter/Pool-Mitglied zugewiesen.",
+                        "warning",
+                    )
             else:
                 flash("Technischer Test gespeichert.", "success")
         else:

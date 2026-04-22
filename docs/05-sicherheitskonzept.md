@@ -77,7 +77,9 @@ Als **IDV-Entwickler** eingetragene Personen (`idv_register.idv_entwickler_id`)
 dürfen auf der betroffenen IDV keine Freigabeschritte abschließen oder
 ablehnen (4-Augen-Prinzip). Implementiert in
 `webapp/routes/freigaben.py::_funktionstrennung_ok` und bei jedem
-Abschluss-/Ablehnungsvorgang ausgewertet.
+Abschluss-/Ablehnungsvorgang ausgewertet, sowohl auf der direkten
+Abschluss-Route als auch im gemeinsamen Helper
+`complete_freigabe_schritt` (der vom Test-Formular aufgerufen wird).
 
 **Ausnahme:** IDV-Administratoren können als organisatorische Eskalation
 auch dann Freigabeschritte abschließen, wenn sie gleichzeitig als

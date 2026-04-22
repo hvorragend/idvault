@@ -176,7 +176,15 @@ Im Test- und Freigabeverfahren (Phasen 1–3) darf eine Person, die auf der
 betroffenen IDV als **IDV-Entwickler** (`idv_entwickler_id`) eingetragen
 ist, keinen Freigabeschritt abschließen oder ablehnen (Vier-Augen-Prinzip).
 Die Prüfung erfolgt vor jedem Abschluss in
-`webapp/routes/freigaben.py:_funktionstrennung_ok()`.
+`webapp/routes/freigaben.py:_funktionstrennung_ok()`. Der Schutz greift
+sowohl auf dem direkten Weg (`/freigaben/<id>/abschliessen`,
+`/ablehnen`, `/archivieren`) als auch auf dem Test-Formular-Pfad
+(Fachlicher / Technischer Test mit Bewertung "Erledigt"): die
+Test-Dokumentation selbst wird gespeichert, der zugeordnete
+Freigabe-Schritt wird jedoch nicht als "Erledigt" markiert, wenn die
+speichernde Person als Entwickler der IDV geführt wird oder nicht als
+Prüfer/Stellvertreter/Pool-Mitglied zugewiesen ist. Der Anwender wird
+in diesem Fall mit einem Hinweis zurückgemeldet.
 
 **Administrator-Ausnahme:** Ein IDV-Administrator kann bei
 organisatorischem Bedarf einspringen und auch dann Freigabeschritte

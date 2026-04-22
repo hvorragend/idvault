@@ -383,7 +383,7 @@ def _ensure_test_eintraege(conn, idv_db_id: int) -> None:
 
 def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
                                nachweise: str = None, kommentar: str = None,
-                               user_name: str = None) -> None:
+                               user_name: str = None) -> bool:
     """Markiert einen ausstehenden Freigabe-Schritt als Erledigt und aktualisiert
     Phase-Status sowie IDV-Teststatus. Wird aus tests.py nach Speichern des Tests aufgerufen.
 
@@ -392,16 +392,31 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
     die finale Pruefung `status='Ausstehend'` erfolgt erneut innerhalb
     der Transaktion, damit Races zwischen zwei Abschluss-Klicks nicht zu
     doppelten Erledigt-Markierungen fuehren.
+
+    Vor dem Abschluss werden Funktionstrennung und Zuständigkeit geprüft
+    (sonst würde der Testformular-Pfad den SoD-Guard der direkten
+    Abschluss-Route umgehen). Gibt ``True`` zurück, wenn der Schritt
+    erfolgreich als Erledigt markiert wurde, sonst ``False``.
     """
     now = datetime.now(timezone.utc).isoformat()
     freigabe = db.execute(
         "SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)
     ).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
-        return
+        return False
 
     idv_db_id = freigabe["idv_id"]
     schritt = freigabe["schritt"]
+
+    # Funktionstrennung: Entwickler der IDV darf den Schritt nicht
+    # abschließen (Admins werden innerhalb _funktionstrennung_ok
+    # durchgelassen, der SoD-Override wird in _sod_log_fields markiert).
+    if not _funktionstrennung_ok(db, idv_db_id, person_id):
+        return False
+    # Zuweisung: nur die zugewiesene Person, deren aktiver Stellvertreter
+    # oder ein Pool-Mitglied (bzw. Admin) dürfen abschließen.
+    if not _can_complete_schritt(db, freigabe, person_id):
+        return False
     user_name = session.get("user_name", "") or None
     hist_aktion, hist_kommentar = _sod_log_fields(
         db, idv_db_id, person_id,
@@ -413,7 +428,7 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
             "SELECT status FROM idv_freigaben WHERE id=?", (freigabe_id,)
         ).fetchone()
         if not row or row["status"] != "Ausstehend":
-            return False, False
+            return False, False, False
         with write_tx(c):
             c.execute("""
                 UPDATE idv_freigaben
@@ -430,13 +445,14 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
                 archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, bearbeiter_name=user_name)
                 freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
-        return freigegeben, archiv_neu
+        return True, freigegeben, archiv_neu
 
-    freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
+    completed, freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
     if archiv_neu and not freigegeben:
         _notify_schritte(db, idv_db_id, [_PHASE_3[0]], {_PHASE_3[0]: None})
     if freigegeben:
         _notify_freigabe_erteilt(db, idv_db_id)
+    return completed
 
 
 # ---------------------------------------------------------------------------
