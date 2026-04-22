@@ -407,6 +407,11 @@ def bulk_status():
     msg = f'{updated} Eigenentwicklung(en) auf "{neuer_status}" gesetzt.'
     if errors:
         msg += f" {errors} konnten nicht geändert werden."
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "msg": msg, "updated": updated, "errors": errors,
+                        "neuer_status": neuer_status})
+
     flash(msg, "success" if not errors else "warning")
     return redirect(url_for("eigenentwicklung.list_idv"))
 

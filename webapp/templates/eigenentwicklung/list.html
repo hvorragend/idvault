@@ -411,11 +411,60 @@
         confirmLabel: `${names.length} Einträge ändern`,
         confirmVariant: 'btn-primary',
         onConfirm: () => {
-          document.getElementById('btn-bulk-status').closest('form').submit();
+          const form = document.getElementById('bulk-form');
+          const neuerStatus = sel.value;
+          const data = new FormData(form);
+          fetch("{{ url_for('eigenentwicklung.bulk_status') }}", {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: data,
+          }).then(r => r.json()).then(json => {
+            if (json.ok) {
+              [...document.querySelectorAll('.row-check:checked')].forEach(cb => {
+                const row = cb.closest('tr');
+                if (!row) return;
+                const badge = row.querySelector('td span.badge[class*="status-"]');
+                if (badge) {
+                  badge.className = 'badge status-' + neuerStatus.replace(/ /g, '-');
+                  badge.textContent = neuerStatus;
+                }
+                cb.checked = false;
+              });
+              updateBulkUI();
+              showInlineAlert(json.msg, json.errors ? 'warning' : 'success');
+            } else {
+              alert(json.msg || 'Fehler beim Statuswechsel.');
+            }
+          }).catch(() => {
+            form.querySelector('#btn-bulk-status').click();
+          });
         }
       });
       return false;
     };
+
+    function showInlineAlert(msg, type) {
+      const existing = document.getElementById('bulk-inline-alert');
+      if (existing) existing.remove();
+      const div = document.createElement('div');
+      div.id = 'bulk-inline-alert';
+      div.className = `alert alert-${type} alert-dismissible py-2 px-3 mt-2`;
+      div.style.fontSize = '.88rem';
+      div.innerHTML = msg + '<button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>';
+      const card = document.querySelector('#idv-table')?.closest('.card');
+      if (card) card.insertAdjacentElement('beforebegin', div);
+    }
+
+    // Wire data-submit-validate buttons
+    document.querySelectorAll('[data-submit-validate]').forEach(btn => {
+      btn.addEventListener('click', function (e) {
+        const fn = window[this.dataset.submitValidate];
+        if (typeof fn === 'function') {
+          e.preventDefault();
+          fn();
+        }
+      });
+    });
   })();
 </script>
 {% endif %}
