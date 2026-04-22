@@ -81,13 +81,12 @@ Abschluss-/Ablehnungsvorgang ausgewertet.
 
 **Ausnahme:** IDV-Administratoren können als organisatorische Eskalation
 auch dann Freigabeschritte abschließen, wenn sie gleichzeitig als
-Entwickler eingetragen sind. Der Vorgang wird in `idv_history`
-protokolliert (Aktion `freigabe_schritt_erledigt` mit
-`durchgefuehrt_von_id` = ausführender Admin). Ein dediziertes
-Override-Flag existiert derzeit nicht; die Ausnahme ist nur aus dem
-Zusammenspiel von Session-Rolle und `idv_entwickler_id` im
-History-Eintrag erkennbar und sollte im Rahmen einer Revisionsprüfung
-mit Bedacht interpretiert werden.
+Entwickler eingetragen sind. Jeder solche Vorgang wird in `idv_history`
+mit dem Aktions-Suffix `_sod_override` und einem Kommentar-Präfix
+`[SoD-Ausnahme durch Administrator]` eindeutig markiert, so dass die
+Revision die Ausnahmen unmittelbar auswerten kann
+(siehe [01 – Anwendungsdokumentation](01-anwendungsdokumentation.md)
+§3.4 für die vollständige Liste der Aktions-Suffixe).
 
 ### 2.4 JIT-Provisioning
 

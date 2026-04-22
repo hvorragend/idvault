@@ -71,8 +71,9 @@ Mitglieder des zugewiesenen Pools (Admin jederzeit).
 | Funktion | Admin | Koordinator | Fachverantw. | Entwickler | Revision | IT-Sicherheit |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Dashboard anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| IDV-Liste anzeigen (alle) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| IDV-Detail anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| IDV-Liste anzeigen (alle IDVs) | ✓ | ✓ | — | — | ✓ | ✓ |
+| IDV-Liste anzeigen (eigene IDVs) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| IDV-Detail anzeigen | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | ✓ | ✓ |
 | IDV anlegen | ✓ | ✓ | ✓ | ✓ | — | — |
 | IDV bearbeiten | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
 | Neue IDV-Version anlegen | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
@@ -123,12 +124,21 @@ Row-Level-Guards `user_can_read_idv` / `user_can_write_idv` in
 `user_can_read_idv()`):
 
 ```
-Admin · Koordinator · Revision · IT-Sicherheit · Fachverantwortlicher · IDV-Entwickler
+Admin · Koordinator · Revision · IT-Sicherheit
     → sehen ALLE IDVs des Registers
+
+Fachverantwortlicher · IDV-Entwickler
+    → sehen nur IDVs, bei denen die eigene Person-ID in mindestens
+      einem der folgenden Felder eingetragen ist:
+          fachverantwortlicher_id
+          idv_entwickler_id
+          idv_koordinator_id
+          stellvertreter_id
 ```
 
-Der Lesezugriff ist für alle produktiven Rollen "read-all". Einschränkungen
-ergeben sich ausschließlich beim **Schreibzugriff**.
+Der Listen-Filter wird in `webapp/routes/eigenentwicklung.py`
+(Register-Übersicht und Scanner-Sicht) angewendet, der Detail-Guard in
+`webapp/security.py::user_can_read_idv`.
 
 **Schreibzugriff** (`user_can_write_idv()`):
 
@@ -171,12 +181,19 @@ Die Prüfung erfolgt vor jedem Abschluss in
 **Administrator-Ausnahme:** Ein IDV-Administrator kann bei
 organisatorischem Bedarf einspringen und auch dann Freigabeschritte
 abschließen, wenn er als Entwickler auf der betroffenen IDV eingetragen
-ist. Der Eingriff wird in `idv_history` mit der Aktion
-`freigabe_schritt_erledigt` und der ausführenden Person protokolliert;
-ein gesondertes Override-Flag wird derzeit nicht gesetzt, das
-Zusammenwirken von Session-Rolle `IDV-Administrator` und eigener
-Eintragung als `idv_entwickler_id` ist jedoch aus der History
-rekonstruierbar.
+ist. Jeder solche Eingriff wird in `idv_history` eindeutig markiert:
+
+- die Aktion erhält das Suffix `_sod_override`
+  (`freigabe_schritt_erledigt_sod_override`,
+  `freigabe_abgelehnt_sod_override`,
+  `originaldatei_archiviert_sod_override`,
+  `originaldatei_nicht_verfuegbar_sod_override`),
+- der Kommentar beginnt mit dem Präfix
+  `[SoD-Ausnahme durch Administrator]`.
+
+Die Revision kann Admin-Overrides damit ohne Join auf `idv_register`
+auffinden, z.B. über
+`SELECT * FROM idv_history WHERE aktion LIKE '%\_sod\_override'`.
 
 ## 4 Authentifizierungsverfahren
 
