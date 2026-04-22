@@ -58,20 +58,36 @@ idvault kennt drei Authentifizierungspfade:
 | Rolle | Schreibrechte | Leserechte | Admin-Funktionen |
 |---|---|---|---|
 | IDV-Administrator | alle IDVs | alle IDVs | alle |
-| IDV-Koordinator | alle IDVs | alle IDVs | Stammdaten (außer Löschen) |
-| Fachverantwortlicher | eigene IDVs | eigene IDVs | — |
+| IDV-Koordinator | alle IDVs | alle IDVs | Stammdaten (außer Löschen), Scanner-Funde ignorieren/reaktivieren |
+| Fachverantwortlicher | IDVs mit eigener Beteiligung (FV, Entwickler, Koordinator oder Stellvertreter) | alle IDVs | — |
+| IDV-Entwickler | IDVs mit eigener Beteiligung (wie Fachverantwortlicher); im Freigabeverfahren der betroffenen IDV von Abschluss-/Ablehnungshandlungen ausgeschlossen | alle IDVs | — |
 | Revision | — | alle IDVs | — |
 | IT-Sicherheit | — | alle IDVs | — |
 
-Durchgesetzt durch Decorator-Funktionen in `webapp/routes/__init__.py`:
-`login_required`, `admin_required`, `write_access_required`,
-`own_write_required`.
+Durchgesetzt durch Decorator-Funktionen in `webapp/routes/__init__.py`
+(`login_required`, `admin_required`, `write_access_required`,
+`own_write_required`) sowie die Row-Level-Guards
+`user_can_read_idv` / `user_can_write_idv` in `webapp/security.py`.
+Die vollständige Funktions-/Rollen-Matrix findet sich in
+[01 – Anwendungsdokumentation](01-anwendungsdokumentation.md) Abschnitt 3.2.
 
 ### 2.3 Funktionstrennung
 
-Als **IDV-Entwickler** eingetragene Personen dürfen keine Freigabeschritte
-abschließen (4-Augen-Prinzip). Implementiert in
-`webapp/routes/freigaben.py:78`.
+Als **IDV-Entwickler** eingetragene Personen (`idv_register.idv_entwickler_id`)
+dürfen auf der betroffenen IDV keine Freigabeschritte abschließen oder
+ablehnen (4-Augen-Prinzip). Implementiert in
+`webapp/routes/freigaben.py::_funktionstrennung_ok` und bei jedem
+Abschluss-/Ablehnungsvorgang ausgewertet.
+
+**Ausnahme:** IDV-Administratoren können als organisatorische Eskalation
+auch dann Freigabeschritte abschließen, wenn sie gleichzeitig als
+Entwickler eingetragen sind. Der Vorgang wird in `idv_history`
+protokolliert (Aktion `freigabe_schritt_erledigt` mit
+`durchgefuehrt_von_id` = ausführender Admin). Ein dediziertes
+Override-Flag existiert derzeit nicht; die Ausnahme ist nur aus dem
+Zusammenspiel von Session-Rolle und `idv_entwickler_id` im
+History-Eintrag erkennbar und sollte im Rahmen einer Revisionsprüfung
+mit Bedacht interpretiert werden.
 
 ### 2.4 JIT-Provisioning
 
