@@ -84,6 +84,9 @@
 
   /* Focus-Ring (Amber, dezent) */
   --focus-ring: 0 0 0 3px rgba(245, 158, 11, .35);
+
+  /* Layout */
+  --sidebar-width: 240px;
 }
 
 /* 2. Basis-Typografie ──────────────────────────────────────────────────────── */
@@ -98,7 +101,7 @@ body {
 
 /* 3. Sidebar ──────────────────────────────────────────────────────────────── */
 #sidebar {
-  width: 240px;
+  width: var(--sidebar-width);
   min-height: 100vh;
   background: var(--slate-900);
   color: var(--slate-300);
@@ -178,7 +181,7 @@ body {
 
 /* 4. Main-Content-Wrapper & Topbar ────────────────────────────────────────── */
 #main {
-  margin-left: 240px;
+  margin-left: var(--sidebar-width);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -549,7 +552,13 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   animation: idv-pulse-border 1.6s ease-out 2;
 }
 
-/* 13. Quick-Search-Modal ──────────────────────────────────────────────────── */
+/* 13a. Quill Rich-Text-Editor (freigaben/*, tests/*, admin/mail) ──────────── */
+.ql-container { font-size: .9rem; }
+.ql-toolbar { border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.ql-container.ql-snow { border-radius: 0 0 var(--radius-md) var(--radius-md); height: auto; }
+.ql-editor { min-height: 80px; }
+
+/* 13b. Quick-Search-Modal ─────────────────────────────────────────────────── */
 .qs-item {
   padding: .6rem .9rem;
   cursor: pointer;
@@ -628,3 +637,101 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 
 /* Visibility */
 .hidden { display: none !important; }
+
+/* 15. Accessibility: reduzierte Bewegung ──────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  #archivierung:target,
+  #freigabeverfahren:target { animation: none; }
+}
+
+/* 16. Druck-Stylesheet ────────────────────────────────────────────────────── */
+@media print {
+  /* Seitenränder + Basis-Typo */
+  @page { margin: 1.4cm 1.2cm; }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 10pt;
+  }
+
+  /* Navigation, Topbar, Aktions-Elemente verstecken */
+  #sidebar,
+  #sidebar-overlay,
+  #topbar,
+  #hamburger,
+  #qs-backdrop,
+  #qs-modal,
+  .idv-footer,
+  .btn,
+  .topbar-action,
+  .kbd-soft,
+  .pagination,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  #main { margin-left: 0 !important; }
+
+  .content-wrapper { padding: 0 !important; }
+
+  /* Karten ohne Schatten, dünne Rahmen */
+  .card,
+  .stat-card,
+  .idv-card,
+  .form-section {
+    box-shadow: none !important;
+    border: 1px solid #bbb !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Tabellen druckfreundlich: kein dunkler Header, dünner Rahmen */
+  .table-idv thead th {
+    background: #fff !important;
+    color: #000 !important;
+    border-bottom: 1.5px solid #000 !important;
+  }
+  .table-idv tbody tr:nth-child(even) { background: #fff !important; }
+  .table-idv tbody tr:hover { background: #fff !important; }
+  .table,
+  .table-idv {
+    border-collapse: collapse !important;
+  }
+  .table th,
+  .table td {
+    border: 1px solid #ccc !important;
+  }
+  tr, thead, tbody { page-break-inside: avoid; }
+
+  /* Badges: Outline-Stil, damit Farben auch in Graustufen lesbar bleiben */
+  .badge,
+  .badge[class*="status-"] {
+    color: #000 !important;
+    background: transparent !important;
+    border: 1px solid #000 !important;
+    padding: .05rem .35rem !important;
+  }
+
+  /* Links: URL nur bei absoluten Links ausdrucken */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: .85em;
+    color: #555;
+  }
+
+  /* Headings nicht alleine unten auf der Seite */
+  h1, h2, h3, h4, h5, h6 { page-break-after: avoid; }
+
+  /* Akkordeon-/Details-Elemente aufgeklappt drucken */
+  details { display: block !important; }
+  details > summary { display: none !important; }
+}
