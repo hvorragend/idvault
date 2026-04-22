@@ -351,6 +351,30 @@
         padding: .9rem;
       }
     }
+
+    /* ── Phase-Transition Alert (U-C4) ───────────────────────────────
+       Wenn der Server einen Phasen-Übergang meldet (z.B. „Phase 2 erledigt
+       → Archivierung automatisch angelegt"), wird dem Alert die Kategorie
+       `phase_transition` gegeben. Das ist optisch deutlicher als ein
+       generisches success-Alert. */
+    .alert-phase-transition {
+      background: linear-gradient(90deg, #e0f0ff 0%, #f7fbff 100%);
+      border: 1px solid #8fb9e5;
+      border-left: 4px solid #0d6efd;
+      color: #083a7a;
+    }
+
+    /* Neu angelegte Freigabe-Sektionen hervorheben, wenn per URL-Fragment
+       angesprungen. Kein JS nötig – `:target` löst die Animation aus. */
+    @keyframes idv-pulse-border {
+      0%   { box-shadow: 0 0 0 0 rgba(13,110,253,.55); }
+      70%  { box-shadow: 0 0 0 14px rgba(13,110,253,0); }
+      100% { box-shadow: 0 0 0 0 rgba(13,110,253,0); }
+    }
+    #archivierung:target,
+    #freigabeverfahren:target {
+      animation: idv-pulse-border 1.6s ease-out 2;
+    }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
@@ -506,8 +530,12 @@
     <div class="px-4 pt-3">
       {% with messages = get_flashed_messages(with_categories=true) %}
       {% for cat, msg in messages %}
-      <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show" role="alert">
-        {{ msg }}
+      {% set alert_class = 'danger' if cat == 'error'
+                           else ('phase-transition' if cat == 'phase_transition'
+                           else cat) %}
+      <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center" role="alert">
+        {% if cat == 'phase_transition' %}<i class="bi bi-arrow-right-circle-fill me-2 fs-5"></i>{% endif %}
+        <div class="flex-grow-1">{{ msg }}</div>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
       {% endfor %}
@@ -671,6 +699,24 @@
     });
   </script>
   {% block extra_js %}{% endblock %}
+  <script>
+    // U-QW8: Form dirty-guard – warnt bei ungespeichertem Verlassen
+    (function () {
+      var _dirty = false, _submitting = false;
+      document.addEventListener('change', function (e) {
+        if (e.target.closest('form[data-dirty-guard]')) _dirty = true;
+      });
+      document.addEventListener('input', function (e) {
+        if (e.target.closest('form[data-dirty-guard]')) _dirty = true;
+      });
+      document.addEventListener('submit', function (e) {
+        if (e.target.closest('form[data-dirty-guard]')) _submitting = true;
+      });
+      window.addEventListener('beforeunload', function (e) {
+        if (_dirty && !_submitting) { e.preventDefault(); e.returnValue = ''; }
+      });
+    })();
+  </script>
 
   {% if session.user_id %}
   <!-- ═══ Globale Schnellsuche ════════════════════════════════════════════ -->
@@ -844,6 +890,73 @@
       }
       function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
       function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    })();
+  </script>
+  <script>
+    // U-QW7: Tastatur-Shortcuts (N = neue IDV, E = bearbeiten, ? = Hilfe)
+    (function () {
+      function inInput() {
+        var el = document.activeElement;
+        return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' || el.getAttribute('contenteditable') === 'true');
+      }
+      var helpEl = null;
+      function getHelp() {
+        if (helpEl) return helpEl;
+        helpEl = document.createElement('div');
+        helpEl.id = 'kbd-help';
+        helpEl.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:2000;' +
+          'background:rgba(0,0,0,.5);align-items:center;justify-content:center;';
+        var rows = [
+          ['Strg K', 'Schnellsuche öffnen'],
+          ['N', 'Neue Eigenentwicklung anlegen'],
+          ['E', 'Eigenentwicklung bearbeiten (Detailseite)'],
+          ['?', 'Diese Shortcut-Übersicht zeigen'],
+          ['Esc', 'Dialog / Suche schließen'],
+        ];
+        helpEl.innerHTML =
+          '<div style="background:#fff;border-radius:10px;padding:1.5rem 2rem;min-width:340px;max-width:95vw;' +
+          'box-shadow:0 20px 60px rgba(0,0,0,.3);">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem">' +
+          '<strong style="font-size:1rem">Tastatur-Shortcuts</strong>' +
+          '<button id="kbd-help-close" style="background:none;border:none;font-size:1.4rem;' +
+          'cursor:pointer;line-height:1;color:#6b7280">&times;</button></div>' +
+          rows.map(function (r) {
+            return '<div style="display:flex;align-items:center;justify-content:space-between;gap:2rem;' +
+              'padding:.45rem 0;border-bottom:1px solid #f0f0f0">' +
+              '<kbd style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;' +
+              'padding:.2rem .6rem;font-size:.82rem;white-space:nowrap">' + r[0] + '</kbd>' +
+              '<span style="color:#374151;font-size:.88rem;text-align:right">' + r[1] + '</span></div>';
+          }).join('') + '</div>';
+        document.body.appendChild(helpEl);
+        helpEl.addEventListener('click', function (e) {
+          if (e.target === helpEl || e.target.id === 'kbd-help-close') hideHelp();
+        });
+        return helpEl;
+      }
+      function showHelp() { var m = getHelp(); m.style.display = 'flex'; }
+      function hideHelp() { if (helpEl) helpEl.style.display = 'none'; }
+
+      document.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (inInput()) return;
+        switch (e.key) {
+          case '?':
+            e.preventDefault(); showHelp(); break;
+          case 'Escape':
+            hideHelp(); break;
+          case 'n': case 'N': {
+            var lnk = document.querySelector('a[href*="/neu"]');
+            if (lnk) { e.preventDefault(); location.href = lnk.href; }
+            break;
+          }
+          case 'e': case 'E': {
+            var lnk = document.querySelector('a[href*="/bearbeiten"]');
+            if (lnk) { e.preventDefault(); location.href = lnk.href; }
+            break;
+          }
+        }
+      });
     })();
   </script>
   {% endif %}

@@ -66,16 +66,17 @@
     {% else %}
     {% set ts = idv.teststatus or 'Wertung ausstehend' %}
     {% if ts == 'Freigegeben' %}
-    <span class="badge bg-success">{{ ts }}</span>
+    <span id="teststatus-badge" class="badge bg-success">{{ ts }}</span>
     {% elif ts == 'Freigabe ausstehend' %}
-    <span class="badge bg-warning text-dark">{{ ts }}</span>
+    <span id="teststatus-badge" class="badge bg-warning text-dark">{{ ts }}</span>
     {% elif ts == 'In Bearbeitung' %}
-    <span class="badge bg-info text-dark">{{ ts }}</span>
+    <span id="teststatus-badge" class="badge bg-info text-dark">{{ ts }}</span>
     {% else %}
-    <span class="badge bg-light text-dark border">{{ ts }}</span>
+    <span id="teststatus-badge" class="badge bg-light text-dark border">{{ ts }}</span>
     {% endif %}
     {% if can_create %}
-    <div class="dropdown">
+    <div class="dropdown" id="teststatus-dropdown"
+         data-url="{{ url_for('eigenentwicklung.change_teststatus', idv_db_id=idv.id) }}">
       <button class="btn btn-xs btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
         <i class="bi bi-pencil-fill"></i>
       </button>
@@ -83,16 +84,43 @@
         {% for s in teststatus_werte %}
         {% if s != ts %}
         <li>
-          <form method="post" action="{{ url_for('eigenentwicklung.change_teststatus', idv_db_id=idv.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="teststatus" value="{{ s }}">
-            <button class="dropdown-item">→ {{ s }}</button>
-          </form>
+          <button class="dropdown-item" data-teststatus="{{ s }}">→ {{ s }}</button>
         </li>
         {% endif %}
         {% endfor %}
       </ul>
     </div>
+    <script>
+    (function () {
+      var dd = document.getElementById('teststatus-dropdown');
+      if (!dd) return;
+      var url = dd.dataset.url;
+      var badge = document.getElementById('teststatus-badge');
+      var COLORS = {
+        'Freigegeben':        ['bg-success'],
+        'Freigabe ausstehend': ['bg-warning', 'text-dark'],
+        'In Bearbeitung':     ['bg-info', 'text-dark'],
+      };
+      dd.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-teststatus]');
+        if (!btn) return;
+        var val = btn.dataset.teststatus;
+        var fd = new FormData();
+        fd.append('teststatus', val);
+        fetch(url, { method: 'POST', body: fd,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data.ok) return;
+            badge.textContent = data.teststatus;
+            badge.className = 'badge ' + (COLORS[data.teststatus] || ['bg-light', 'text-dark', 'border']).join(' ');
+            dd.querySelectorAll('[data-teststatus]').forEach(function (b) {
+              b.closest('li').style.display = b.dataset.teststatus === data.teststatus ? 'none' : '';
+            });
+          });
+      });
+    })();
+    </script>
     {% endif %}
     {% endif %}
   </div>
@@ -587,9 +615,15 @@
                     </button>
                   </form>
                   {% elif f and f.status == 'Ausstehend' and can_create %}
-                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
-                    class="btn btn-xs btn-outline-success" title="Als Erledigt markieren">
+                  <button type="button" class="btn btn-xs btn-outline-success"
+                    data-bs-toggle="modal" data-bs-target="#modal-abnahme-inline"
+                    data-freigabe-id="{{ f.id }}" data-schritt-name="{{ schritt_name }}"
+                    title="Inline erledigen">
                     <i class="bi bi-check2-circle"></i>
+                  </button>
+                  <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
+                    class="btn btn-xs btn-outline-secondary" title="Vollansicht öffnen">
+                    <i class="bi bi-box-arrow-up-right"></i>
                   </a>
                   {% elif f %}
                   <a href="{{ url_for('freigaben.erledigt_seite', freigabe_id=f.id) }}"
@@ -786,6 +820,53 @@
       </div>
     </div>
     {% endif %}
+
+    <!-- Modal: Inline-Abnahme (Phase 2) -->
+    <div class="modal fade" id="modal-abnahme-inline" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-check2-circle me-2 text-success"></i><span id="inline-schritt-name"></span>
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form id="inline-abnahme-form" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-body">
+              <div id="inline-abnahme-error" class="alert alert-danger py-2 d-none" role="alert"></div>
+              <div class="mb-3">
+                <label class="form-label fw-500">Nachweise / Abnahmeprotokoll <span class="text-muted fw-normal">(optional)</span></label>
+                <textarea name="nachweise_text" class="form-control" rows="4"
+                  placeholder="Abnahme-Ergebnis, Bewertungsgrundlage …"></textarea>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-500">Kommentar <span class="text-muted fw-normal">(optional)</span></label>
+                <textarea name="kommentar" class="form-control" rows="2"
+                  placeholder="Ergänzende Hinweise …"></textarea>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-500">Nachweis-Datei <span class="text-muted fw-normal">(optional)</span></label>
+                <input type="file" name="nachweis_datei" class="form-control"
+                  accept=".png,.jpg,.jpeg,.gif,.pdf,.xlsx,.xls,.docx,.doc,.txt,.csv,.zip">
+                <div class="form-text">PNG, JPG, PDF, Excel, Word, ZIP</div>
+              </div>
+              <div class="mt-3 pt-2 border-top">
+                <a id="inline-full-page-link" href="#" class="text-muted" style="font-size:.8rem">
+                  <i class="bi bi-box-arrow-up-right me-1"></i>Vollansicht mit Weiterleiten-Option öffnen
+                </a>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+              <button type="submit" class="btn btn-success" id="inline-abnahme-submit">
+                <i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 
     {% endif %}
 
@@ -1111,4 +1192,71 @@
   </div><!-- /col-lg-4 -->
 
 </div><!-- /row -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var modal = document.getElementById('modal-abnahme-inline');
+  if (!modal) return;
+
+  modal.addEventListener('show.bs.modal', function (e) {
+    var trigger = e.relatedTarget;
+    var freigabeId = trigger.dataset.freigabeId;
+    var schrittName = trigger.dataset.schrittName;
+
+    document.getElementById('inline-schritt-name').textContent = schrittName + ' – Erledigt markieren';
+    document.getElementById('inline-abnahme-form').dataset.action =
+      '{{ url_for("freigaben.abschliessen", freigabe_id=0) }}'.replace('/0/', '/' + freigabeId + '/');
+    document.getElementById('inline-full-page-link').href =
+      '{{ url_for("freigaben.erledigt_seite", freigabe_id=0) }}'.replace('/0/', '/' + freigabeId + '/');
+
+    var form = document.getElementById('inline-abnahme-form');
+    form.reset();
+    var errorBox = document.getElementById('inline-abnahme-error');
+    errorBox.classList.add('d-none');
+    errorBox.textContent = '';
+    var btn = document.getElementById('inline-abnahme-submit');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren';
+  });
+
+  document.getElementById('inline-abnahme-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var form = this;
+    var action = form.dataset.action;
+    var errorBox = document.getElementById('inline-abnahme-error');
+    var btn = document.getElementById('inline-abnahme-submit');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Speichern…';
+    errorBox.classList.add('d-none');
+
+    fetch(action, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: new FormData(form)
+    })
+    .then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    })
+    .then(function (res) {
+      if (res.data.ok) {
+        window.location.assign(res.data.redirect_url);
+      } else {
+        errorBox.textContent = res.data.error || 'Unbekannter Fehler.';
+        errorBox.classList.remove('d-none');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren';
+      }
+    })
+    .catch(function () {
+      errorBox.textContent = 'Netzwerkfehler – bitte Seite neu laden und erneut versuchen.';
+      errorBox.classList.remove('d-none');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren';
+    });
+  });
+})();
+</script>
 {% endblock %}

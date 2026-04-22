@@ -91,13 +91,38 @@ def _record_sent(kind: str, ref_id: int, today_iso: str) -> None:
 # Dispatcher
 # ---------------------------------------------------------------------------
 
+def _effective_email(db, person_id: int, direct_email: str) -> str:
+    """Gibt die E-Mail-Adresse zurück, an die benachrichtigt werden soll.
+
+    Wenn die Person aktuell abwesend ist und einen aktiven Stellvertreter hat,
+    wird dessen E-Mail-Adresse zurückgegeben – andernfalls die direkte Adresse.
+    """
+    try:
+        row = db.execute("""
+            SELECT p2.email AS sv_email
+            FROM persons p
+            JOIN persons p2 ON p2.id = p.stellvertreter_id
+            WHERE p.id = ?
+              AND p.abwesend_bis IS NOT NULL
+              AND p.abwesend_bis >= date('now')
+              AND p2.aktiv = 1
+              AND p2.email IS NOT NULL AND p2.email <> ''
+        """, (person_id,)).fetchone()
+        if row:
+            return row["sv_email"]
+    except Exception:
+        pass
+    return direct_email
+
+
 def _dispatch_overdue_measures(db, today_iso: str) -> int:
-    """Mailt überfällige Maßnahmen an den Verantwortlichen. Gibt Anzahl
-    versandter Mails zurück."""
+    """Mailt überfällige Maßnahmen an den Verantwortlichen (oder dessen
+    aktiven Stellvertreter). Gibt Anzahl versandter Mails zurück."""
     from .email_service import notify_measure_overdue
 
     rows = db.execute("""
-        SELECT m.id AS id, m.titel, m.faellig_am, p.email
+        SELECT m.id AS id, m.titel, m.faellig_am,
+               p.id AS person_id, p.email
         FROM massnahmen m
         JOIN persons p ON m.verantwortlicher_id = p.id
         WHERE m.status IN ('Offen','In Bearbeitung')
@@ -111,8 +136,9 @@ def _dispatch_overdue_measures(db, today_iso: str) -> int:
     for r in rows:
         if _recent_sent(db, _MEASURE_KIND, r["id"]):
             continue
+        email = _effective_email(db, r["person_id"], r["email"])
         try:
-            ok = notify_measure_overdue(db, r, r["email"])
+            ok = notify_measure_overdue(db, r, email)
         except Exception:
             log.exception("Fehler beim Versand Maßnahmen-Erinnerung (id=%s)", r["id"])
             ok = False
@@ -124,12 +150,13 @@ def _dispatch_overdue_measures(db, today_iso: str) -> int:
 
 def _dispatch_due_reviews(db, today_iso: str) -> int:
     """Mailt Prüfungen, deren Fälligkeit überschritten ist, an den
-    Fachverantwortlichen. Gibt Anzahl versandter Mails zurück."""
+    Fachverantwortlichen (oder dessen aktiven Stellvertreter).
+    Gibt Anzahl versandter Mails zurück."""
     from .email_service import notify_review_due
 
     rows = db.execute("""
         SELECT r.id AS id, r.idv_id, r.bezeichnung, r.naechste_pruefung,
-               p.email
+               p.id AS person_id, p.email
         FROM idv_register r
         JOIN persons p ON r.fachverantwortlicher_id = p.id
         WHERE r.naechste_pruefung IS NOT NULL
@@ -143,8 +170,9 @@ def _dispatch_due_reviews(db, today_iso: str) -> int:
     for r in rows:
         if _recent_sent(db, _REVIEW_KIND, r["id"]):
             continue
+        email = _effective_email(db, r["person_id"], r["email"])
         try:
-            ok = notify_review_due(db, r, r["email"])
+            ok = notify_review_due(db, r, email)
         except Exception:
             log.exception("Fehler beim Versand Prüfungs-Erinnerung (id=%s)", r["id"])
             ok = False

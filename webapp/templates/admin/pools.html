@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Freigabe-Pools{% endblock %}
+{% block page_title %}<i class="bi bi-people me-2"></i>Freigabe-Pools{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+<div class="alert alert-info d-flex align-items-start gap-3 mb-3" style="font-size:.85rem">
+  <i class="bi bi-info-circle fs-5 flex-shrink-0 mt-1"></i>
+  <div>
+    Freigabe-Pools bündeln mehrere Personen, die einen Freigabe-Schritt wahlweise übernehmen können.
+    Wird ein Schritt einem Pool zugewiesen, erscheint er bei allen Mitgliedern in der Aufgaben-Inbox
+    und kann per „Aufgabe übernehmen“ in eine persönliche Zuweisung überführt werden.
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white fw-600"><i class="bi bi-plus-circle me-1"></i>Neuen Pool anlegen</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin.new_pool') }}" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-4">
+        <label class="form-label form-label-sm">Name <span class="text-danger">*</span></label>
+        <input type="text" name="name" class="form-control form-control-sm" required placeholder="z. B. Koordinatoren Marktfolge">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label form-label-sm">Beschreibung</label>
+        <input type="text" name="beschreibung" class="form-control form-control-sm" placeholder="optionale Kurzbeschreibung">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary btn-sm w-100">
+          <i class="bi bi-plus-lg me-1"></i>Anlegen
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-list-ul me-1"></i>{{ pools|length }} Pool(s)
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" style="font-size:.88rem">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Beschreibung</th>
+          <th class="text-center">Mitglieder</th>
+          <th class="text-center">Offene Schritte</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pools %}
+        <tr class="{{ 'text-muted' if not p.aktiv }}">
+          <td class="fw-600">{{ p.name }}</td>
+          <td>{{ p.beschreibung or '–' }}</td>
+          <td class="text-center">
+            <span class="badge bg-{{ 'primary' if p.n_mitglieder else 'secondary' }}">
+              {{ p.n_mitglieder }}
+            </span>
+          </td>
+          <td class="text-center">
+            {% if p.n_offen %}
+            <span class="badge bg-warning text-dark">{{ p.n_offen }}</span>
+            {% else %}
+            <i class="bi bi-dash text-muted"></i>
+            {% endif %}
+          </td>
+          <td>
+            {% if p.aktiv %}
+            <span class="badge bg-success">aktiv</span>
+            {% else %}
+            <span class="badge bg-secondary">inaktiv</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">
+            <a href="{{ url_for('admin.edit_pool', pool_id=p.id) }}" class="btn btn-xs btn-outline-primary">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{{ url_for('admin.delete_pool', pool_id=p.id) }}" class="d-inline"
+                  data-confirm="Pool '{{ p.name }}' wirklich löschen?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-xs btn-outline-danger" {% if p.n_offen %}disabled title="Pool hat offene Schritte"{% endif %}>
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">
+          <i class="bi bi-inbox fs-3 d-block mb-2"></i>Noch keine Pools angelegt.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>.btn-xs{padding:.15rem .45rem;font-size:.75rem}.fw-600{font-weight:600}</style>
+{% endblock %}

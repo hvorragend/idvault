@@ -186,7 +186,8 @@ def login():
                         session["ldap_auth"] = True
                         log_attempt(username, ip, "LDAP", True,
                                     f"Rolle: {person_data['rolle']}  User-ID: {uid}")
-                        return redirect(url_for("dashboard.index"))
+                        _next = session.pop("_quick_next", None)
+                        return redirect(_next if _next and _next.startswith("/") else url_for("dashboard.index"))
                     # LDAP aktiv, aber Credentials passen nicht → lokalen Login versuchen
                     log_attempt(username, ip, "LDAP", False,
                                 "Credentials abgelehnt (falsches Passwort oder Benutzer nicht gefunden)")
@@ -198,10 +199,11 @@ def login():
         # ── 2. Lokaler Login (DB-Person oder config.json-Fallback) ───────────
         result = _do_local_login(db, username, password)
         if result:
+            _next = session.pop("_quick_next", None)
             session.clear()
             session.update(result)
             log_attempt(username, ip, "lokal", True, f"Rolle: {result.get('user_role', '–')}")
-            return redirect(url_for("dashboard.index"))
+            return redirect(_next if _next and _next.startswith("/") else url_for("dashboard.index"))
 
         log_attempt(username, ip, "lokal", False, "Benutzername oder Passwort falsch")
         flash("Benutzername oder Passwort falsch.", "error")

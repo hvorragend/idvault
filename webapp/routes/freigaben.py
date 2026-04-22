@@ -22,7 +22,7 @@ Statuswerte (idv_freigaben.status):
 import hashlib
 import os
 from flask import (Blueprint, request, flash, redirect, url_for, abort,
-                   session, current_app, send_from_directory, render_template)
+                   session, current_app, send_from_directory, send_file, render_template, jsonify)
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 from . import login_required, own_write_required, admin_required, get_db, current_person_id
@@ -166,22 +166,41 @@ def _get_aktiver_stellvertreter_id(db, person_id: int):
     return row["stellvertreter_id"] if row else None
 
 
+def _is_pool_member(db, pool_id: int, person_id: int) -> bool:
+    """True wenn person_id Mitglied des angegebenen Freigabe-Pools ist."""
+    if not pool_id or not person_id:
+        return False
+    row = db.execute(
+        "SELECT 1 FROM freigabe_pool_members WHERE pool_id = ? AND person_id = ? LIMIT 1",
+        (pool_id, person_id),
+    ).fetchone()
+    return row is not None
+
+
 def _can_complete_schritt(db, freigabe, person_id: int) -> bool:
     """Prüft ob person_id diesen Schritt abschließen/ablehnen darf.
 
-    Admins dürfen immer. Sonst nur die zugewiesene Person oder deren aktiver
-    Stellvertreter (wenn abwesend_bis >= heute und stellvertreter_id gesetzt).
-    Ohne Zuweisung ist kein Nicht-Admin berechtigt.
+    Admins dürfen immer. Sonst: die zugewiesene Person, deren aktiver
+    Stellvertreter, oder (wenn der Schritt an einen Pool gebunden ist) jedes
+    Pool-Mitglied.
     """
     from . import ROLE_ADMIN
     if session.get("user_role") == ROLE_ADMIN:
         return True
     zugewiesen_id = freigabe["zugewiesen_an_id"]
-    if not zugewiesen_id:
-        return False
-    if person_id == zugewiesen_id:
+    if zugewiesen_id:
+        if person_id == zugewiesen_id:
+            return True
+        if _get_aktiver_stellvertreter_id(db, zugewiesen_id) == person_id:
+            return True
+    pool_id = None
+    try:
+        pool_id = freigabe["pool_id"]
+    except (KeyError, IndexError):
+        pool_id = None
+    if pool_id and _is_pool_member(db, pool_id, person_id):
         return True
-    return _get_aktiver_stellvertreter_id(db, zugewiesen_id) == person_id
+    return False
 
 
 def _phase1_komplett_erledigt(db, idv_db_id: int) -> bool:
@@ -311,7 +330,8 @@ def _ensure_test_eintraege(conn, idv_db_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
-                               nachweise: str = None, kommentar: str = None) -> None:
+                               nachweise: str = None, kommentar: str = None,
+                               user_name: str = None) -> None:
     """Markiert einen ausstehenden Freigabe-Schritt als Erledigt und aktualisiert
     Phase-Status sowie IDV-Teststatus. Wird aus tests.py nach Speichern des Tests aufgerufen.
 
@@ -551,9 +571,11 @@ def erledigt_seite(freigabe_id):
 
     # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend, sonst Lesemodus
     readonly = freigabe["status"] != "Ausstehend"
+    scanner_dateien = _verfuegbare_scanner_dateien(db, idv["id"]) if not readonly else []
     return render_template("freigaben/bestanden_form.html",
                            freigabe=freigabe, idv=idv, readonly=readonly,
-                           vertreter_name=vertreter_name, persons=persons)
+                           vertreter_name=vertreter_name, persons=persons,
+                           scanner_dateien=scanner_dateien)
 
 
 # ---------------------------------------------------------------------------
@@ -568,10 +590,14 @@ def abschliessen(freigabe_id):
     person_id = current_person_id()
     now       = datetime.now(timezone.utc).isoformat()
 
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
     freigabe = db.execute(
         "SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)
     ).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
+        if is_xhr:
+            return jsonify({"ok": False, "error": "Freigabe-Schritt nicht gefunden oder bereits abgeschlossen."}), 400
         flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
         return redirect(url_for("eigenentwicklung.list_idv"))
 
@@ -579,17 +605,18 @@ def abschliessen(freigabe_id):
     ensure_can_write_idv(db, idv_db_id)
 
     if not _funktionstrennung_ok(db, idv_db_id, person_id):
-        flash(
-            "Funktionstrennung: Sie sind als Entwickler dieser Eigenentwicklung eingetragen "
-            "und dürfen keine Freigabe-Schritte abschließen.", "error"
-        )
+        err = ("Funktionstrennung: Sie sind als Entwickler dieser Eigenentwicklung eingetragen "
+               "und dürfen keine Freigabe-Schritte abschließen.")
+        if is_xhr:
+            return jsonify({"ok": False, "error": err}), 403
+        flash(err, "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     if not _can_complete_schritt(db, freigabe, person_id):
-        flash(
-            "Nur die zugewiesene Person oder deren aktiver Stellvertreter "
-            "darf diesen Schritt abschließen.", "error"
-        )
+        err = "Nur die zugewiesene Person oder deren aktiver Stellvertreter darf diesen Schritt abschließen."
+        if is_xhr:
+            return jsonify({"ok": False, "error": err}), 403
+        flash(err, "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     kommentar = request.form.get("kommentar", "").strip() or None
@@ -603,7 +630,16 @@ def abschliessen(freigabe_id):
         if saved:
             nachweis_pfad, nachweis_name = saved, orig
         else:
+            if is_xhr:
+                return jsonify({"ok": False, "error": "Ungültiges Dateiformat für Nachweis-Upload."}), 400
             flash("Ungültiges Dateiformat für Nachweis-Upload.", "warning")
+    elif request.form.get("scanner_file_id"):
+        sf_id = _int_or_none(request.form.get("scanner_file_id"))
+        if sf_id:
+            sf = db.execute("SELECT file_name FROM idv_files WHERE id=?", (sf_id,)).fetchone()
+            if sf:
+                nachweis_pfad = f"scanner:{sf_id}"
+                nachweis_name = sf["file_name"]
 
     schritt = freigabe["schritt"]
     user_name = session.get("user_name", "") or None
@@ -639,21 +675,36 @@ def abschliessen(freigabe_id):
     if archiv_neu and not freigegeben:
         _notify_schritte(db, idv_db_id, [_PHASE_3[0]], {_PHASE_3[0]: None})
 
+    detail_url = url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id)
+
     if freigegeben:
         _notify_freigabe_erteilt(db, idv_db_id)
-        flash("Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben.", "success")
+        msg = "Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben."
+        cat = "phase_transition"
+        redirect_url = detail_url + "#freigabeverfahren"
     elif phase2_done:
-        flash(
-            f"'{schritt}' erledigt – Phase 2 vollständig. "
-            "Bitte nun die Originaldatei revisionssicher archivieren "
-            "(Phase 3).", "success"
-        )
+        if archiv_neu:
+            msg = (f"'{schritt}' erledigt – Phase 2 vollständig. "
+                   "Die Archivierung wurde automatisch angelegt (Phase 3).")
+            cat = "phase_transition"
+            redirect_url = detail_url + "#archivierung"
+        else:
+            msg = f"'{schritt}' erledigt – Phase 2 vollständig."
+            cat = "phase_transition"
+            redirect_url = detail_url + "#freigabeverfahren"
     elif phase1_done:
-        flash(f"'{schritt}' erledigt – Phase 1 vollständig. Bitte Phase 2 starten.", "success")
+        msg = f"'{schritt}' erledigt – Phase 1 vollständig. Phase 2 (Abnahmen) ist nun startbereit."
+        cat = "phase_transition"
+        redirect_url = detail_url + "#freigabeverfahren"
     else:
-        flash(f"'{schritt}' als Erledigt markiert.", "success")
+        msg = f"'{schritt}' als Erledigt markiert."
+        cat = "success"
+        redirect_url = detail_url + "#freigabeverfahren"
 
-    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+    if is_xhr:
+        return jsonify({"ok": True, "msg": msg, "cat": cat, "redirect_url": redirect_url})
+    flash(msg, cat)
+    return redirect(redirect_url)
 
 
 # ---------------------------------------------------------------------------
@@ -824,15 +875,19 @@ def schritt_anlegen(idv_db_id):
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     zugewiesen = _int_or_none(request.form.get("zugewiesen_an_id"))
+    pool_id    = _int_or_none(request.form.get("pool_id"))
+    # Bei Pool-Zuweisung: persönliche Zuweisung löschen (Entscheidung fällt bei Übernahme)
+    if pool_id:
+        zugewiesen = None
     user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
             c.execute("""
                 INSERT INTO idv_freigaben
-                    (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
-                VALUES (?, ?, 'Ausstehend', ?, ?, ?)
-            """, (idv_db_id, schritt, person_id, now, zugewiesen))
+                    (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id, pool_id)
+                VALUES (?, ?, 'Ausstehend', ?, ?, ?, ?)
+            """, (idv_db_id, schritt, person_id, now, zugewiesen, pool_id))
 
             if schritt in _PHASE_1:
                 _ensure_test_eintraege(c, idv_db_id)
@@ -882,6 +937,66 @@ def loeschen(freigabe_id):
 
 # ---------------------------------------------------------------------------
 # Freigabe-Schritt weiterleiten (an Dritte delegieren)
+# ---------------------------------------------------------------------------
+
+
+@bp.route("/<int:freigabe_id>/uebernehmen", methods=["POST"])
+@login_required
+def uebernehmen(freigabe_id):
+    """Pool-Mitglied übernimmt eine Pool-Aufgabe persönlich (U-D4).
+
+    Setzt zugewiesen_an_id auf den Aufrufer und hebt die Pool-Bindung auf.
+    Nur Mitglieder des zugewiesenen Pools (oder Admins) dürfen übernehmen.
+    """
+    db        = get_db()
+    person_id = current_person_id()
+    now       = datetime.now(timezone.utc).isoformat()
+
+    freigabe = db.execute(
+        "SELECT * FROM idv_freigaben WHERE id = ?", (freigabe_id,)
+    ).fetchone()
+    if not freigabe or freigabe["status"] != "Ausstehend":
+        flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
+
+    pool_id = None
+    try:
+        pool_id = freigabe["pool_id"]
+    except (KeyError, IndexError):
+        pool_id = None
+    if not pool_id:
+        flash("Dieser Schritt ist keinem Pool zugewiesen.", "warning")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+    from . import ROLE_ADMIN
+    is_admin = session.get("user_role") == ROLE_ADMIN
+    if not is_admin and not _is_pool_member(db, pool_id, person_id):
+        flash("Sie sind kein Mitglied des zugewiesenen Pools.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+    if not person_id:
+        flash("Kein Personendatensatz für diesen Account.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+    user_name = session.get("user_name", "") or None
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE idv_freigaben SET zugewiesen_an_id = ?, pool_id = NULL WHERE id = ?",
+                (person_id, freigabe_id),
+            )
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (freigabe["idv_id"], "freigabe_uebernommen",
+                 f"{freigabe['schritt']} aus Pool übernommen", person_id, user_name),
+            )
+
+    get_writer().submit(_do, wait=True)
+    flash(f"'{freigabe['schritt']}' übernommen – die Aufgabe ist jetzt Ihnen zugewiesen.", "success")
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+
 # ---------------------------------------------------------------------------
 
 @bp.route("/<int:freigabe_id>/weiterleiten", methods=["POST"])
@@ -1300,6 +1415,23 @@ def nachweis_download(freigabe_id):
         abort(404)
     ensure_can_read_idv(db, row["idv_db_id"])
 
+    # Referenz auf Scanner-Datei (gespeichert als "scanner:{id}")
+    if row["pfad"].startswith("scanner:"):
+        try:
+            sf_id = int(row["pfad"][8:])
+        except ValueError:
+            abort(404)
+        sf = db.execute(
+            "SELECT full_path, file_name FROM idv_files WHERE id=?", (sf_id,)
+        ).fetchone()
+        if not sf or not sf["full_path"]:
+            abort(404)
+        return send_file(
+            sf["full_path"],
+            as_attachment=True,
+            download_name=row["name"] or sf["file_name"],
+        )
+
     # Letzter Defense-in-Depth-Check: der gespeicherte Pfad darf nur ein
     # reiner Dateiname sein – keine ``../``-Traversals aus Altbeständen.
     if os.sep in row["pfad"] or "/" in row["pfad"] or "\\" in row["pfad"] \
@@ -1329,7 +1461,11 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
         if not idv:
             return
 
-        from ..email_service import notify_freigabe_schritt
+        from ..email_service import notify_freigabe_schritt, get_app_base_url
+        from ..tokens import make_freigabe_token
+
+        secret_key = current_app.config["SECRET_KEY"]
+        base_url = get_app_base_url(db)
 
         for schritt in schritte:
             recipient_set = set()
@@ -1354,8 +1490,22 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
                     recipient_set.add(p["email"])
 
             recipients = list(recipient_set)
-            if recipients:
-                notify_freigabe_schritt(db, idv, schritt, recipients)
+            if not recipients:
+                continue
+
+            # Magic-Link generieren, wenn Freigabe-ID und App-URL bekannt
+            action_url = None
+            if base_url:
+                fr = db.execute(
+                    "SELECT id FROM idv_freigaben "
+                    "WHERE idv_db_id=? AND schritt=? AND status='Ausstehend'",
+                    (idv_db_id, schritt)
+                ).fetchone()
+                if fr:
+                    token = make_freigabe_token(secret_key, fr["id"])
+                    action_url = f"{base_url}/quick/freigabe/{fr['id']}?token={token}"
+
+            notify_freigabe_schritt(db, idv, schritt, recipients, action_url=action_url)
     except Exception as exc:
         # VULN-011: Benachrichtigungsfehler dürfen den Freigabe-Prozess nicht
         # blockieren, werden aber geloggt, damit SMTP-Konfigurationsfehler

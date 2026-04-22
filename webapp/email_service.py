@@ -561,7 +561,8 @@ def notify_review_due(db, idv_row, responsible_email: str) -> bool:
 
 def notify_freigabe_schritt(db, idv_row, schritt: str,
                             recipient_emails: list,
-                            versions_kommentar: str = None) -> bool:
+                            versions_kommentar: str = None,
+                            action_url: str = None) -> bool:
     """Benachrichtigt Prüfer über einen neuen offenen Freigabe-Schritt."""
     if not _is_notify_enabled(db, "freigabe_schritt"):
         return False
@@ -581,6 +582,18 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
         _DEFAULTS["freigabe_schritt_body"],
         placeholders,
     )
+
+    if action_url:
+        cta = (
+            '<p style="margin-top:24px;text-align:center;">'
+            f'<a href="{action_url}" style="background:#0d6efd;color:#ffffff;'
+            'padding:12px 32px;border-radius:6px;text-decoration:none;'
+            'font-weight:bold;font-size:15px;display:inline-block;">'
+            f'Schritt „{schritt}" öffnen →</a></p>'
+        )
+        html = html.replace("</body>", cta + "</body>")
+
+    text = _strip_html_tags(html)
     return send_mail(db, recipient_emails, subject, html, text)
 
 

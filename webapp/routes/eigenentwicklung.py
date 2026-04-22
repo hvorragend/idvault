@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from . import (login_required, write_access_required, own_write_required, admin_required,
                get_db, can_write, can_create, can_read_all, current_person_id)
 import sys, os, io, json
+from datetime import datetime as _dt, timezone as _tz
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (create_idv, update_idv, change_status, search_idv,
                 get_klassifizierungen, get_wesentlichkeitskriterien,
@@ -34,6 +35,23 @@ ENTWICKLUNGSARTEN = [
 ]
 
 ENTWICKLUNGSART_LABEL = {key: label for key, label, _desc in ENTWICKLUNGSARTEN}
+
+
+# U-C3: Smart-Default-Inferenz.
+# Mapping IDV-Typ → vorgeschlagene Entwicklungsart + Prüfintervall (Monate).
+# Der Benutzer kann die Vorschläge im Formular jederzeit übersteuern – dieses
+# Mapping liefert nur die "initiale Vermutung" beim Typ-Wechsel.
+_TYP_DEFAULTS = {
+    "Excel-Makro":      {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Access-Datenbank": {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Python-Skript":    {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "SQL-Skript":       {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Power-BI-Bericht": {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Cognos-Report":    {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Excel-Tabelle":    {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 24},
+    "Sonstige":         {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 24},
+    "unklassifiziert":  {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 12},
+}
 
 
 def _form_lookups(db):
@@ -264,6 +282,27 @@ def quick_search():
         }
         for row in rows
     ])
+
+
+# ── Smart-Default-Inferenz (U-C3) ─────────────────────────────────────────
+
+@bp.route("/api/infer")
+@login_required
+def api_infer():
+    """Liefert Feld-Vorschläge zu einem IDV-Typ.
+
+    Wird vom Formular-JS beim onchange des Typ-Dropdowns aufgerufen, um
+    Entwicklungsart und Prüfintervall automatisch vorzuschlagen. Der Client
+    übernimmt die Werte nur, wenn der Benutzer das Feld noch nicht explizit
+    geändert hat.
+    """
+    typ = (request.args.get("idv_typ") or "").strip()
+    defaults = _TYP_DEFAULTS.get(typ, _TYP_DEFAULTS["unklassifiziert"])
+    return jsonify({
+        "idv_typ":               typ,
+        "entwicklungsart":       defaults["entwicklungsart"],
+        "pruefintervall_monate": defaults["pruefintervall_monate"],
+    })
 
 
 # ── Bulk-Löschen (Admin) ───────────────────────────────────────────────────
@@ -553,6 +592,53 @@ def detail_idv(idv_db_id):
         can_create=can_create())
 
 
+# ── Draft-Persistenz ───────────────────────────────────────────────────────
+
+
+def _draft_user_id() -> str | None:
+    return session.get("user_id")
+
+
+def _upsert_draft(c, user_id: str, draft_json: str, now: str) -> None:
+    with write_tx(c):
+        c.execute("""
+            INSERT INTO idv_draft (user_id, draft_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE
+               SET draft_json = excluded.draft_json,
+                   updated_at = excluded.updated_at
+        """, (user_id, draft_json, now, now))
+
+
+def _discard_draft(c, user_id: str) -> None:
+    with write_tx(c):
+        c.execute("DELETE FROM idv_draft WHERE user_id = ?", (user_id,))
+
+
+@bp.route("/draft", methods=["POST"])
+@own_write_required
+def draft_save():
+    uid = _draft_user_id()
+    if not uid:
+        return jsonify({"ok": False}), 401
+    now = _dt.now(_tz.utc).isoformat()
+    payload = {k: v for k, v in request.form.items()
+               if k not in ("csrf_token", "save_action")}
+    draft_json = json.dumps(payload, ensure_ascii=False)
+    get_writer().submit(lambda c: _upsert_draft(c, uid, draft_json, now), wait=True)
+    return jsonify({"ok": True, "updated_at": now})
+
+
+@bp.route("/draft", methods=["DELETE"])
+@own_write_required
+def draft_delete():
+    uid = _draft_user_id()
+    if not uid:
+        return jsonify({"ok": False}), 401
+    get_writer().submit(lambda c: _discard_draft(c, uid), wait=True)
+    return jsonify({"ok": True})
+
+
 # ── Neu ────────────────────────────────────────────────────────────────────
 
 @bp.route("/neu", methods=["GET", "POST"])
@@ -575,6 +661,8 @@ def new_idv():
                 if extra_id and extra_id != file_id:
                     extras.append(extra_id)
 
+            draft_uid = _draft_user_id()
+
             def _do(c):
                 with write_tx(c):
                     new_id = create_idv(c, data, erfasser_id=person_id,
@@ -590,6 +678,8 @@ def new_idv():
                             "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
                             (extra_id,),
                         )
+                    if draft_uid:
+                        c.execute("DELETE FROM idv_draft WHERE user_id = ?", (draft_uid,))
                 return new_id
 
             new_id = get_writer().submit(_do, wait=True)
@@ -605,8 +695,34 @@ def new_idv():
     prefill       = {}
     extra_fonds   = []
     hash_duplikate = []
+    draft_info    = None
     file_id       = _int_or_none(request.args.get("file_id"))
     extra_file_ids = request.args.get("extra_file_ids", "")
+
+    # U-C3: OE des eingeloggten Benutzers als Default vorschlagen.
+    my_pid = current_person_id()
+    if my_pid:
+        me = db.execute(
+            "SELECT org_unit_id FROM persons WHERE id = ?", (my_pid,)
+        ).fetchone()
+        if me and me["org_unit_id"]:
+            prefill["org_unit_id"] = me["org_unit_id"]
+
+    # U-D1: Gespeicherten Entwurf laden (nur wenn kein Scanner-Fund-Kontext).
+    if not file_id:
+        uid = _draft_user_id()
+        if uid:
+            drow = db.execute(
+                "SELECT draft_json, updated_at FROM idv_draft WHERE user_id = ?", (uid,)
+            ).fetchone()
+            if drow:
+                try:
+                    draft_data = json.loads(drow["draft_json"])
+                    draft_info = {"updated_at": drow["updated_at"], "data": draft_data}
+                    prefill.update(draft_data)
+                except Exception:
+                    pass
+
     if file_id:
         fund = db.execute("SELECT * FROM idv_files WHERE id = ?", (file_id,)).fetchone()
         if fund:
@@ -680,6 +796,7 @@ def new_idv():
                            fund=fund, prefill=prefill,
                            extra_fonds=extra_fonds,
                            hash_duplikate=hash_duplikate,
+                           draft_info=draft_info,
                            wesentlichkeit_antworten={},
                            can_write=can_write(),
                            **_form_lookups(db))
@@ -721,14 +838,14 @@ def bulk_neu():
 
         # Alle Formulardaten im Request-Kontext einlesen – der Writer-Thread
         # hat keinen Zugriff auf flask.request.
-        per_file = []
-        errors   = []
+        per_file  = []
+        error_fids = []
         for fid in file_ids:
             bez = (request.form.get(f"bezeichnung_{fid}") or "").strip()
             typ = (request.form.get(f"idv_typ_{fid}") or "unklassifiziert").strip()
             entw = _int_or_none(request.form.get(f"idv_entwickler_id_{fid}"))
             if not bez:
-                errors.append(fid)
+                error_fids.append(fid)
                 continue
             per_file.append({
                 "file_id":           fid,
@@ -738,28 +855,55 @@ def bulk_neu():
             })
 
         created = []
-        try:
-            def _do(c):
-                out = []
-                with write_tx(c):
-                    for entry in per_file:
-                        data = dict(common)
-                        data.update(entry)
-                        new_id = create_idv(c, data, erfasser_id=person_id,
-                                            bearbeiter_name=user_name, commit=False)
-                        out.append((entry["file_id"], new_id))
-                return out
+        if per_file:
+            try:
+                def _do(c):
+                    out = []
+                    with write_tx(c):
+                        for entry in per_file:
+                            data = dict(common)
+                            data.update(entry)
+                            new_id = create_idv(c, data, erfasser_id=person_id,
+                                                bearbeiter_name=user_name, commit=False)
+                            out.append((entry["file_id"], new_id))
+                    return out
 
-            created = get_writer().submit(_do, wait=True) or []
-        except Exception as exc:
-            flash(f"Fehler beim Anlegen: {exc}", "error")
-            return redirect(url_for("eigenentwicklung.bulk_neu",
-                                     **{"file_ids": file_ids}))
+                created = get_writer().submit(_do, wait=True) or []
+            except Exception as exc:
+                flash(f"Fehler beim Anlegen: {exc}", "error")
+                # Alle als fehlgeschlagen behandeln, damit der Nutzer seine Eingaben behält
+                error_fids = list(file_ids)
+
+        # Partial-Success: Fehlgeschlagene Zeilen erneut anzeigen mit eingegebenen Werten
+        if error_fids:
+            if created:
+                flash(
+                    f"{len(created)} Eigenentwicklung(en) angelegt. "
+                    f"{len(error_fids)} Zeile(n) fehlen noch – bitte Bezeichnung nachtragen.",
+                    "warning",
+                )
+            else:
+                flash("Bitte für alle Zeilen eine Bezeichnung eintragen.", "error")
+            ph, ph_params = in_clause(error_fids)
+            dateien = db.execute(
+                f"SELECT * FROM idv_files WHERE id IN ({ph}) ORDER BY file_name",
+                ph_params,
+            ).fetchall()
+            vorschlaege = []
+            for d in dateien:
+                vorschlaege.append({
+                    "datei":             d,
+                    "bezeichnung":       (request.form.get(f"bezeichnung_{d['id']}") or "").strip(),
+                    "idv_typ":           (request.form.get(f"idv_typ_{d['id']}") or "unklassifiziert").strip(),
+                    "idv_entwickler_id": _int_or_none(request.form.get(f"idv_entwickler_id_{d['id']}")),
+                })
+            return render_template("eigenentwicklung/bulk_neu.html",
+                                   vorschlaege=vorschlaege,
+                                   prefill_common=common,
+                                   **_form_lookups(db))
 
         if created:
             flash(f"{len(created)} Eigenentwicklung(en) angelegt.", "success")
-        if errors:
-            flash(f"{len(errors)} Datei(en) übersprungen (keine Bezeichnung).", "warning")
         return redirect(url_for("eigenentwicklung.list_idv"))
 
     # ── GET ──
@@ -897,6 +1041,8 @@ def change_teststatus(idv_db_id):
     ensure_can_write_idv(db, idv_db_id)
     val = request.form.get("teststatus", "")
     if val not in _TESTSTATUS_WERTE:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify(ok=False, error="Ungültiger Teststatus."), 400
         flash("Ungültiger Teststatus.", "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
     person_id = session.get("person_id")
@@ -916,6 +1062,8 @@ def change_teststatus(idv_db_id):
             )
 
     get_writer().submit(_do, wait=True)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify(ok=True, teststatus=val)
     flash(f"Teststatus geändert zu: {val}", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
