@@ -26,6 +26,7 @@ def mail():
             keys.append(f"notify_enabled_{tpl_key}")
             keys.append(f"email_tpl_{tpl_key}_subject")
             keys.append(f"email_tpl_{tpl_key}_body")
+            keys.append(f"email_tpl_{tpl_key}_mode")
         kv = [(k, request.form.get(k, "")) for k in keys]
         if smtp_pw_enc is not None:
             kv.append(("smtp_password", smtp_pw_enc))
@@ -43,11 +44,16 @@ def mail():
         "SELECT sent_at, recipients, subject, success, error_msg "
         "FROM smtp_log ORDER BY id DESC LIMIT 50"
     ).fetchall()
-    from ...email_service import EMAIL_TEMPLATES as _email_tpls, _DEFAULTS as _email_defaults
+    from ...email_service import EMAIL_TEMPLATES as _email_tpls, _DEFAULTS as _email_defaults, _strip_html_tags
+    email_defaults_text = {
+        k: (_strip_html_tags(v) if k.endswith("_body") else v)
+        for k, v in _email_defaults.items()
+    }
     return render_template("admin/mail.html",
         settings=settings,
         email_templates=_email_tpls,
         email_defaults=_email_defaults,
+        email_defaults_text=email_defaults_text,
         smtp_log=smtp_log)
 
 

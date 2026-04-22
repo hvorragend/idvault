@@ -12,6 +12,7 @@ wird ausschließlich aus der Datenbank (app_settings) gelesen.
 """
 
 import os
+import html as _html
 import smtplib
 import logging
 from email.mime.text import MIMEText
@@ -259,32 +260,45 @@ def _replace_placeholders(template: str, placeholders: dict) -> str:
     return template
 
 
-def _load_template(db, tpl_key: str, default_subject: str, default_body: str,
-                   placeholders: dict) -> tuple[str, str]:
-    """Lädt Betreff und HTML-Body für einen Template-Key aus app_settings.
+def _load_template(db, tpl_key: str, default_subject: str, default_body_html: str,
+                   placeholders: dict) -> tuple[str, str, str]:
+    """Lädt Betreff und Body für einen Template-Key aus app_settings.
 
-    Gibt (subject, html_body) zurück mit ersetzten Platzhaltern.
-    Fällt auf die übergebenen Defaults zurück, wenn kein DB-Eintrag existiert.
+    Gibt (subject, body_html, body_text) mit ersetzten Platzhaltern zurück.
+    Im Modus 'text' wird der gespeicherte Klartext in ein minimales HTML gewrappt.
     """
     subject_key = f"email_tpl_{tpl_key}_subject"
     body_key    = f"email_tpl_{tpl_key}_body"
+    mode_key    = f"email_tpl_{tpl_key}_mode"
 
     try:
-        row_s = db.execute(
-            "SELECT value FROM app_settings WHERE key=?", (subject_key,)
-        ).fetchone()
-        row_b = db.execute(
-            "SELECT value FROM app_settings WHERE key=?", (body_key,)
-        ).fetchone()
+        rows = {r["key"]: r["value"] for r in db.execute(
+            "SELECT key, value FROM app_settings WHERE key IN (?,?,?)",
+            (subject_key, body_key, mode_key)
+        ).fetchall()}
     except Exception:
-        row_s = row_b = None
+        rows = {}
 
-    subject = (row_s["value"] if row_s and row_s["value"] else default_subject)
-    body    = (row_b["value"] if row_b and row_b["value"] else default_body)
+    subject     = rows.get(subject_key) or default_subject
+    mode        = rows.get(mode_key) or "html"
+    stored_body = rows.get(body_key) or ""
 
+    if mode == "text":
+        body_text = stored_body or _strip_html_tags(default_body_html)
+        body_text = _replace_placeholders(body_text, placeholders)
+        body_html = (
+            "<html><body style=\"font-family:Arial,sans-serif;font-size:14px\">"
+            "<p style=\"white-space:pre-wrap\">" + _html.escape(body_text) + "</p>"
+            "</body></html>"
+        )
+        return (_replace_placeholders(subject, placeholders), body_html, body_text)
+
+    body_html = stored_body or default_body_html
+    body_text = _strip_html_tags(body_html)
     return (
         _replace_placeholders(subject, placeholders),
-        _replace_placeholders(body, placeholders),
+        _replace_placeholders(body_html, placeholders),
+        _replace_placeholders(body_text, placeholders),
     )
 
 
@@ -513,13 +527,12 @@ def notify_new_scanner_file(db, file_row, responsible_emails: list[str]) -> bool
         "erkannt_am": detected[:10] if detected else "–",
     }
 
-    subject, html = _load_template(
+    subject, html, text = _load_template(
         db, "neue_datei",
         _DEFAULTS["neue_datei_subject"],
         _DEFAULTS["neue_datei_body"],
         placeholders,
     )
-    text = _strip_html_tags(html)
     return send_mail(db, responsible_emails, subject, html, text)
 
 
@@ -537,13 +550,12 @@ def notify_review_due(db, idv_row, responsible_email: str) -> bool:
         "faellig_am":  datum[:10] if datum else "–",
     }
 
-    subject, html = _load_template(
+    subject, html, text = _load_template(
         db, "pruefung_faellig",
         _DEFAULTS["pruefung_faellig_subject"],
         _DEFAULTS["pruefung_faellig_body"],
         placeholders,
     )
-    text = _strip_html_tags(html)
     return send_mail(db, responsible_email, subject, html, text)
 
 
@@ -563,13 +575,12 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
         "versionskommentar":  versions_kommentar or "–",
     }
 
-    subject, html = _load_template(
+    subject, html, text = _load_template(
         db, "freigabe_schritt",
         _DEFAULTS["freigabe_schritt_subject"],
         _DEFAULTS["freigabe_schritt_body"],
         placeholders,
     )
-    text = _strip_html_tags(html)
     return send_mail(db, recipient_emails, subject, html, text)
 
 
@@ -585,13 +596,12 @@ def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
         "bezeichnung": name,
     }
 
-    subject, html = _load_template(
+    subject, html, text = _load_template(
         db, "freigabe_abgeschlossen",
         _DEFAULTS["freigabe_abgeschlossen_subject"],
         _DEFAULTS["freigabe_abgeschlossen_body"],
         placeholders,
     )
-    text = _strip_html_tags(html)
     return send_mail(db, recipient_emails, subject, html, text)
 
 
@@ -624,13 +634,12 @@ def notify_file_bewertung(db, file_row, recipient_email: str) -> bool:
         "makros":       "Ja" if has_macros else "Nein",
     }
 
-    subject, html = _load_template(
+    subject, html, text = _load_template(
         db, "bewertung",
         _DEFAULTS["bewertung_subject"],
         _DEFAULTS["bewertung_body"],
         placeholders,
     )
-    text = _strip_html_tags(html)
     return send_mail(db, recipient_email, subject, html, text)
 
 
@@ -818,11 +827,10 @@ def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:
         "faellig_am": faellig[:10] if faellig else "–",
     }
 
-    subject, html = _load_template(
+    subject, html, text = _load_template(
         db, "massnahme_ueberfaellig",
         _DEFAULTS["massnahme_ueberfaellig_subject"],
         _DEFAULTS["massnahme_ueberfaellig_body"],
         placeholders,
     )
-    text = _strip_html_tags(html)
     return send_mail(db, responsible_email, subject, html, text)

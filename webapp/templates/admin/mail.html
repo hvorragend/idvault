@@ -113,9 +113,12 @@
               {% set enabled_key = 'notify_enabled_' + tpl_key %}
               {% set default_subj = email_defaults.get(tpl_key + '_subject', '') %}
               {% set default_body = email_defaults.get(tpl_key + '_body', '') %}
+              {% set mode_key = 'email_tpl_' + tpl_key + '_mode' %}
+              {% set cur_mode = settings.get(mode_key, 'html') %}
+              {% set eff_default_body = default_body if cur_mode == 'html' else email_defaults_text.get(tpl_key + '_body', '') %}
               {% set _sv = settings.get(subj_key, '') %}
               {% set _bv = settings.get(body_key, '') %}
-              {% set has_custom = (_sv and _sv != default_subj) or (_bv and _bv != default_body) %}
+              {% set has_custom = (_sv and _sv != default_subj) or (_bv and _bv != eff_default_body) or cur_mode != 'html' %}
               {% set is_enabled = settings.get(enabled_key, '1') == '1' %}
               <div class="accordion-item">
                 <h2 class="accordion-header">
@@ -151,21 +154,54 @@
                         {% endfor %}
                       </span>
                     </div>
+                    <div class="mb-3">
+                      <label class="form-label form-label-sm fw-600">Modus</label><br>
+                      <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check tpl-mode-radio"
+                               name="{{ mode_key }}" id="mode_html_{{ tpl_key }}" value="html"
+                               {{ 'checked' if cur_mode == 'html' else '' }}
+                               data-tpl="{{ tpl_key }}">
+                        <label class="btn btn-outline-secondary" for="mode_html_{{ tpl_key }}">
+                          <i class="bi bi-code-slash me-1"></i>HTML
+                        </label>
+                        <input type="radio" class="btn-check tpl-mode-radio"
+                               name="{{ mode_key }}" id="mode_text_{{ tpl_key }}" value="text"
+                               {{ 'checked' if cur_mode == 'text' else '' }}
+                               data-tpl="{{ tpl_key }}"
+                               data-default-text="{{ email_defaults_text.get(tpl_key + '_body', '') | e }}">
+                        <label class="btn btn-outline-secondary" for="mode_text_{{ tpl_key }}">
+                          <i class="bi bi-type me-1"></i>Nur Text
+                        </label>
+                      </div>
+                      <span id="mode-hint-{{ tpl_key }}" class="ms-2 text-muted" style="font-size:.78rem">
+                        {% if cur_mode == 'text' %}Einfacher Text, kein HTML nötig.{% else %}HTML-Markup möglich.{% endif %}
+                      </span>
+                    </div>
                     <div class="mb-2">
                       <label class="form-label form-label-sm fw-600">Betreff</label>
                       <input type="text" name="{{ subj_key }}" class="form-control form-control-sm"
                              value="{{ settings.get(subj_key) or default_subj }}">
                     </div>
                     <div class="mb-2">
-                      <label class="form-label form-label-sm fw-600">HTML-Inhalt</label>
-                      <textarea name="{{ body_key }}" class="form-control form-control-sm" rows="8"
-                                style="font-family:monospace;font-size:.76rem">{{ settings.get(body_key) or default_body }}</textarea>
+                      <label class="form-label form-label-sm fw-600" id="body-label-{{ tpl_key }}">
+                        {% if cur_mode == 'text' %}Text-Inhalt{% else %}HTML-Inhalt{% endif %}
+                      </label>
+                      <textarea name="{{ body_key }}" class="form-control form-control-sm tpl-body-textarea" rows="8"
+                                id="body-{{ tpl_key }}"
+                                data-tpl="{{ tpl_key }}"
+                                style="font-family:{{ 'monospace' if cur_mode == 'html' else 'inherit' }};font-size:.76rem">{{ settings.get(body_key) or eff_default_body }}</textarea>
                     </div>
                     {% if has_custom %}
                     <div class="text-end">
                       {# VULN-K: Schlüssel per data-Attribut statt Jinja-Interpolation in onclick. #}
                       <button type="button" class="btn btn-xs btn-outline-secondary mail-reset-btn"
-                              data-subj-key="{{ subj_key }}" data-body-key="{{ body_key }}">
+                              data-subj-key="{{ subj_key }}"
+                              data-body-key="{{ body_key }}"
+                              data-mode-key="{{ mode_key }}"
+                              data-tpl="{{ tpl_key }}"
+                              data-default-subj="{{ default_subj | e }}"
+                              data-default-body-html="{{ default_body | e }}"
+                              data-default-body-text="{{ email_defaults_text.get(tpl_key + '_body', '') | e }}">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Auf Standard zurücksetzen
                       </button>
                     </div>
@@ -258,17 +294,57 @@
 </div>
 
 <script>
+// Modus-Toggle: HTML ↔ Nur Text
+document.addEventListener('change', function (ev) {
+  var radio = ev.target.closest('.tpl-mode-radio');
+  if (!radio) return;
+  var tpl      = radio.dataset.tpl;
+  var mode     = radio.value;
+  var bodyEl   = document.getElementById('body-' + tpl);
+  var hintEl   = document.getElementById('mode-hint-' + tpl);
+  var labelEl  = document.getElementById('body-label-' + tpl);
+
+  if (mode === 'text') {
+    bodyEl.style.fontFamily = 'inherit';
+    if (hintEl)  hintEl.textContent = 'Einfacher Text, kein HTML nötig.';
+    if (labelEl) labelEl.textContent = 'Text-Inhalt';
+    // Wenn aktuell HTML im Textarea steht: anbieten, Tags zu entfernen
+    var cur = bodyEl.value;
+    if (/<[a-z][\s\S]*>/i.test(cur)) {
+      var stripped = cur
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/?(p|div|h[1-6]|li|tr|td|th)[^>]*>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .replace(/\n{3,}/g, '\n\n').trim();
+      bodyEl.value = stripped || radio.dataset.defaultText || '';
+    }
+  } else {
+    bodyEl.style.fontFamily = 'monospace';
+    if (hintEl)  hintEl.textContent = 'HTML-Markup möglich.';
+    if (labelEl) labelEl.textContent = 'HTML-Inhalt';
+  }
+});
+
 // VULN-K: Event-Delegation für die "Auf Standard zurücksetzen"-Buttons.
 document.addEventListener('click', function (ev) {
   var btn = ev.target.closest('.mail-reset-btn');
   if (!btn) return;
-  var body = btn.closest('.accordion-body');
-  var subjKey = btn.dataset.subjKey;
-  var bodyKey = btn.dataset.bodyKey;
-  var subj = body.querySelector('input[name="' + subjKey + '"]');
-  var bodyEl = body.querySelector('textarea[name="' + bodyKey + '"]');
-  if (subj)   subj.value = '';
-  if (bodyEl) bodyEl.value = '';
+  var body     = btn.closest('.accordion-body');
+  var tpl      = btn.dataset.tpl;
+  var subjKey  = btn.dataset.subjKey;
+  var bodyKey  = btn.dataset.bodyKey;
+  var modeKey  = btn.dataset.modeKey;
+  var subj     = body.querySelector('input[name="' + subjKey + '"]');
+  var bodyEl   = body.querySelector('textarea[name="' + bodyKey + '"]');
+  var modeHtml = body.querySelector('input[name="' + modeKey + '"][value="html"]');
+
+  if (subj)     subj.value = '';
+  if (bodyEl)   bodyEl.value = '';
+  if (modeHtml && !modeHtml.checked) {
+    modeHtml.checked = true;
+    modeHtml.dispatchEvent(new Event('change', {bubbles: true}));
+  }
   btn.remove();
 });
 
