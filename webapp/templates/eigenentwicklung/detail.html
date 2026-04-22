@@ -501,31 +501,26 @@
                   <span class="badge ms-auto bg-light text-muted border" style="font-size:.6rem">gelöscht</span>
                   {% endif %}
                 </div>
-                {% if f and (f.zugewiesen_an or f.durchgefuehrt_von) %}
+                {% if f and (f.zugewiesen_an or f.durchgefuehrt_von or f.pool_name) %}
                 <div class="text-muted mt-1" style="font-size:.72rem">
-                  <i class="bi bi-person me-1"></i>{% if f.status in ('Erledigt', 'Nicht erledigt') %}{{ f.durchgefuehrt_von or f.zugewiesen_an }}{% else %}{{ f.zugewiesen_an }}{% endif %}
+                  {% if f.status in ('Erledigt', 'Nicht erledigt') %}
+                    <i class="bi bi-person me-1"></i>{{ f.durchgefuehrt_von or f.zugewiesen_an }}
+                  {% elif f.zugewiesen_an %}
+                    <i class="bi bi-person me-1"></i>{{ f.zugewiesen_an }}
+                  {% elif f.pool_name %}
+                    <i class="bi bi-people me-1"></i>Pool: {{ f.pool_name }}
+                  {% endif %}
                 </div>
                 {% endif %}
 
                 <div class="d-flex gap-1 mt-2">
                   {% if not f and can_create %}
                   {# Freigabe-Schritt wurde gelöscht → Anlage anbieten #}
-                  <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
-                    class="d-flex flex-column gap-1 w-100">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="schritt" value="{{ schritt_name }}">
-                    {% if freigabe_pools %}
-                    <select name="pool_id" class="form-select form-select-sm" title="Optional: Pool zuweisen">
-                      <option value="">Kein Pool</option>
-                      {% for pool in freigabe_pools %}
-                      <option value="{{ pool.id }}">{{ pool.name }}</option>
-                      {% endfor %}
-                    </select>
-                    {% endif %}
-                    <button type="submit" class="btn btn-xs btn-primary align-self-start">
-                      <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
-                    </button>
-                  </form>
+                  <button type="button" class="btn btn-xs btn-primary"
+                    data-bs-toggle="modal" data-bs-target="#modal-schritt-anlegen"
+                    data-schritt-name="{{ schritt_name }}">
+                    <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
+                  </button>
                   {% elif f and can_create and not test_data_vorhanden %}
                   {# Freigabe-Schritt aktiv, aber Test-Eintrag wurde manuell gelöscht → Neu-Anlage anbieten #}
                   {% if schritt_name == 'Fachlicher Test' %}
@@ -623,31 +618,26 @@
                   <span class="badge ms-auto bg-light text-muted border" style="font-size:.6rem">gelöscht</span>
                   {% endif %}
                 </div>
-                {% if f and (f.zugewiesen_an or f.durchgefuehrt_von) %}
+                {% if f and (f.zugewiesen_an or f.durchgefuehrt_von or f.pool_name) %}
                 <div class="text-muted mt-1" style="font-size:.72rem">
-                  <i class="bi bi-person me-1"></i>{% if f.status in ('Erledigt', 'Nicht erledigt') %}{{ f.durchgefuehrt_von or f.zugewiesen_an }}{% else %}{{ f.zugewiesen_an }}{% endif %}
+                  {% if f.status in ('Erledigt', 'Nicht erledigt') %}
+                    <i class="bi bi-person me-1"></i>{{ f.durchgefuehrt_von or f.zugewiesen_an }}
+                  {% elif f.zugewiesen_an %}
+                    <i class="bi bi-person me-1"></i>{{ f.zugewiesen_an }}
+                  {% elif f.pool_name %}
+                    <i class="bi bi-people me-1"></i>Pool: {{ f.pool_name }}
+                  {% endif %}
                 </div>
                 {% endif %}
 
                 <div class="d-flex gap-1 mt-2">
                   {% if not f and can_create %}
                   {# Abnahme-Schritt wurde gelöscht → Anlage anbieten #}
-                  <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}"
-                    class="d-flex flex-column gap-1 w-100">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="schritt" value="{{ schritt_name }}">
-                    {% if freigabe_pools %}
-                    <select name="pool_id" class="form-select form-select-sm" title="Optional: Pool zuweisen">
-                      <option value="">Kein Pool</option>
-                      {% for pool in freigabe_pools %}
-                      <option value="{{ pool.id }}">{{ pool.name }}</option>
-                      {% endfor %}
-                    </select>
-                    {% endif %}
-                    <button type="submit" class="btn btn-xs btn-primary align-self-start">
-                      <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
-                    </button>
-                  </form>
+                  <button type="button" class="btn btn-xs btn-primary"
+                    data-bs-toggle="modal" data-bs-target="#modal-schritt-anlegen"
+                    data-schritt-name="{{ schritt_name }}">
+                    <i class="bi bi-plus-circle me-1"></i>Anlage {{ schritt_name }}
+                  </button>
                   {% elif f and f.status == 'Ausstehend' and can_create %}
                   <button type="button" class="btn btn-xs btn-success"
                     data-bs-toggle="modal" data-bs-target="#modal-abnahme-inline"
@@ -947,6 +937,53 @@
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
               <button type="submit" class="btn btn-primary">
                 <i class="bi bi-arrow-right-circle me-1"></i>Weiterleiten
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Einzelnen Freigabe-Schritt anlegen -->
+    <div class="modal fade" id="modal-schritt-anlegen" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-plus-circle me-2"></i><span id="schritt-anlegen-name"></span> anlegen
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form id="schritt-anlegen-form" method="post"
+            action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="schritt" id="schritt-anlegen-schritt" value="">
+            <div class="modal-body">
+              <p class="text-muted" style="font-size:.9rem">
+                Wählen Sie die verantwortliche Person oder weisen Sie einen Pool zu.
+              </p>
+              <div class="mb-2">
+                <label class="form-label fw-500">Zuweisen an <span class="text-danger">*</span></label>
+                <select name="zugewiesen_an_id" class="form-select">
+                  <option value="">– Person auswählen –</option>
+                  {% for p in freigabe_persons %}
+                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                  {% endfor %}
+                </select>
+                {% if freigabe_pools %}
+                <select name="pool_id" class="form-select mt-2 text-muted">
+                  <option value="">– oder Pool zuweisen –</option>
+                  {% for pool in freigabe_pools %}
+                  <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
+                  {% endfor %}
+                </select>
+                {% endif %}
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-1"></i>Anlegen
               </button>
             </div>
           </form>
@@ -1454,6 +1491,33 @@
     form.action =
       '{{ url_for("freigaben.weiterleiten", freigabe_id=0) }}'.replace('/0/', '/' + trigger.dataset.freigabeId + '/');
     form.reset();
+  });
+})();
+
+(function () {
+  var modal = document.getElementById('modal-schritt-anlegen');
+  if (!modal) return;
+  var form = document.getElementById('schritt-anlegen-form');
+  var nameSpan = document.getElementById('schritt-anlegen-name');
+  var hiddenSchritt = document.getElementById('schritt-anlegen-schritt');
+
+  modal.addEventListener('show.bs.modal', function (e) {
+    var trigger = e.relatedTarget;
+    if (!trigger) return;
+    var schritt = trigger.dataset.schrittName || '';
+    nameSpan.textContent = schritt;
+    hiddenSchritt.value = schritt;
+    form.reset();
+    hiddenSchritt.value = schritt;
+  });
+
+  form.addEventListener('submit', function (e) {
+    var person = form.querySelector('select[name="zugewiesen_an_id"]');
+    var pool   = form.querySelector('select[name="pool_id"]');
+    if ((!person || !person.value) && (!pool || !pool.value)) {
+      e.preventDefault();
+      alert('Bitte eine Person oder einen Pool auswählen.');
+    }
   });
 })();
 </script>

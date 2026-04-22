@@ -533,10 +533,12 @@ def erledigt_seite(freigabe_id):
     freigabe = db.execute("""
         SELECT f.*,
                p_d.nachname || ', ' || p_d.vorname AS durchgefuehrt_von,
-               p_z.nachname || ', ' || p_z.vorname AS zugewiesen_an
+               p_z.nachname || ', ' || p_z.vorname AS zugewiesen_an,
+               pool.name AS pool_name
         FROM idv_freigaben f
         LEFT JOIN persons p_d ON f.durchgefuehrt_von_id = p_d.id
         LEFT JOIN persons p_z ON f.zugewiesen_an_id     = p_z.id
+        LEFT JOIN freigabe_pools pool ON f.pool_id      = pool.id
         WHERE f.id = ?
     """, (freigabe_id,)).fetchone()
     if not freigabe:
@@ -907,6 +909,9 @@ def schritt_anlegen(idv_db_id):
 
     zugewiesen = _int_or_none(request.form.get("zugewiesen_an_id"))
     pool_id    = _int_or_none(request.form.get("pool_id"))
+    if not zugewiesen and not pool_id:
+        flash("Bitte eine Person oder einen Pool für den Schritt auswählen.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
     # Bei Pool-Zuweisung: persönliche Zuweisung löschen (Entscheidung fällt bei Übernahme)
     if pool_id:
         zugewiesen = None

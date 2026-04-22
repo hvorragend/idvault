@@ -527,11 +527,13 @@ def detail_idv(idv_db_id):
             SELECT f.*,
                    p_b.nachname || ', ' || p_b.vorname AS beauftragt_von,
                    p_d.nachname || ', ' || p_d.vorname AS durchgefuehrt_von,
-                   p_z.nachname || ', ' || p_z.vorname AS zugewiesen_an
+                   p_z.nachname || ', ' || p_z.vorname AS zugewiesen_an,
+                   pool.name AS pool_name
             FROM idv_freigaben f
             LEFT JOIN persons p_b ON f.beauftragt_von_id    = p_b.id
             LEFT JOIN persons p_d ON f.durchgefuehrt_von_id = p_d.id
             LEFT JOIN persons p_z ON f.zugewiesen_an_id     = p_z.id
+            LEFT JOIN freigabe_pools pool ON f.pool_id      = pool.id
             WHERE f.idv_id = ?
             ORDER BY f.erstellt_am
         """, (idv_db_id,)).fetchall()
