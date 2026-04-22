@@ -991,10 +991,8 @@
         if (qs && qs.style.display !== 'none') { closeSearch(); return; }
         var kh = document.getElementById('kbd-help');
         if (kh && kh.style.display !== 'none') { kh.style.display = 'none'; return; }
-        // Formular verlassen (Abbrechen) wenn kein Dialog offen und kein Feld fokussiert
-        if (!inInput()) {
-          var cancel = document.querySelector('[data-esc-cancel]');
-          if (cancel) { e.preventDefault(); cancel.click(); }
+        var cancel = document.querySelector('[data-esc-cancel]');
+        if (cancel) { e.preventDefault(); cancel.click(); }
         }
       }, true);
     })();
