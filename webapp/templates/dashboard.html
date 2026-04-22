@@ -8,24 +8,22 @@
 <div class="row g-3 mb-4">
 
   {% set cards = [
-  ("gesamt_aktiv", "Eigenentwicklungen gesamt", "bi-archive", "#1a3a5c", ""),
-  ("wesentlich", "Wesentlich", "bi-exclamation-triangle-fill","#842029",""),
-  ("nicht_wesentlich", "Nicht wesentlich", "bi-check2-circle", "#166534", ""),
-  ("genehmigt", "Freigegeben", "bi-check-circle", "#166534", ""),
-  ("entwurf", "Im Entwurf", "bi-pencil-square", "#854d0e", ""),
-  ("in_pruefung", "In Prüfung", "bi-clipboard2-check", "#1e40af", ""),
+  ("gesamt_aktiv",    "Eigenentwicklungen gesamt", "bi-archive",                   "slate"),
+  ("wesentlich",      "Wesentlich",                "bi-exclamation-triangle-fill", "red"),
+  ("nicht_wesentlich","Nicht wesentlich",          "bi-check2-circle",             "green"),
+  ("genehmigt",       "Freigegeben",               "bi-check-circle",              "green"),
+  ("entwurf",         "Im Entwurf",                "bi-pencil-square",             "amber"),
+  ("in_pruefung",     "In Prüfung",                "bi-clipboard2-check",          "blue"),
   ] %}
 
-  {% for key, label, icon, color, _ in cards %}
+  {% for key, label, icon, tone in cards %}
   <div class="col-6 col-md-4 col-xl-2">
-    <div class="stat-card card h-100 p-3">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <div class="stat-val" style="color:{{ color }}">{{ stats[key] }}</div>
-          <div class="stat-lbl">{{ label }}</div>
-        </div>
-        <i class="bi {{ icon }} fs-4" style="color:{{ color }};opacity:.35"></i>
+    <div class="stat-card-v2 h-100">
+      <div class="stat-head">
+        <div class="stat-lbl">{{ label }}</div>
+        <span class="stat-icon stat-icon-{{ tone }}"><i class="bi {{ icon }}"></i></span>
       </div>
+      <div class="stat-val stat-val-{{ tone }}">{{ stats[key] }}</div>
     </div>
   </div>
   {% endfor %}

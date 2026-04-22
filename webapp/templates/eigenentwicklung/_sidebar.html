@@ -4,14 +4,23 @@
     <div class="card border-0 shadow-sm mb-4">
       <div class="card-header bg-white fw-600"><i class="bi bi-people me-2"></i>Verantwortlichkeiten</div>
       <ul class="list-group list-group-flush">
-        {% for label, val in [
-        ('Org.-Einheit', idv.org_einheit),
-        ('Fachverantwortlicher', idv.fachverantwortlicher),
-        ('Entwickler', idv.entwickler),
+        {% for label, val, is_person in [
+        ('Org.-Einheit',         idv.org_einheit,         false),
+        ('Fachverantwortlicher', idv.fachverantwortlicher, true),
+        ('Entwickler',           idv.entwickler,           true),
         ] %}
         <li class="list-group-item px-3 py-2">
           <div class="detail-label">{{ label }}</div>
+          {% if val and is_person %}
+          <div class="avatar-chip mt-1">
+            <span class="avatar-initial">{{ (val.split()|map('first')|join)[:2]|upper }}</span>
+            <div class="avatar-body">
+              <div class="avatar-name">{{ val }}</div>
+            </div>
+          </div>
+          {% else %}
           <div class="fw-500">{{ val or '–' }}</div>
+          {% endif %}
         </li>
         {% endfor %}
       </ul>
