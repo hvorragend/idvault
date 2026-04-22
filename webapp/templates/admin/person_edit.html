@@ -74,6 +74,35 @@
               </div>
             </div>
 
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12">
+              <div class="fw-600" style="font-size:.85rem;color:#555">
+                <i class="bi bi-person-check me-1"></i>Stellvertreter-Regelung (MaRisk AT 7.2)
+              </div>
+              <div class="form-text mb-2">
+                Wenn die Person abwesend ist (bis einschließlich „Abwesend bis"), darf der hinterlegte
+                Stellvertreter deren Freigabe-Schritte abschließen.
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-600">Stellvertreter</label>
+              <select name="stellvertreter_id" class="form-select">
+                <option value="">– kein Stellvertreter –</option>
+                {% for p in all_persons %}
+                <option value="{{ p.id }}" {{ 'selected' if person.stellvertreter_id == p.id else '' }}>
+                  {{ p.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-600">Abwesend bis</label>
+              <input type="date" name="abwesend_bis" class="form-control"
+                     value="{{ person.abwesend_bis or '' }}">
+              <div class="form-text">Leer lassen wenn anwesend.</div>
+            </div>
+
           </div>
           <div class="mt-4 d-flex gap-2">
             <button type="submit" class="btn btn-primary">

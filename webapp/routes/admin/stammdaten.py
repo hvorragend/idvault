@@ -58,10 +58,21 @@ def edit_person(pid):
         return redirect(url_for("admin.index"))
 
     org_units = db.execute("SELECT * FROM org_units ORDER BY bezeichnung").fetchall()
+    all_persons = db.execute(
+        "SELECT id, nachname || ', ' || vorname AS name FROM persons WHERE aktiv=1 AND id != ? ORDER BY nachname, vorname",
+        (pid,)
+    ).fetchall()
 
     if request.method == "POST":
         new_pw = request.form.get("password", "").strip()
         pw_hash = _hash_pw(new_pw) if new_pw else person["password_hash"]
+
+        abwesend_bis_raw = request.form.get("abwesend_bis", "").strip() or None
+        # Einfache Datumsvalidierung (ISO-Format YYYY-MM-DD)
+        if abwesend_bis_raw:
+            import re as _re
+            if not _re.match(r"^\d{4}-\d{2}-\d{2}$", abwesend_bis_raw):
+                abwesend_bis_raw = None
 
         params = (
             request.form.get("kuerzel", "").strip().upper(),
@@ -74,6 +85,8 @@ def edit_person(pid):
             request.form.get("ad_name") or None,
             pw_hash,
             1 if request.form.get("aktiv") else 0,
+            request.form.get("stellvertreter_id") or None,
+            abwesend_bis_raw,
             pid,
         )
         def _do(c):
@@ -81,7 +94,8 @@ def edit_person(pid):
                 c.execute("""
                     UPDATE persons SET
                         kuerzel=?, nachname=?, vorname=?, email=?, rolle=?,
-                        org_unit_id=?, user_id=?, ad_name=?, password_hash=?, aktiv=?
+                        org_unit_id=?, user_id=?, ad_name=?, password_hash=?, aktiv=?,
+                        stellvertreter_id=?, abwesend_bis=?
                     WHERE id=?
                 """, params)
         try:
@@ -93,7 +107,8 @@ def edit_person(pid):
         flash("Person gespeichert.", "success")
         return redirect(url_for("admin.index"))
 
-    return render_template("admin/person_edit.html", person=person, org_units=org_units)
+    return render_template("admin/person_edit.html", person=person, org_units=org_units,
+                           all_persons=all_persons)
 
 
 @bp.route("/person/<int:pid>/loeschen", methods=["POST"])

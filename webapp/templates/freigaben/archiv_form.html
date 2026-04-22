@@ -243,11 +243,62 @@
         <li class="list-group-item px-3 py-2">
           <div class="detail-label">Beauftragt an</div>
           <div class="fw-500">{{ freigabe.zugewiesen_an }}</div>
+          {% if vertreter_name %}
+          <div class="mt-1 text-warning" style="font-size:.8rem">
+            <i class="bi bi-person-check me-1"></i>Aktuell vertreten durch <strong>{{ vertreter_name }}</strong>
+          </div>
+          {% endif %}
         </li>
         {% endif %}
       </ul>
+      {% if not readonly %}
+      <div class="card-footer bg-white">
+        <button type="button" class="btn btn-sm btn-outline-secondary w-100"
+                data-bs-toggle="modal" data-bs-target="#modal-weiterleiten">
+          <i class="bi bi-arrow-right-circle me-1"></i>An Dritten weiterleiten
+        </button>
+      </div>
+      {% endif %}
     </div>
   </div><!-- /col-lg-4 -->
+
+  {% if not readonly %}
+  <!-- Modal: Weiterleiten -->
+  <div class="modal fade" id="modal-weiterleiten" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-arrow-right-circle me-2"></i>Schritt weiterleiten</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form method="post" action="{{ url_for('freigaben.weiterleiten', freigabe_id=freigabe.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="modal-body">
+            <p class="text-muted" style="font-size:.9rem">
+              Leitet „{{ freigabe.schritt }}" an eine andere Person weiter.
+              Diese Person wird benachrichtigt und als neue Verantwortliche eingetragen.
+            </p>
+            <div class="mb-3">
+              <label class="form-label fw-500">Weiterleiten an</label>
+              <select name="weiterleiten_an_id" class="form-select" required>
+                <option value="">– Person auswählen –</option>
+                {% for p in persons %}
+                <option value="{{ p.id }}">{{ p.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-arrow-right-circle me-1"></i>Weiterleiten
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
 </div><!-- /row -->
 {% endblock %}

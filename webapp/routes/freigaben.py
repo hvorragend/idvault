@@ -155,6 +155,35 @@ def _funktionstrennung_ok(db, idv_db_id: int, person_id: int) -> bool:
     return row["idv_entwickler_id"] != person_id
 
 
+def _get_aktiver_stellvertreter_id(db, person_id: int):
+    """Gibt stellvertreter_id zurück, wenn die Person aktuell abwesend ist."""
+    row = db.execute(
+        """SELECT stellvertreter_id FROM persons
+           WHERE id = ? AND stellvertreter_id IS NOT NULL
+             AND abwesend_bis IS NOT NULL AND abwesend_bis >= date('now')""",
+        (person_id,)
+    ).fetchone()
+    return row["stellvertreter_id"] if row else None
+
+
+def _can_complete_schritt(db, freigabe, person_id: int) -> bool:
+    """Prüft ob person_id diesen Schritt abschließen/ablehnen darf.
+
+    Admins dürfen immer. Ohne zugewiesene Person darf jeder Schreibberechtigte.
+    Sonst nur die zugewiesene Person oder deren aktiver Stellvertreter
+    (wenn abwesend_bis >= heute und stellvertreter_id gesetzt).
+    """
+    from . import ROLE_ADMIN
+    if session.get("user_role") == ROLE_ADMIN:
+        return True
+    zugewiesen_id = freigabe["zugewiesen_an_id"]
+    if not zugewiesen_id:
+        return True
+    if person_id == zugewiesen_id:
+        return True
+    return _get_aktiver_stellvertreter_id(db, zugewiesen_id) == person_id
+
+
 def _phase1_komplett_erledigt(db, idv_db_id: int) -> bool:
     """True wenn BEIDE Phase-1-Schritte als Erledigt abgeschlossen sind."""
     ph, ph_params = in_clause(_PHASE_1)
@@ -490,18 +519,36 @@ def erledigt_seite(freigabe_id):
             kwargs["freigabe_id"] = freigabe_id
         return redirect(url_for("tests.edit_technischer_test", **kwargs))
 
+    # Stellvertreter-Info: aktiver Vertreter der zugewiesenen Person
+    vertreter_name = None
+    if freigabe["zugewiesen_an_id"] and freigabe["status"] == "Ausstehend":
+        stv_id = _get_aktiver_stellvertreter_id(db, freigabe["zugewiesen_an_id"])
+        if stv_id:
+            stv = db.execute(
+                "SELECT nachname || ', ' || vorname AS name FROM persons WHERE id=?",
+                (stv_id,)
+            ).fetchone()
+            if stv:
+                vertreter_name = stv["name"]
+
+    persons = db.execute(
+        "SELECT id, nachname || ', ' || vorname AS name FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+    ).fetchall()
+
     # Phase 3: Archivierungs-Schritt → spezialisierte Maske
     if freigabe["schritt"] in _PHASE_3:
         readonly = freigabe["status"] != "Ausstehend"
         scanner_dateien = _verfuegbare_scanner_dateien(db, idv["id"]) if not readonly else []
         return render_template("freigaben/archiv_form.html",
                                freigabe=freigabe, idv=idv, readonly=readonly,
-                               scanner_dateien=scanner_dateien)
+                               scanner_dateien=scanner_dateien,
+                               vertreter_name=vertreter_name, persons=persons)
 
     # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend, sonst Lesemodus
     readonly = freigabe["status"] != "Ausstehend"
     return render_template("freigaben/bestanden_form.html",
-                           freigabe=freigabe, idv=idv, readonly=readonly)
+                           freigabe=freigabe, idv=idv, readonly=readonly,
+                           vertreter_name=vertreter_name, persons=persons)
 
 
 # ---------------------------------------------------------------------------
@@ -530,6 +577,13 @@ def abschliessen(freigabe_id):
         flash(
             "Funktionstrennung: Sie sind als Entwickler dieser Eigenentwicklung eingetragen "
             "und dürfen keine Freigabe-Schritte abschließen.", "error"
+        )
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    if not _can_complete_schritt(db, freigabe, person_id):
+        flash(
+            "Nur die zugewiesene Person oder deren aktiver Stellvertreter "
+            "darf diesen Schritt abschließen.", "error"
         )
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -622,6 +676,13 @@ def ablehnen(freigabe_id):
         flash(
             "Funktionstrennung: Sie sind als Entwickler eingetragen "
             "und dürfen keine Freigabe-Schritte ablehnen.", "error"
+        )
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    if not _can_complete_schritt(db, freigabe, person_id):
+        flash(
+            "Nur die zugewiesene Person oder deren aktiver Stellvertreter "
+            "darf diesen Schritt ablehnen.", "error"
         )
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -810,6 +871,67 @@ def loeschen(freigabe_id):
 
 
 # ---------------------------------------------------------------------------
+# Freigabe-Schritt weiterleiten (an Dritte delegieren)
+# ---------------------------------------------------------------------------
+
+@bp.route("/<int:freigabe_id>/weiterleiten", methods=["POST"])
+@own_write_required
+def weiterleiten(freigabe_id):
+    """Leitet einen ausstehenden Freigabe-Schritt an eine andere Person weiter.
+
+    Ermöglicht die Delegation an einen Dritten (MaRisk AT 7.2 Stellvertreter-
+    Regelung). Jeder Schreibberechtigte der IDV darf weiterleiten; ein
+    History-Eintrag und eine E-Mail-Benachrichtigung werden erzeugt.
+    """
+    db        = get_db()
+    person_id = current_person_id()
+    now       = datetime.now(timezone.utc).isoformat()
+
+    freigabe = db.execute(
+        "SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)
+    ).fetchone()
+    if not freigabe or freigabe["status"] != "Ausstehend":
+        flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
+
+    idv_db_id = freigabe["idv_id"]
+    ensure_can_write_idv(db, idv_db_id)
+
+    neuer_id = _int_or_none(request.form.get("weiterleiten_an_id"))
+    if not neuer_id:
+        flash("Bitte eine Person für die Weiterleitung auswählen.", "error")
+        return redirect(url_for("freigaben.erledigt_seite", freigabe_id=freigabe_id))
+
+    p = db.execute(
+        "SELECT nachname, vorname FROM persons WHERE id=? AND aktiv=1", (neuer_id,)
+    ).fetchone()
+    if not p:
+        flash("Ausgewählte Person nicht gefunden.", "error")
+        return redirect(url_for("freigaben.erledigt_seite", freigabe_id=freigabe_id))
+
+    schritt  = freigabe["schritt"]
+    p_name   = f"{p['nachname']}, {p['vorname']}"
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE idv_freigaben SET zugewiesen_an_id=? WHERE id=?",
+                (neuer_id, freigabe_id)
+            )
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (idv_db_id, "freigabe_weitergeleitet",
+                 f"{schritt} weitergeleitet an {p_name}",
+                 person_id, session.get("user_name", "") or None),
+            )
+
+    get_writer().submit(_do, wait=True)
+    _notify_schritte(db, idv_db_id, [schritt], {schritt: neuer_id})
+    flash(f"'{schritt}' wurde an {p_name} weitergeleitet.", "success")
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+
+# ---------------------------------------------------------------------------
 # Phase 3: Archivierung der Originaldatei (revisionssicher, MaRisk AT 7.2)
 # ---------------------------------------------------------------------------
 
@@ -848,6 +970,13 @@ def archivieren(freigabe_id):
         flash(
             "Funktionstrennung: Sie sind als Entwickler dieser Eigenentwicklung eingetragen "
             "und dürfen die Archivierung nicht abschließen.", "error"
+        )
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    if not _can_complete_schritt(db, freigabe, person_id):
+        flash(
+            "Nur die zugewiesene Person oder deren aktiver Stellvertreter "
+            "darf die Archivierung abschließen.", "error"
         )
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
