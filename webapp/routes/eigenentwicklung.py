@@ -36,6 +36,23 @@ ENTWICKLUNGSARTEN = [
 ENTWICKLUNGSART_LABEL = {key: label for key, label, _desc in ENTWICKLUNGSARTEN}
 
 
+# U-C3: Smart-Default-Inferenz.
+# Mapping IDV-Typ → vorgeschlagene Entwicklungsart + Prüfintervall (Monate).
+# Der Benutzer kann die Vorschläge im Formular jederzeit übersteuern – dieses
+# Mapping liefert nur die "initiale Vermutung" beim Typ-Wechsel.
+_TYP_DEFAULTS = {
+    "Excel-Makro":      {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Access-Datenbank": {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Python-Skript":    {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "SQL-Skript":       {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Power-BI-Bericht": {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Cognos-Report":    {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Excel-Tabelle":    {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 24},
+    "Sonstige":         {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 24},
+    "unklassifiziert":  {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 12},
+}
+
+
 def _form_lookups(db):
     """Liefert Nachschlagedaten für IDV-Formulare.
 
@@ -264,6 +281,27 @@ def quick_search():
         }
         for row in rows
     ])
+
+
+# ── Smart-Default-Inferenz (U-C3) ─────────────────────────────────────────
+
+@bp.route("/api/infer")
+@login_required
+def api_infer():
+    """Liefert Feld-Vorschläge zu einem IDV-Typ.
+
+    Wird vom Formular-JS beim onchange des Typ-Dropdowns aufgerufen, um
+    Entwicklungsart und Prüfintervall automatisch vorzuschlagen. Der Client
+    übernimmt die Werte nur, wenn der Benutzer das Feld noch nicht explizit
+    geändert hat.
+    """
+    typ = (request.args.get("idv_typ") or "").strip()
+    defaults = _TYP_DEFAULTS.get(typ, _TYP_DEFAULTS["unklassifiziert"])
+    return jsonify({
+        "idv_typ":               typ,
+        "entwicklungsart":       defaults["entwicklungsart"],
+        "pruefintervall_monate": defaults["pruefintervall_monate"],
+    })
 
 
 # ── Bulk-Löschen (Admin) ───────────────────────────────────────────────────
@@ -607,6 +645,16 @@ def new_idv():
     hash_duplikate = []
     file_id       = _int_or_none(request.args.get("file_id"))
     extra_file_ids = request.args.get("extra_file_ids", "")
+
+    # U-C3: OE des eingeloggten Benutzers als Default vorschlagen.
+    my_pid = current_person_id()
+    if my_pid:
+        me = db.execute(
+            "SELECT org_unit_id FROM persons WHERE id = ?", (my_pid,)
+        ).fetchone()
+        if me and me["org_unit_id"]:
+            prefill["org_unit_id"] = me["org_unit_id"]
+
     if file_id:
         fund = db.execute("SELECT * FROM idv_files WHERE id = ?", (file_id,)).fetchone()
         if fund:

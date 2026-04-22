@@ -642,21 +642,34 @@ def abschliessen(freigabe_id):
     if archiv_neu and not freigegeben:
         _notify_schritte(db, idv_db_id, [_PHASE_3[0]], {_PHASE_3[0]: None})
 
+    detail_url = url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id)
+
     if freigegeben:
         _notify_freigabe_erteilt(db, idv_db_id)
-        flash("Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben.", "success")
+        flash("Alle Freigabe-Schritte erledigt – Eigenentwicklung ist jetzt freigegeben.", "phase_transition")
+        return redirect(detail_url + "#freigabeverfahren")
     elif phase2_done:
+        if archiv_neu:
+            flash(
+                f"'{schritt}' erledigt – Phase 2 vollständig. "
+                "Die Archivierung wurde automatisch angelegt (Phase 3).",
+                "phase_transition"
+            )
+            return redirect(detail_url + "#archivierung")
         flash(
-            f"'{schritt}' erledigt – Phase 2 vollständig. "
-            "Bitte nun die Originaldatei revisionssicher archivieren "
-            "(Phase 3).", "success"
+            f"'{schritt}' erledigt – Phase 2 vollständig.",
+            "phase_transition"
         )
+        return redirect(detail_url + "#freigabeverfahren")
     elif phase1_done:
-        flash(f"'{schritt}' erledigt – Phase 1 vollständig. Bitte Phase 2 starten.", "success")
-    else:
-        flash(f"'{schritt}' als Erledigt markiert.", "success")
+        flash(
+            f"'{schritt}' erledigt – Phase 1 vollständig. Phase 2 (Abnahmen) ist nun startbereit.",
+            "phase_transition"
+        )
+        return redirect(detail_url + "#freigabeverfahren")
 
-    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+    flash(f"'{schritt}' als Erledigt markiert.", "success")
+    return redirect(detail_url + "#freigabeverfahren")
 
 
 # ---------------------------------------------------------------------------

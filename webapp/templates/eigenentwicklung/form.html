@@ -149,11 +149,14 @@
       <div class="col-md-4">
         <label class="form-label">Typ <span class="required-star">*</span></label>
         {% set current_typ = idv.idv_typ if idv else prefill.get('idv_typ', 'unklassifiziert') %}
-        <select name="idv_typ" class="form-select" required>
+        <select name="idv_typ" class="form-select" required data-infer-trigger>
           {% for t in idv_typen %}
           <option value="{{ t.wert }}" {{ 'selected' if current_typ==t.wert }}>{{ t.bezeichnung }}</option>
           {% endfor %}
         </select>
+        <div class="form-text" data-infer-hint style="display:none">
+          <i class="bi bi-magic me-1 text-primary"></i>Entwicklungsart und Prüfintervall wurden automatisch vorgeschlagen – ggf. anpassen.
+        </div>
       </div>
 
       <div class="col-md-4">
@@ -562,10 +565,11 @@
     <div class="row g-3">
       <div class="col-md-6">
         <label class="form-label">Organisationseinheit <span class="required-star">*</span></label>
+        {% set _prefill_ou = prefill.get('org_unit_id') if prefill else none %}
         <select name="org_unit_id" class="form-select" required>
           <option value="">– bitte wählen –</option>
           {% for ou in org_units %}
-          <option value="{{ ou.id }}" {{ 'selected' if idv and idv.org_unit_id==ou.id }}>{{
+          <option value="{{ ou.id }}" {{ 'selected' if (idv and idv.org_unit_id==ou.id) or (not idv and _prefill_ou==ou.id) }}>{{
             ou.bezeichnung }}</option>
           {% endfor %}
         </select>
@@ -622,4 +626,43 @@
   </div>
 
 </form>
+
+{# U-C3: Smart-Default-Inferenz. Beim Typ-Wechsel werden Entwicklungsart
+   und Prüfintervall automatisch vorgeschlagen – aber nur, wenn der Benutzer
+   die Felder nicht bereits manuell angefasst hat. #}
+{% if not idv %}
+<script>
+  (function () {
+    var typSel  = document.querySelector('select[name="idv_typ"][data-infer-trigger]');
+    var artSel  = document.querySelector('select[name="entwicklungsart"]');
+    var intSel  = document.querySelector('select[name="pruefintervall_monate"]');
+    var hint    = document.querySelector('[data-infer-hint]');
+    if (!typSel || !artSel || !intSel) return;
+
+    var artTouched = false, intTouched = false;
+    artSel.addEventListener('input', function () { artTouched = true; });
+    intSel.addEventListener('input', function () { intTouched = true; });
+
+    typSel.addEventListener('change', function () {
+      var url = '{{ url_for("eigenentwicklung.api_infer") }}?idv_typ=' + encodeURIComponent(typSel.value);
+      fetch(url, { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data) return;
+          var changed = false;
+          if (!artTouched && data.entwicklungsart) {
+            var cand = Array.prototype.find.call(artSel.options, function (o) { return o.value === data.entwicklungsart; });
+            if (cand && artSel.value !== data.entwicklungsart) { artSel.value = data.entwicklungsart; changed = true; }
+          }
+          if (!intTouched && data.pruefintervall_monate) {
+            var target = String(data.pruefintervall_monate);
+            var cand2 = Array.prototype.find.call(intSel.options, function (o) { return o.value === target; });
+            if (cand2 && intSel.value !== target) { intSel.value = target; changed = true; }
+          }
+          if (changed && hint) hint.style.display = '';
+        });
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}
