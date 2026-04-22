@@ -684,7 +684,7 @@
 {# U-C3: Smart-Default-Inferenz. Beim Typ-Wechsel werden Entwicklungsart
    und Prüfintervall automatisch vorgeschlagen – aber nur, wenn der Benutzer
    die Felder nicht bereits manuell angefasst hat. #}
-{% if not idv %}
+{% if not idv and suggestions_enabled %}
 <script>
   (function () {
     var typSel  = document.querySelector('select[name="idv_typ"][data-infer-trigger]');

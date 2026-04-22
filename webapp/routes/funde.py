@@ -5,6 +5,7 @@ import os
 import re
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session, jsonify
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
+from ..app_settings import get_bool as _get_bool
 from ..db_writer import get_writer
 from db_write_tx import write_tx
 from ..security import in_clause
@@ -432,8 +433,8 @@ def list_funde():
 
     gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
 
-    # Match-Score-Vorschläge nur berechnen wenn relevante Filter aktiv sind
-    if filt not in ("archiv", "duplikate", "mit_idv"):
+    # Match-Score-Vorschläge nur berechnen wenn relevante Filter aktiv sind und Funktion aktiv
+    if filt not in ("archiv", "duplikate", "mit_idv") and _get_bool(db, "suggestions_enabled", True):
         match_scores = _compute_match_scores(dateien, db)
     else:
         match_scores = {}

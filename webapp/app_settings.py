@@ -28,6 +28,7 @@ DEFAULTS = {
     "login_rate_limit":       "5 per minute;30 per hour",
     "upload_rate_limit":      "10 per minute;60 per hour",
     "allow_sidecar_updates":  "1",
+    "suggestions_enabled":    "1",
     "path_mappings":          "[]",
     "scanner_config":         "{}",
     "teams_config":           "{}",
