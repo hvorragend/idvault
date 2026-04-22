@@ -119,11 +119,14 @@
         <kbd style="font-size:.68rem;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);
                     border-radius:3px;padding:.05rem .3rem;color:#fff;margin-left:.35rem;vertical-align:middle">Strg S</kbd>
       </button>
+      <button type="submit" name="save_action" value="save_and_close" class="btn btn-outline-secondary">
+        <i class="bi bi-box-arrow-left me-1"></i>Speichern &amp; Schließen
+        <kbd style="font-size:.68rem;background:#f1f5f9;border:1px solid #cbd5e1;
+                    border-radius:3px;padding:.05rem .3rem;color:#1e293b;margin-left:.35rem;vertical-align:middle">Strg ⇧ S</kbd>
+      </button>
       {% if not idv %}
       <button type="submit" name="save_action" value="save_and_new" class="btn btn-outline-primary">
         <i class="bi bi-plus-circle me-1"></i>Speichern &amp; weitere erfassen
-        <kbd style="font-size:.68rem;background:#f1f5f9;border:1px solid #cbd5e1;
-                    border-radius:3px;padding:.05rem .3rem;color:#1e293b;margin-left:.35rem;vertical-align:middle">Strg ⇧ S</kbd>
       </button>
       {% endif %}
     </div>
@@ -663,11 +666,14 @@
         <kbd style="font-size:.68rem;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);
                     border-radius:3px;padding:.05rem .3rem;color:#fff;margin-left:.35rem;vertical-align:middle">Strg S</kbd>
       </button>
+      <button type="submit" name="save_action" value="save_and_close" class="btn btn-outline-secondary">
+        <i class="bi bi-box-arrow-left me-1"></i>Speichern &amp; Schließen
+        <kbd style="font-size:.68rem;background:#f1f5f9;border:1px solid #cbd5e1;
+                    border-radius:3px;padding:.05rem .3rem;color:#1e293b;margin-left:.35rem;vertical-align:middle">Strg ⇧ S</kbd>
+      </button>
       {% if not idv %}
       <button type="submit" name="save_action" value="save_and_new" class="btn btn-outline-primary">
         <i class="bi bi-plus-circle me-1"></i>Speichern &amp; weitere erfassen
-        <kbd style="font-size:.68rem;background:#f1f5f9;border:1px solid #cbd5e1;
-                    border-radius:3px;padding:.05rem .3rem;color:#1e293b;margin-left:.35rem;vertical-align:middle">Strg ⇧ S</kbd>
       </button>
       {% endif %}
     </div>
@@ -989,22 +995,5 @@
 })();
 </script>
 {% endif %}
-
-<script>
-  // Strg+S = Speichern, Strg+Umschalt+S = Speichern & weitere erfassen
-  window._extraShortcuts = [
-    ['Strg S', 'Formular speichern'],
-    ['Strg ⇧ S', 'Speichern &amp; weitere erfassen'],
-  ];
-  document.addEventListener('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      var btn = e.shiftKey
-        ? document.querySelector('button[name="save_action"][value="save_and_new"]')
-        : document.querySelector('button[name="save_action"][value="save"]');
-      if (btn) btn.click();
-    }
-  });
-</script>
 
 {% endblock %}
