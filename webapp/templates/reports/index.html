@@ -2,11 +2,20 @@
 {% block title %}Berichte{% endblock %}
 {% block page_title %}<i class="bi bi-bar-chart-line me-2"></i>Berichte & Auswertungen{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/apexcharts-3.54.1/apexcharts.css') }}">
+{% endblock %}
+
 {% block content %}
 
 <ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
   <li class="nav-item">
-    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-oe">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-viz">
+      <i class="bi bi-pie-chart me-1"></i>Visualisierung
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-oe">
       <i class="bi bi-diagram-3 me-1"></i>Nach Organisationseinheit
     </button>
   </li>
@@ -29,8 +38,138 @@
 
 <div class="tab-content">
 
+  <!-- ── Tab 0: Visualisierung ────────────────────────────────────── -->
+  <div class="tab-pane fade show active" id="tab-viz">
+
+    <!-- KPI-Kacheln -->
+    <div class="row g-3 mb-3">
+      <div class="col-6 col-md-3">
+        <div class="card stat-card h-100">
+          <div class="card-body">
+            <div class="stat-val text-primary">{{ kpi.gesamt }}</div>
+            <div class="stat-lbl"><i class="bi bi-collection me-1"></i>Anwendungen aktiv</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card stat-card h-100">
+          <div class="card-body">
+            <div class="stat-val text-success">{{ kpi.freigegeben }}</div>
+            <div class="stat-lbl"><i class="bi bi-check-circle me-1"></i>Freigegeben</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card stat-card h-100">
+          <div class="card-body">
+            <div class="stat-val text-danger">{{ kpi.wesentlich }}</div>
+            <div class="stat-lbl"><i class="bi bi-shield-exclamation me-1"></i>Wesentlich (MaRisk)</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card stat-card h-100">
+          <div class="card-body">
+            <div class="stat-val" style="color:#b91c1c">{{ kpi.ueberfaellig }}</div>
+            <div class="stat-lbl"><i class="bi bi-clock me-1"></i>Prüfung überfällig</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zeile 2: Fachbereich-Balken + Status-Donut -->
+    <div class="row g-3 mb-3">
+      <div class="col-lg-8">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white fw-600">
+            <i class="bi bi-diagram-3 me-2"></i>Anwendungen je Fachbereich (nach Status)
+          </div>
+          <div class="card-body"><div id="chart-by-oe-status" class="apex-chart"></div></div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white fw-600">
+            <i class="bi bi-pie-chart me-2"></i>Status-Verteilung
+          </div>
+          <div class="card-body"><div id="chart-status-donut" class="apex-chart"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zeile 3: idv_typ + entwicklungsart -->
+    <div class="row g-3 mb-3">
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white fw-600">
+            <i class="bi bi-file-earmark-code me-2"></i>Technische Art der Anwendung
+          </div>
+          <div class="card-body"><div id="chart-idv-typ" class="apex-chart"></div></div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white fw-600">
+            <i class="bi bi-shield-check me-2"></i>Entwicklungsart (MaRisk/DORA)
+          </div>
+          <div class="card-body"><div id="chart-entwicklungsart" class="apex-chart"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zeile 4: Zeitverlauf -->
+    <div class="row g-3 mb-3">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center fw-600 flex-wrap gap-2">
+            <span><i class="bi bi-graph-up me-2"></i>Verlauf Registrierungen & Freigaben (letzte 24 Monate)</span>
+            <div class="btn-group btn-group-sm" role="group" id="verlauf-mode-toggle">
+              <button type="button" class="btn btn-outline-primary active" data-mode="gesamt">Gesamt</button>
+              <button type="button" class="btn btn-outline-primary" data-mode="by_oe">Pro Fachbereich</button>
+            </div>
+          </div>
+          <div class="card-body"><div id="chart-verlauf" class="apex-chart"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zeile 5: Heatmap + Funnel -->
+    <div class="row g-3 mb-3">
+      <div class="col-lg-8">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white fw-600">
+            <i class="bi bi-grid-3x3 me-2"></i>Heatmap: Fachbereich × Anwendungsart
+          </div>
+          <div class="card-body"><div id="chart-heatmap" class="apex-chart"></div></div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white fw-600">
+            <i class="bi bi-funnel me-2"></i>Freigabe-Funnel
+          </div>
+          <div class="card-body"><div id="chart-funnel" class="apex-chart"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zeile 6: Wesentlichkeits-Ampel -->
+    <div class="row g-3 mb-3">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white fw-600">
+            <i class="bi bi-traffic-light me-2"></i>Wesentliche Anwendungen je Fachbereich — Ampel
+            <small class="text-muted fw-normal ms-2">Top 15 OEs mit wesentlichen IDVs; Balken zeigen: gesamt wesentlich, davon freigegeben, davon mit überfälliger Prüfung.</small>
+          </div>
+          <div class="card-body"><div id="chart-ampel" class="apex-chart"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
   <!-- ── Tab 1: Nach Organisationseinheit ─────────────────────────── -->
-  <div class="tab-pane fade show active" id="tab-oe">
+  <div class="tab-pane fade" id="tab-oe">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
         <i class="bi bi-diagram-3 me-2"></i>Register nach Organisationseinheit
@@ -312,5 +451,17 @@
 <style>
 .btn-xs { padding: .15rem .45rem; font-size: .75rem; }
 .fw-600 { font-weight: 600; }
+.apex-chart { min-height: 320px; }
+#chart-verlauf { min-height: 360px; }
+#chart-heatmap { min-height: 360px; }
+#chart-by-oe-status { min-height: 420px; }
+#chart-ampel { min-height: 420px; }
 </style>
+
+<script type="application/json" id="reports-chart-data">{{ chart_data | tojson }}</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/apexcharts-3.54.1/apexcharts.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/reports_charts.js') }}"></script>
 {% endblock %}
