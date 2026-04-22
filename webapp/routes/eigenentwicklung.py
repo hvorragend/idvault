@@ -661,6 +661,8 @@ def new_idv():
                 if extra_id and extra_id != file_id:
                     extras.append(extra_id)
 
+            draft_uid = _draft_user_id()
+
             def _do(c):
                 with write_tx(c):
                     new_id = create_idv(c, data, erfasser_id=person_id,
@@ -676,10 +678,8 @@ def new_idv():
                             "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
                             (extra_id,),
                         )
-                    # Entwurf löschen, da Formular erfolgreich gespeichert
-                    uid = _draft_user_id()
-                    if uid:
-                        c.execute("DELETE FROM idv_draft WHERE user_id = ?", (uid,))
+                    if draft_uid:
+                        c.execute("DELETE FROM idv_draft WHERE user_id = ?", (draft_uid,))
                 return new_id
 
             new_id = get_writer().submit(_do, wait=True)
