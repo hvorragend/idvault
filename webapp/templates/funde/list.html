@@ -100,7 +100,11 @@ Standardsortierung zu sehen bekommt. #}
     &nbsp;·&nbsp;
     <span class="badge bg-success">{{ letzter_scan.new_files }} neu</span>
     <span class="badge bg-warning text-dark">{{ letzter_scan.changed_files }} geändert</span>
-    <span class="badge bg-secondary">{{ letzter_scan.archived_files }} archiviert</span>
+    <a href="{{ url_for('funde.list_funde', filter='archiv') }}"
+       class="badge bg-secondary text-decoration-none"
+       title="Archivierte Dateien: beim letzten Scan nicht mehr gefunden (verschoben, umbenannt oder gelöscht). Klicken zum Anzeigen.">
+      {{ letzter_scan.archived_files }} archiviert
+    </a>
   </div>
   <a href="{{ url_for('funde.scan_laeufe') }}" class="btn btn-sm btn-outline-secondary ms-auto flex-shrink-0">
     <i class="bi bi-list-ul me-1"></i>Alle Läufe
@@ -246,10 +250,18 @@ verloren geht. #}
 </div>
 
 {% if filt == 'archiv' %}
-<div class="alert alert-secondary py-2 mb-3">
-  <i class="bi bi-info-circle me-1"></i>
-  Archivierte Dateien wurden beim letzten Scan nicht mehr gefunden (verschoben, umbenannt oder gelöscht).
-  Die Verknüpfung zum Register bleibt erhalten.
+<div class="alert alert-secondary mb-3">
+  <div class="d-flex gap-2">
+    <i class="bi bi-archive fs-5 flex-shrink-0 mt-1"></i>
+    <div>
+      <strong>Was bedeutet „archiviert"?</strong><br>
+      Dateien werden automatisch archiviert, wenn der Scanner sie beim letzten Scan-Lauf an ihrem bisherigen Speicherort nicht mehr findet – zum Beispiel weil sie verschoben, umbenannt oder gelöscht wurden.<br>
+      <span class="text-muted" style="font-size:.88rem">
+        Die Verknüpfung zur Eigenentwicklung im Register bleibt erhalten. Wurde die Datei nur umbenannt oder verschoben,
+        wird sie beim nächsten Scan als neuer Fund erkannt und kann dann erneut zugeordnet werden.
+      </span>
+    </div>
+  </div>
 </div>
 {% endif %}
 

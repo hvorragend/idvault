@@ -31,7 +31,10 @@
           <th class="text-end text-warning">Geändert</th>
           <th class="text-end">Verschoben</th>
           <th class="text-end">Wiederhergestellt</th>
-          <th class="text-end text-secondary">Archiviert</th>
+          <th class="text-end text-secondary"
+              title="Dateien, die beim Scan-Lauf nicht mehr gefunden wurden (verschoben, umbenannt oder gelöscht). Abrufbar unter Scanner-Funde → Archiv.">
+            Archiviert
+          </th>
           <th class="text-end text-danger">Fehler</th>
           <th></th>
         </tr>
@@ -67,7 +70,13 @@
           <td class="text-end text-muted">{{ run.moved_files or '–' }}</td>
           <td class="text-end text-muted">{{ run.restored_files or '–' }}</td>
           <td class="text-end {% if run.archived_files %}text-secondary{% else %}text-muted{% endif %}">
-            {{ run.archived_files or '–' }}
+            {% if run.archived_files %}
+            <a href="{{ url_for('funde.list_funde', filter='archiv', scan_run=run.id) }}"
+               class="text-decoration-none text-secondary"
+               title="Archivierte Dateien aus diesem Scan-Lauf anzeigen">
+              {{ run.archived_files }}
+            </a>
+            {% else %}–{% endif %}
           </td>
           <td class="text-end {% if run.errors %}text-danger fw-bold{% else %}text-muted{% endif %}">
             {{ run.errors or '–' }}
