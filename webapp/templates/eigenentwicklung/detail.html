@@ -750,20 +750,23 @@
               {% for schritt_key, schritt_label in [('fachlicher_test', 'Fachlicher Test'), ('technischer_test', 'Technischer Test')] %}
               <div class="mb-3">
                 <label class="form-label fw-500">{{ schritt_label }}</label>
-                <select name="zugewiesen_{{ schritt_key }}" class="form-select form-select-sm mb-1">
-                  <option value="">– Person auswählen –</option>
-                  {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
-                  {% endfor %}
+                <select name="zugewiesen_{{ schritt_key }}" class="form-select form-select-sm">
+                  <option value="">– Zuweisen an –</option>
+                  {% if freigabe_persons %}
+                  <optgroup label="Personen">
+                    {% for p in freigabe_persons %}
+                    <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
+                  {% if freigabe_pools %}
+                  <optgroup label="Pools">
+                    {% for pool in freigabe_pools %}
+                    <option value="pool_{{ pool.id }}">{{ pool.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
                 </select>
-                {% if freigabe_pools %}
-                <select name="pool_id_{{ schritt_key }}" class="form-select form-select-sm text-muted">
-                  <option value="">– oder Pool zuweisen –</option>
-                  {% for pool in freigabe_pools %}
-                  <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
-                  {% endfor %}
-                </select>
-                {% endif %}
               </div>
               {% endfor %}
             </div>
@@ -797,20 +800,23 @@
               {% for schritt_key, schritt_label in [('fachliche_abnahme', 'Fachliche Abnahme'), ('technische_abnahme', 'Technische Abnahme')] %}
               <div class="mb-3">
                 <label class="form-label fw-500">{{ schritt_label }}</label>
-                <select name="zugewiesen_{{ schritt_key }}" class="form-select form-select-sm mb-1">
-                  <option value="">– Person auswählen –</option>
-                  {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
-                  {% endfor %}
+                <select name="zugewiesen_{{ schritt_key }}" class="form-select form-select-sm">
+                  <option value="">– Zuweisen an –</option>
+                  {% if freigabe_persons %}
+                  <optgroup label="Personen">
+                    {% for p in freigabe_persons %}
+                    <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
+                  {% if freigabe_pools %}
+                  <optgroup label="Pools">
+                    {% for pool in freigabe_pools %}
+                    <option value="pool_{{ pool.id }}">{{ pool.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
                 </select>
-                {% if freigabe_pools %}
-                <select name="pool_id_{{ schritt_key }}" class="form-select form-select-sm text-muted">
-                  <option value="">– oder Pool zuweisen –</option>
-                  {% for pool in freigabe_pools %}
-                  <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
-                  {% endfor %}
-                </select>
-                {% endif %}
               </div>
               {% endfor %}
             </div>
@@ -928,19 +934,22 @@
               <div class="mb-2">
                 <label class="form-label fw-500">Weiterleiten an <span class="text-danger">*</span></label>
                 <select name="weiterleiten_an_id" class="form-select">
-                  <option value="">– Person auswählen –</option>
-                  {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
-                  {% endfor %}
+                  <option value="">– Zuweisen an –</option>
+                  {% if freigabe_persons %}
+                  <optgroup label="Personen">
+                    {% for p in freigabe_persons %}
+                    <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
+                  {% if freigabe_pools %}
+                  <optgroup label="Pools">
+                    {% for pool in freigabe_pools %}
+                    <option value="pool_{{ pool.id }}">{{ pool.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
                 </select>
-                {% if freigabe_pools %}
-                <select name="pool_id" class="form-select mt-2 text-muted">
-                  <option value="">– oder Pool zuweisen –</option>
-                  {% for pool in freigabe_pools %}
-                  <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
-                  {% endfor %}
-                </select>
-                {% endif %}
               </div>
             </div>
             <div class="modal-footer">
@@ -975,19 +984,22 @@
               <div class="mb-2">
                 <label class="form-label fw-500">Zuweisen an <span class="text-danger">*</span></label>
                 <select name="zugewiesen_an_id" class="form-select">
-                  <option value="">– Person auswählen –</option>
-                  {% for p in freigabe_persons %}
-                  <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
-                  {% endfor %}
+                  <option value="">– Zuweisen an –</option>
+                  {% if freigabe_persons %}
+                  <optgroup label="Personen">
+                    {% for p in freigabe_persons %}
+                    <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}{% if p.rolle %} ({{ p.rolle }}){% endif %}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
+                  {% if freigabe_pools %}
+                  <optgroup label="Pools">
+                    {% for pool in freigabe_pools %}
+                    <option value="pool_{{ pool.id }}">{{ pool.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                  {% endif %}
                 </select>
-                {% if freigabe_pools %}
-                <select name="pool_id" class="form-select mt-2 text-muted">
-                  <option value="">– oder Pool zuweisen –</option>
-                  {% for pool in freigabe_pools %}
-                  <option value="{{ pool.id }}">Pool: {{ pool.name }}</option>
-                  {% endfor %}
-                </select>
-                {% endif %}
               </div>
             </div>
             <div class="modal-footer">

@@ -35,6 +35,23 @@ from ..helpers import _int_or_none
 
 bp = Blueprint("freigaben", __name__, url_prefix="/freigaben")
 
+
+def _parse_combined_assignment(value):
+    """Parses a combined person/pool dropdown value (e.g. '42' or 'pool_3').
+    Returns (person_id, pool_id) with exactly one being non-None, or (None, None).
+    """
+    if not value:
+        return None, None
+    if isinstance(value, str) and value.startswith("pool_"):
+        try:
+            return None, int(value[5:])
+        except ValueError:
+            return None, None
+    try:
+        return int(value), None
+    except (ValueError, TypeError):
+        return None, None
+
 _PHASE_1 = ["Fachlicher Test", "Technischer Test"]
 _PHASE_2 = ["Fachliche Abnahme", "Technische Abnahme"]
 _PHASE_3 = ["Archivierung Originaldatei"]
@@ -414,14 +431,10 @@ def starten(idv_db_id):
         flash("Phase 1 (Tests) wurde bereits gestartet.", "warning")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
-    zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachlicher_test"))
-    zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technischer_test"))
-    pool_id_fachlich     = _int_or_none(request.form.get("pool_id_fachlicher_test"))
-    pool_id_technisch    = _int_or_none(request.form.get("pool_id_technischer_test"))
-    if pool_id_fachlich:
-        zugewiesen_fachlich = None
-    if pool_id_technisch:
-        zugewiesen_technisch = None
+    zugewiesen_fachlich,  pool_id_fachlich  = _parse_combined_assignment(
+        request.form.get("zugewiesen_fachlicher_test"))
+    zugewiesen_technisch, pool_id_technisch = _parse_combined_assignment(
+        request.form.get("zugewiesen_technischer_test"))
     user_name = session.get("user_name", "") or None
 
     def _do(c):
@@ -484,14 +497,10 @@ def abnahme_starten(idv_db_id):
         flash("Phase 2 (Abnahmen) wurde bereits gestartet.", "warning")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
-    zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachliche_abnahme"))
-    zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technische_abnahme"))
-    pool_id_fachlich     = _int_or_none(request.form.get("pool_id_fachliche_abnahme"))
-    pool_id_technisch    = _int_or_none(request.form.get("pool_id_technische_abnahme"))
-    if pool_id_fachlich:
-        zugewiesen_fachlich = None
-    if pool_id_technisch:
-        zugewiesen_technisch = None
+    zugewiesen_fachlich,  pool_id_fachlich  = _parse_combined_assignment(
+        request.form.get("zugewiesen_fachliche_abnahme"))
+    zugewiesen_technisch, pool_id_technisch = _parse_combined_assignment(
+        request.form.get("zugewiesen_technische_abnahme"))
     user_name = session.get("user_name", "") or None
 
     def _do(c):
@@ -907,14 +916,10 @@ def schritt_anlegen(idv_db_id):
         flash(f"'{schritt}' existiert bereits.", "info")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
-    zugewiesen = _int_or_none(request.form.get("zugewiesen_an_id"))
-    pool_id    = _int_or_none(request.form.get("pool_id"))
+    zugewiesen, pool_id = _parse_combined_assignment(request.form.get("zugewiesen_an_id"))
     if not zugewiesen and not pool_id:
         flash("Bitte eine Person oder einen Pool für den Schritt auswählen.", "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
-    # Bei Pool-Zuweisung: persönliche Zuweisung löschen (Entscheidung fällt bei Übernahme)
-    if pool_id:
-        zugewiesen = None
     user_name = session.get("user_name", "") or None
 
     def _do(c):
@@ -1130,8 +1135,7 @@ def weiterleiten(freigabe_id):
     idv_db_id = freigabe["idv_id"]
     ensure_can_write_idv(db, idv_db_id)
 
-    neuer_id = _int_or_none(request.form.get("weiterleiten_an_id"))
-    pool_id  = _int_or_none(request.form.get("pool_id"))
+    neuer_id, pool_id = _parse_combined_assignment(request.form.get("weiterleiten_an_id"))
     if not neuer_id and not pool_id:
         flash("Bitte eine Person oder einen Pool für die Weiterleitung auswählen.", "error")
         return redirect(url_for("freigaben.erledigt_seite", freigabe_id=freigabe_id))
