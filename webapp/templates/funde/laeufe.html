@@ -71,9 +71,9 @@
           <td class="text-end text-muted">{{ run.restored_files or '–' }}</td>
           <td class="text-end {% if run.archived_files %}text-secondary{% else %}text-muted{% endif %}">
             {% if run.archived_files %}
-            <a href="{{ url_for('funde.list_funde', filter='archiv', scan_run=run.id) }}"
+            <a href="{{ url_for('funde.list_funde', filter='archiv') }}"
                class="text-decoration-none text-secondary"
-               title="Archivierte Dateien aus diesem Scan-Lauf anzeigen">
+               title="Alle archivierten Scanner-Funde anzeigen">
               {{ run.archived_files }}
             </a>
             {% else %}–{% endif %}
