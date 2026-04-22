@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify, abort, g
 from . import (login_required, write_access_required, own_write_required, admin_required,
                get_db, can_write, can_create, can_read_all, current_person_id)
-import sys, os, io, json
+import sys, os, io, json, re
 from datetime import datetime as _dt, timezone as _tz
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (create_idv, update_idv, change_status, search_idv,
@@ -1331,7 +1331,94 @@ def link_files(idv_db_id):
         flash(f"{linked} Datei(en) mit Eigenentwicklung {idv['idv_id']} verknüpft.", "success")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
-    # GET – nur Gesamtanzahl ermitteln; Datei-Daten kommen per AJAX
+    # GET – Vorschläge berechnen (Hash + Ähnlichkeit) und Gesamtanzahl ermitteln
+
+    _NOISE = frozenset({
+        "", "der", "die", "das", "und", "fur", "für", "von", "mit", "zu", "in",
+        "v1", "v2", "v3", "final", "neu", "alt", "copy", "backup", "temp", "tmp",
+        "test", "old", "new", "1", "2", "3",
+    })
+
+    # 1. Hash-basierte Vorschläge: Dateien mit gleichem SHA-256-Hash wie
+    #    eine bereits verknüpfte Datei dieser Eigenentwicklung
+    linked_hash_rows = db.execute("""
+        SELECT DISTINCT f.file_hash
+        FROM idv_files f
+        WHERE f.file_hash IS NOT NULL AND f.file_hash != '' AND f.file_hash != 'HASH_ERROR'
+          AND (
+              f.id = COALESCE((SELECT file_id FROM idv_register WHERE id = ?), -1)
+              OR f.id IN (SELECT file_id FROM idv_file_links WHERE idv_db_id = ?)
+          )
+    """, (idv_db_id, idv_db_id)).fetchall()
+    known_hashes = [r['file_hash'] for r in linked_hash_rows]
+
+    hash_vorschlaege = []
+    hash_vorschlag_ids = set()
+    if known_hashes:
+        ph_h, ph_h_params = in_clause(known_hashes)
+        hash_rows = db.execute(f"""
+            SELECT f.id, f.file_name, f.extension, f.has_macros, f.share_root,
+                   f.relative_path, f.full_path, f.size_bytes, f.modified_at, f.file_hash
+            FROM idv_files f
+            WHERE f.status = 'active'
+              AND f.file_hash IN ({ph_h})
+              AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id)
+              AND f.id != COALESCE((SELECT file_id FROM idv_register WHERE id = ?), -1)
+            ORDER BY f.file_name
+        """, ph_h_params + [idv_db_id]).fetchall()
+        hash_vorschlaege = [dict(r) for r in hash_rows]
+        hash_vorschlag_ids = {r['id'] for r in hash_rows}
+
+    # 2. Ähnlichkeits-basierte Vorschläge: Scoring nach Typ, Verantwortlichem, Name
+    idv_typ = idv['idv_typ']
+    dev_ids_lower: set = set()
+    for pid in filter(None, [idv['idv_entwickler_id'], idv['fachverantwortlicher_id']]):
+        p = db.execute(
+            "SELECT kuerzel, ad_name, user_id FROM persons WHERE id = ?", (pid,)
+        ).fetchone()
+        if p:
+            for v in (p['kuerzel'], p['ad_name'], p['user_id']):
+                if v:
+                    dev_ids_lower.add(v.lower().strip())
+
+    idv_words = set(re.split(r'[\W_]+', (idv['bezeichnung'] or '').lower())) - _NOISE
+
+    kandidaten = db.execute("""
+        SELECT f.id, f.file_name, f.extension, f.has_macros, f.share_root,
+               f.relative_path, f.full_path, f.size_bytes, f.modified_at, f.file_owner
+        FROM idv_files f
+        WHERE f.status = 'active'
+          AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id)
+          AND f.id != COALESCE((SELECT file_id FROM idv_register WHERE id = ?), -1)
+        ORDER BY f.last_seen_at DESC
+        LIMIT 500
+    """, (idv_db_id,)).fetchall()
+
+    aehnlichkeit_vorschlaege = []
+    for kand in kandidaten:
+        if kand['id'] in hash_vorschlag_ids:
+            continue
+        score = 0
+        fund_typ = _idv_typ_vorschlag(kand['extension'], kand['has_macros'])
+        if fund_typ == idv_typ and fund_typ != 'unklassifiziert':
+            score += 30
+        fund_owner = (kand['file_owner'] or '').lower().strip()
+        if fund_owner and fund_owner in dev_ids_lower:
+            score += 40
+        name_stem = os.path.splitext(kand['file_name'] or '')[0].lower()
+        fund_words = set(re.split(r'[\W_]+', name_stem)) - _NOISE
+        if fund_words and idv_words:
+            overlap = fund_words & idv_words
+            ratio = len(overlap) / max(len(fund_words), len(idv_words))
+            score += int(ratio * 30)
+        if score >= 30:
+            row = dict(kand)
+            row['score'] = score
+            aehnlichkeit_vorschlaege.append(row)
+
+    aehnlichkeit_vorschlaege.sort(key=lambda x: x['score'], reverse=True)
+    aehnlichkeit_vorschlaege = aehnlichkeit_vorschlaege[:20]
+
     total_count = db.execute("""
         SELECT COUNT(*)
         FROM idv_files f
@@ -1346,6 +1433,8 @@ def link_files(idv_db_id):
         "eigenentwicklung/datei_verknuepfen.html",
         idv=idv,
         total_count=total_count,
+        hash_vorschlaege=hash_vorschlaege,
+        aehnlichkeit_vorschlaege=aehnlichkeit_vorschlaege,
     )
 
 
