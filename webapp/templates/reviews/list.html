@@ -17,20 +17,26 @@
           <td>{{ p.pruefungsart }}</td>
           <td><span class="badge {{ 'bg-success' if p.ergebnis == 'Ohne Befund' else 'bg-warning text-dark' if p.ergebnis == 'Mit Befund' else 'bg-danger' }}">{{ p.ergebnis }}</span></td>
           <td>{{ p.pruefer or '–' }}</td>
-          <td class="text-end">
+          <td class="text-nowrap text-end">
+            {% if session.user_role == 'IDV-Administrator' %}
+            <a href="{{ url_for('reviews.edit_review', p_id=p.id) }}" class="btn btn-xs btn-outline-secondary" title="Bearbeiten">
+              <i class="bi bi-pencil"></i>
+            </a>
             <form method="post" action="{{ url_for('reviews.delete_review', p_id=p.id) }}" class="d-inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="btn btn-sm btn-outline-danger" data-confirm="Prüfung vom {{ p.pruefungsdatum|datefmt }} löschen?">
+              <button class="btn btn-xs btn-outline-danger" title="Löschen" data-confirm="Prüfung vom {{ p.pruefungsdatum|datefmt }} löschen?">
                 <i class="bi bi-trash"></i>
               </button>
             </form>
+            {% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="text-center text-muted py-4">Keine Prüfungen vorhanden.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-4">Keine Prüfungen vorhanden.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+<style>.btn-xs { padding: .15rem .4rem; font-size: .75rem; }</style>
 {% endblock %}

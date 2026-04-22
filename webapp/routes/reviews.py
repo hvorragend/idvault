@@ -1,6 +1,6 @@
 """Prüfungen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from . import login_required, own_write_required, get_db
+from . import login_required, own_write_required, admin_required, get_db
 from datetime import datetime, timezone, date as _date
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -97,8 +97,65 @@ def new_review(idv_db_id):
         pruefungs_ergebnisse=get_klassifizierungen(db, "pruefungs_ergebnis"))
 
 
+@bp.route("/<int:p_id>/bearbeiten", methods=["GET", "POST"])
+@admin_required
+def edit_review(p_id):
+    db = get_db()
+    p  = db.execute("SELECT * FROM pruefungen WHERE id=?", (p_id,)).fetchone()
+    if not p:
+        flash("Prüfung nicht gefunden.", "error")
+        return redirect(url_for("reviews.list_reviews"))
+    idv_db_id = p["idv_id"]
+    idv = db.execute("SELECT * FROM idv_register WHERE id=?", (idv_db_id,)).fetchone()
+
+    if request.method == "POST":
+        now           = datetime.now(timezone.utc).isoformat()
+        pruefungsart  = request.form.get("pruefungsart", "Regelprüfung")
+        pruefungsdatum = request.form.get("pruefungsdatum") or _date.today().isoformat()
+        pruefer_id    = request.form.get("pruefer_id") or None
+        ergebnis      = request.form.get("ergebnis", "Ohne Befund")
+        befunde       = request.form.get("befunde") or None
+        naechste      = request.form.get("naechste_pruefung") or None
+        kommentar     = request.form.get("kommentar") or None
+
+        def _do(c):
+            with write_tx(c):
+                c.execute("""
+                    UPDATE pruefungen SET
+                        pruefungsart=?, pruefungsdatum=?, pruefer_id=?, ergebnis=?,
+                        befunde=?, naechste_pruefung=?, kommentar=?
+                    WHERE id=?
+                """, (pruefungsart, pruefungsdatum, pruefer_id, ergebnis,
+                      befunde, naechste, kommentar, p_id))
+
+                latest = c.execute("""
+                    SELECT pruefungsdatum, naechste_pruefung
+                    FROM pruefungen WHERE idv_id=?
+                    ORDER BY pruefungsdatum DESC LIMIT 1
+                """, (idv_db_id,)).fetchone()
+                if latest and latest["naechste_pruefung"]:
+                    c.execute("""
+                        UPDATE idv_register SET letzte_pruefung=?, naechste_pruefung=?, aktualisiert_am=?
+                        WHERE id=?
+                    """, (latest["pruefungsdatum"], latest["naechste_pruefung"], now, idv_db_id))
+
+        get_writer().submit(_do, wait=True)
+        flash("Prüfung aktualisiert.", "success")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    persons = db.execute("SELECT * FROM persons WHERE aktiv=1 ORDER BY nachname").fetchall()
+    ist_wesentlich = bool(db.execute(
+        "SELECT 1 FROM idv_wesentlichkeit WHERE idv_db_id=? AND erfuellt=1 LIMIT 1",
+        (idv_db_id,),
+    ).fetchone())
+    return render_template("reviews/edit_form.html", p=p, idv=idv, persons=persons,
+        ist_wesentlich=ist_wesentlich,
+        pruefungsarten=get_klassifizierungen(db, "pruefungsart"),
+        pruefungs_ergebnisse=get_klassifizierungen(db, "pruefungs_ergebnis"))
+
+
 @bp.route("/<int:p_id>/loeschen", methods=["POST"])
-@own_write_required
+@admin_required
 def delete_review(p_id):
     db = get_db()
     p  = db.execute("SELECT * FROM pruefungen WHERE id=?", (p_id,)).fetchone()
@@ -106,7 +163,6 @@ def delete_review(p_id):
         flash("Prüfung nicht gefunden.", "error")
         return redirect(url_for("reviews.list_reviews"))
     idv_db_id = p["idv_id"]
-    ensure_can_write_idv(db, idv_db_id)
     now = datetime.now(timezone.utc).isoformat()
 
     def _do(c):

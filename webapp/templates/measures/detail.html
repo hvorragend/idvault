@@ -57,14 +57,22 @@
         {% endif %}
       </ul>
       <div class="card-footer bg-white d-flex gap-2">
-        <a href="{{ url_for('measures.edit_measure', m_id=m.id) }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-pencil me-1"></i>Bearbeiten
-        </a>
         {% if m.status != 'Erledigt' %}
         <form method="post" action="{{ url_for('measures.complete_measure', m_id=m.id) }}" class="d-inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-sm btn-outline-success" data-confirm="Maßnahme als erledigt markieren?">
             <i class="bi bi-check-lg me-1"></i>Als erledigt markieren
+          </button>
+        </form>
+        {% endif %}
+        {% if session.user_role == 'IDV-Administrator' %}
+        <a href="{{ url_for('measures.edit_measure', m_id=m.id) }}" class="btn btn-sm btn-outline-secondary ms-auto">
+          <i class="bi bi-pencil me-1"></i>Bearbeiten
+        </a>
+        <form method="post" action="{{ url_for('measures.delete_measure', m_id=m.id) }}" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-danger" data-confirm="Maßnahme „{{ m.titel }}" unwiderruflich löschen?">
+            <i class="bi bi-trash me-1"></i>Löschen
           </button>
         </form>
         {% endif %}
