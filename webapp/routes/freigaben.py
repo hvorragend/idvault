@@ -416,17 +416,25 @@ def starten(idv_db_id):
 
     zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachlicher_test"))
     zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technischer_test"))
+    pool_id_fachlich     = _int_or_none(request.form.get("pool_id_fachlicher_test"))
+    pool_id_technisch    = _int_or_none(request.form.get("pool_id_technischer_test"))
+    if pool_id_fachlich:
+        zugewiesen_fachlich = None
+    if pool_id_technisch:
+        zugewiesen_technisch = None
     user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
-            for schritt, zugewiesen in [(_PHASE_1[0], zugewiesen_fachlich),
-                                         (_PHASE_1[1], zugewiesen_technisch)]:
+            for schritt, zugewiesen, pool_id in [
+                (_PHASE_1[0], zugewiesen_fachlich,  pool_id_fachlich),
+                (_PHASE_1[1], zugewiesen_technisch, pool_id_technisch),
+            ]:
                 c.execute("""
                     INSERT INTO idv_freigaben
-                        (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
-                    VALUES (?, ?, 'Ausstehend', ?, ?, ?)
-                """, (idv_db_id, schritt, person_id, now, zugewiesen))
+                        (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id, pool_id)
+                    VALUES (?, ?, 'Ausstehend', ?, ?, ?, ?)
+                """, (idv_db_id, schritt, person_id, now, zugewiesen, pool_id))
 
             _ensure_test_eintraege(c, idv_db_id)
 
@@ -478,17 +486,25 @@ def abnahme_starten(idv_db_id):
 
     zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachliche_abnahme"))
     zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technische_abnahme"))
+    pool_id_fachlich     = _int_or_none(request.form.get("pool_id_fachliche_abnahme"))
+    pool_id_technisch    = _int_or_none(request.form.get("pool_id_technische_abnahme"))
+    if pool_id_fachlich:
+        zugewiesen_fachlich = None
+    if pool_id_technisch:
+        zugewiesen_technisch = None
     user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
-            for schritt, zugewiesen in [(_PHASE_2[0], zugewiesen_fachlich),
-                                         (_PHASE_2[1], zugewiesen_technisch)]:
+            for schritt, zugewiesen, pool_id in [
+                (_PHASE_2[0], zugewiesen_fachlich,  pool_id_fachlich),
+                (_PHASE_2[1], zugewiesen_technisch, pool_id_technisch),
+            ]:
                 c.execute("""
                     INSERT INTO idv_freigaben
-                        (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id)
-                    VALUES (?, ?, 'Ausstehend', ?, ?, ?)
-                """, (idv_db_id, schritt, person_id, now, zugewiesen))
+                        (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id, pool_id)
+                    VALUES (?, ?, 'Ausstehend', ?, ?, ?, ?)
+                """, (idv_db_id, schritt, person_id, now, zugewiesen, pool_id))
 
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",

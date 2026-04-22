@@ -543,6 +543,14 @@ def detail_idv(idv_db_id):
         "SELECT id, nachname, vorname, rolle FROM persons WHERE aktiv=1 ORDER BY nachname"
     ).fetchall()
 
+    # Aktive Freigabe-Pools für Pool-Zuweisung beim Schritt-Anlegen (U-D4)
+    try:
+        freigabe_pools = db.execute(
+            "SELECT id, name FROM freigabe_pools WHERE aktiv=1 ORDER BY name"
+        ).fetchall()
+    except Exception:
+        freigabe_pools = []
+
     ist_wesentlich = any(k["erfuellt"] for k in wesentlichkeit)
 
     # Phasenstatus für die Freigabe-Anzeige
@@ -584,6 +592,7 @@ def detail_idv(idv_db_id):
         vorgaenger=vorgaenger, nachfolger=nachfolger,
         freigaben=freigaben, ist_wesentlich=ist_wesentlich,
         freigabe_persons=freigabe_persons,
+        freigabe_pools=freigabe_pools,
         phase1_gestartet=phase1_gestartet, phase1_erledigt=phase1_erledigt,
         phase2_gestartet=phase2_gestartet, phase2_erledigt=phase2_erledigt,
         phase3_gestartet=phase3_gestartet, phase3_erledigt=phase3_erledigt,
