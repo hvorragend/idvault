@@ -718,11 +718,14 @@ def ablehnen(freigabe_id):
     db        = get_db()
     person_id = current_person_id()
     now       = datetime.now(timezone.utc).isoformat()
+    is_xhr    = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     freigabe = db.execute(
         "SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)
     ).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
+        if is_xhr:
+            return jsonify({"ok": False, "error": "Freigabe-Schritt nicht gefunden oder bereits abgeschlossen."}), 400
         flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
         return redirect(url_for("eigenentwicklung.list_idv"))
 
@@ -730,17 +733,17 @@ def ablehnen(freigabe_id):
     ensure_can_write_idv(db, idv_db_id)
 
     if not _funktionstrennung_ok(db, idv_db_id, person_id):
-        flash(
-            "Funktionstrennung: Sie sind als Entwickler eingetragen "
-            "und dürfen keine Freigabe-Schritte ablehnen.", "error"
-        )
+        err = "Funktionstrennung: Sie sind als Entwickler eingetragen und dürfen keine Freigabe-Schritte ablehnen."
+        if is_xhr:
+            return jsonify({"ok": False, "error": err}), 403
+        flash(err, "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     if not _can_complete_schritt(db, freigabe, person_id):
-        flash(
-            "Nur die zugewiesene Person oder deren aktiver Stellvertreter "
-            "darf diesen Schritt ablehnen.", "error"
-        )
+        err = "Nur die zugewiesene Person oder deren aktiver Stellvertreter darf diesen Schritt ablehnen."
+        if is_xhr:
+            return jsonify({"ok": False, "error": err}), 403
+        flash(err, "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     befunde   = request.form.get("befunde", "").strip() or None
@@ -781,8 +784,11 @@ def ablehnen(freigabe_id):
 
     get_writer().submit(_do, wait=True)
 
+    redirect_url = url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id) + "#freigabeverfahren"
+    if is_xhr:
+        return jsonify({"ok": True, "redirect_url": redirect_url})
     flash(f"'{schritt_name}' nicht erledigt.", "warning")
-    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+    return redirect(redirect_url)
 
 
 # ---------------------------------------------------------------------------
