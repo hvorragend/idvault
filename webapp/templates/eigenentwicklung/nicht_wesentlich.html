@@ -403,7 +403,9 @@ owner_filt} %}
         confirmLabel: `${names.length} Einträge löschen`,
         confirmVariant: 'btn-danger',
         onConfirm: () => {
-          document.getElementById('btn-bulk-delete').closest('form').submit();
+          const form = document.getElementById('bulk-form');
+          form.action = "{{ url_for('eigenentwicklung.bulk_loeschen') }}";
+          form.submit();
         }
       });
       return false;
