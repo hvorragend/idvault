@@ -241,9 +241,11 @@ _OWNER_COLUMNS: tuple[str, ...] = (
 def user_can_read_idv(db, idv_db_id: int) -> bool:
     """Darf der aktuelle Benutzer dieses IDV lesen?
 
-    * Admins, Koordinatoren, Revision, IT-Sicherheit, Entwickler-Rolle:
-      Lesezugriff auf alle IDVs (via ``can_read_all``).
-    * Fachverantwortliche: nur auf IDVs, an denen sie beteiligt sind.
+    * Admins, Koordinatoren, Revision, IT-Sicherheit
+      (``_READ_ALL_ROLES``): Lesezugriff auf alle IDVs.
+    * Fachverantwortliche und IDV-Entwickler: nur auf IDVs, bei denen
+      die Person als Fachverantwortlicher, Entwickler, Koordinator
+      oder Stellvertreter eingetragen ist.
     """
     from flask import session
     from .routes import can_read_all, current_person_id

@@ -22,8 +22,12 @@ ROLE_ENTWICKLER  = "IDV-Entwickler"
 _FULL_ACCESS_ROLES = {ROLE_ADMIN, ROLE_KOORDINATOR}
 # Rollen, die eigene IDVs anlegen/bearbeiten dürfen
 _OWN_WRITE_ROLES   = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_FACHVERW, ROLE_ENTWICKLER}
-# Rollen mit Lesezugriff auf alle IDVs
-_READ_ALL_ROLES    = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC, ROLE_ENTWICKLER, ROLE_FACHVERW}
+# Rollen mit Lesezugriff auf alle IDVs. Fachverantwortliche und
+# Entwickler sind bewusst NICHT enthalten – sie sehen nur IDVs, an
+# denen sie als Fachverantwortlicher, Entwickler, Koordinator oder
+# Stellvertreter eingetragen sind (Row-Level-Filter in
+# webapp/security.py::user_can_read_idv sowie im IDV-Listen-SQL).
+_READ_ALL_ROLES    = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC}
 
 
 def login_required(f):

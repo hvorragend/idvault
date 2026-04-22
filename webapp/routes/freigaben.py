@@ -172,6 +172,41 @@ def _funktionstrennung_ok(db, idv_db_id: int, person_id: int) -> bool:
     return row["idv_entwickler_id"] != person_id
 
 
+_SOD_OVERRIDE_PREFIX = "[SoD-Ausnahme durch Administrator] "
+
+
+def _is_sod_override(db, idv_db_id: int, person_id: int) -> bool:
+    """True, wenn der Abschluss die Funktionstrennung übersteuert: der
+    ausführende Benutzer hat die Session-Rolle ``IDV-Administrator`` und
+    ist gleichzeitig als Entwickler (`idv_entwickler_id`) der betroffenen
+    IDV eingetragen. In diesem Fall ist der Eingriff revisionsrelevant
+    und wird im History-Eintrag eindeutig markiert.
+    """
+    from . import ROLE_ADMIN
+    if session.get("user_role") != ROLE_ADMIN:
+        return False
+    if not person_id:
+        return False
+    row = db.execute(
+        "SELECT idv_entwickler_id FROM idv_register WHERE id = ?", (idv_db_id,)
+    ).fetchone()
+    return bool(row and row["idv_entwickler_id"] == person_id)
+
+
+def _sod_log_fields(db, idv_db_id: int, person_id: int,
+                    base_aktion: str, base_kommentar: str) -> tuple:
+    """Liefert (aktion, kommentar) für den History-Eintrag. Im
+    Admin-Override-Fall (siehe :func:`_is_sod_override`) wird die Aktion
+    mit ``_sod_override`` suffixiert und der Kommentar mit einem
+    sprechenden Präfix versehen, damit die Revision diese Ausnahmen ohne
+    Join auf ``idv_register`` finden kann (z.B. ``SELECT * FROM
+    idv_history WHERE aktion LIKE '%_sod_override'``).
+    """
+    if _is_sod_override(db, idv_db_id, person_id):
+        return base_aktion + "_sod_override", _SOD_OVERRIDE_PREFIX + (base_kommentar or "")
+    return base_aktion, base_kommentar
+
+
 def _get_aktiver_stellvertreter_id(db, person_id: int):
     """Gibt stellvertreter_id zurück, wenn die Person aktuell abwesend ist."""
     row = db.execute(
@@ -348,7 +383,7 @@ def _ensure_test_eintraege(conn, idv_db_id: int) -> None:
 
 def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
                                nachweise: str = None, kommentar: str = None,
-                               user_name: str = None) -> None:
+                               user_name: str = None) -> bool:
     """Markiert einen ausstehenden Freigabe-Schritt als Erledigt und aktualisiert
     Phase-Status sowie IDV-Teststatus. Wird aus tests.py nach Speichern des Tests aufgerufen.
 
@@ -357,24 +392,43 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
     die finale Pruefung `status='Ausstehend'` erfolgt erneut innerhalb
     der Transaktion, damit Races zwischen zwei Abschluss-Klicks nicht zu
     doppelten Erledigt-Markierungen fuehren.
+
+    Vor dem Abschluss werden Funktionstrennung und Zuständigkeit geprüft
+    (sonst würde der Testformular-Pfad den SoD-Guard der direkten
+    Abschluss-Route umgehen). Gibt ``True`` zurück, wenn der Schritt
+    erfolgreich als Erledigt markiert wurde, sonst ``False``.
     """
     now = datetime.now(timezone.utc).isoformat()
     freigabe = db.execute(
         "SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)
     ).fetchone()
     if not freigabe or freigabe["status"] != "Ausstehend":
-        return
+        return False
 
     idv_db_id = freigabe["idv_id"]
     schritt = freigabe["schritt"]
+
+    # Funktionstrennung: Entwickler der IDV darf den Schritt nicht
+    # abschließen (Admins werden innerhalb _funktionstrennung_ok
+    # durchgelassen, der SoD-Override wird in _sod_log_fields markiert).
+    if not _funktionstrennung_ok(db, idv_db_id, person_id):
+        return False
+    # Zuweisung: nur die zugewiesene Person, deren aktiver Stellvertreter
+    # oder ein Pool-Mitglied (bzw. Admin) dürfen abschließen.
+    if not _can_complete_schritt(db, freigabe, person_id):
+        return False
     user_name = session.get("user_name", "") or None
+    hist_aktion, hist_kommentar = _sod_log_fields(
+        db, idv_db_id, person_id,
+        "freigabe_schritt_erledigt", f"{schritt} erledigt",
+    )
 
     def _do(c):
         row = c.execute(
             "SELECT status FROM idv_freigaben WHERE id=?", (freigabe_id,)
         ).fetchone()
         if not row or row["status"] != "Ausstehend":
-            return False, False
+            return False, False, False
         with write_tx(c):
             c.execute("""
                 UPDATE idv_freigaben
@@ -384,20 +438,21 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
             """, (person_id, now, kommentar, nachweise, freigabe_id))
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, user_name),
+                (idv_db_id, hist_aktion, hist_kommentar, person_id, user_name),
             )
             freigegeben = False
             archiv_neu  = False
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
                 archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, bearbeiter_name=user_name)
                 freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
-        return freigegeben, archiv_neu
+        return True, freigegeben, archiv_neu
 
-    freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
+    completed, freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
     if archiv_neu and not freigegeben:
         _notify_schritte(db, idv_db_id, [_PHASE_3[0]], {_PHASE_3[0]: None})
     if freigegeben:
         _notify_freigabe_erteilt(db, idv_db_id)
+    return completed
 
 
 # ---------------------------------------------------------------------------
@@ -594,9 +649,21 @@ def erledigt_seite(freigabe_id):
     except Exception:
         freigabe_pools = []
 
+    # Read-only auch dann, wenn der Benutzer den Schritt zwar lesen, aber
+    # nicht abschließen darf (Funktionstrennung oder fehlende Zuweisung).
+    # Verhindert, dass das Abschluss-Formular überhaupt sichtbar wird,
+    # obwohl der POST ohnehin durch _funktionstrennung_ok / _can_complete_schritt
+    # abgelehnt würde.
+    pid = current_person_id()
+    darf_abschliessen = (
+        pid is not None
+        and _funktionstrennung_ok(db, freigabe["idv_id"], pid)
+        and _can_complete_schritt(db, freigabe, pid)
+    )
+
     # Phase 3: Archivierungs-Schritt → spezialisierte Maske
     if freigabe["schritt"] in _PHASE_3:
-        readonly = freigabe["status"] != "Ausstehend"
+        readonly = freigabe["status"] != "Ausstehend" or not darf_abschliessen
         scanner_dateien = _verfuegbare_scanner_dateien(db, idv["id"]) if not readonly else []
         return render_template("freigaben/archiv_form.html",
                                freigabe=freigabe, idv=idv, readonly=readonly,
@@ -604,8 +671,8 @@ def erledigt_seite(freigabe_id):
                                vertreter_name=vertreter_name, persons=persons,
                                freigabe_pools=freigabe_pools)
 
-    # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend, sonst Lesemodus
-    readonly = freigabe["status"] != "Ausstehend"
+    # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend und zuständig, sonst Lesemodus
+    readonly = freigabe["status"] != "Ausstehend" or not darf_abschliessen
     scanner_dateien = _verfuegbare_scanner_dateien(db, idv["id"]) if not readonly else []
     return render_template("freigaben/bestanden_form.html",
                            freigabe=freigabe, idv=idv, readonly=readonly,
@@ -679,6 +746,10 @@ def abschliessen(freigabe_id):
 
     schritt = freigabe["schritt"]
     user_name = session.get("user_name", "") or None
+    hist_aktion, hist_kommentar = _sod_log_fields(
+        db, idv_db_id, person_id,
+        "freigabe_schritt_erledigt", f"{schritt} erledigt",
+    )
 
     def _do(c):
         with write_tx(c):
@@ -691,7 +762,7 @@ def abschliessen(freigabe_id):
 
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, user_name),
+                (idv_db_id, hist_aktion, hist_kommentar, person_id, user_name),
             )
 
             phase2_done = False
@@ -796,6 +867,11 @@ def ablehnen(freigabe_id):
 
     schritt_name = freigabe["schritt"]
     user_name = session.get("user_name", "") or None
+    hist_aktion, hist_kommentar = _sod_log_fields(
+        db, idv_db_id, person_id,
+        "freigabe_abgelehnt",
+        f"{schritt_name} nicht erledigt. Befunde: {befunde}",
+    )
 
     def _do(c):
         with write_tx(c):
@@ -814,8 +890,7 @@ def ablehnen(freigabe_id):
             )
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, "freigabe_abgelehnt",
-                 f"{schritt_name} nicht erledigt. Befunde: {befunde}", person_id, user_name),
+                (idv_db_id, hist_aktion, hist_kommentar, person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -1462,6 +1537,8 @@ def archivieren(freigabe_id):
             "Originaldatei nicht verfügbar (z.B. Cognos / agree21Analysen). "
             f"Begründung: {befunde}"
         )
+
+    aktion, hist_kom = _sod_log_fields(db, idv_db_id, person_id, aktion, hist_kom)
 
     user_name = session.get("user_name", "") or None
 
