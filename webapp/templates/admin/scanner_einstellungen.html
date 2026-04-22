@@ -172,15 +172,28 @@
             </div>
 
             <div class="col-md-3 d-flex flex-column justify-content-center">
-              <label class="form-label fw-600">Vorschlagsfunktion</label>
+              <label class="form-label fw-600">Ähnlichkeitsvorschläge (Funde)</label>
               <div class="form-check form-switch mt-1">
-                <input class="form-check-input" type="checkbox" role="switch" name="suggestions_enabled"
-                  id="suggestions_enabled" value="1" {{ 'checked' if suggestions_enabled != '0' }}>
-                <label class="form-check-label" for="suggestions_enabled">Aktiviert</label>
+                <input class="form-check-input" type="checkbox" role="switch" name="match_suggestions_enabled"
+                  id="match_suggestions_enabled" value="1" {{ 'checked' if match_suggestions_enabled != '0' }}>
+                <label class="form-check-label" for="match_suggestions_enabled">Aktiviert</label>
               </div>
               <div class="form-text">
-                Automatische Vorschläge in der Funde-Liste (IDV-Zuordnung) und im
-                Erfassungsformular (Entwicklungsart &amp; Prüfintervall) aktivieren.
+                In der Funde-Liste wird zu nicht zugeordneten Dateien anhand von Typ,
+                Eigentümer und Namensähnlichkeit ein passender IDV-Eintrag vorgeschlagen.
+              </div>
+            </div>
+
+            <div class="col-md-3 d-flex flex-column justify-content-center">
+              <label class="form-label fw-600">Smart Defaults (Erfassungsformular)</label>
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" role="switch" name="smart_defaults_enabled"
+                  id="smart_defaults_enabled" value="1" {{ 'checked' if smart_defaults_enabled != '0' }}>
+                <label class="form-check-label" for="smart_defaults_enabled">Aktiviert</label>
+              </div>
+              <div class="form-text">
+                Beim Anlegen einer neuen Eigenentwicklung werden Entwicklungsart und
+                Prüfintervall anhand des gewählten IDV-Typs automatisch vorgeschlagen.
               </div>
             </div>
 

@@ -76,7 +76,7 @@ def _form_lookups(db):
         "nutzungsfrequenzen":      get_klassifizierungen(db, "nutzungsfrequenz"),
         "wesentlichkeitskriterien": get_wesentlichkeitskriterien(db, nur_aktive=True),
         "entwicklungsarten":       ENTWICKLUNGSARTEN,
-        "suggestions_enabled":     _get_bool(db, "suggestions_enabled", True),
+        "smart_defaults_enabled":  _get_bool(db, "smart_defaults_enabled", True),
     }
     g._form_lookups_cache = result
     return result
@@ -298,7 +298,7 @@ def api_infer():
     übernimmt die Werte nur, wenn der Benutzer das Feld noch nicht explizit
     geändert hat.
     """
-    if not _get_bool(get_db(), "suggestions_enabled", True):
+    if not _get_bool(get_db(), "smart_defaults_enabled", True):
         return jsonify({}), 204
     typ = (request.args.get("idv_typ") or "").strip()
     defaults = _TYP_DEFAULTS.get(typ, _TYP_DEFAULTS["unklassifiziert"])
