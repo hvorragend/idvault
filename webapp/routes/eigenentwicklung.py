@@ -93,7 +93,7 @@ def list_idv():
     db      = get_db()
     q       = request.args.get("q", "")
     status  = request.args.get("status", "")
-    filt    = request.args.get("filter", "wesentlich")
+    filt    = request.args.get("filter", "alle")
     oe_id   = _int_or_none(request.args.get("oe_id"))
     fv_id   = _int_or_none(request.args.get("fv_id"))
     owner_filt = request.args.get("owner", "").strip()
@@ -241,6 +241,156 @@ def list_idv():
                            page=page, per_page=per_page,
                            valid_per_page=_VALID_PER_PAGE_IDV,
                            q=q, status=status, filt=filt,
+                           oe_id=oe_id, fv_id=fv_id,
+                           share_root=share_root,
+                           entwicklungsart=entwicklungsart,
+                           entwicklungsarten=ENTWICKLUNGSARTEN,
+                           entwicklungsart_label=ENTWICKLUNGSART_LABEL)
+
+
+# ── Wesentliche Eigenentwicklungen ────────────────────────────────────────
+
+@bp.route("/wesentlich")
+@login_required
+def wesentliche_idvs():
+    """Dedizierte Seite: Wesentliche Eigenentwicklungen."""
+    # Wenn der Filter-Dropdown auf etwas anderes umgestellt wird, zur Hauptliste weiterleiten
+    filt_override = request.args.get("filter")
+    if filt_override and filt_override != "wesentlich":
+        return redirect(url_for("eigenentwicklung.list_idv", **request.args))
+
+    db      = get_db()
+    q       = request.args.get("q", "")
+    status  = request.args.get("status", "")
+    oe_id   = _int_or_none(request.args.get("oe_id"))
+    fv_id   = _int_or_none(request.args.get("fv_id"))
+    owner_filt = request.args.get("owner", "").strip()
+    share_root = request.args.get("share_root", "").strip()
+    entwicklungsart = request.args.get("entwicklungsart", "").strip()
+    if entwicklungsart not in ENTWICKLUNGSART_LABEL:
+        entwicklungsart = ""
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except (ValueError, TypeError):
+        page = 1
+    if "per_page" in request.args:
+        try:
+            per_page = int(request.args["per_page"])
+        except (ValueError, TypeError):
+            per_page = 100
+        if per_page in _VALID_PER_PAGE_IDV:
+            session["pref_per_page_idv"] = per_page
+    else:
+        per_page = session.get("pref_per_page_idv", 100)
+    if per_page not in _VALID_PER_PAGE_IDV:
+        per_page = 100
+
+    _WESENTLICH = """EXISTS(
+        SELECT 1 FROM idv_wesentlichkeit iw
+        WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
+    )"""
+
+    where_parts = [_WESENTLICH]
+    params: list = []
+
+    if q:
+        where_parts.append("(v.idv_id LIKE ? OR v.bezeichnung LIKE ? OR v.geschaeftsprozess LIKE ?)")
+        params += [f"%{q}%", f"%{q}%", f"%{q}%"]
+    if status:
+        where_parts.append("v.status = ?")
+        params.append(status)
+    if oe_id:
+        where_parts.append("r.org_unit_id = ?")
+        params.append(oe_id)
+    if fv_id:
+        where_parts.append("r.fachverantwortlicher_id = ?")
+        params.append(fv_id)
+    if share_root:
+        where_parts.append(
+            "r.file_id IN (SELECT id FROM idv_files WHERE share_root = ?)"
+        )
+        params.append(share_root)
+    if owner_filt:
+        where_parts.append(
+            "r.file_id IN (SELECT id FROM idv_files WHERE file_owner = ?)"
+        )
+        params.append(owner_filt)
+    if entwicklungsart:
+        where_parts.append("r.entwicklungsart = ?")
+        params.append(entwicklungsart)
+
+    person_id = current_person_id()
+    if not can_read_all() and person_id:
+        where_parts.append("""(
+            r.fachverantwortlicher_id = ?
+            OR r.idv_entwickler_id   = ?
+            OR r.idv_koordinator_id  = ?
+            OR r.stellvertreter_id   = ?
+        )""")
+        params += [person_id, person_id, person_id, person_id]
+
+    where_sql = "WHERE " + " AND ".join(where_parts)
+
+    total = db.execute(
+        f"""SELECT COUNT(*) FROM v_idv_uebersicht v
+            JOIN idv_register r ON r.idv_id = v.idv_id
+            {where_sql}""",
+        params,
+    ).fetchone()[0]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+
+    idvs = db.execute(f"""
+        SELECT r.*, v.*,
+          CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS wesentlich_flag,
+          EXISTS(SELECT 1 FROM idv_register x WHERE x.vorgaenger_idv_id = r.id) AS hat_nachfolger,
+          (CASE WHEN r.file_id IS NOT NULL THEN 1 ELSE 0 END
+           + (SELECT COUNT(*) FROM idv_file_links lnk WHERE lnk.idv_db_id = r.id)) AS datei_anzahl,
+          f.formula_count        AS file_formula_count,
+          f.has_macros           AS file_has_macros,
+          f.has_sheet_protection AS file_has_sheet_protection,
+          f.file_owner           AS file_owner
+        FROM v_idv_uebersicht v
+        JOIN idv_register r ON r.idv_id = v.idv_id
+        LEFT JOIN idv_files f ON f.id = r.file_id
+        {where_sql}
+        ORDER BY v.bezeichnung
+        LIMIT ? OFFSET ?
+    """, params + [per_page, (page - 1) * per_page]).fetchall()
+
+    org_units = db.execute(
+        "SELECT id, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
+    ).fetchall()
+    persons_fv = db.execute(
+        "SELECT DISTINCT p.id, p.nachname, p.vorname FROM persons p"
+        " WHERE p.aktiv=1"
+        " AND EXISTS (SELECT 1 FROM idv_register r WHERE r.fachverantwortlicher_id = p.id)"
+        " ORDER BY p.nachname"
+    ).fetchall()
+    share_roots = [
+        r["share_root"] for r in db.execute(
+            "SELECT DISTINCT share_root FROM idv_files WHERE share_root IS NOT NULL AND status='active' ORDER BY share_root"
+        ).fetchall()
+    ]
+    owner_list = [
+        r["file_owner"] for r in db.execute(
+            "SELECT DISTINCT file_owner FROM idv_files"
+            " WHERE file_owner IS NOT NULL AND file_owner != '' AND status='active'"
+            " ORDER BY file_owner"
+        ).fetchall()
+    ]
+
+    from . import ROLE_ADMIN
+    is_admin = (session.get("user_role") == ROLE_ADMIN)
+    return render_template("eigenentwicklung/list.html", idvs=idvs, can_write=can_write(),
+                           is_admin=is_admin,
+                           org_units=org_units, persons_fv=persons_fv,
+                           share_roots=share_roots,
+                           owner_list=owner_list, owner_filt=owner_filt,
+                           total=total, total_pages=total_pages,
+                           page=page, per_page=per_page,
+                           valid_per_page=_VALID_PER_PAGE_IDV,
+                           q=q, status=status, filt="wesentlich",
                            oe_id=oe_id, fv_id=fv_id,
                            share_root=share_root,
                            entwicklungsart=entwicklungsart,

@@ -403,12 +403,12 @@
     {% endif %}
 
     <div class="nav-label">Eigenentwicklungen</div>
-    <a href="{{ url_for('eigenentwicklung.list_idv', filter='alle') }}"
-      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' and request.args.get('filter') == 'alle' %}active{% endif %}">
+    <a href="{{ url_for('eigenentwicklung.list_idv') }}"
+      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' %}active{% endif %}">
       <i class="bi bi-list-ul"></i> Alle
     </a>
-    <a href="{{ url_for('eigenentwicklung.list_idv') }}"
-      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' and request.args.get('filter') != 'alle' %}active{% endif %}">
+    <a href="{{ url_for('eigenentwicklung.wesentliche_idvs') }}"
+      class="nav-link {% if request.endpoint == 'eigenentwicklung.wesentliche_idvs' %}active{% endif %}">
       <i class="bi bi-table"></i> Wesentlich
     </a>
     {% if _is_admin or _is_koord %}
