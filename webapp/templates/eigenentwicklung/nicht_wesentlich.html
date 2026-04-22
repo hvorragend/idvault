@@ -101,6 +101,7 @@ owner_filt} %}
 <!-- ── Tabelle ────────────────────────────────────────────────────── -->
 <form id="bulk-form" method="post" action="{{ url_for('eigenentwicklung.bulk_status') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="next" value="{{ request.path }}{{ ('?' + request.query_string.decode()) if request.query_string else '' }}">
   <div class="card border-0 shadow-sm mt-2">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
       <span class="fw-600">

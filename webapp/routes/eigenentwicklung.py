@@ -315,15 +315,18 @@ def bulk_loeschen():
     person_id = session.get("person_id")
     raw_ids   = request.form.getlist("idv_ids")
 
+    _raw_next = request.form.get("next", "").strip()
+    _back = _raw_next if _raw_next.startswith("/") else url_for("eigenentwicklung.list_idv")
+
     try:
         idv_db_ids = [int(i) for i in raw_ids if i]
     except ValueError:
         flash("Ungültige IDs.", "error")
-        return redirect(url_for("eigenentwicklung.list_idv"))
+        return redirect(_back)
 
     if not idv_db_ids:
         flash("Keine Eigenentwicklungen ausgewählt.", "warning")
-        return redirect(url_for("eigenentwicklung.list_idv"))
+        return redirect(_back)
 
     existing_ids = [
         r["id"] for r in db.execute(
@@ -349,7 +352,7 @@ def bulk_loeschen():
 
     deleted = get_writer().submit(_do, wait=True)
     flash(f"{deleted} Eigenentwicklung(en) gelöscht.", "success")
-    return redirect(url_for("eigenentwicklung.list_idv"))
+    return redirect(_back)
 
 
 # ── Bulk-Statusänderung (Admin + Koordinator) ─────────────────────────────
@@ -368,19 +371,22 @@ def bulk_status():
     raw_ids   = request.form.getlist("idv_ids")
     neuer_status = request.form.get("neuer_status", "").strip()
 
+    _raw_next = request.form.get("next", "").strip()
+    _back = _raw_next if _raw_next.startswith("/") else url_for("eigenentwicklung.list_idv")
+
     if neuer_status not in _BULK_STATUS_ERLAUBT:
         flash("Bitte einen gültigen Zielstatus auswählen.", "error")
-        return redirect(url_for("eigenentwicklung.list_idv"))
+        return redirect(_back)
 
     try:
         idv_db_ids = [int(i) for i in raw_ids if i]
     except ValueError:
         flash("Ungültige IDs.", "error")
-        return redirect(url_for("eigenentwicklung.list_idv"))
+        return redirect(_back)
 
     if not idv_db_ids:
         flash("Keine Eigenentwicklungen ausgewählt.", "warning")
-        return redirect(url_for("eigenentwicklung.list_idv"))
+        return redirect(_back)
 
     user_name = session.get("user_name", "")
     writer = get_writer()
@@ -413,7 +419,7 @@ def bulk_status():
                         "neuer_status": neuer_status})
 
     flash(msg, "success" if not errors else "warning")
-    return redirect(url_for("eigenentwicklung.list_idv"))
+    return redirect(_back)
 
 
 # ── Detail ─────────────────────────────────────────────────────────────────
