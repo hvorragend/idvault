@@ -972,6 +972,78 @@ def loeschen(freigabe_id):
 
 
 # ---------------------------------------------------------------------------
+# Abnahme-Schritt nachträglich wieder öffnen (Admin)
+# ---------------------------------------------------------------------------
+
+@bp.route("/<int:freigabe_id>/wieder-oeffnen", methods=["POST"])
+@admin_required
+def wieder_oeffnen(freigabe_id):
+    """Admin öffnet einen abgeschlossenen Abnahme-Schritt erneut zur Beantwortung.
+
+    Nur für Phase 2 (Abnahmen). Voraussetzung: IDV ist nicht als 'Freigegeben'
+    markiert und die Archivierung (Phase 3) ist noch nicht erledigt –
+    andernfalls muss der Admin den Zustand zunächst auf anderem Weg zurückbauen.
+    """
+    db        = get_db()
+    person_id = current_person_id()
+    freigabe  = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
+    if not freigabe:
+        flash("Freigabe-Schritt nicht gefunden.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
+
+    idv_db_id = freigabe["idv_id"]
+    schritt   = freigabe["schritt"]
+
+    if schritt not in _PHASE_2:
+        flash("Wieder-Öffnen ist nur für Abnahmen (Phase 2) vorgesehen.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    if freigabe["status"] == "Ausstehend":
+        flash(f"'{schritt}' ist bereits offen.", "info")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    idv = db.execute(
+        "SELECT teststatus FROM idv_register WHERE id=?", (idv_db_id,)
+    ).fetchone()
+    if idv and idv["teststatus"] == "Freigegeben":
+        flash("IDV ist bereits freigegeben – bitte zuerst die Freigabe rückgängig machen.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    archiv_erledigt = db.execute(
+        "SELECT 1 FROM idv_freigaben WHERE idv_id=? AND schritt=? AND status='Erledigt' LIMIT 1",
+        (idv_db_id, _PHASE_3[0])
+    ).fetchone()
+    if archiv_erledigt:
+        flash("Archivierung ist bereits erledigt – Abnahme kann nicht mehr geöffnet werden.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    user_name = session.get("user_name", "") or None
+
+    def _do(c):
+        with write_tx(c):
+            c.execute("""
+                UPDATE idv_freigaben
+                SET status='Ausstehend',
+                    durchgefuehrt_von_id=NULL, durchgefuehrt_am=NULL,
+                    kommentar=NULL, nachweise_text=NULL,
+                    nachweis_datei_pfad=NULL, nachweis_datei_name=NULL,
+                    befunde=NULL
+                WHERE id=?
+            """, (freigabe_id,))
+            c.execute(
+                "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                (idv_db_id, "freigabe_schritt_wiedereroeffnet",
+                 f"{schritt} durch Admin zur erneuten Beantwortung geöffnet",
+                 person_id, user_name),
+            )
+
+    get_writer().submit(_do, wait=True)
+    _notify_schritte(db, idv_db_id, [schritt], {schritt: freigabe["zugewiesen_an_id"]})
+    flash(f"'{schritt}' wurde wieder geöffnet und kann erneut beantwortet werden.", "success")
+    return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+
+# ---------------------------------------------------------------------------
 # Freigabe-Schritt weiterleiten (an Dritte delegieren)
 # ---------------------------------------------------------------------------
 
