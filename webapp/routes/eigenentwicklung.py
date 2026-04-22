@@ -1542,6 +1542,8 @@ def nicht_wesentliche_idvs():
         ).fetchall()
     ]
 
+    from . import ROLE_ADMIN
+    is_admin = (session.get("user_role") == ROLE_ADMIN)
     return render_template("eigenentwicklung/nicht_wesentlich.html",
         nicht_wesentliche=nicht_wesentliche,
         total=total, total_pages=total_pages, page=page, per_page=per_page,
@@ -1551,4 +1553,5 @@ def nicht_wesentliche_idvs():
         q=q, status=status, oe_id=oe_id, fv_id=fv_id,
         valid_per_page=_VALID_PER_PAGE_IDV,
         can_write=can_write(),
+        is_admin=is_admin,
     )
