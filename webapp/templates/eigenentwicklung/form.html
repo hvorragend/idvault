@@ -82,6 +82,22 @@
   {% endif %}
   {% endif %}
 
+  <!-- ── Draft-Banner (U-D1) ─────────────────────────────────── -->
+  {% if not idv and draft_info %}
+  <div class="alert alert-secondary d-flex align-items-center gap-3 mb-3 py-2" id="draft-banner" role="alert">
+    <i class="bi bi-pencil-square fs-5 text-secondary flex-shrink-0"></i>
+    <div class="flex-grow-1" style="font-size:.88rem">
+      <strong>Entwurf geladen</strong> – zuletzt gespeichert
+      {{ draft_info.updated_at[:10] | datefmt }}
+      um {{ draft_info.updated_at[11:16] }} Uhr.
+      Formular wurde vorausgefüllt.
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="draft-discard-btn">
+      <i class="bi bi-trash me-1"></i>Verwerfen
+    </button>
+  </div>
+  {% endif %}
+
   <!-- ── Schritt-Anzeige ──────────────────────────────────────── -->
   <div class="d-flex gap-2 mb-4 flex-wrap">
     {% for label in ['Stammdaten','Wesentlichkeit','Technik & Betrieb','Verantwortliche'] %}
@@ -886,5 +902,84 @@
   });
 })();
 </script>
+
+{% if not idv %}
+<script>
+(function () {
+  var _draftUrl  = '{{ url_for("eigenentwicklung.draft_save") }}';
+  var _deleteUrl = '{{ url_for("eigenentwicklung.draft_delete") }}';
+  var _csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var _form      = document.querySelector('form[action*="/eigenentwicklung"]') ||
+                   document.querySelector('form[method="post"]');
+  if (!_form) return;
+
+  // ── Draft-Restore: verbleibende Felder aus Server-Daten setzen ───────────
+  var _draft = {{ (draft_info.data | tojson) if draft_info else 'null' }};
+  if (_draft) {
+    Object.keys(_draft).forEach(function (name) {
+      var val = _draft[name];
+      if (!val) return;
+      _form.querySelectorAll('[name="' + name + '"]').forEach(function (el) {
+        if (el.type === 'checkbox') {
+          el.checked = (val === '1' || val === 'on' || val === 'true');
+        } else if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.type === 'text' ||
+                   el.type === 'hidden' || el.type === 'email' || el.type === 'number' ||
+                   el.type === 'date' || el.type === 'url') {
+          el.value = val;
+        }
+      });
+    });
+  }
+
+  // ── Auto-Save ────────────────────────────────────────────────────────────
+  var _indicator = null;
+  function _showSaved() {
+    if (!_indicator) {
+      _indicator = document.createElement('div');
+      _indicator.style.cssText = 'position:fixed;bottom:1rem;right:1rem;z-index:1080;' +
+        'background:#198754;color:#fff;border-radius:.375rem;padding:.35rem .75rem;' +
+        'font-size:.8rem;opacity:0;transition:opacity .3s';
+      _indicator.innerHTML = '<i class="bi bi-floppy me-1"></i>Entwurf gespeichert';
+      document.body.appendChild(_indicator);
+    }
+    _indicator.style.opacity = '1';
+    clearTimeout(_indicator._hide);
+    _indicator._hide = setTimeout(function () { _indicator.style.opacity = '0'; }, 2500);
+  }
+
+  function _autoSave() {
+    var fd = new FormData(_form);
+    fetch(_draftUrl, { method: 'POST', body: fd })
+      .then(function (r) { if (r.ok) _showSaved(); })
+      .catch(function () {});
+  }
+
+  // Every 30 s
+  var _timer = setInterval(_autoSave, 30000);
+
+  // Save on page unload (best-effort)
+  window.addEventListener('beforeunload', function () {
+    clearInterval(_timer);
+    navigator.sendBeacon(_draftUrl, new FormData(_form));
+  });
+
+  // Stop auto-save on form submit (draft deleted server-side on success)
+  _form.addEventListener('submit', function () { clearInterval(_timer); });
+
+  // ── Verwerfen-Button ─────────────────────────────────────────────────────
+  var _discardBtn = document.getElementById('draft-discard-btn');
+  if (_discardBtn) {
+    _discardBtn.addEventListener('click', function () {
+      fetch(_deleteUrl, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': _csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
+      })
+      .then(function () { window.location.reload(); })
+      .catch(function () { window.location.reload(); });
+    });
+  }
+})();
+</script>
+{% endif %}
 
 {% endblock %}

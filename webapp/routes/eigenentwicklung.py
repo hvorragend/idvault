@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from . import (login_required, write_access_required, own_write_required, admin_required,
                get_db, can_write, can_create, can_read_all, current_person_id)
 import sys, os, io, json
+from datetime import datetime as _dt, timezone as _tz
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (create_idv, update_idv, change_status, search_idv,
                 get_klassifizierungen, get_wesentlichkeitskriterien,
@@ -591,6 +592,53 @@ def detail_idv(idv_db_id):
         can_create=can_create())
 
 
+# ── Draft-Persistenz ───────────────────────────────────────────────────────
+
+
+def _draft_user_id() -> str | None:
+    return session.get("user_id")
+
+
+def _upsert_draft(c, user_id: str, draft_json: str, now: str) -> None:
+    with write_tx(c):
+        c.execute("""
+            INSERT INTO idv_draft (user_id, draft_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE
+               SET draft_json = excluded.draft_json,
+                   updated_at = excluded.updated_at
+        """, (user_id, draft_json, now, now))
+
+
+def _discard_draft(c, user_id: str) -> None:
+    with write_tx(c):
+        c.execute("DELETE FROM idv_draft WHERE user_id = ?", (user_id,))
+
+
+@bp.route("/draft", methods=["POST"])
+@own_write_required
+def draft_save():
+    uid = _draft_user_id()
+    if not uid:
+        return jsonify({"ok": False}), 401
+    now = _dt.now(_tz.utc).isoformat()
+    payload = {k: v for k, v in request.form.items()
+               if k not in ("csrf_token", "save_action")}
+    draft_json = json.dumps(payload, ensure_ascii=False)
+    get_writer().submit(lambda c: _upsert_draft(c, uid, draft_json, now), wait=True)
+    return jsonify({"ok": True, "updated_at": now})
+
+
+@bp.route("/draft", methods=["DELETE"])
+@own_write_required
+def draft_delete():
+    uid = _draft_user_id()
+    if not uid:
+        return jsonify({"ok": False}), 401
+    get_writer().submit(lambda c: _discard_draft(c, uid), wait=True)
+    return jsonify({"ok": True})
+
+
 # ── Neu ────────────────────────────────────────────────────────────────────
 
 @bp.route("/neu", methods=["GET", "POST"])
@@ -628,6 +676,10 @@ def new_idv():
                             "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id=?",
                             (extra_id,),
                         )
+                    # Entwurf löschen, da Formular erfolgreich gespeichert
+                    uid = _draft_user_id()
+                    if uid:
+                        c.execute("DELETE FROM idv_draft WHERE user_id = ?", (uid,))
                 return new_id
 
             new_id = get_writer().submit(_do, wait=True)
@@ -643,6 +695,7 @@ def new_idv():
     prefill       = {}
     extra_fonds   = []
     hash_duplikate = []
+    draft_info    = None
     file_id       = _int_or_none(request.args.get("file_id"))
     extra_file_ids = request.args.get("extra_file_ids", "")
 
@@ -654,6 +707,21 @@ def new_idv():
         ).fetchone()
         if me and me["org_unit_id"]:
             prefill["org_unit_id"] = me["org_unit_id"]
+
+    # U-D1: Gespeicherten Entwurf laden (nur wenn kein Scanner-Fund-Kontext).
+    if not file_id:
+        uid = _draft_user_id()
+        if uid:
+            drow = db.execute(
+                "SELECT draft_json, updated_at FROM idv_draft WHERE user_id = ?", (uid,)
+            ).fetchone()
+            if drow:
+                try:
+                    draft_data = json.loads(drow["draft_json"])
+                    draft_info = {"updated_at": drow["updated_at"], "data": draft_data}
+                    prefill.update(draft_data)
+                except Exception:
+                    pass
 
     if file_id:
         fund = db.execute("SELECT * FROM idv_files WHERE id = ?", (file_id,)).fetchone()
@@ -728,6 +796,7 @@ def new_idv():
                            fund=fund, prefill=prefill,
                            extra_fonds=extra_fonds,
                            hash_duplikate=hash_duplikate,
+                           draft_info=draft_info,
                            wesentlichkeit_antworten={},
                            can_write=can_write(),
                            **_form_lookups(db))
