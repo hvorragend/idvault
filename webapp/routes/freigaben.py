@@ -237,7 +237,8 @@ def _phase3_komplett_erledigt(db, idv_db_id: int) -> bool:
 
 
 def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int,
-                            zugewiesen_an_id: int = None) -> bool:
+                            zugewiesen_an_id: int = None,
+                            user_name: str = None) -> bool:
     """Legt den Archivierungs-Schritt (Phase 3) an, sofern er noch nicht existiert.
 
     Idempotent und commit-frei: der Aufrufer muss bereits innerhalb einer
@@ -259,12 +260,13 @@ def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int,
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "archivierung_beauftragt",
          "Archivierung Originaldatei beauftragt.",
-         person_id, session.get("user_name", "") or None)
+         person_id, user_name)
     )
     return True
 
 
-def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int) -> bool:
+def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int,
+                                         user_name: str = None) -> bool:
     """Setzt `teststatus = 'Freigegeben'`, sobald Phase 2 UND Phase 3 komplett sind.
 
     Commit-frei: muss innerhalb einer umschliessenden write_tx(conn)-
@@ -289,7 +291,7 @@ def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int) ->
     conn.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "freigabe_erteilt",
-         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id, session.get("user_name", "") or None)
+         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id, user_name)
     )
     return True
 
@@ -328,7 +330,8 @@ def _ensure_test_eintraege(conn, idv_db_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
-                               nachweise: str = None, kommentar: str = None) -> None:
+                               nachweise: str = None, kommentar: str = None,
+                               user_name: str = None) -> None:
     """Markiert einen ausstehenden Freigabe-Schritt als Erledigt und aktualisiert
     Phase-Status sowie IDV-Teststatus. Wird aus tests.py nach Speichern des Tests aufgerufen.
 
@@ -363,13 +366,13 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
             """, (person_id, now, kommentar, nachweise, freigabe_id))
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, session.get("user_name", "") or None),
+                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, user_name),
             )
             freigegeben = False
             archiv_neu  = False
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
-                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id)
-                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)
+                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, user_name=user_name)
+                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, user_name=user_name)
         return freigegeben, archiv_neu
 
     freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
@@ -412,6 +415,7 @@ def starten(idv_db_id):
 
     zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachlicher_test"))
     zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technischer_test"))
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
@@ -433,7 +437,7 @@ def starten(idv_db_id):
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_gestartet",
                  "Freigabeverfahren gestartet – Phase 1: Fachlicher Test + Technischer Test (parallel)",
-                 person_id, session.get("user_name", "") or None),
+                 person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -473,6 +477,7 @@ def abnahme_starten(idv_db_id):
 
     zugewiesen_fachlich  = _int_or_none(request.form.get("zugewiesen_fachliche_abnahme"))
     zugewiesen_technisch = _int_or_none(request.form.get("zugewiesen_technische_abnahme"))
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
@@ -487,7 +492,7 @@ def abnahme_starten(idv_db_id):
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_phase2_gestartet",
-                 "Phase 2 gestartet: Fachliche Abnahme + Technische Abnahme (parallel)", person_id, session.get("user_name", "") or None),
+                 "Phase 2 gestartet: Fachliche Abnahme + Technische Abnahme (parallel)", person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -636,6 +641,7 @@ def abschliessen(freigabe_id):
                 nachweis_name = sf["file_name"]
 
     schritt = freigabe["schritt"]
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
@@ -648,7 +654,7 @@ def abschliessen(freigabe_id):
 
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, session.get("user_name", "") or None),
+                (idv_db_id, "freigabe_schritt_erledigt", f"{schritt} erledigt", person_id, user_name),
             )
 
             phase2_done = False
@@ -657,8 +663,8 @@ def abschliessen(freigabe_id):
             archiv_neu  = False
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
                 phase2_done = True
-                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id)
-                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)
+                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, user_name=user_name)
+                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, user_name=user_name)
             elif schritt in _PHASE_1 and _phase1_komplett_erledigt(c, idv_db_id):
                 phase1_done = True
         return phase2_done, phase1_done, freigegeben, archiv_neu
@@ -749,6 +755,7 @@ def ablehnen(freigabe_id):
             nachweis_pfad, nachweis_name = saved, orig
 
     schritt_name = freigabe["schritt"]
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
@@ -768,7 +775,7 @@ def ablehnen(freigabe_id):
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_abgelehnt",
-                 f"{schritt_name} nicht erledigt. Befunde: {befunde}", person_id, session.get("user_name", "") or None),
+                 f"{schritt_name} nicht erledigt. Befunde: {befunde}", person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -802,6 +809,7 @@ def abbrechen(idv_db_id):
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     offene_ids = [row["id"] for row in offene]
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
@@ -821,7 +829,7 @@ def abbrechen(idv_db_id):
                 (idv_db_id, "freigabe_abgebrochen",
                  "Freigabeverfahren durch Administrator abgebrochen."
                  + (f" Grund: {kommentar}" if kommentar else ""),
-                 person_id, session.get("user_name", "") or None),
+                 person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -870,6 +878,7 @@ def schritt_anlegen(idv_db_id):
     # Bei Pool-Zuweisung: persönliche Zuweisung löschen (Entscheidung fällt bei Übernahme)
     if pool_id:
         zugewiesen = None
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
@@ -884,7 +893,7 @@ def schritt_anlegen(idv_db_id):
 
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_angelegt", f"{schritt} erneut angelegt", person_id, session.get("user_name", "") or None),
+                (idv_db_id, "freigabe_schritt_angelegt", f"{schritt} erneut angelegt", person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -910,13 +919,14 @@ def loeschen(freigabe_id):
         return redirect(url_for("eigenentwicklung.list_idv"))
     idv_db_id = freigabe["idv_id"]
     schritt   = freigabe["schritt"]
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
             c.execute("DELETE FROM idv_freigaben WHERE id=?", (freigabe_id,))
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, "freigabe_schritt_geloescht", f"{schritt} gelöscht", person_id, session.get("user_name", "") or None),
+                (idv_db_id, "freigabe_schritt_geloescht", f"{schritt} gelöscht", person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -967,6 +977,8 @@ def uebernehmen(freigabe_id):
         flash("Kein Personendatensatz für diesen Account.", "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
 
+    user_name = session.get("user_name", "") or None
+
     def _do(c):
         with write_tx(c):
             c.execute(
@@ -976,8 +988,7 @@ def uebernehmen(freigabe_id):
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (freigabe["idv_id"], "freigabe_uebernommen",
-                 f"{freigabe['schritt']} aus Pool übernommen", person_id,
-                 session.get("user_name", "") or None),
+                 f"{freigabe['schritt']} aus Pool übernommen", person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -1024,6 +1035,7 @@ def weiterleiten(freigabe_id):
 
     schritt  = freigabe["schritt"]
     p_name   = f"{p['nachname']}, {p['vorname']}"
+    user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
@@ -1035,7 +1047,7 @@ def weiterleiten(freigabe_id):
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_weitergeleitet",
                  f"{schritt} weitergeleitet an {p_name}",
-                 person_id, session.get("user_name", "") or None),
+                 person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
@@ -1308,6 +1320,8 @@ def archivieren(freigabe_id):
             f"Begründung: {befunde}"
         )
 
+    user_name = session.get("user_name", "") or None
+
     def _do(c):
         with write_tx(c):
             c.execute("""
@@ -1324,10 +1338,10 @@ def archivieren(freigabe_id):
 
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, aktion, hist_kom, person_id, session.get("user_name", "") or None),
+                (idv_db_id, aktion, hist_kom, person_id, user_name),
             )
 
-            freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id)
+            freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, user_name=user_name)
         return freigegeben
 
     freigegeben = get_writer().submit(_do, wait=True)
