@@ -126,29 +126,7 @@
         {{ total }} Einträge
         {% endif %}
       </span>
-      <div class="d-flex gap-2 align-items-center flex-wrap">
-        {% if can_write %}
-        <span id="bulk-info" class="text-muted me-1 small" style="display:none">
-          <span id="bulk-count">0</span> ausgewählt —
-        </span>
-        <select name="neuer_status" id="bulk-status-select" class="form-select form-select-sm d-none"
-          style="width:auto;min-width:160px">
-          <option value="">Status wählen …</option>
-          {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
-          <option value="{{ s }}">{{ s }}</option>
-          {% endfor %}
-        </select>
-        <button type="submit" id="btn-bulk-status" class="btn btn-sm btn-outline-primary d-none"
-          formaction="{{ url_for('eigenentwicklung.bulk_status') }}" data-submit-validate="confirmBulkStatus">
-          <i class="bi bi-arrow-repeat me-1"></i>Status ändern
-        </button>
-        {% endif %}
-        {% if is_admin %}
-        <button type="submit" id="btn-bulk-delete" class="btn btn-sm btn-danger d-none"
-          formaction="{{ url_for('eigenentwicklung.bulk_loeschen') }}" data-submit-validate="confirmBulkDelete">
-          <i class="bi bi-trash me-1"></i>Löschen
-        </button>
-        {% endif %}
+      <div class="d-flex gap-2 align-items-center">
         <a href="{{ url_for('eigenentwicklung.export_excel') }}" class="btn btn-sm btn-outline-success">
           <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
         </a>
@@ -159,6 +137,32 @@
         {% endif %}
       </div>
     </div>
+    {% if can_write or is_admin %}
+    <div id="bulk-bar" class="card-header bg-light border-top-0 d-none">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="text-muted small"><span id="bulk-count">0</span> ausgewählt —</span>
+        {% if can_write %}
+        <select name="neuer_status" id="bulk-status-select" class="form-select form-select-sm"
+          style="width:auto;min-width:160px">
+          <option value="">Status wählen …</option>
+          {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
+          <option value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" id="btn-bulk-status" class="btn btn-sm btn-outline-primary"
+          formaction="{{ url_for('eigenentwicklung.bulk_status') }}" data-submit-validate="confirmBulkStatus">
+          <i class="bi bi-arrow-repeat me-1"></i>Status ändern
+        </button>
+        {% endif %}
+        {% if is_admin %}
+        <button type="submit" id="btn-bulk-delete" class="btn btn-sm btn-danger"
+          formaction="{{ url_for('eigenentwicklung.bulk_loeschen') }}" data-submit-validate="confirmBulkDelete">
+          <i class="bi bi-trash me-1"></i>Löschen
+        </button>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
     <div class="table-responsive">
       <table class="table table-hover mb-0 table-idv" id="idv-table">
         <thead>
@@ -376,20 +380,13 @@
   (function () {
     const selectAll = document.getElementById('select-all');
     const rowChecks = () => document.querySelectorAll('.row-check');
-    const btnDelete = document.getElementById('btn-bulk-delete');
-    const btnStatus = document.getElementById('btn-bulk-status');
-    const statusSelect = document.getElementById('bulk-status-select');
-    const bulkInfo = document.getElementById('bulk-info');
+    const bulkBar = document.getElementById('bulk-bar');
     const bulkCount = document.getElementById('bulk-count');
 
     function updateBulkUI() {
       const n = [...rowChecks()].filter(c => c.checked).length;
-      bulkCount.textContent = n;
-      const show = n > 0;
-      bulkInfo.style.display = show ? '' : 'none';
-      if (statusSelect) { statusSelect.classList.toggle('d-none', !show); }
-      if (btnStatus) { btnStatus.classList.toggle('d-none', !show); }
-      if (btnDelete) { btnDelete.classList.toggle('d-none', !show); }
+      if (bulkCount) bulkCount.textContent = n;
+      if (bulkBar) bulkBar.classList.toggle('d-none', n === 0);
       if (selectAll) {
         selectAll.indeterminate = n > 0 && n < rowChecks().length;
         selectAll.checked = n > 0 && n === rowChecks().length;
