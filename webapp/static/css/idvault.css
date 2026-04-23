@@ -706,17 +706,14 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-color: #bfdbfe;
 }
 
-.status-Freigegeben,
-.status-Genehmigt {
+.status-Freigegeben {
   background: #f0fdf4;
   color: #15803d;
   border-color: #bbf7d0;
 }
 
 .status-Freigegeben\ mit\ Auflagen,
-.status-Freigegeben-mit-Auflagen,
-.status-Genehmigt\ mit\ Auflagen,
-.status-Genehmigt-mit-Auflagen {
+.status-Freigegeben-mit-Auflagen {
   background: var(--amber-50);
   color: var(--amber-700);
   border-color: var(--amber-200);

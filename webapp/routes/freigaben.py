@@ -439,31 +439,49 @@ def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int,
 
 def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int,
                                          bearbeiter_name: str = None) -> bool:
-    """Setzt `teststatus = 'Freigegeben'`, sobald Phase 2 UND Phase 3 komplett sind.
+    """Setzt `teststatus` und `status` auf 'Freigegeben', sobald Phase 2 UND Phase 3 komplett sind.
 
     Commit-frei: muss innerhalb einer umschliessenden write_tx(conn)-
     Transaktion aufgerufen werden. E-Mail-Benachrichtigung wird nicht
     mehr hier ausgeloest (wuerde den Writer-Thread auf SMTP blockieren);
     der Aufrufer muss sie nach erfolgreichem submit() separat anstossen.
+
+    Der Workflow-Status wird automatisch auf 'Freigegeben' gesetzt, sofern
+    er noch nicht in einem abgeschlossenen Zustand ist – Koordinatoren
+    muessen nicht manuell eingreifen.
     """
     if not (_phase2_komplett_erledigt(conn, idv_db_id)
             and _phase3_komplett_erledigt(conn, idv_db_id)):
         return False
     row = conn.execute(
-        "SELECT teststatus FROM idv_register WHERE id=?", (idv_db_id,)
+        "SELECT teststatus, status FROM idv_register WHERE id=?", (idv_db_id,)
     ).fetchone()
     if row and row["teststatus"] == "Freigegeben":
         return False
     now = datetime.now(timezone.utc).isoformat()
-    conn.execute("""
-        UPDATE idv_register
-        SET teststatus='Freigegeben', dokumentation_vorhanden=1, aktualisiert_am=?
-        WHERE id=?
-    """, (now, idv_db_id))
+    # Workflow-Status automatisch auf 'Freigegeben' setzen, sofern er noch
+    # nicht in einem Endzustand ist (z. B. 'Freigegeben mit Auflagen' bleibt).
+    _ABGESCHLOSSENE_STATUS = {"Freigegeben", "Freigegeben mit Auflagen",
+                               "Abgelehnt", "Abgekündigt", "Archiviert"}
+    aktueller_status = row["status"] if row else None
+    status_update = (
+        ", status='Freigegeben', status_geaendert_am=?, status_geaendert_von_id=?"
+        if aktueller_status not in _ABGESCHLOSSENE_STATUS
+        else ""
+    )
+    params: list = [now, idv_db_id]
+    if status_update:
+        params = [now, person_id, now, idv_db_id]
+    conn.execute(
+        f"UPDATE idv_register SET teststatus='Freigegeben', dokumentation_vorhanden=1,"
+        f" aktualisiert_am=?{status_update} WHERE id=?",
+        params,
+    )
     conn.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "freigabe_erteilt",
-         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung freigegeben", person_id, bearbeiter_name)
+         "Alle Freigabe-Schritte (Phase 1+2+3) erledigt – Eigenentwicklung automatisch freigegeben",
+         person_id, bearbeiter_name)
     )
     return True
 
