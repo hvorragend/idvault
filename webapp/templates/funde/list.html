@@ -685,6 +685,14 @@ date_to} %}
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
               {{ f.file_owner or f.office_author or '–' }}
+              {% set _esc = escalation_stages.get(f.file_owner) if escalation_stages and f.file_owner %}
+              {% if _esc == 'reminder' %}
+              <span class="badge bg-warning text-dark fs-9 ms-1" title="Self-Service-Reminder gesendet">⚠ Reminder</span>
+              {% elif _esc == 'oe_lead' %}
+              <span class="badge bg-orange text-dark fs-9 ms-1" style="background:#fd7e14;color:#fff" title="OE-Leiter eskaliert">⚠ OE-Leiter</span>
+              {% elif _esc == 'coordinator' %}
+              <span class="badge bg-danger fs-9 ms-1" title="An Koordinator eskaliert">⚠ Koord.</span>
+              {% endif %}
             </td>
 
             <!-- Makros -->

@@ -132,6 +132,9 @@ CREATE TABLE IF NOT EXISTS persons (
     password_hash   TEXT,                            -- SHA-256 (Fallback-Login)
     stellvertreter_id INTEGER REFERENCES persons(id), -- allg. Stellvertreter (MaRisk AT 7.2)
     abwesend_bis    TEXT,                             -- ISO-Date bis wann abwesend (z.B. "2026-05-01")
+    -- Issue #355: optionaler OE-Leiter / Vorgesetzter, an den die
+    -- zweite Eskalations-Stufe der Self-Service-Reminder gemailt wird.
+    oe_leiter_id    INTEGER REFERENCES persons(id),
     created_at      TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );
 
@@ -209,6 +212,10 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     -- als verkuerztes Verfahren fuer nicht-wesentliche Eigenentwicklungen.
     -- Default aus (Opt-In pro Bank).
     ('silent_release_enabled',                '0'),
+    -- Issue #355: dreistufige Eskalations-Automatik fuer Self-Service-Links
+    ('escalation_reminder_days',              '7'),
+    ('escalation_to_lead_days',               '14'),
+    ('escalation_to_coordinator_days',        '21'),
     ('self_service_frequency_days',           '7'),
     ('self_service_last_digest_date',         ''),
     ('auto_ignore_no_formula', '0'),
