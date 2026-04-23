@@ -150,6 +150,7 @@ _FUNDE_SORT_COLS = {
     "groesse":    "f.size_bytes",
     "geaendert":  "f.modified_at",
     "scan":       "f.last_seen_at",
+    "prioritaet": "(f.has_macros * 1000000 + COALESCE(f.formula_count, 0))",
     "eigentümer": "f.file_owner",
     "dir_path":   _DIR_PATH_EXPR,
 }
