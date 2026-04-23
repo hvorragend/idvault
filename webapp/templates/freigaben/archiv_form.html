@@ -96,6 +96,47 @@
       Statusschritt mit Begründung festzuhalten.
     </div>
 
+    {% if scanner_dateien and scanner_dateien|length == 1 %}
+    {% set only_file = scanner_dateien[0] %}
+    <div class="card border-success shadow-sm mb-3">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div class="flex-grow-1">
+            <div class="fw-600 text-success mb-1">
+              <i class="bi bi-lightning-charge-fill me-1"></i>Ein-Klick-Archivierung
+            </div>
+            <div class="small mb-1">
+              Genau eine verknüpfte Scanner-Datei. Sie kann direkt ohne weitere
+              Eingaben ins Archiv übernommen werden. Der SHA-256 wird neu
+              berechnet und gegen den beim Scan aufgezeichneten Wert geprüft —
+              bei Abweichung wird die Archivierung abgebrochen.
+            </div>
+            <div class="small text-muted font-monospace text-break">
+              <i class="bi bi-file-earmark me-1"></i>{{ only_file.file_name }}
+              {% if only_file.size_bytes %}
+              <span class="ms-1">({{ (only_file.size_bytes / 1024)|round(1) }} KB)</span>
+              {% endif %}
+            </div>
+            <div class="small text-muted font-monospace text-break" style="font-size:0.78rem">
+              {{ only_file.full_path }}
+            </div>
+          </div>
+          <form method="post"
+                action="{{ url_for('freigaben.archivieren', freigabe_id=freigabe.id) }}"
+                class="flex-shrink-0"
+                data-confirm="Datei ohne weitere Eingaben ins Archiv übernehmen?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="archiv_quelle" value="scanner">
+            <input type="hidden" name="scanner_file_id" value="{{ only_file.id }}">
+            <button type="submit" class="btn btn-success btn-sm">
+              <i class="bi bi-archive-fill me-1"></i>Diese Datei archivieren
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <form method="post" action="{{ url_for('freigaben.archivieren', freigabe_id=freigabe.id) }}"
           enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
