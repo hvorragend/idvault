@@ -95,6 +95,51 @@ Revision die Ausnahmen unmittelbar auswerten kann
 Beim ersten LDAP-Login wird die Person automatisch angelegt; spätere Logins
 aktualisieren Stammdaten (Name, E-Mail, Rolle).
 
+### 2.5 Login-freier Self-Service (Owner-Mail-Digest)
+
+Zur Entlastung des IDV-Koordinators kann idvault offene Scanner-Funde
+gruppiert an den jeweiligen Dateieigentümer mailen. Der Empfänger erhält
+einen Magic-Link auf eine Minimalansicht („Meine Funde"), in der
+ausschließlich zwei Aktionen möglich sind: **Ignorieren** oder **Zur
+Registrierung vormerken**. Die fachliche IDV-Einordnung bleibt vollständig
+beim Koordinator.
+
+Schutzmaßnahmen (Implementierung in `webapp/routes/self_service.py`,
+`webapp/tokens.py`, Tabellen `self_service_tokens` und `self_service_audit`):
+
+- **Doppelter Master-Schalter** (Defense-in-Depth): Self-Service ist nur
+  aktiv, wenn `config.json["IDV_SELF_SERVICE_ENABLED"] = true` **und** in
+  der Admin-UI `self_service_enabled = 1` gesetzt ist. Ist einer der beiden
+  Schalter ausgeschaltet, antwortet die Route mit HTTP 404 und es werden
+  keine Digest-Mails versendet. Default: beide aus.
+- **Magic-Link-Token**: HMAC-SHA256-signiert via
+  `itsdangerous.URLSafeTimedSerializer` mit dediziertem Salt
+  (`idvault-self-service-v1`, isoliert von Quick-Actions). TTL: 7 Tage.
+- **Einmaleintritt & Revoke**: Jeder Token trägt einen serverseitigen jti
+  in `self_service_tokens`. Der erste Klick markiert `first_used_at`; ein
+  expliziter „Fertig"-Klick oder ein Fehlversand setzt `revoked_at` und
+  entwertet den Token. Revokte oder abgelaufene Tokens werden abgelehnt.
+- **Zuständigkeits-Filter**: Die Minimalansicht zeigt ausschließlich
+  Funde, deren `file_owner` (case-insensitive) zu `persons.user_id`,
+  `persons.kuerzel` oder `persons.ad_name` des Token-Inhabers passt. Jede
+  POST-Aktion prüft diese Bindung erneut.
+- **CSRF**: Alle POST-Formulare tragen den globalen CSRF-Token
+  (Flask-WTF); die Session-ID wird nicht mit einem eingeloggten Benutzer
+  vermischt (separate Session-Keys `_ss_person_id` / `_ss_jti`).
+- **Rate-Limit**: `30 per minute; 200 per hour` pro Client-IP auf den
+  Self-Service-Routen, um Brute-Force auf jti-Werte zu verhindern.
+- **Dedup**: Pro Empfänger wird innerhalb von
+  `self_service_frequency_days` (Default 7 Tage) höchstens ein Digest
+  versendet; Eintragung in `notification_log` mit Kind `owner_digest`.
+- **Audit**: Jede ausgelöste Aktion wird in `self_service_audit`
+  protokolliert (person_id, file_id, aktion, quelle `mail-link`,
+  jti, Zeitstempel). Damit bleibt der Vorgang für Revision und
+  IDV-Koordinator nachvollziehbar.
+- **Keine Querzugriffe**: Die Self-Service-Session gewährt weder
+  Leserechte auf andere IDVs/Funde noch auf das reguläre Webinterface;
+  sie erlaubt ausschließlich die beiden genannten Aktionen auf Funde des
+  Token-Inhabers.
+
 ## 3 Transportsicherheit
 
 ### 3.1 HTTPS (eingehend)

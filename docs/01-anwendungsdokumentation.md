@@ -454,6 +454,36 @@ Neu → Zur Registrierung → Registriert
 
 Details siehe [10 – Scanner](10-scanner.md).
 
+#### 5.7.1 Self-Service-Owner-Digest (optional, Default aus)
+
+Um den IDV-Koordinator zu entlasten, kann idvault die offenen Funde
+(`bearbeitungsstatus='Neu'`) periodisch gruppiert an den jeweiligen
+Dateieigentümer versenden (Owner-Mail-Digest). Der Empfänger kann per
+Magic-Link eine login-freie Minimalansicht „Meine Funde" öffnen und pro
+Datei entweder **Ignorieren** oder **Zur Registrierung vormerken** wählen.
+Die fachliche IDV-Einordnung und Zuordnung zum IDV-Register bleibt
+ausschließlich beim Koordinator.
+
+- Zuordnung Empfänger ↔ Fund: `idv_files.file_owner` wird gegen
+  `persons.user_id` / `persons.kuerzel` / `persons.ad_name`
+  (case-insensitive) abgeglichen.
+- Dedup pro Empfänger über `notification_log` mit dem Intervall aus
+  `app_settings.self_service_frequency_days` (Default 7 Tage).
+- Magic-Link: HMAC-signiert (itsdangerous, Salt `idvault-self-service-v1`),
+  7-Tage-TTL, serverseitig verfolgter jti (`self_service_tokens`) für
+  Einmal-Eintritt und explizites Revoke über „Fertig".
+- Jede Self-Service-Aktion erzeugt einen Audit-Eintrag in
+  `self_service_audit` (Quelle `mail-link`).
+
+Aktivierung (beide Schalter nötig — Defense-in-Depth):
+
+1. Bootstrap: `config.json["IDV_SELF_SERVICE_ENABLED"] = true`.
+2. Admin-UI: `Administration → E-Mail-Einstellungen → Self-Service
+   aktivieren` ankreuzen, Intervall optional anpassen.
+
+Ist einer der beiden Schalter deaktiviert, werden keine Digest-Mails
+versendet **und** die Route `/selbst/meine-funde` antwortet mit HTTP 404.
+
 ### 5.8 Administration
 
 - **Personen** – Mitarbeiterverwaltung (inkl. User-ID, E-Mail, AD-Name, Passwort)
@@ -547,6 +577,7 @@ werden aus der Personen-Tabelle abgeleitet.
 | Pool-Schritt wartet auf Claim (täglich) | Aktive Pool-Mitglieder des zugewiesenen Pools, solange kein Claim gesetzt ist und der Schritt nicht älter als `notify_pool_reminder_max_days` Tage ist (Default 14) |
 | Freigabeverfahren vollständig bestanden | Koordinatoren, Administratoren, Entwickler |
 | Datei-Bewertung | Verantwortlicher |
+| Owner-Digest (optional, nur bei aktiviertem Self-Service) | Fachbereichs-Mitarbeiter mit noch nicht bearbeiteten Scanner-Funden (`file_owner` → `persons` via `user_id`/`kuerzel`/`ad_name`). Versand gedrosselt auf ein Intervall pro Empfänger (`self_service_frequency_days`, Default 7 Tage). |
 
 Die Pool-Reminder starten automatisch am Tag nach Anlage des Schritts und
 enden, sobald ein Pool-Mitglied *Ich übernehme* anklickt (Claim gesetzt)

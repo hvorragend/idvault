@@ -20,6 +20,9 @@
   "IDV_DEMO_DATA": false,
   "_kommentar_demo": "true = Beim allerersten Start Demo-Stammdaten einspielen (Mitarbeiter, OE, Geschäftsprozesse, Beispiel-IDVs, Prüfungen, Maßnahmen). Einmalig: sobald die Daten eingespielt wurden, wird dieser Schalter ignoriert. false = Keine Demo-Daten (Produktivbetrieb).",
 
+  "IDV_SELF_SERVICE_ENABLED": false,
+  "_kommentar_self_service": "false = Self-Service-Routen unter /selbst sind deaktiviert (keine Owner-Digest-Mails, Routen antworten mit 404). true = Bootstrap-Master-Schalter ist gesetzt; zusätzlich muss im Admin-Bereich (E-Mail-Einstellungen) 'Self-Service aktivieren' angehakt sein. Beide Schalter wirken gemeinsam (Defense-in-Depth).",
+
   "IDV_LOCAL_USERS": [
     {
       "_hinweis": "Variante A (empfohlen) – Passwort-Hash. Erzeugen mit: python -c \"from werkzeug.security import generate_password_hash; print(generate_password_hash('mein-passwort', method='pbkdf2:sha256'))\"",

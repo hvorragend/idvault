@@ -203,6 +203,10 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('notify_enabled_freigabe_abgeschlossen', '1'),
     ('notify_enabled_bewertung',              '1'),
     ('notify_enabled_massnahme_ueberfaellig', '1'),
+    ('notify_enabled_owner_digest',           '1'),
+    ('self_service_enabled',                  '0'),
+    ('self_service_frequency_days',           '7'),
+    ('self_service_last_digest_date',         ''),
     ('auto_ignore_no_formula', '0'),
     -- Keys, die seit 2026-04 aus der config.json in die DB gewandert sind:
     ('login_rate_limit',        '5 per minute;30 per hour'),
@@ -1070,3 +1074,39 @@ CREATE TABLE IF NOT EXISTS notification_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notif_log_sent_date ON notification_log(sent_date);
+
+-- -----------------------------------------------------------------------------
+-- 16. SELF-SERVICE (Owner-Mail-Digest + Magic-Link, Issue #315)
+-- -----------------------------------------------------------------------------
+
+-- Einmalige Magic-Links aus Owner-Digest-Mails (HMAC-signiert via itsdangerous).
+-- Wir speichern nur den jti, nicht den Token selbst.
+CREATE TABLE IF NOT EXISTS self_service_tokens (
+    jti            TEXT    PRIMARY KEY,
+    person_id      INTEGER NOT NULL REFERENCES persons(id),
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now','utc')),
+    expires_at     TEXT    NOT NULL,
+    first_used_at  TEXT,
+    revoked_at     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_self_service_tokens_person
+    ON self_service_tokens(person_id);
+CREATE INDEX IF NOT EXISTS idx_self_service_tokens_expires
+    ON self_service_tokens(expires_at);
+
+-- Audit-Trail für Self-Service-Aktionen (Quelle "mail-link").
+CREATE TABLE IF NOT EXISTS self_service_audit (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    person_id   INTEGER REFERENCES persons(id),
+    file_id     INTEGER REFERENCES idv_files(id),
+    aktion      TEXT NOT NULL,     -- 'ignoriert' | 'zur_registrierung'
+    quelle      TEXT NOT NULL DEFAULT 'mail-link',
+    jti         TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','utc'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_self_service_audit_person
+    ON self_service_audit(person_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_self_service_audit_file
+    ON self_service_audit(file_id);
