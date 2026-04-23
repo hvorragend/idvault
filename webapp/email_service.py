@@ -438,7 +438,34 @@ _DEFAULTS["bewertung_body"] = """\
   Diese Nachricht wurde automatisch von idvault gesendet.</p>
 </body></html>"""
 
-# ── 6. Überfällige Maßnahme ──────────────────────────────────────────────
+# ── 7. Pool-Freigabeschritt wartet auf Claim (täglicher Reminder) ───────
+
+_DEFAULTS["freigabe_pool_reminder_subject"] = "[idvault] Freigabeschritt wartet: {schritt} – {idv_id}"
+_DEFAULTS["freigabe_pool_reminder_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#0d6efd;">idvault – Pool-Freigabeschritt wartet</h2>
+<p>Ein Freigabeschritt, der Ihrem Pool <strong>{pool_name}</strong> zugewiesen
+   ist, wartet seit {wartet_seit_tage} Tag(en) auf Bearbeitung und wurde noch
+   von niemandem übernommen.</p>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
+      <td style="padding:6px;">{idv_id}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
+      <td style="padding:6px;">{bezeichnung}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold;">Schritt</td>
+      <td style="padding:6px;font-weight:bold;color:#0d6efd;">{schritt}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pool</td>
+      <td style="padding:6px;">{pool_name}</td></tr>
+</table>
+<p style="margin-top:16px;">Bitte melden Sie sich in idvault an und klicken Sie
+   auf <em>„Ich übernehme"</em>, damit die Aufgabe nicht weiter liegen bleibt.
+   Sobald ein Pool-Mitglied den Schritt übernimmt, wird dieser Reminder
+   für alle anderen Mitglieder eingestellt.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
+# ── 8. Überfällige Maßnahme ──────────────────────────────────────────────
 
 _DEFAULTS["massnahme_ueberfaellig_subject"] = "[idvault] Überfällige Maßnahme: {titel}"
 _DEFAULTS["massnahme_ueberfaellig_body"] = """\
@@ -486,6 +513,10 @@ EMAIL_TEMPLATES = {
     "massnahme_ueberfaellig": {
         "label": "Überfällige Maßnahme",
         "placeholders": ["titel", "faellig_am"],
+    },
+    "freigabe_pool_reminder": {
+        "label": "Pool-Freigabeschritt wartet auf Claim (täglicher Reminder)",
+        "placeholders": ["idv_id", "bezeichnung", "schritt", "pool_name", "wartet_seit_tage"],
     },
 }
 
@@ -826,6 +857,48 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
 
     text = _strip_html_tags(html)
     return send_mail(db, recipient_email, subject, html, text)
+
+
+def notify_freigabe_pool_reminder(db, idv_row, schritt: str, pool_name: str,
+                                  wartet_seit_tage: int,
+                                  recipient_emails: list,
+                                  action_url: str = None) -> bool:
+    """Täglicher Reminder an Pool-Mitglieder für noch nicht geclaimte Schritte."""
+    if not _is_notify_enabled(db, "freigabe_pool_reminder"):
+        return False
+    if not recipient_emails:
+        return False
+
+    idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
+    name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
+
+    placeholders = {
+        "idv_id":            idv_id,
+        "bezeichnung":       name,
+        "schritt":           schritt,
+        "pool_name":         pool_name,
+        "wartet_seit_tage":  str(wartet_seit_tage),
+    }
+
+    subject, html, text = _load_template(
+        db, "freigabe_pool_reminder",
+        _DEFAULTS["freigabe_pool_reminder_subject"],
+        _DEFAULTS["freigabe_pool_reminder_body"],
+        placeholders,
+    )
+
+    if action_url:
+        cta = (
+            '<p style="margin-top:24px;text-align:center;">'
+            f'<a href="{action_url}" style="background:#0d6efd;color:#ffffff;'
+            'padding:12px 32px;border-radius:6px;text-decoration:none;'
+            'font-weight:bold;font-size:15px;display:inline-block;">'
+            f'Schritt „{schritt}" öffnen →</a></p>'
+        )
+        html = html.replace("</body>", cta + "</body>")
+        text = _strip_html_tags(html)
+
+    return send_mail(db, recipient_emails, subject, html, text)
 
 
 def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:

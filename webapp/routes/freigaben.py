@@ -526,7 +526,8 @@ def starten(idv_db_id):
     get_writer().submit(_do, wait=True)
 
     _notify_schritte(db, idv_db_id, _PHASE_1,
-                     {_PHASE_1[0]: zugewiesen_fachlich, _PHASE_1[1]: zugewiesen_technisch})
+                     {_PHASE_1[0]: zugewiesen_fachlich, _PHASE_1[1]: zugewiesen_technisch},
+                     {_PHASE_1[0]: pool_id_fachlich, _PHASE_1[1]: pool_id_technisch})
 
     flash("Phase 1 gestartet: Fachlicher Test und Technischer Test laufen parallel.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
@@ -585,7 +586,8 @@ def abnahme_starten(idv_db_id):
     get_writer().submit(_do, wait=True)
 
     _notify_schritte(db, idv_db_id, _PHASE_2,
-                     {_PHASE_2[0]: zugewiesen_fachlich, _PHASE_2[1]: zugewiesen_technisch})
+                     {_PHASE_2[0]: zugewiesen_fachlich, _PHASE_2[1]: zugewiesen_technisch},
+                     {_PHASE_2[0]: pool_id_fachlich, _PHASE_2[1]: pool_id_technisch})
 
     flash("Phase 2 gestartet: Fachliche Abnahme und Technische Abnahme laufen parallel.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
@@ -1031,7 +1033,8 @@ def schritt_anlegen(idv_db_id):
 
     get_writer().submit(_do, wait=True)
 
-    _notify_schritte(db, idv_db_id, [schritt], {schritt: zugewiesen})
+    _notify_schritte(db, idv_db_id, [schritt], {schritt: zugewiesen},
+                     {schritt: pool_id})
 
     # Phase 3: direkt zur Archivierungs-Maske weiterleiten, damit der Nutzer
     # die Datei in einem Rutsch archivieren kann — ohne zweiten Klick.
@@ -1147,7 +1150,8 @@ def wieder_oeffnen(freigabe_id):
             )
 
     get_writer().submit(_do, wait=True)
-    _notify_schritte(db, idv_db_id, [schritt], {schritt: freigabe["zugewiesen_an_id"]})
+    _notify_schritte(db, idv_db_id, [schritt], {schritt: freigabe["zugewiesen_an_id"]},
+                     {schritt: freigabe["pool_id"]})
     flash(f"'{schritt}' wurde wieder geöffnet und kann erneut beantwortet werden.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -1412,7 +1416,8 @@ def weiterleiten(freigabe_id):
                 )
 
         get_writer().submit(_do, wait=True)
-        _notify_schritte(db, idv_db_id, [schritt], {schritt: None})
+        _notify_schritte(db, idv_db_id, [schritt], {schritt: None},
+                         {schritt: pool_id})
         flash(f"'{schritt}' wurde an {ziel_name} weitergeleitet.", "success")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
@@ -1872,8 +1877,17 @@ def nachweis_download(freigabe_id):
 # ---------------------------------------------------------------------------
 
 def _notify_schritte(db, idv_db_id: int, schritte: list,
-                     zugewiesen_map: dict) -> None:
-    """Sendet E-Mail an zugewiesene Personen und Koordinatoren für die gegebenen Schritte."""
+                     zugewiesen_map: dict,
+                     pool_map: dict = None) -> None:
+    """Sendet E-Mail an zugewiesene Personen, Pool-Mitglieder und Koordinatoren.
+
+    ``pool_map`` ordnet jedem Schritt eine pool_id (oder None) zu. Ist ein
+    Schritt einem Pool mit ≥ 1 aktiven Mitgliedern zugewiesen, werden alle
+    Pool-Mitglieder benachrichtigt (außer dem IDV-Entwickler). Für 0-Mitglied-
+    Pools bleibt es bei den Koordinatoren, für 1-Mitglied-Pools entspricht
+    der Versand einer persönlichen Zuweisung.
+    """
+    pool_map = pool_map or {}
     try:
         idv = db.execute(
             "SELECT idv_id, bezeichnung, idv_entwickler_id FROM idv_register WHERE id=?",
@@ -1887,6 +1901,7 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
 
         secret_key = current_app.config["SECRET_KEY"]
         base_url = get_app_base_url(db)
+        entwickler_id = idv["idv_entwickler_id"] or 0
 
         for schritt in schritte:
             recipient_set = set()
@@ -1897,7 +1912,7 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
                 WHERE p.aktiv=1 AND p.email IS NOT NULL
                   AND p.rolle IN ('IDV-Koordinator','IDV-Administrator')
                   AND p.id != ?
-            """, (idv["idv_entwickler_id"] or 0,)).fetchall():
+            """, (entwickler_id,)).fetchall():
                 if r["email"]:
                     recipient_set.add(r["email"])
 
@@ -1909,6 +1924,20 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
                 ).fetchone()
                 if p and p["email"]:
                     recipient_set.add(p["email"])
+
+            # Pool-Mitglieder für diesen Schritt (Sofort-Benachrichtigung)
+            pool_id = pool_map.get(schritt)
+            if pool_id:
+                for r in db.execute("""
+                    SELECT p.email FROM freigabe_pool_members m
+                    JOIN persons p ON p.id = m.person_id
+                    WHERE m.pool_id = ?
+                      AND p.aktiv = 1
+                      AND p.email IS NOT NULL AND p.email <> ''
+                      AND p.id != ?
+                """, (pool_id, entwickler_id)).fetchall():
+                    if r["email"]:
+                        recipient_set.add(r["email"])
 
             recipients = list(recipient_set)
             if not recipients:
