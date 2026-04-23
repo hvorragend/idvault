@@ -53,6 +53,7 @@ def similarity_settings():
                 cfg["suggest_threshold"], hi=100,
             ),
             "auto_link_hash_duplicates": request.form.get("auto_link_hash_duplicates") == "1",
+            "auto_link_version_series": request.form.get("auto_link_version_series") == "1",
         }
 
         if request.form.get("reset") == "1":

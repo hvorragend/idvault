@@ -109,6 +109,24 @@
                 </span>
               </label>
             </div>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="auto_link_version_series"
+                     name="auto_link_version_series" value="1"
+                     {% if cfg.auto_link_version_series %}checked{% endif %}>
+              <label class="form-check-label" for="auto_link_version_series">
+                <strong>Versions-Serien automatisch verknüpfen</strong>
+                <span class="text-muted fs-7">
+                  – Wiederkehrende Versionen derselben Datei (z.&nbsp;B.
+                  <code>Report_2024Q1.xlsx</code> →
+                  <code>Report_2024Q2.xlsx</code>) werden anhand eines
+                  Versions-Fingerprints (Ordner + Stem mit maskiertem
+                  Jahr/Quartal/Monat/Versions-Suffix) als Zusatz-Link zur
+                  bereits registrierten IDV verknüpft. Wirkt nur, wenn das
+                  Ziel eindeutig ist; mehrere Treffer landen wie bei der
+                  Hash-Regel im Vorschlags- bzw. Triage-Pfad.
+                </span>
+              </label>
+            </div>
           </div>
         </div>
       </div>
