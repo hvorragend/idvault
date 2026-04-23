@@ -108,7 +108,7 @@ def _load_funde(db, person_id: int):
         (person_id,),
     ).fetchone()
     if person is None:
-        return None, []
+        return None, [], []
 
     owner_sql, owner_params = _owner_expressions(dict(person))
     funde = db.execute(f"""
@@ -123,7 +123,32 @@ def _load_funde(db, person_id: int):
            AND NOT EXISTS (SELECT 1 FROM idv_file_links l WHERE l.file_id = f.id)
          ORDER BY f.has_macros DESC, f.formula_count DESC, f.first_seen_at ASC
     """, owner_params).fetchall()
-    return dict(person), funde
+
+    # Offene Zuordnungs-Vorschläge (mittlere Konfidenz aus der Auto-Zuordnung)
+    # zu Dateien desselben Owners. Das Self-Service-Formular bietet dem Owner
+    # hier „Bestätigen" / „Ablehnen" an.
+    vorschlaege = db.execute(f"""
+        SELECT s.id          AS suggestion_id,
+               s.score,
+               f.id           AS file_id,
+               f.file_name,
+               f.full_path,
+               r.id           AS idv_db_id,
+               r.idv_id,
+               r.bezeichnung  AS idv_bezeichnung
+          FROM idv_match_suggestions s
+          JOIN idv_files    f ON f.id = s.file_id
+          JOIN idv_register r ON r.id = s.idv_db_id
+         WHERE s.decision IS NULL
+           AND f.status = 'active'
+           AND f.bearbeitungsstatus = 'Neu'
+           AND r.status NOT IN ('Archiviert')
+           AND NOT EXISTS (SELECT 1 FROM idv_file_links l
+                            WHERE l.file_id = f.id AND l.idv_db_id = r.id)
+           AND {owner_sql}
+         ORDER BY s.score DESC, s.created_at ASC
+    """, owner_params).fetchall()
+    return dict(person), funde, vorschlaege
 
 
 def _file_belongs_to_person(db, file_id: int, person: dict) -> bool:
@@ -215,7 +240,7 @@ def meine_funde():
                   "E-Mail öffnen.",
         ), 400
 
-    person, funde = _load_funde(db, ctx["person_id"])
+    person, funde, vorschlaege = _load_funde(db, ctx["person_id"])
     if person is None:
         abort(404)
 
@@ -223,6 +248,7 @@ def meine_funde():
         "self_service/meine_funde.html",
         person=person,
         funde=funde,
+        vorschlaege=vorschlaege,
     )
 
 
@@ -280,6 +306,128 @@ def fund_aktion(file_id: int):
         flash('Datei als „Ignoriert" markiert.', "success")
     else:
         flash("Datei zur Registrierung vorgemerkt.", "success")
+    return redirect(url_for("self_service.meine_funde"))
+
+
+@bp.route("/vorschlag/<int:suggestion_id>/entscheiden", methods=["POST"])
+@limiter.limit(_ss_rate_limit)
+def vorschlag_entscheiden(suggestion_id: int):
+    """POST-Endpoint für einen Zuordnungs-Vorschlag: ``bestaetigen`` verknüpft
+    die Datei mit der vorgeschlagenen Eigenentwicklung und markiert sie als
+    ``Registriert``; ``ablehnen`` setzt den Vorschlag auf ``rejected`` und
+    lässt die Datei im Eingangskorb."""
+    db = get_db()
+    if not _self_service_master_enabled(db):
+        abort(404)
+
+    ctx = _resolve_session(db)
+    if ctx is None:
+        flash("Sitzung abgelaufen. Bitte Link aus der E-Mail erneut öffnen.", "error")
+        return redirect(url_for("self_service.meine_funde"))
+
+    aktion = request.form.get("aktion", "").strip()
+    if aktion not in ("bestaetigen", "ablehnen"):
+        flash("Unbekannte Aktion.", "error")
+        return redirect(url_for("self_service.meine_funde"))
+
+    person = db.execute(
+        "SELECT id, user_id, kuerzel, ad_name FROM persons WHERE id = ?",
+        (ctx["person_id"],),
+    ).fetchone()
+    if person is None:
+        flash("Person nicht gefunden.", "error")
+        return redirect(url_for("self_service.meine_funde"))
+
+    # Vorschlag + Ownership in einem Zug prüfen: der Vorschlag muss offen sein,
+    # die Datei aktiv/neu, und der Owner muss mit der Self-Service-Person
+    # zusammenfallen (identische Filter wie in _owner_expressions).
+    owner_sql, owner_params = _owner_expressions(dict(person))
+    row = db.execute(
+        f"""
+        SELECT s.id AS suggestion_id, s.score,
+               f.id AS file_id, f.file_name,
+               r.id AS idv_db_id, r.idv_id
+          FROM idv_match_suggestions s
+          JOIN idv_files    f ON f.id = s.file_id
+          JOIN idv_register r ON r.id = s.idv_db_id
+         WHERE s.id = ?
+           AND s.decision IS NULL
+           AND f.status = 'active'
+           AND f.bearbeitungsstatus = 'Neu'
+           AND r.status NOT IN ('Archiviert')
+           AND {owner_sql}
+        """,
+        [suggestion_id] + owner_params,
+    ).fetchone()
+    if row is None:
+        flash("Der Vorschlag ist nicht mehr gültig oder steht nicht in Ihrer "
+              "Zuständigkeit.", "error")
+        return redirect(url_for("self_service.meine_funde"))
+
+    jti       = ctx["jti"]
+    person_id = ctx["person_id"]
+    decision  = "confirmed" if aktion == "bestaetigen" else "rejected"
+    audit_aktion = (
+        "vorschlag_bestaetigt" if decision == "confirmed" else "vorschlag_abgelehnt"
+    )
+    history_aktion = (
+        "scan_user_confirmed" if decision == "confirmed" else "scan_user_rejected"
+    )
+    history_kommentar = (
+        f"Scanner-Fund '{row['file_name']}' (file_id={row['file_id']}) "
+        f"vom Fachbereich "
+        + ("bestätigt" if decision == "confirmed" else "abgelehnt")
+        + f" (Score {row['score']}, Self-Service)"
+    )
+
+    def _do(c,
+            _sid=row["suggestion_id"], _fid=row["file_id"], _idv=row["idv_db_id"],
+            _decision=decision, _pid=person_id, _jti=jti,
+            _audit=audit_aktion, _hist=history_aktion, _hk=history_kommentar):
+        with write_tx(c):
+            c.execute(
+                "UPDATE idv_match_suggestions "
+                "SET decision = ?, decided_at = datetime('now','utc'), "
+                "    decided_by_person_id = ? "
+                "WHERE id = ? AND decision IS NULL",
+                (_decision, _pid, _sid),
+            )
+            if _decision == "confirmed":
+                c.execute(
+                    "INSERT OR IGNORE INTO idv_file_links "
+                    "(idv_db_id, file_id) VALUES (?, ?)",
+                    (_idv, _fid),
+                )
+                c.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus='Registriert' "
+                    "WHERE id = ? AND bearbeitungsstatus = 'Neu'",
+                    (_fid,),
+                )
+            c.execute(
+                "INSERT INTO idv_history "
+                "(idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) "
+                "VALUES (?,?,?,?,?)",
+                (_idv, _hist, _hk, _pid, None),
+            )
+            c.execute(
+                "INSERT INTO self_service_audit "
+                "(person_id, file_id, aktion, quelle, jti) "
+                "VALUES (?, ?, ?, 'mail-link', ?)",
+                (_pid, _fid, _audit, _jti),
+            )
+
+    get_writer().submit(_do, wait=True)
+    if decision == "confirmed":
+        flash(
+            f"Datei „{row['file_name']}“ mit {row['idv_id']} verknüpft.",
+            "success",
+        )
+    else:
+        flash(
+            f"Vorschlag für „{row['file_name']}“ abgelehnt. Die Datei bleibt "
+            "im Eingang.",
+            "success",
+        )
     return redirect(url_for("self_service.meine_funde"))
 
 

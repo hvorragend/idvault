@@ -48,6 +48,10 @@ def similarity_settings():
                 request.form.get("auto_assign_threshold"),
                 cfg["auto_assign_threshold"], hi=100,
             ),
+            "suggest_threshold": _parse_int(
+                request.form.get("suggest_threshold"),
+                cfg["suggest_threshold"], hi=100,
+            ),
             "auto_link_hash_duplicates": request.form.get("auto_link_hash_duplicates") == "1",
         }
 
