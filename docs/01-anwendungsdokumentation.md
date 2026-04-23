@@ -347,6 +347,33 @@ Phase 1 (parallel):         Phase 2 (parallel):         Phase 3:
 Phase 3 wird automatisch angelegt, sobald beide Phase-2-Schritte bestanden
 sind; die Gesamtfreigabe erfolgt erst nach Abschluss der Archivierung.
 
+#### 5.5.0 Änderungskategorie: grundlegend vs. patch
+
+Beim Start einer neuen Version wählt der Verantwortliche die
+**Änderungskategorie**, die den Verfahrensumfang bestimmt:
+
+| Kategorie | Verfahren | Zulässig |
+|---|---|---|
+| `grundlegend` | Voller 3-Phasen-Workflow (Default) | Immer, Pflicht bei Erstfreigabe |
+| `patch` | Nur die vom Admin konfigurierten Schritte (z.B. Technischer Test + Fachliche Abnahme + Archivierung) | Nur bei neuer Version einer bereits freigegebenen IDV **und** keiner GDA=4 / DORA-kritischen Einstufung |
+
+Bei `patch` ist eine **Begründung** verpflichtend (Freitext), die im
+Audit-Log landet. Für jede Freigabe wird die gewählte Kategorie und die
+Begründung in `idv_register.freigabe_aenderungskategorie` bzw.
+`.freigabe_patch_begruendung` festgeschrieben; ein History-Eintrag mit
+Aktion `freigabe_gestartet_patch` bzw. `freigabe_gestartet` dokumentiert
+die Entscheidung.
+
+Die aktiven Patch-Schritte konfiguriert der Administrator unter
+*Administration → Patch-Workflow*. Der Default ist konservativ
+(`Technischer Test`, `Fachliche Abnahme`, `Archivierung Originaldatei`);
+mindestens ein Schritt muss aktiv bleiben.
+
+GDA=4- und DORA-kritische IDVs können nicht als `patch` eingestuft werden
+(FA-045, vgl. 07-aufsichtsrecht). Die Einstufung wird serverseitig gegen
+`geschaeftsprozesse.ist_kritisch` und die erfüllten
+Wesentlichkeitskriterien geprüft.
+
 | Schritt-Status | Bedeutung |
 |---|---|
 | Ausstehend | Schritt angelegt, wartet auf Durchführung |

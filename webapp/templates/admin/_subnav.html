@@ -20,6 +20,12 @@
       </a>
     </li>
     <li class="nav-item">
+      <a href="{{ url_for('admin.freigabe_patch') }}"
+         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.freigabe_patch' %}active{% endif %}">
+        <i class="bi bi-diagram-3 me-1"></i>Patch-Workflow
+      </a>
+    </li>
+    <li class="nav-item">
       <a href="{{ url_for('admin.scanner_einstellungen') }}"
          class="nav-link py-1 px-3 {% if request.endpoint in ('admin.scanner_einstellungen','admin.teams_einstellungen') %}active{% endif %}">
         <i class="bi bi-search me-1"></i>Scanner

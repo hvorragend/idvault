@@ -773,29 +773,53 @@ def detail_idv(idv_db_id):
 
     ist_wesentlich = any(k["erfuellt"] for k in wesentlichkeit)
 
-    # Phasenstatus für die Freigabe-Anzeige
+    # Phasenstatus für die Freigabe-Anzeige. Für Patch-Freigaben (#320)
+    # kann der effektive Schritte-Katalog pro Phase kleiner sein; die
+    # ``_erledigt``-Flags beziehen sich dann auf die tatsächlich für diese
+    # IDV aktiven Schritte (sonst erscheint z.B. ein Patch-Verfahren
+    # dauerhaft als „Phase 1 noch nicht erledigt", weil ein nicht
+    # angelegter Schritt fehlt).
+    from .freigaben import (_active_phase_schritte as _aps_schritte,
+                             _get_kategorie as _freigabe_kategorie,
+                             _ist_gda4_oder_dora_kritisch as _ist_gda4,
+                             _get_patch_schritte as _freigabe_patch_schritte)
     _PHASE_1 = ["Fachlicher Test", "Technischer Test"]
     _PHASE_2 = ["Fachliche Abnahme", "Technische Abnahme"]
     _PHASE_3 = ["Archivierung Originaldatei"]
+    aktive_p1, aktive_p2, aktive_p3 = _aps_schritte(db, idv_db_id)
     phase1_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_1]
     phase2_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_2]
     phase3_schritte   = [f for f in freigaben if f["schritt"] in _PHASE_3]
-    phase1_gestartet  = len(phase1_schritte) > 0
-    phase1_erledigt   = (
-        {f["schritt"] for f in phase1_schritte if f["status"] == "Erledigt"} == set(_PHASE_1)
+    # Für Patch-Konfigurationen ohne Phase-1-Schritt liefern angelegte
+    # Schritte allein kein verlässliches Signal, ob das Verfahren schon
+    # gestartet wurde — die Einstufung (Kategorie-Spalte) wird mitgezählt.
+    phase1_gestartet  = (len(phase1_schritte) > 0
+                         or bool(idv["freigabe_aenderungskategorie"]))
+    phase1_erledigt   = (not aktive_p1) or (
+        set(aktive_p1).issubset(
+            {f["schritt"] for f in phase1_schritte if f["status"] == "Erledigt"}
+        )
     )
     phase2_gestartet  = len(phase2_schritte) > 0
-    phase2_erledigt   = (
-        {f["schritt"] for f in phase2_schritte if f["status"] == "Erledigt"} == set(_PHASE_2)
+    phase2_erledigt   = (not aktive_p2) or (
+        set(aktive_p2).issubset(
+            {f["schritt"] for f in phase2_schritte if f["status"] == "Erledigt"}
+        )
     )
     phase3_gestartet  = len(phase3_schritte) > 0
-    phase3_erledigt   = (
-        {f["schritt"] for f in phase3_schritte if f["status"] == "Erledigt"} == set(_PHASE_3)
+    phase3_erledigt   = (not aktive_p3) or (
+        set(aktive_p3).issubset(
+            {f["schritt"] for f in phase3_schritte if f["status"] == "Erledigt"}
+        )
     )
     hat_offenen_schritt = any(
         f["status"] == "Ausstehend" and f["schritt"] not in _PHASE_3
         for f in freigaben
     )
+    freigabe_kategorie     = _freigabe_kategorie(db, idv_db_id)
+    freigabe_gda4_gesperrt = _ist_gda4(db, idv_db_id)
+    freigabe_patch_schritte = _freigabe_patch_schritte(db)
+    hat_vorgaenger         = bool(idv["vorgaenger_idv_id"])
 
     fachliche_testfaelle = get_fachliche_testfaelle(db, idv_db_id)
     technischer_test     = get_technischer_test(db, idv_db_id)
@@ -823,6 +847,10 @@ def detail_idv(idv_db_id):
         fachlich_vorhanden=fachlich_vorhanden,
         technisch_vorhanden=technisch_vorhanden,
         entwicklungsart_label=ENTWICKLUNGSART_LABEL,
+        freigabe_kategorie=freigabe_kategorie,
+        freigabe_gda4_gesperrt=freigabe_gda4_gesperrt,
+        freigabe_patch_schritte=freigabe_patch_schritte,
+        hat_vorgaenger=hat_vorgaenger,
         can_create=can_create())
 
 
