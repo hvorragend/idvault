@@ -73,21 +73,50 @@
       in Ihrer Zuständigkeit. Vielen Dank!
     </div>
     {% else %}
+
+    <form method="post" action="{{ url_for('self_service.bulk_register') }}" id="ss-bulk-form" class="m-0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+      <div class="small">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="ss-select-all-btn">
+          <i class="bi bi-check2-square me-1"></i>Alle auswählen
+        </button>
+        <span class="text-muted ms-2">
+          <span id="ss-selection-count">0</span> ausgewählt
+        </span>
+      </div>
+      <div>
+        <button type="submit" form="ss-bulk-form" class="btn btn-sm btn-primary" id="ss-bulk-submit-btn" disabled>
+          <i class="bi bi-diagram-3 me-1"></i>
+          Diese Funde gehören zusammen – als eine Eigenentwicklung registrieren
+        </button>
+      </div>
+    </div>
+
     {% for f in funde %}
     <div class="ss-file-row">
       <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
-        <div class="me-2" style="min-width:0;flex:1;">
-          <div class="fw-600">
-            <i class="bi bi-file-earmark-text me-1 text-primary"></i>
-            {{ f.file_name }}
-            {% if f.has_macros %}
-            <span class="badge bg-warning text-dark ms-1">Makros</span>
-            {% endif %}
-            {% if f.formula_count and f.formula_count > 0 %}
-            <span class="badge bg-info text-dark ms-1">{{ f.formula_count }} Formeln</span>
-            {% endif %}
+        <div class="me-2 d-flex align-items-start" style="min-width:0;flex:1;gap:.5rem;">
+          <div class="form-check mt-1">
+            <input class="form-check-input ss-file-checkbox" type="checkbox"
+                   form="ss-bulk-form"
+                   name="file_ids" value="{{ f.id }}" id="ss-file-{{ f.id }}">
           </div>
-          <div class="ss-path">{{ f.full_path }}</div>
+          <div style="min-width:0;flex:1;">
+            <label class="fw-600 mb-0" for="ss-file-{{ f.id }}" style="cursor:pointer;">
+              <i class="bi bi-file-earmark-text me-1 text-primary"></i>
+              {{ f.file_name }}
+              {% if f.has_macros %}
+              <span class="badge bg-warning text-dark ms-1">Makros</span>
+              {% endif %}
+              {% if f.formula_count and f.formula_count > 0 %}
+              <span class="badge bg-info text-dark ms-1">{{ f.formula_count }} Formeln</span>
+              {% endif %}
+            </label>
+            <div class="ss-path">{{ f.full_path }}</div>
+          </div>
         </div>
         <div class="d-flex gap-2">
           <form method="post" action="{{ url_for('self_service.fund_aktion', file_id=f.id) }}" class="m-0">
@@ -119,4 +148,52 @@
     </form>
   </div>
 </div>
+
+{% if funde %}
+<script nonce="{{ csp_nonce() }}">
+(function() {
+  var form = document.getElementById('ss-bulk-form');
+  if (!form) return;
+  // Checkboxen liegen per HTML5 `form=`-Attribut außerhalb des Form-Elements
+  // im DOM, werden aber beim Submit mitgeschickt. Deshalb global selektieren.
+  var checkboxes = document.querySelectorAll('.ss-file-checkbox');
+  var selectAllBtn = document.getElementById('ss-select-all-btn');
+  var submitBtn = document.getElementById('ss-bulk-submit-btn');
+  var countEl = document.getElementById('ss-selection-count');
+
+  function update() {
+    var n = 0;
+    checkboxes.forEach(function(cb) { if (cb.checked) n++; });
+    if (countEl) countEl.textContent = n;
+    if (submitBtn) submitBtn.disabled = n < 1;
+    if (selectAllBtn) {
+      if (n === checkboxes.length && n > 0) {
+        selectAllBtn.innerHTML = '<i class="bi bi-x-square me-1"></i>Auswahl leeren';
+      } else {
+        selectAllBtn.innerHTML = '<i class="bi bi-check2-square me-1"></i>Alle auswählen';
+      }
+    }
+  }
+
+  checkboxes.forEach(function(cb) { cb.addEventListener('change', update); });
+
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', function() {
+      var allChecked = true;
+      checkboxes.forEach(function(cb) { if (!cb.checked) allChecked = false; });
+      checkboxes.forEach(function(cb) { cb.checked = !allChecked; });
+      update();
+    });
+  }
+
+  form.addEventListener('submit', function(ev) {
+    var any = false;
+    checkboxes.forEach(function(cb) { if (cb.checked) any = true; });
+    if (!any) ev.preventDefault();
+  });
+
+  update();
+})();
+</script>
+{% endif %}
 {% endblock %}
