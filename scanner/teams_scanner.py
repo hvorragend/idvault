@@ -642,9 +642,11 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
 
     # Dateien, die im Vollscan nicht mehr gesehen wurden, archivieren.
     # Bei Inkremental-Scans werden Löschungen bereits über den Delta-Response behandelt.
-    deleted = 0
+    # mark_deleted_files emittiert ein OP_ARCHIVE_UNSEEN-Event und gibt immer
+    # 0 zurueck; die tatsaechliche Anzahl setzt apply_scanner_archive_unseen
+    # direkt in scan_runs.archived_files. Siehe network_scanner.mark_deleted_files.
     if full_scan_site_urls:
-        deleted = mark_deleted_files(
+        mark_deleted_files(
             conn, scan_run_id, now, scan_paths=full_scan_site_urls
         )
 
@@ -662,7 +664,7 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
         changed=total_stats["changed"],
         moved=total_stats["moved"],
         restored=total_stats["restored"],
-        archived=deleted,
+        archived=0,
         errors=total_stats["errors"],
     )
 
@@ -673,7 +675,7 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
     logger.info(f"  Geändert        : {total_stats['changed']}")
     logger.info(f"  Verschoben      : {total_stats['moved']}")
     logger.info(f"  Wiederhergest.  : {total_stats['restored']}")
-    logger.info(f"  Archiviert      : {deleted}")
+    logger.info(f"  Archiviert      : (siehe scan_runs.archived_files – wird vom Webapp-Writer gesetzt)")
     logger.info(f"  Fehler          : {total_stats['errors']}")
     logger.info("=" * 60)
 

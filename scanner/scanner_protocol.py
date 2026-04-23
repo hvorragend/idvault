@@ -43,6 +43,9 @@ OP_END_RUN       = "end_run"         # scan_runs: UPDATE status + stats
 OP_UPSERT_FILE   = "upsert_file"     # idv_files: INSERT (neu) oder UPDATE (bekannt)
 OP_MOVE_FILE     = "move_file"       # idv_files: UPDATE full_path; History 'moved'
 OP_ARCHIVE_FILES = "archive_files"   # idv_files: batch status='archiviert'
+OP_ARCHIVE_UNSEEN = "archive_unseen" # idv_files: archive all not-seen-this-run files
+                                     # (Webapp-Writer fuehrt Query aus -> sieht eigene
+                                     #  Upserts bereits committed, keine stale reads)
 OP_UPDATE_STATUS = "update_status"   # idv_files.bearbeitungsstatus
 OP_FILE_HISTORY  = "file_history"    # idv_file_history: INSERT (Einzelzeile)
 OP_LOG              = "log"              # reiner Textlog-Eintrag (Webapp persistiert nicht)

@@ -583,6 +583,18 @@ def create_app(db_path: str = None) -> Flask:
         except BuildError:
             return "#"
 
+    # Context Processor: UI-Einstellung – Suche & Filter standardmäßig offen?
+    @app.context_processor
+    def inject_ui_settings():
+        from flask import has_request_context
+        if not has_request_context():
+            return {}
+        try:
+            from . import app_settings as _aps
+            return {"filter_panel_open": _aps.get_bool(get_db(), "filter_panel_open", False)}
+        except Exception:
+            return {"filter_panel_open": False}
+
     # Context Processor: Scanner-Eingang Badge-Count für alle Templates
     @app.context_processor
     def inject_scanner_badge():

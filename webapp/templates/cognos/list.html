@@ -91,7 +91,7 @@
 {% set _cf = q or status_filt or komplexitaet_filt or abfragen_filt or pfad_prefix %}
 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
   <button class="btn btn-sm btn-outline-secondary" type="button"
-    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _cf else 'false' }}">
+    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _cf or filter_panel_open else 'false' }}">
     <i class="bi bi-funnel me-1"></i>Suche &amp; Filter
     {% if _cf %}<span class="badge bg-primary ms-1">{{ [q, status_filt, komplexitaet_filt, abfragen_filt, pfad_prefix] | select | list | length }}</span>{% endif %}
   </button>
@@ -106,7 +106,7 @@
   {% if pfad_prefix %}<span class="badge bg-secondary">Pfad: {{ pfad_prefix }}</span>{% endif %}
   {% endif %}
 </div>
-<div class="collapse{{ ' show' if _cf }}" id="filter-panel">
+<div class="collapse{{ ' show' if _cf or filter_panel_open }}" id="filter-panel">
   <form method="get" class="card border-0 shadow-sm p-3 mb-3">
     <div class="row g-2 align-items-end">
       <div class="col-sm-3">

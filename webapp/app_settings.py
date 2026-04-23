@@ -31,6 +31,7 @@ DEFAULTS = {
     "match_suggestions_enabled": "1",
     "smart_defaults_enabled":    "1",
     "similarity_config":      "{}",
+    "filter_panel_open":      "0",
     "path_mappings":          "[]",
     "scanner_config":         "{}",
     "teams_config":           "{}",
