@@ -672,6 +672,12 @@ def scan_file(path: str, config: dict, scan_paths: list,
     stored_full_path = apply_path_mappings(path, mappings)
     stored_share_root = apply_path_mappings(share_root, mappings)
 
+    # Versions-Serien-Fingerprint (Issue #359). Wird fuer die Auto-Verknuepfung
+    # wiederkehrender Report-/Kalkulationsdateien benoetigt, deren Hash sich
+    # je Ausgabe aendert, Ordner+maskierter Stem aber gleich bleiben.
+    from db import compute_version_fingerprint as _compute_vfp
+    version_fp = _compute_vfp(stored_full_path, Path(path).name)
+
     return {
         "file_hash":          file_hash or "HASH_ERROR",
         "full_path":          stored_full_path,
@@ -706,6 +712,8 @@ def scan_file(path: str, config: dict, scan_paths: list,
         "cognos_seiten_anzahl":       cognos.get("cognos_seiten_anzahl"),
         "cognos_parameter_anzahl":    cognos.get("cognos_parameter_anzahl"),
         "cognos_namespace_version":   cognos.get("cognos_namespace_version"),
+        # Versions-Serien-Fingerprint (Issue #359)
+        "version_fingerprint":        version_fp,
     }
 
 

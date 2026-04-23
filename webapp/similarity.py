@@ -66,6 +66,12 @@ DEFAULT_CONFIG: dict = {
     # Zusatz-Link verknüpft statt im Eingang zu landen. HASH_ERROR wird
     # nie als Dublette behandelt.
     "auto_link_hash_duplicates": True,
+    # Versions-Serien (Issue #359): wenn ein Fund denselben
+    # ``version_fingerprint`` hat wie genau eine bereits verlinkte Datei,
+    # wird er als Zusatz-Link verknüpft. Greift typischerweise bei
+    # quartals-/monatsweise abgelegten Reports (Report_2024Q1.xlsx →
+    # Report_2024Q2.xlsx) — Hash unterscheidet sich, Fingerprint nicht.
+    "auto_link_version_series": True,
 }
 
 _NAME_ALGORITHMS = ("token_set", "partial", "jaccard")

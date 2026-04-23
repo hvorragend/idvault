@@ -1330,10 +1330,11 @@ def auto_zuordnen():
     auto_threshold    = cfg["auto_assign_threshold"]
     suggest_threshold = cfg.get("suggest_threshold", 0) or 0
     hash_dedup        = bool(cfg.get("auto_link_hash_duplicates", True))
+    version_link      = bool(cfg.get("auto_link_version_series", True))
 
     neu_funde = db.execute(f"""
         SELECT f.id, f.file_name, f.extension, f.file_owner, f.has_macros,
-               f.file_hash
+               f.file_hash, f.version_fingerprint
           FROM idv_files f
          WHERE f.status='active' AND f.bearbeitungsstatus='Neu'
            AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
@@ -1378,6 +1379,46 @@ def auto_zuordnen():
                     "hash":      h,
                 })
                 used_file_ids.add(fund["id"])
+
+    # ── Schritt 1b: Versions-Serien-Fingerprint als Zusatz-Link (#359) ──
+    # Fund hat denselben ``version_fingerprint`` wie genau eine bereits
+    # verlinkte Datei → automatisch verknuepfen. Mehrere Treffer in
+    # verschiedenen IDVs landen weiter im normalen Similarity-Pfad und
+    # werden ggf. als Vorschlag angeboten.
+    version_plan: list = []
+    if version_link:
+        for fund in neu_funde:
+            if fund["id"] in used_file_ids:
+                continue
+            fp = (fund["version_fingerprint"] or "").strip()
+            if not fp:
+                continue
+            targets = db.execute(
+                """
+                SELECT DISTINCT r.id AS idv_db_id, r.idv_id
+                  FROM idv_register r
+                  JOIN idv_files f ON r.file_id = f.id
+                 WHERE f.version_fingerprint = ? AND f.id != ?
+                UNION
+                SELECT DISTINCT r.id AS idv_db_id, r.idv_id
+                  FROM idv_register r
+                  JOIN idv_file_links l ON l.idv_db_id = r.id
+                  JOIN idv_files f      ON f.id        = l.file_id
+                 WHERE f.version_fingerprint = ? AND f.id != ?
+                """,
+                (fp, fund["id"], fp, fund["id"]),
+            ).fetchall()
+            if len(targets) == 1:
+                t = targets[0]
+                version_plan.append({
+                    "file_id":     fund["id"],
+                    "file_name":   fund["file_name"] or "",
+                    "idv_db_id":   t["idv_db_id"],
+                    "idv_id":      t["idv_id"],
+                    "fingerprint": fp,
+                })
+                used_file_ids.add(fund["id"])
+
     remaining = [f for f in neu_funde if f["id"] not in used_file_ids]
 
     idv_candidates = db.execute("""
@@ -1446,10 +1487,11 @@ def auto_zuordnen():
                 "score":     best_score,
             })
 
-    if not plan and not hash_plan and not suggest_plan:
+    if not plan and not hash_plan and not suggest_plan and not version_plan:
         flash(
-            f"Keine Hash-Dubletten gefunden und keine Funde erreichten die "
-            f"Auto-Schwelle von {auto_threshold} mit erfüllter Plausibilität.",
+            f"Keine Hash-Dubletten oder Versions-Serien gefunden und keine "
+            f"Funde erreichten die Auto-Schwelle von {auto_threshold} mit "
+            f"erfüllter Plausibilität.",
             "info",
         )
         return redirect(url_for("funde.eingang_funde"))
@@ -1472,6 +1514,24 @@ def auto_zuordnen():
                     (entry["idv_db_id"], "scan_auto_linked_hash",
                      f"Hash-Dublette '{entry['file_name']}' (file_id={entry['file_id']}) "
                      f"automatisch verknüpft (SHA-256 identisch: {entry['hash']})",
+                     person_id, user_name),
+                )
+            for entry in version_plan:
+                c.execute(
+                    "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                    (entry["idv_db_id"], entry["file_id"]),
+                )
+                c.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id = ?",
+                    (entry["file_id"],),
+                )
+                c.execute(
+                    "INSERT INTO idv_history "
+                    "(idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) "
+                    "VALUES (?,?,?,?,?)",
+                    (entry["idv_db_id"], "scan_auto_linked_version",
+                     f"Versions-Serie '{entry['file_name']}' (file_id={entry['file_id']}) "
+                     f"automatisch verknüpft (Fingerprint: {entry['fingerprint']})",
                      person_id, user_name),
                 )
             for entry in plan:
@@ -1506,6 +1566,8 @@ def auto_zuordnen():
     parts = []
     if hash_plan:
         parts.append(f"{len(hash_plan)} Hash-Dublette(n) verknüpft")
+    if version_plan:
+        parts.append(f"{len(version_plan)} Versions-Serien-Treffer verknüpft")
     if plan:
         parts.append(f"{len(plan)} Ähnlichkeits-Treffer(n) ab Schwelle {auto_threshold}")
     if suggest_plan:

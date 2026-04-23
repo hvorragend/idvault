@@ -231,6 +231,125 @@ def validate_regex_pattern(pattern: str) -> Optional[str]:
         return str(exc)
 
 
+# ---------------------------------------------------------------------------
+# Versions-Serien-Fingerprint (Issue #359)
+# ---------------------------------------------------------------------------
+#
+# Dritter Auto-Link-Pfad neben SHA-256-Hashdublette und Similarity-Score:
+# wiederkehrende Versionen derselben Datei (Reports, Kalkulationen …) werden
+# einer bereits registrierten IDV zugeschlagen, auch wenn sich der Hash je
+# Ausgabe aendert.
+#
+# Fingerprint = ``lower(ordner) + "|" + lower(masked_stem)``, wobei
+# ``masked_stem`` den Datei-Stem (ohne Extension) mit maskierten Versions-
+# und Zeitstempel-Mustern enthaelt. Die Reihenfolge der Masken ist relevant
+# — spezifischere Muster laufen zuerst, damit sie nicht von den generischen
+# Mustern aufgefressen werden (z.B. ISO-Datum vor Jahres-Maske).
+_VERSION_FP_PATTERNS: tuple = (
+    # ISO-Datum 2024-06-15 — muss vor der Jahres-Maske laufen
+    (re.compile(r"\d{4}-\d{2}-\d{2}"),          "####-##-##"),
+    # Jahr 20xx (eigenstaendig, nicht Teil einer laengeren Ziffernfolge)
+    (re.compile(r"(?<!\d)20\d{2}(?!\d)"),       "####"),
+    # Quartal Q1..Q4 (case-insensitiv)
+    (re.compile(r"(?i)Q[1-4](?!\d)"),           "Q#"),
+    # Versions-Suffix v1, v10, v123 (case-insensitiv)
+    (re.compile(r"(?i)v\d+(?!\d)"),             "v#"),
+    # Dreistellige Sequenz mit Unterstrich: _001, _042, _123
+    (re.compile(r"_\d{3}(?!\d)"),               "_###"),
+    # Monat 01..12 als eigenstaendiges Token (von Nicht-Ziffern umschlossen)
+    (re.compile(r"(?<!\d)(0[1-9]|1[0-2])(?!\d)"), "##"),
+)
+
+
+def compute_version_fingerprint(full_path: Optional[str],
+                                 file_name: Optional[str]) -> Optional[str]:
+    """Berechnet den Versions-Serien-Fingerprint einer Datei.
+
+    Der Fingerprint identifiziert wiederkehrende Versionen derselben Datei
+    in einem Ordner (quartals-/monatsweise abgelegte Reports o.ae.) und wird
+    neben der SHA-256-Hashdublette und dem Similarity-Score als dritter Auto-
+    Link-Pfad in ``auto_zuordnen`` verwendet.
+
+    Algorithmus (siehe Issue #359):
+      1. Ordner aus ``full_path`` extrahieren (Separator-tolerant, lowercase).
+      2. Stem = ``file_name`` ohne letzte Extension.
+      3. Versions-/Zeitstempel-Muster im Stem maskieren:
+         - ISO-Datum  ``\\d{4}-\\d{2}-\\d{2}``    -> ``####-##-##``
+         - Jahr       ``20\\d{2}``                -> ``####``
+         - Quartal    ``Q[1-4]``                 -> ``Q#``
+         - Version    ``v\\d+``                   -> ``v#``
+         - Sequenz    ``_\\d{3}``                 -> ``_###``
+         - Monat      ``01..12`` (eigenstaendig)  -> ``##``
+      4. Fingerprint = ``lower(folder) + "|" + lower(masked_stem)``.
+
+    Liefert ``None``, wenn nach der Maskierung weniger als 3 nicht-maskierte
+    Zeichen im Stem uebrig bleiben (sonst wuerde der Fingerprint beliebige
+    Versions-Dateien desselben Ordners kollabieren lassen — im Extremfall
+    wuerde dadurch jede Versionsdatei derselben IDV zugeordnet).
+
+    Case-insensitiv, aber **pfadsensitiv**: dieselbe Serie in einem anderen
+    Ordner ist absichtlich ein anderer Fingerprint. Eine Umstrukturierung
+    wird damit nicht automatisch nachgezogen.
+    """
+    if not full_path or not file_name:
+        return None
+    # 1. Ordner bestimmen (separator-tolerant: full_path kann UNC-/Windows-
+    # oder POSIX-Pfad enthalten).
+    idx = max(full_path.rfind("\\"), full_path.rfind("/"))
+    folder = full_path[:idx] if idx >= 0 else ""
+    folder = folder.rstrip("\\/")
+    # 2. Stem aus dem Dateinamen (nicht aus dem Pfad — der Scanner uebergibt
+    # bewusst das Datei-Feld, damit Sonderfaelle wie Pfade ohne Extension den
+    # Stem nicht verfaelschen).
+    dot = file_name.rfind(".")
+    stem = file_name[:dot] if dot > 0 else file_name
+    if not stem.strip():
+        return None
+    # 3. Masken in fester Reihenfolge anwenden
+    masked = stem
+    for rx, repl in _VERSION_FP_PATTERNS:
+        masked = rx.sub(repl, masked)
+    # 4. Fallback-Guard: weniger als 3 nicht-Masken-Zeichen -> zu unspezifisch
+    non_mask = masked.replace("#", "")
+    if len(non_mask.strip()) < 3:
+        return None
+    return folder.lower() + "|" + masked.lower()
+
+
+def _ensure_version_fingerprint_column(conn: sqlite3.Connection) -> None:
+    """Legt ``idv_files.version_fingerprint`` + Index runtime an und backfillt
+    Bestandsdateien mit leerem Fingerprint.
+
+    SQLite unterstuetzt kein ``ADD COLUMN IF NOT EXISTS`` — die Existenz wird
+    deshalb ueber ``PRAGMA table_info`` geprueft. Der Backfill laeuft einmalig
+    pro App-Start fuer alle Eintraege, deren Fingerprint noch NULL ist (neu
+    angelegte Spalte, importierte DB oder Dateien, deren Fingerprint beim
+    fruehen Scan aus irgendeinem Grund nicht gesetzt wurde).
+    """
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(idv_files)")}
+    if "version_fingerprint" not in cols:
+        conn.execute("ALTER TABLE idv_files ADD COLUMN version_fingerprint TEXT")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_files_version_fp "
+        "ON idv_files(version_fingerprint)"
+    )
+    # Backfill: Bestandsdateien mit leerem Fingerprint nachtraeglich befuellen.
+    # Laeuft nur ueber die ohnehin wenigen NULL-Zeilen — nach dem ersten Lauf
+    # bleibt das SELECT leer.
+    rows = conn.execute(
+        "SELECT id, full_path, file_name FROM idv_files "
+        "WHERE version_fingerprint IS NULL"
+    ).fetchall()
+    for r in rows:
+        fp = compute_version_fingerprint(r["full_path"], r["file_name"])
+        if fp is None:
+            continue
+        conn.execute(
+            "UPDATE idv_files SET version_fingerprint = ? WHERE id = ?",
+            (fp, r["id"]),
+        )
+
+
 def _ensure_runtime_schema(conn: sqlite3.Connection) -> None:
     """Idempotente Schema-Ergänzungen, die nach dem Alembic-Upgrade laufen.
 
@@ -241,6 +360,8 @@ def _ensure_runtime_schema(conn: sqlite3.Connection) -> None:
     """
     for stmt in _RUNTIME_SCHEMA_DDL:
         conn.execute(stmt)
+
+    _ensure_version_fingerprint_column(conn)
 
     # Default-Regeln für die Auto-Klassifizierung nachrüsten: nur wenn die
     # Tabelle noch leer ist (echter Erstlauf); bestehende Installationen,
@@ -1484,6 +1605,10 @@ _IDV_FILES_COLUMNS = (
     "ist_cognos_report", "cognos_report_name", "cognos_paket_pfad",
     "cognos_abfragen_anzahl", "cognos_datenpunkte_anzahl", "cognos_filter_anzahl",
     "cognos_seiten_anzahl", "cognos_parameter_anzahl", "cognos_namespace_version",
+    # Versions-Serien-Fingerprint (Issue #359). Wird vom Scanner via
+    # ``compute_version_fingerprint`` befuellt und beim INSERT/UPDATE/MOVE
+    # mitgefuehrt.
+    "version_fingerprint",
 )
 
 
@@ -1605,19 +1730,21 @@ def apply_scanner_upsert_file(conn: sqlite3.Connection, payload: dict) -> None:
                 UPDATE idv_files SET
                     full_path = :full_path, share_root = :share_root,
                     relative_path = :relative_path,
+                    version_fingerprint = :version_fingerprint,
                     source = :source, sharepoint_item_id = :sharepoint_item_id,
                     last_seen_at = :now, last_scan_run_id = :run_id
                 WHERE id = :id
                 """,
                 {
-                    "full_path":          data["full_path"],
-                    "share_root":         data.get("share_root"),
-                    "relative_path":      data.get("relative_path"),
-                    "source":             source,
-                    "sharepoint_item_id": sp_item_id,
-                    "now":                now,
-                    "run_id":             scan_run_id,
-                    "id":                 file_id,
+                    "full_path":           data["full_path"],
+                    "share_root":          data.get("share_root"),
+                    "relative_path":       data.get("relative_path"),
+                    "version_fingerprint": data.get("version_fingerprint"),
+                    "source":              source,
+                    "sharepoint_item_id":  sp_item_id,
+                    "now":                 now,
+                    "run_id":              scan_run_id,
+                    "id":                  file_id,
                 },
             )
             conn.execute(
@@ -1707,6 +1834,7 @@ def apply_scanner_upsert_file_batch(conn: sqlite3.Connection, payloads: list) ->
                 conn.execute(
                     "UPDATE idv_files SET "
                     "full_path = :fp, share_root = :sr, relative_path = :rp, "
+                    "version_fingerprint = :vfp, "
                     "source = :src, sharepoint_item_id = :spid, "
                     "last_seen_at = :now, last_scan_run_id = :rid "
                     "WHERE id = :id",
@@ -1714,6 +1842,7 @@ def apply_scanner_upsert_file_batch(conn: sqlite3.Connection, payloads: list) ->
                         "fp":   data["full_path"],
                         "sr":   data.get("share_root"),
                         "rp":   data.get("relative_path"),
+                        "vfp":  data.get("version_fingerprint"),
                         "src":  source,
                         "spid": data.get("sharepoint_item_id"),
                         "now":  now,
