@@ -16,18 +16,20 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div class="d-flex align-items-center gap-2 flex-wrap">
     {% if ist_wesentlich %}
-    <span class="badge bg-danger fs-6">Wesentlich</span>
+    <span class="idv-tag idv-tag-wesentlich">
+      <i class="bi bi-exclamation-triangle-fill"></i>Wesentlich
+    </span>
     {% else %}
-    <span class="badge bg-secondary fs-6">Nicht wesentlich</span>
+    <span class="idv-tag idv-tag-nicht-wesentlich">
+      <i class="bi bi-dash-circle"></i>Nicht wesentlich
+    </span>
     {% endif %}
     {% set art = idv.entwicklungsart or 'arbeitshilfe' %}
-    {% set art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
-    'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
-    <span class="badge {{ art_color.get(art, 'bg-secondary') }} fs-6"
+    <span class="idv-tag idv-tag-art-{{ art }}"
       title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">
       {{ entwicklungsart_label.get(art, art) }}
     </span>
-    <span class="badge status-{{ idv.status|replace(' ', '-') }} fs-6">{{ idv.status }}</span>
+    <span class="badge status-{{ idv.status|replace(' ', '-') }}">{{ idv.status }}</span>
   </div>
   <div class="d-flex gap-2">
     <a href="{{ url_for('eigenentwicklung.edit_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary">

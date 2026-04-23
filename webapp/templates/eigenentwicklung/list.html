@@ -212,10 +212,8 @@
             </td>
             <td>
               {% set _art = r.entwicklungsart or 'arbeitshilfe' %}
-              {% set _art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
-              'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
               <span class="position-relative d-inline-block">
-                <span class="badge {{ _art_color.get(_art, 'bg-secondary') }}"
+                <span class="idv-tag idv-tag-art-{{ _art }}"
                   title="{{ entwicklungsart_label.get(_art, _art) }}">
                   {{ entwicklungsart_label.get(_art, _art) }}
                 </span>
