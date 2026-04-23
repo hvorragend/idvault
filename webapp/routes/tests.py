@@ -11,6 +11,7 @@ from db import (
     create_fachlicher_testfall, update_fachlicher_testfall, delete_fachlicher_testfall,
     get_technischer_test, save_technischer_test, delete_technischer_test,
     get_prefilled_findings, save_prefilled_findings,
+    get_matching_vorlagen, _idv_ist_wesentlich,
 )
 from db_write_tx import write_tx
 from datetime import date as _date, datetime as _datetime
@@ -119,18 +120,33 @@ def _get_idv_or_404(db, idv_db_id):
     return idv
 
 
-def _load_testfall_vorlagen(db, art: str, idv_typ: str | None = None) -> list:
+def _load_testfall_vorlagen(db, art: str, idv_typ: str | None = None,
+                            idv_db_id: int | None = None) -> list:
     """Liefert aktive Testfall-Vorlagen für Art (fachlich/technisch).
 
     Vorlagen mit ``idv_typ IS NULL`` sind typ-unabhängig und werden immer
     mit aufgenommen. Bei gesetztem ``idv_typ`` werden zusätzlich die passenden
     typ-spezifischen Vorlagen zurückgegeben.
+
+    Wenn ``idv_db_id`` übergeben wird, berücksichtigt das Ergebnis
+    zusätzlich die Scope-Tabelle (Issue #350): nur Vorlagen, die zur
+    OE und Klassifikation der IDV passen, werden zurückgegeben.
+    Verpflichtende Vorlagen tragen ``mandatory=1`` und werden zuerst
+    sortiert.
     """
     try:
+        if idv_db_id is not None:
+            row = db.execute(
+                "SELECT org_unit_id FROM idv_register WHERE id=?", (idv_db_id,),
+            ).fetchone()
+            oe_id = row["org_unit_id"] if row else None
+            ist_wes = _idv_ist_wesentlich(db, idv_db_id)
+            return get_matching_vorlagen(db, art, idv_typ, oe_id, ist_wes)
+        # Fallback ohne IDV-Kontext: bisheriges Verhalten + mandatory=0
         if idv_typ:
             rows = db.execute(
                 "SELECT id, titel, idv_typ, beschreibung, parametrisierung, "
-                "       testdaten, erwartetes_ergebnis "
+                "       testdaten, erwartetes_ergebnis, 0 AS mandatory "
                 "  FROM testfall_vorlagen "
                 " WHERE aktiv=1 AND art=? AND (idv_typ IS NULL OR idv_typ=?) "
                 " ORDER BY (idv_typ IS NULL) ASC, titel",
@@ -139,7 +155,7 @@ def _load_testfall_vorlagen(db, art: str, idv_typ: str | None = None) -> list:
         else:
             rows = db.execute(
                 "SELECT id, titel, idv_typ, beschreibung, parametrisierung, "
-                "       testdaten, erwartetes_ergebnis "
+                "       testdaten, erwartetes_ergebnis, 0 AS mandatory "
                 "  FROM testfall_vorlagen "
                 " WHERE aktiv=1 AND art=? "
                 " ORDER BY (idv_typ IS NULL) ASC, titel",
@@ -482,7 +498,8 @@ def new_fachlicher_testfall(idv_db_id):
                            idv=idv, testfall=None,
                            freigabe_id=freigabe_id,
                            bewertungen=_BEWERTUNGEN,
-                           vorlagen=_load_testfall_vorlagen(db, "fachlich", idv["idv_typ"]),
+                           vorlagen=_load_testfall_vorlagen(
+                               db, "fachlich", idv["idv_typ"], idv["id"]),
                            today=_date.today().isoformat())
 
 
@@ -558,7 +575,8 @@ def edit_fachlicher_testfall(testfall_id):
                            idv=idv, testfall=testfall,
                            freigabe_id=freigabe_id,
                            bewertungen=_BEWERTUNGEN,
-                           vorlagen=_load_testfall_vorlagen(db, "fachlich", idv["idv_typ"]),
+                           vorlagen=_load_testfall_vorlagen(
+                               db, "fachlich", idv["idv_typ"], idv["id"]),
                            today=_date.today().isoformat())
 
 
@@ -694,7 +712,8 @@ def edit_technischer_test(idv_db_id):
                            ergebnisse=_TECH_ERGEBNISSE,
                            scanner_dateien=scanner_dateien,
                            pruefzeugnis=pruefzeugnis,
-                           vorlagen=_load_testfall_vorlagen(db, "technisch", idv["idv_typ"]),
+                           vorlagen=_load_testfall_vorlagen(
+                               db, "technisch", idv["idv_typ"], idv["id"]),
                            today=_date.today().isoformat())
 
 

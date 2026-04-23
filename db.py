@@ -1416,6 +1416,169 @@ def insert_demo_data(conn: sqlite3.Connection):
 
 
 # ---------------------------------------------------------------------------
+# Testfall-Vorlagen – Scope-Verwaltung (Issue #350)
+# ---------------------------------------------------------------------------
+
+def get_vorlage_scopes(conn: sqlite3.Connection, vorlage_id: int) -> list:
+    """Gibt alle Scope-Einträge einer Vorlage zurück (ID + OE + Klassif. + mandatory)."""
+    return [dict(r) for r in conn.execute(
+        """
+        SELECT s.id, s.vorlage_id, s.oe_id, s.klassifikation, s.mandatory,
+               o.bezeichnung AS oe_bezeichnung
+          FROM testfall_vorlage_scope s
+          LEFT JOIN org_units o ON o.id = s.oe_id
+         WHERE s.vorlage_id = ?
+         ORDER BY (s.oe_id IS NULL) ASC, o.bezeichnung, s.klassifikation
+        """,
+        (vorlage_id,),
+    ).fetchall()]
+
+
+def replace_vorlage_scopes(conn: sqlite3.Connection, vorlage_id: int,
+                           scopes: list[dict]) -> None:
+    """Ersetzt alle Scope-Einträge einer Vorlage durch die übergebene Liste.
+
+    Jedes ``scopes``-Dict erwartet Keys ``oe_id`` (int|None),
+    ``klassifikation`` ('wesentlich'|'nicht wesentlich'|None) und
+    ``mandatory`` (truthy/falsy). Leere Scope-Liste = unbeschränkt
+    typ-basiert (kein Scope-Filter, kein Pflicht-Marker).
+    """
+    with write_tx(conn):
+        conn.execute(
+            "DELETE FROM testfall_vorlage_scope WHERE vorlage_id = ?",
+            (vorlage_id,),
+        )
+        for s in scopes or []:
+            klass = (s.get("klassifikation") or "").strip() or None
+            if klass not in (None, "wesentlich", "nicht wesentlich"):
+                continue
+            oe_id = s.get("oe_id")
+            try:
+                oe_id = int(oe_id) if oe_id not in (None, "", 0, "0") else None
+            except (TypeError, ValueError):
+                oe_id = None
+            conn.execute(
+                "INSERT INTO testfall_vorlage_scope "
+                "(vorlage_id, oe_id, klassifikation, mandatory) "
+                "VALUES (?,?,?,?)",
+                (vorlage_id, oe_id, klass, 1 if s.get("mandatory") else 0),
+            )
+
+
+def _idv_ist_wesentlich(conn: sqlite3.Connection, idv_db_id: int) -> bool:
+    """True, wenn die IDV mindestens ein erfülltes Wesentlichkeits-Kriterium hat."""
+    row = conn.execute(
+        "SELECT 1 FROM idv_wesentlichkeit WHERE idv_db_id = ? AND erfuellt = 1 LIMIT 1",
+        (idv_db_id,),
+    ).fetchone()
+    return bool(row)
+
+
+def get_matching_vorlagen(conn: sqlite3.Connection, art: str, idv_typ: str | None,
+                          oe_id: int | None, ist_wesentlich: bool) -> list[dict]:
+    """Liefert aktive Vorlagen für die gegebene Art + IDV-Kontext.
+
+    Berücksichtigt zusätzlich zum bestehenden ``idv_typ``-Filter die
+    Scope-Tabelle: Eine Vorlage passt, wenn sie keinen Scope hat ODER
+    mindestens einen Scope hat, dessen ``oe_id`` und ``klassifikation``
+    auf den IDV-Kontext passen (NULL = beliebig). Das ``mandatory``-Flag
+    der zurückgegebenen Vorlage ist 1, sobald ein passender Scope
+    ``mandatory=1`` setzt.
+    """
+    klass = "wesentlich" if ist_wesentlich else "nicht wesentlich"
+    rows = conn.execute(
+        """
+        SELECT v.id, v.titel, v.idv_typ, v.beschreibung, v.parametrisierung,
+               v.testdaten, v.erwartetes_ergebnis,
+               COALESCE((
+                 SELECT MAX(s.mandatory)
+                   FROM testfall_vorlage_scope s
+                  WHERE s.vorlage_id = v.id
+                    AND (s.oe_id IS NULL OR s.oe_id = ?)
+                    AND (s.klassifikation IS NULL OR s.klassifikation = ?)
+               ), 0) AS mandatory
+          FROM testfall_vorlagen v
+         WHERE v.aktiv = 1
+           AND v.art   = ?
+           AND (v.idv_typ IS NULL OR v.idv_typ = COALESCE(?, v.idv_typ))
+           AND (
+                NOT EXISTS (SELECT 1 FROM testfall_vorlage_scope s WHERE s.vorlage_id = v.id)
+                OR EXISTS (
+                    SELECT 1 FROM testfall_vorlage_scope s
+                     WHERE s.vorlage_id = v.id
+                       AND (s.oe_id IS NULL OR s.oe_id = ?)
+                       AND (s.klassifikation IS NULL OR s.klassifikation = ?)
+                )
+           )
+         ORDER BY mandatory DESC, (v.idv_typ IS NULL) ASC, v.titel
+        """,
+        (oe_id, klass, art, idv_typ, oe_id, klass),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def idvs_missing_mandatory_testfaelle(conn: sqlite3.Connection,
+                                      person_id: int | None = None) -> list[dict]:
+    """IDVs, denen mindestens eine Pflicht-Vorlage (fachlich) fehlt.
+
+    Eine Pflicht-Vorlage gilt als "vorhanden", wenn ein fachlicher
+    Testfall mit demselben Titel als ``beschreibung``-Anfang existiert.
+    Heuristik bewusst einfach: Vorlagen-Titel landet beim Übernehmen
+    in der ``beschreibung``; voll-strukturelles Mapping ist Stoff für
+    späteren Refactor (vgl. Issue #350).
+    """
+    sql = """
+        WITH idv AS (
+            SELECT r.id, r.idv_id, r.bezeichnung, r.org_unit_id, r.idv_typ,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM idv_wesentlichkeit iw
+                        WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
+                   ) THEN 'wesentlich' ELSE 'nicht wesentlich' END AS klass
+              FROM idv_register r
+             WHERE r.status NOT IN ('Archiviert','Abgekündigt')
+        ),
+        pflichtvorlagen AS (
+            SELECT i.id AS idv_db_id, v.id AS vorlage_id, v.titel
+              FROM idv i
+              JOIN testfall_vorlagen v
+                ON v.aktiv = 1 AND v.art = 'fachlich'
+               AND (v.idv_typ IS NULL OR v.idv_typ = i.idv_typ)
+             WHERE EXISTS (
+                 SELECT 1 FROM testfall_vorlage_scope s
+                  WHERE s.vorlage_id = v.id
+                    AND s.mandatory  = 1
+                    AND (s.oe_id IS NULL OR s.oe_id = i.org_unit_id)
+                    AND (s.klassifikation IS NULL OR s.klassifikation = i.klass)
+             )
+        )
+        SELECT i.id, i.idv_id, i.bezeichnung,
+               GROUP_CONCAT(p.titel, ' · ') AS fehlende_vorlagen,
+               COUNT(p.vorlage_id)         AS fehlend
+          FROM idv i
+          JOIN pflichtvorlagen p ON p.idv_db_id = i.id
+          LEFT JOIN fachliche_testfaelle ft
+                 ON ft.idv_id = i.id
+                AND ft.beschreibung LIKE '%' || p.titel || '%'
+         WHERE ft.id IS NULL
+    """
+    params: list = []
+    if person_id is not None:
+        sql += """
+           AND EXISTS (
+               SELECT 1 FROM idv_register r
+                WHERE r.id = i.id
+                  AND (r.fachverantwortlicher_id = ?
+                       OR r.idv_entwickler_id    = ?
+                       OR r.idv_koordinator_id   = ?
+                       OR r.stellvertreter_id    = ?)
+           )
+        """
+        params.extend([person_id, person_id, person_id, person_id])
+    sql += " GROUP BY i.id, i.idv_id, i.bezeichnung ORDER BY fehlend DESC, i.bezeichnung"
+    return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+# ---------------------------------------------------------------------------
 # Testdokumentation – Fachliche Testfälle
 # ---------------------------------------------------------------------------
 

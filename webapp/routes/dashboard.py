@@ -2,7 +2,7 @@ from flask import Blueprint, render_template
 from . import login_required, get_db, can_read_all, current_person_id
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from db import get_dashboard_stats, idv_incomplete_owners
+from db import get_dashboard_stats, idv_incomplete_owners, idvs_missing_mandatory_testfaelle
 
 bp = Blueprint("dashboard", __name__)
 
@@ -141,6 +141,14 @@ def index():
     else:
         unvollstaendig_pro_verantwortlicher = []
 
+    # Issue #350: IDVs ohne instanziierten Pflicht-Testfall
+    try:
+        idvs_pflicht_offen = idvs_missing_mandatory_testfaelle(
+            db, person_id=None if can_read_all() else my_person_id
+        )[:10]
+    except Exception:
+        idvs_pflicht_offen = []
+
     return render_template("dashboard.html",
         stats=stats,
         kritische_idvs=kritische_idvs,
@@ -151,4 +159,5 @@ def index():
         offene_vorschlaege=offene_vorschlaege,
         meine_schritte=meine_schritte,
         unvollstaendig_pro_verantwortlicher=unvollstaendig_pro_verantwortlicher,
+        idvs_pflicht_offen=idvs_pflicht_offen,
     )

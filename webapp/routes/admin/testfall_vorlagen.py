@@ -19,7 +19,11 @@ from .. import admin_required, get_db
 from ...db_writer import get_writer
 from ...security import sanitize_html
 from db_write_tx import write_tx
+from db import get_vorlage_scopes, replace_vorlage_scopes
 from . import bp
+
+
+_KLASSIFIKATIONEN = ("wesentlich", "nicht wesentlich")
 
 
 _ARTEN = ("fachlich", "technisch")
@@ -78,21 +82,61 @@ def _collect_form(typen: list[str]) -> dict:
     }
 
 
+def _collect_scopes(form) -> list[dict]:
+    """Liest die Scope-Zeilen aus dem Edit-Formular.
+
+    Erwartet Listen-Felder ``scope_oe_id[]``, ``scope_klassifikation[]``,
+    ``scope_mandatory[]``. Leere Zeilen (kein OE-Filter, keine
+    Klassifikation, kein Mandatory) werden verworfen.
+    """
+    oes     = form.getlist("scope_oe_id")
+    klassen = form.getlist("scope_klassifikation")
+    mands   = form.getlist("scope_mandatory")
+    scopes: list[dict] = []
+    n = max(len(oes), len(klassen), len(mands))
+    for i in range(n):
+        oe   = (oes[i]      if i < len(oes)      else "").strip()
+        kls  = (klassen[i]  if i < len(klassen)  else "").strip()
+        mand = "1" if (i < len(mands) and mands[i] == "1") else ""
+        if not oe and not kls and not mand:
+            continue
+        scopes.append({
+            "oe_id":          int(oe) if oe.isdigit() else None,
+            "klassifikation": kls if kls in _KLASSIFIKATIONEN else None,
+            "mandatory":      bool(mand),
+        })
+    return scopes
+
+
+def _all_org_units(db) -> list:
+    return db.execute(
+        "SELECT id, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
+    ).fetchall()
+
+
 @bp.route("/testfall-vorlagen", methods=["GET"])
 @admin_required
 def list_testfall_vorlagen():
     db     = get_db()
     typen  = _idv_typen(db)
-    vorlagen = db.execute("""
+    vorlagen_rows = db.execute("""
         SELECT id, titel, idv_typ, art, beschreibung, parametrisierung,
                testdaten, erwartetes_ergebnis, aktiv, created_at, updated_at
           FROM testfall_vorlagen
          ORDER BY aktiv DESC, art, (idv_typ IS NULL) ASC, idv_typ, titel
     """).fetchall()
+    vorlagen = []
+    for v in vorlagen_rows:
+        d = dict(v)
+        d["scopes"] = get_vorlage_scopes(db, v["id"])
+        d["mandatory_count"] = sum(1 for s in d["scopes"] if s["mandatory"])
+        vorlagen.append(d)
     return render_template("admin/testfall_vorlagen.html",
                            vorlagen=vorlagen,
                            idv_typen=typen,
-                           arten=_ARTEN)
+                           arten=_ARTEN,
+                           org_units=_all_org_units(db),
+                           klassifikationen=_KLASSIFIKATIONEN)
 
 
 @bp.route("/testfall-vorlagen/neu", methods=["POST"])
@@ -151,8 +195,9 @@ def edit_testfall_vorlage(vorlage_id):
         flash("Art (fachlich/technisch) ist erforderlich.", "error")
         return redirect(url_for("admin.list_testfall_vorlagen"))
 
-    aktiv = 1 if request.form.get("aktiv") else 0
-    now   = _now()
+    aktiv  = 1 if request.form.get("aktiv") else 0
+    scopes = _collect_scopes(request.form)
+    now    = _now()
 
     def _do(c):
         with write_tx(c):
@@ -166,6 +211,7 @@ def edit_testfall_vorlage(vorlage_id):
                   data["beschreibung"], data["parametrisierung"],
                   data["testdaten"], data["erwartetes_ergebnis"],
                   aktiv, now, vorlage_id))
+        replace_vorlage_scopes(c, vorlage_id, scopes)
 
     try:
         get_writer().submit(_do, wait=True)
