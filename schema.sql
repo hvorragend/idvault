@@ -1032,6 +1032,32 @@ CREATE TABLE IF NOT EXISTS technischer_test (
     UNIQUE (idv_id)
 );
 
+-- Prüfzeugnis der technischen Abnahme (Issue #349):
+-- Persistiert ausschliesslich Abweichungen gegenueber dem maschinellen
+-- Scanner-Befund. Eine fehlende Zeile bedeutet "maschinell bestaetigt,
+-- ungeaendert"; eine Zeile mit manual_override=1 haelt die manuelle
+-- Korrektur (Grund + Prueferin/Pruefer) fest. So bleibt im Audit-Trail
+-- nachvollziehbar, welche Befunde der Prueferin/dem Pruefer als
+-- Maschinenergebnis genuegt haben und wo manuell eingegriffen wurde.
+CREATE TABLE IF NOT EXISTS tests_prefilled_findings (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_id              INTEGER NOT NULL REFERENCES technischer_test(id) ON DELETE CASCADE,
+    file_id              INTEGER NOT NULL REFERENCES idv_files(id)        ON DELETE CASCADE,
+    check_kind           TEXT    NOT NULL,  -- siehe webapp/routes/tests.py::PRUEFZEUGNIS_CHECKS
+    machine_result       TEXT,              -- Rohwert zum Zeitpunkt der Pruefung (Text/JSON)
+    source_scan_run_id   INTEGER,           -- idv_files.last_scan_run_id beim Speichern
+    manual_override      INTEGER NOT NULL DEFAULT 0,  -- 0 = akzeptiert, 1 = widerlegt
+    manual_comment       TEXT,              -- Pflichtfeld bei manual_override=1
+    confirmed_by_id      INTEGER REFERENCES persons(id),
+    recorded_at          TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    UNIQUE (test_id, file_id, check_kind)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tests_prefilled_test
+    ON tests_prefilled_findings(test_id);
+CREATE INDEX IF NOT EXISTS idx_tests_prefilled_file
+    ON tests_prefilled_findings(file_id);
+
 -- Testfall-Vorlagen: wiederverwendbare Vorlage-Bibliothek je IDV-Typ
 -- UNIQUE(titel, art) ermöglicht idempotente INSERT OR IGNORE-Seeds
 CREATE TABLE IF NOT EXISTS testfall_vorlagen (

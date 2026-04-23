@@ -10,6 +10,7 @@ from db import (
     get_fachliche_testfaelle, get_fachlicher_testfall,
     create_fachlicher_testfall, update_fachlicher_testfall, delete_fachlicher_testfall,
     get_technischer_test, save_technischer_test, delete_technischer_test,
+    get_prefilled_findings, save_prefilled_findings,
 )
 from db_write_tx import write_tx
 from datetime import date as _date, datetime as _datetime
@@ -20,6 +21,61 @@ bp = Blueprint("tests", __name__, url_prefix="/tests")
 
 _BEWERTUNGEN     = ["Offen", "Erledigt"]
 _TECH_ERGEBNISSE = ["Offen", "Erledigt"]
+
+# Prüfzeugnis-Checks für die technische Abnahme (Issue #349).
+# Jeder Eintrag beschreibt einen maschinell erfassten Prüfpunkt:
+#   kind        – stabiler Schlüssel, landet in tests_prefilled_findings
+#   label       – Anzeigename im Formular
+#   describe    – Funktion dict(scanner-row) -> str, erzeugt die zur
+#                 Anzeige kommende Zusammenfassung des Scanner-Befunds
+# Die Reihenfolge in dieser Liste bestimmt auch die Reihenfolge im
+# Formular (Zell-/Blattschutz, Makros, Formelanzahl, externe Verknüpfungen,
+# SHA-256, Dateigröße/Sheets – vgl. Akzeptanzkriterien in #349).
+PRUEFZEUGNIS_CHECKS: list[dict] = [
+    {
+        "kind":  "makros",
+        "label": "Makros",
+        "describe": lambda d: "ja (VBA-Makros vorhanden)" if d.get("has_macros") else "nein",
+    },
+    {
+        "kind":  "externe_verknuepfungen",
+        "label": "Externe Verknüpfungen",
+        "describe": lambda d: "ja" if d.get("has_external_links") else "nein",
+    },
+    {
+        "kind":  "blattschutz",
+        "label": "Blattschutz",
+        "describe": lambda d: (
+            f"aktiv auf {d.get('protected_sheets_count') or 0} Blatt/Blättern"
+            + (" (mit Passwort)" if d.get("sheet_protection_has_pw") else "")
+            if d.get("has_sheet_protection") else "keiner"
+        ),
+    },
+    {
+        "kind":  "zellschutz",
+        "label": "Zell-/Arbeitsmappenschutz",
+        "describe": lambda d: "Arbeitsmappenschutz aktiv" if d.get("workbook_protected") else "nicht aktiv",
+    },
+    {
+        "kind":  "formel_anzahl",
+        "label": "Formelanzahl",
+        "describe": lambda d: f"{d.get('formula_count') or 0} Formelzellen",
+    },
+    {
+        "kind":  "sha256",
+        "label": "SHA-256",
+        "describe": lambda d: d.get("file_hash") or "–",
+    },
+    {
+        "kind":  "dateigroesse_blaetter",
+        "label": "Dateigröße / Tabellenblätter",
+        "describe": lambda d: (
+            f"{round((d.get('size_bytes') or 0) / 1024, 1)} KB · "
+            f"{d.get('sheet_count') or 0} Tabellenblatt/Tabellenblätter"
+        ),
+    },
+]
+_PRUEFZEUGNIS_KINDS = {c["kind"] for c in PRUEFZEUGNIS_CHECKS}
 
 _ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf", "xlsx", "xls",
                        "docx", "doc", "txt", "csv", "zip"}
@@ -107,7 +163,8 @@ def _scanner_metadata_for_idv(db, idv_db_id: int) -> list:
                f.has_macros, f.has_external_links,
                f.sheet_count, f.named_ranges_count, f.formula_count,
                f.has_sheet_protection, f.protected_sheets_count,
-               f.sheet_protection_has_pw, f.workbook_protected
+               f.sheet_protection_has_pw, f.workbook_protected,
+               f.last_scan_run_id
           FROM idv_files f
          WHERE f.id = (SELECT file_id FROM idv_register WHERE id = ?)
         UNION
@@ -116,13 +173,155 @@ def _scanner_metadata_for_idv(db, idv_db_id: int) -> list:
                f.has_macros, f.has_external_links,
                f.sheet_count, f.named_ranges_count, f.formula_count,
                f.has_sheet_protection, f.protected_sheets_count,
-               f.sheet_protection_has_pw, f.workbook_protected
+               f.sheet_protection_has_pw, f.workbook_protected,
+               f.last_scan_run_id
           FROM idv_files f
           JOIN idv_file_links lnk ON lnk.file_id = f.id
          WHERE lnk.idv_db_id = ?
         ORDER BY file_name
     """, (idv_db_id, idv_db_id)).fetchall()
     return [dict(r) for r in rows]
+
+
+def _build_pruefzeugnis(scanner_dateien: list, overrides: list) -> list:
+    """Baut das Prüfzeugnis-View-Modell für die technische Abnahme.
+
+    Eingabe:
+      * ``scanner_dateien`` – dict-Rows aus ``_scanner_metadata_for_idv``
+      * ``overrides`` – dict-Rows aus ``db.get_prefilled_findings`` (nur
+        Einträge mit manual_override=1 landen dort)
+
+    Rückgabe: Liste je Scanner-Datei mit den Prüfzeugnis-Checks in
+    stabiler Reihenfolge. Jeder Check enthält die maschinelle
+    Zusammenfassung, den aktuellen Override-Status (ticked / Kommentar /
+    Prüferin bzw. Prüfer + Zeitstempel + Scan-Run-Referenz).
+    """
+    overrides_by_key = {(o["file_id"], o["check_kind"]): o for o in overrides or []}
+    result = []
+    for d in scanner_dateien or []:
+        checks = []
+        for spec in PRUEFZEUGNIS_CHECKS:
+            key = (d["id"], spec["kind"])
+            ov = overrides_by_key.get(key)
+            checks.append({
+                "kind":             spec["kind"],
+                "label":            spec["label"],
+                "machine_summary":  spec["describe"](d),
+                "is_override":      bool(ov and ov.get("manual_override")),
+                "manual_comment":   (ov or {}).get("manual_comment") or "",
+                "confirmed_by":     (ov or {}).get("confirmed_by_name") or "",
+                "recorded_at":      (ov or {}).get("recorded_at") or "",
+                "source_scan_run_id": (ov or {}).get("source_scan_run_id")
+                                       if ov else d.get("last_scan_run_id"),
+            })
+        result.append({
+            "file_id":    d["id"],
+            "file_name":  d["file_name"],
+            "full_path":  d.get("full_path"),
+            "last_scan_run_id": d.get("last_scan_run_id"),
+            "checks":     checks,
+        })
+    return result
+
+
+def _parse_pruefzeugnis_form(form, scanner_dateien: list) -> tuple[list, list]:
+    """Parst die Formular-Werte des Prüfzeugnisses.
+
+    Rückgabe:
+      * ``overrides`` – Liste der zu persistierenden Abweichungen (für
+        ``save_prefilled_findings``)
+      * ``missing_comments`` – Override-Häkchen ohne Pflichtkommentar; der
+        Aufrufer flasht eine Warnung und ignoriert diese Einträge
+
+    Pro ``file × check_kind`` sind die erwarteten Felder
+    ``override_<file_id>_<kind>`` (Checkbox, Wert ``1``) sowie
+    ``override_comment_<file_id>_<kind>``. Das Feld
+    ``machine_result_<file_id>_<kind>`` trägt die beim Rendern erzeugte
+    Zusammenfassung mit in den Audit-Eintrag, damit späteres Nachscannen
+    die Ausgangslage erkennen lässt.
+    """
+    overrides: list[dict] = []
+    missing: list[str] = []
+    files_by_id = {int(d["id"]): d for d in scanner_dateien or []}
+    for file_id_s, fdata in files_by_id.items():
+        for spec in PRUEFZEUGNIS_CHECKS:
+            kind = spec["kind"]
+            key = f"override_{file_id_s}_{kind}"
+            if not form.get(key):
+                continue
+            comment = (form.get(f"override_comment_{file_id_s}_{kind}") or "").strip()
+            machine_result = (
+                form.get(f"machine_result_{file_id_s}_{kind}")
+                or spec["describe"](fdata)
+            )
+            if not comment:
+                missing.append(f"{fdata['file_name']} · {spec['label']}")
+                continue
+            overrides.append({
+                "file_id":            file_id_s,
+                "check_kind":         kind,
+                "machine_result":     machine_result,
+                "source_scan_run_id": fdata.get("last_scan_run_id"),
+                "manual_comment":     comment,
+            })
+    return overrides, missing
+
+
+def _log_pruefzeugnis_audit(
+    conn,
+    idv_db_id: int,
+    person_id: int | None,
+    bearbeiter_name: str,
+    overrides: list,
+    scanner_dateien: list,
+    total_checks: int,
+) -> None:
+    """Schreibt Audit-Einträge zum Prüfzeugnis in ``idv_history``.
+
+    - Eine Summen-Zeile (``pruefzeugnis_gespeichert``) hält fest, wie viele
+      Checks maschinell bestätigt und wie viele manuell überschrieben
+      wurden – daraus ergibt sich im Trail "Maschinell, ungeändert" für
+      alle impliziten Einträge.
+    - Pro Override zusätzlich eine Zeile (``pruefzeugnis_override``) mit
+      Datei, Prüfpunkt, Maschinenergebnis und Begründung.
+    """
+    overridden = len(overrides)
+    bestaetigt = max(0, total_checks - overridden)
+    files_by_id = {int(d["id"]): d for d in scanner_dateien or []}
+    kind_labels = {c["kind"]: c["label"] for c in PRUEFZEUGNIS_CHECKS}
+
+    conn.execute(
+        """
+        INSERT INTO idv_history
+            (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name)
+        VALUES (?, 'pruefzeugnis_gespeichert', ?, ?, ?)
+        """,
+        (
+            idv_db_id,
+            f"Prüfzeugnis gespeichert: {bestaetigt} maschinell bestätigt, "
+            f"{overridden} manuell überschrieben.",
+            person_id,
+            bearbeiter_name or None,
+        ),
+    )
+    for ov in overrides:
+        fdata = files_by_id.get(int(ov["file_id"])) or {}
+        label = kind_labels.get(ov["check_kind"], ov["check_kind"])
+        conn.execute(
+            """
+            INSERT INTO idv_history
+                (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name)
+            VALUES (?, 'pruefzeugnis_override', ?, ?, ?)
+            """,
+            (
+                idv_db_id,
+                f"{fdata.get('file_name') or '?'} · {label}: "
+                f"maschinell „{ov.get('machine_result') or '—'}“, "
+                f"manuell überschrieben – {ov['manual_comment']}",
+                person_id,
+                bearbeiter_name or None,
+            ),
+        )
 
 
 def _reset_freigabe_schritt(db, idv_db_id: int, schritt: str) -> None:
@@ -401,7 +600,8 @@ def edit_technischer_test(idv_db_id):
     if gate is not None:
         return gate
 
-    tech_test = get_technischer_test(db, idv_db_id)
+    tech_test       = get_technischer_test(db, idv_db_id)
+    scanner_dateien = _scanner_metadata_for_idv(db, idv_db_id)
 
     try:
         freigabe_id = int(request.args.get("freigabe_id") or request.form.get("freigabe_id") or 0) or None
@@ -423,10 +623,40 @@ def edit_technischer_test(idv_db_id):
         data["nachweis_datei_pfad"] = pfad or (tech_test["nachweis_datei_pfad"] if tech_test else None)
         data["nachweis_datei_name"] = name or (tech_test["nachweis_datei_name"] if tech_test else None)
 
-        get_writer().submit(
-            lambda c: save_technischer_test(c, idv_db_id, data),
-            wait=True,
+        # Prüfzeugnis (Issue #349): maschinelle Checks sind Default-
+        # bestätigt; hier werden ausschliesslich die vom Prüfer aktiv
+        # widerlegten Items eingesammelt. Override ohne Pflichtkommentar
+        # wird verworfen und dem Prüfer als Warnung angezeigt.
+        pruefzeugnis_overrides, missing_comments = _parse_pruefzeugnis_form(
+            request.form, scanner_dateien,
         )
+        for item in missing_comments:
+            flash(
+                f"Prüfzeugnis: „{item}“ wurde ohne Pflichtkommentar als "
+                "Override markiert und deshalb als maschinell bestätigt "
+                "übernommen. Bitte Begründung nachtragen.",
+                "warning",
+            )
+
+        from . import current_person_id
+        person_id = current_person_id()
+        bearbeiter_name = (data.get("pruefer") or "").strip()
+        total_checks = len(scanner_dateien) * len(PRUEFZEUGNIS_CHECKS)
+
+        def _persist(c):
+            save_technischer_test(c, idv_db_id, data)
+            tt = get_technischer_test(c, idv_db_id)
+            if tt is not None:
+                save_prefilled_findings(
+                    c, tt["id"], pruefzeugnis_overrides,
+                    confirmed_by_id=person_id,
+                )
+                _log_pruefzeugnis_audit(
+                    c, idv_db_id, person_id, bearbeiter_name,
+                    pruefzeugnis_overrides, scanner_dateien, total_checks,
+                )
+
+        get_writer().submit(_persist, wait=True)
 
         if data["ergebnis"] == "Erledigt":
             if freigabe_id:
@@ -453,11 +683,17 @@ def edit_technischer_test(idv_db_id):
             flash("Technischer Test gespeichert.", "success")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
+    prefilled_overrides = (
+        get_prefilled_findings(db, tech_test["id"]) if tech_test else []
+    )
+    pruefzeugnis = _build_pruefzeugnis(scanner_dateien, prefilled_overrides)
+
     return render_template("tests/technisch_form.html",
                            idv=idv, tech_test=tech_test,
                            freigabe_id=freigabe_id,
                            ergebnisse=_TECH_ERGEBNISSE,
-                           scanner_dateien=_scanner_metadata_for_idv(db, idv_db_id),
+                           scanner_dateien=scanner_dateien,
+                           pruefzeugnis=pruefzeugnis,
                            vorlagen=_load_testfall_vorlagen(db, "technisch", idv["idv_typ"]),
                            today=_date.today().isoformat())
 
