@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Pfad-Profile{% endblock %}
+{% block page_title %}<i class="bi bi-bookmark-star me-2"></i>Pfad-Profile{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+<p class="text-muted">
+  Pfad-Profile verknüpfen einen Pfad-Präfix (z.&nbsp;B. eine Abteilungsfreigabe) mit
+  Default-Kopfdaten. Beim Öffnen der Bulk-Registrierung wird das am besten
+  passende Profil gezogen (längstes Präfix gewinnt) — die Felder
+  Org-Einheit, Fachverantwortlicher, Koordinator, Entwicklungsart und
+  Prüfintervall sind damit automatisch vorbelegt und müssen nur noch
+  geprüft werden.
+</p>
+
+<!-- ── Neues Profil anlegen ─────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-plus-circle me-1"></i>Neues Profil
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin.new_pfad_profil') }}" class="row g-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-6">
+        <label class="form-label fw-600">Pfad-Präfix <span class="required-star">*</span></label>
+        <input type="text" name="pfad_praefix" class="form-control font-monospace small"
+               placeholder="\\srv\share\Abteilung_Kredit\" required>
+        <div class="form-text">
+          Ein Fund zählt zum Profil, wenn sein vollständiger Pfad mit diesem
+          Präfix beginnt (case-insensitiv, Slashes werden normalisiert).
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-600">Org-Einheit</label>
+        <select name="org_unit_id" class="form-select form-select-sm">
+          <option value="">— optional —</option>
+          {% for o in org_units %}
+          <option value="{{ o.id }}">{{ o.bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-600">Prüfintervall (Monate)</label>
+        <input type="number" name="pruefintervall_monate" class="form-control form-control-sm"
+               min="1" max="60" step="1" placeholder="12">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-600">Fachverantwortlicher</label>
+        <select name="fachverantwortlicher_id" class="form-select form-select-sm">
+          <option value="">— optional —</option>
+          {% for p in personen %}
+          <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-600">Koordinator</label>
+        <select name="idv_koordinator_id" class="form-select form-select-sm">
+          <option value="">— optional —</option>
+          {% for p in personen %}
+          <option value="{{ p.id }}">{{ p.nachname }}, {{ p.vorname }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-600">Entwicklungsart</label>
+        <select name="entwicklungsart" class="form-select form-select-sm">
+          <option value="">— optional —</option>
+          {% for art in entwicklungsarten %}
+          <option value="{{ art }}">{{ art }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label fw-600">Bemerkung</label>
+        <input type="text" name="bemerkung" class="form-control form-control-sm"
+               maxlength="200" placeholder="Optionaler Kurzkommentar">
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-save me-1"></i>Profil anlegen
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Vorhandene Profile ────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-list-ul me-1"></i>Vorhandene Profile</span>
+    <span class="text-muted fs-8">{{ profile|length }} Einträge</span>
+  </div>
+  <div class="card-body p-0">
+    {% if not profile %}
+    <p class="text-muted px-3 py-3 mb-0">
+      Noch keine Profile angelegt. Häufiger Fall: je Abteilungsshare ein Profil.
+    </p>
+    {% else %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="min-width:24ch">Pfad-Präfix</th>
+            <th>OE</th>
+            <th>Fachverantw.</th>
+            <th>Koordinator</th>
+            <th>Entw.-Art</th>
+            <th>Intervall</th>
+            <th>Aktiv</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in profile %}
+          <tr>
+            <form method="post" action="{{ url_for('admin.edit_pfad_profil', profil_id=p.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <td>
+                <input type="text" name="pfad_praefix"
+                       class="form-control form-control-sm font-monospace"
+                       value="{{ p.pfad_praefix }}" style="min-width:24ch">
+                {% if p.bemerkung %}
+                <div class="form-text">{{ p.bemerkung }}</div>
+                {% endif %}
+              </td>
+              <td>
+                <select name="org_unit_id" class="form-select form-select-sm">
+                  <option value="">—</option>
+                  {% for o in org_units %}
+                  <option value="{{ o.id }}" {% if p.org_unit_id==o.id %}selected{% endif %}>{{ o.bezeichnung }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select name="fachverantwortlicher_id" class="form-select form-select-sm">
+                  <option value="">—</option>
+                  {% for pp in personen %}
+                  <option value="{{ pp.id }}" {% if p.fachverantwortlicher_id==pp.id %}selected{% endif %}>{{ pp.nachname }}, {{ pp.vorname }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select name="idv_koordinator_id" class="form-select form-select-sm">
+                  <option value="">—</option>
+                  {% for pp in personen %}
+                  <option value="{{ pp.id }}" {% if p.idv_koordinator_id==pp.id %}selected{% endif %}>{{ pp.nachname }}, {{ pp.vorname }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select name="entwicklungsart" class="form-select form-select-sm">
+                  <option value="">—</option>
+                  {% for art in entwicklungsarten %}
+                  <option value="{{ art }}" {% if p.entwicklungsart==art %}selected{% endif %}>{{ art }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" name="pruefintervall_monate"
+                       class="form-control form-control-sm" style="max-width:6em"
+                       min="1" max="60" step="1"
+                       value="{{ p.pruefintervall_monate or '' }}">
+              </td>
+              <td>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="aktiv" value="1"
+                         {% if p.aktiv %}checked{% endif %}>
+                </div>
+              </td>
+              <td class="text-end">
+                <input type="text" name="bemerkung" class="form-control form-control-sm mb-1"
+                       value="{{ p.bemerkung or '' }}" placeholder="Bemerkung">
+                <div class="d-flex gap-1 justify-content-end">
+                  <button type="submit" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-save"></i>
+                  </button>
+            </form>
+            <form method="post" action="{{ url_for('admin.delete_pfad_profil', profil_id=p.id) }}"
+                  data-confirm="Profil '{{ p.pfad_praefix }}' wirklich löschen?" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+                </div>
+              </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
