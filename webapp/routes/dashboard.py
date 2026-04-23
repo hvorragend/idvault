@@ -110,6 +110,23 @@ def index():
           AND id NOT IN (SELECT COALESCE(file_id, -1) FROM idv_register WHERE file_id IS NOT NULL)
     """).fetchone()[0]
 
+    # Offene Zuordnungs-Vorschläge aus der Auto-Zuordnung (mittlere Konfidenz).
+    # Die Tabelle existiert erst nach dem Runtime-Schema-Upgrade; ein defensives
+    # try schützt frische Setups vor einem 500er, falls die Ausführung vor
+    # _ensure_runtime_schema abläuft.
+    try:
+        offene_vorschlaege = db.execute("""
+            SELECT COUNT(*) FROM idv_match_suggestions s
+            JOIN idv_files    f ON f.id = s.file_id
+            JOIN idv_register r ON r.id = s.idv_db_id
+            WHERE s.decision IS NULL
+              AND f.status = 'active'
+              AND f.bearbeitungsstatus = 'Neu'
+              AND r.status NOT IN ('Archiviert')
+        """).fetchone()[0]
+    except Exception:
+        offene_vorschlaege = 0
+
     return render_template("dashboard.html",
         stats=stats,
         kritische_idvs=kritische_idvs,
@@ -117,5 +134,6 @@ def index():
         offene_massnahmen=offene_massnahmen,
         letzter_scan=letzter_scan,
         unverknuepfte_funde=unverknuepfte_funde,
+        offene_vorschlaege=offene_vorschlaege,
         meine_schritte=meine_schritte,
     )

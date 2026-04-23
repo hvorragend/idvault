@@ -99,6 +99,24 @@ _RUNTIME_SCHEMA_DDL = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_idv  ON idv_zellschutz_akzeptanz(idv_db_id)",
     "CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_file ON idv_zellschutz_akzeptanz(file_id)",
+    # Zuordnungs-Vorschläge aus der Auto-Zuordnung (mittlere Konfidenz):
+    # werden dem Owner im Self-Service zur Bestätigung/Ablehnung angezeigt.
+    """
+    CREATE TABLE IF NOT EXISTS idv_match_suggestions (
+        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id              INTEGER NOT NULL REFERENCES idv_files(id)    ON DELETE CASCADE,
+        idv_db_id            INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+        score                INTEGER NOT NULL,
+        created_at           TEXT NOT NULL DEFAULT (datetime('now','utc')),
+        decision             TEXT,           -- NULL=offen, 'confirmed', 'rejected'
+        decided_at           TEXT,
+        decided_by_person_id INTEGER         REFERENCES persons(id),
+        UNIQUE(file_id, idv_db_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_match_sugg_file ON idv_match_suggestions(file_id)",
+    "CREATE INDEX IF NOT EXISTS idx_match_sugg_idv  ON idv_match_suggestions(idv_db_id)",
+    "CREATE INDEX IF NOT EXISTS idx_match_sugg_open ON idv_match_suggestions(decision) WHERE decision IS NULL",
 )
 
 

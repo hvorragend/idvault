@@ -1,6 +1,58 @@
 {% extends "self_service/_base.html" %}
 {% block title %}Meine Funde – idvault{% endblock %}
 {% block content %}
+
+{% if vorschlaege %}
+<div class="card border-0 shadow-sm mb-4 border-start border-4 border-info">
+  <div class="card-header bg-white fw-600 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-lightbulb me-2 text-info"></i>Zuordnungs-Vorschläge</span>
+    <span class="badge bg-info text-dark">{{ vorschlaege|length }}</span>
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Der Scanner hat für die folgenden Dateien jeweils eine mögliche
+      Eigenentwicklung gefunden. Bitte bestätigen oder lehnen Sie den Vorschlag
+      ab – die Datei wird nur bei Bestätigung verknüpft.
+    </p>
+    {% for v in vorschlaege %}
+    <div class="ss-file-row">
+      <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+        <div class="me-2" style="min-width:0;flex:1;">
+          <div class="fw-600">
+            <i class="bi bi-file-earmark-text me-1 text-primary"></i>
+            {{ v.file_name }}
+            <span class="badge bg-info text-dark ms-1" title="Konfidenz-Score der Ähnlichkeitsanalyse">Score {{ v.score }}</span>
+          </div>
+          <div class="ss-path">{{ v.full_path }}</div>
+          <div class="small mt-1">
+            <i class="bi bi-arrow-right-short text-muted"></i>
+            <span class="text-muted">Vorschlag:</span>
+            <span class="fw-500">{{ v.idv_id }} – {{ v.idv_bezeichnung }}</span>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <form method="post" action="{{ url_for('self_service.vorschlag_entscheiden', suggestion_id=v.suggestion_id) }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="aktion" value="bestaetigen">
+            <button type="submit" class="btn btn-sm btn-success">
+              <i class="bi bi-check2-circle me-1"></i>Bestätigen
+            </button>
+          </form>
+          <form method="post" action="{{ url_for('self_service.vorschlag_entscheiden', suggestion_id=v.suggestion_id) }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="aktion" value="ablehnen">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Ablehnen
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white fw-600 d-flex align-items-center justify-content-between">
     <span><i class="bi bi-folder2-open me-2"></i>Meine offenen Scanner-Funde</span>

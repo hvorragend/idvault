@@ -56,6 +56,11 @@ DEFAULT_CONFIG: dict = {
     # Zusätzlich verlangt der Batch einen Plausibilitätscheck
     # (Owner-Match ODER Namensüberschneidung mit dem IDV-Bezeichner).
     "auto_assign_threshold": 95,
+    # Vorschlags-Schwelle: Treffer im Band ``suggest_threshold`` ≤ Score <
+    # ``auto_assign_threshold`` werden nicht automatisch verknüpft, sondern
+    # dem Fachbereich im Self-Service zur Bestätigung/Ablehnung vorgelegt.
+    # 0 deaktiviert die Vorschlagsphase (altes Verhalten).
+    "suggest_threshold": 80,
     # Hash-Dubletten: wenn ein Fund denselben SHA-256 hat wie eine bereits
     # registrierte Datei (und die Ziel-IDV eindeutig ist), wird er als
     # Zusatz-Link verknüpft statt im Eingang zu landen. HASH_ERROR wird
@@ -93,6 +98,13 @@ def get_config(db) -> dict:
         cfg["name_algorithm"] = DEFAULT_CONFIG["name_algorithm"]
     cfg["threshold"]    = max(0, min(100, cfg["threshold"]))
     cfg["auto_assign_threshold"] = max(cfg["threshold"], min(100, cfg["auto_assign_threshold"]))
+    # Vorschlagsband: zwischen Anzeige-Mindestpunktzahl und Auto-Schwelle.
+    # 0 bleibt 0 (Feature abgeschaltet).
+    st = max(0, min(100, cfg["suggest_threshold"]))
+    if st > 0:
+        st = max(cfg["threshold"], st)
+        st = min(st, cfg["auto_assign_threshold"])
+    cfg["suggest_threshold"] = st
     cfg["weight_type"]  = max(0, cfg["weight_type"])
     cfg["weight_owner"] = max(0, cfg["weight_owner"])
     cfg["weight_name"]  = max(0, cfg["weight_name"])

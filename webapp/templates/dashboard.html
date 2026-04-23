@@ -90,6 +90,12 @@
           {% else %}
           <span class="status-line status-line-done"><i class="bi bi-check-circle"></i>Alle zugeordnet</span>
           {% endif %}
+          {% if offene_vorschlaege and offene_vorschlaege > 0 %}
+          <span class="status-line text-info"
+                title="Offene Zuordnungs-Vorschläge (mittlere Konfidenz) – liegen beim Fachbereich">
+            <i class="bi bi-lightbulb"></i>{{ offene_vorschlaege }} Vorschlag/Vorschläge offen
+          </span>
+          {% endif %}
         </div>
       {% else %}
         <span class="text-muted small">Noch kein Scan durchgeführt.</span>

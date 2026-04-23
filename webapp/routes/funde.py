@@ -1327,8 +1327,9 @@ def auto_zuordnen():
 
     cfg   = _sim.get_config(db)
     noise = frozenset(cfg["noise_words"])
-    auto_threshold = cfg["auto_assign_threshold"]
-    hash_dedup     = bool(cfg.get("auto_link_hash_duplicates", True))
+    auto_threshold    = cfg["auto_assign_threshold"]
+    suggest_threshold = cfg.get("suggest_threshold", 0) or 0
+    hash_dedup        = bool(cfg.get("auto_link_hash_duplicates", True))
 
     neu_funde = db.execute(f"""
         SELECT f.id, f.file_name, f.extension, f.file_owner, f.has_macros,
@@ -1393,6 +1394,7 @@ def auto_zuordnen():
         return redirect(url_for("funde.eingang_funde"))
 
     plan = []
+    suggest_plan = []  # Mid-Score-Treffer für die Vorschlagsliste
     for fund in remaining:
         fund_typ   = _idv_typ_vorschlag(fund["extension"], fund["has_macros"])
         fund_owner = fund["file_owner"] or ""
@@ -1411,25 +1413,40 @@ def auto_zuordnen():
             )
             if score > best_score:
                 best_score, best_idv = score, idv
-        if best_idv and best_score >= auto_threshold:
-            dev_ids = [
-                best_idv["dev_kuerzel"], best_idv["dev_ad"], best_idv["dev_uid"],
-                best_idv["fv_kuerzel"],  best_idv["fv_ad"],
-            ]
-            if _sim.is_plausible_auto_match(
-                fund_typ=fund_typ, fund_owner=fund_owner,
-                idv_typ=best_idv["idv_typ"] or "",
-                dev_ids_lower=[d for d in dev_ids if d],
-            ):
-                plan.append({
-                    "file_id":   fund["id"],
-                    "file_name": fund_name,
-                    "idv_db_id": best_idv["id"],
-                    "idv_id":    best_idv["idv_id"],
-                    "score":     best_score,
-                })
+        if not best_idv:
+            continue
+        dev_ids = [
+            best_idv["dev_kuerzel"], best_idv["dev_ad"], best_idv["dev_uid"],
+            best_idv["fv_kuerzel"],  best_idv["fv_ad"],
+        ]
+        plausible = _sim.is_plausible_auto_match(
+            fund_typ=fund_typ, fund_owner=fund_owner,
+            idv_typ=best_idv["idv_typ"] or "",
+            dev_ids_lower=[d for d in dev_ids if d],
+        )
+        if best_score >= auto_threshold and plausible:
+            plan.append({
+                "file_id":   fund["id"],
+                "file_name": fund_name,
+                "idv_db_id": best_idv["id"],
+                "idv_id":    best_idv["idv_id"],
+                "score":     best_score,
+            })
+        elif (
+            suggest_threshold > 0
+            and best_score >= suggest_threshold
+            and best_score < auto_threshold
+            and plausible
+        ):
+            suggest_plan.append({
+                "file_id":   fund["id"],
+                "file_name": fund_name,
+                "idv_db_id": best_idv["id"],
+                "idv_id":    best_idv["idv_id"],
+                "score":     best_score,
+            })
 
-    if not plan and not hash_plan:
+    if not plan and not hash_plan and not suggest_plan:
         flash(
             f"Keine Hash-Dubletten gefunden und keine Funde erreichten die "
             f"Auto-Schwelle von {auto_threshold} mit erfüllter Plausibilität.",
@@ -1475,6 +1492,15 @@ def auto_zuordnen():
                      f"automatisch zugeordnet (Score {entry['score']} ≥ {auto_threshold})",
                      person_id, user_name),
                 )
+            for entry in suggest_plan:
+                # Vorschlag idempotent anlegen. Bereits entschiedene Vorschläge
+                # (decision IS NOT NULL) werden nicht überschrieben — der UNIQUE-
+                # Index auf (file_id, idv_db_id) verhindert Duplikate.
+                c.execute(
+                    "INSERT OR IGNORE INTO idv_match_suggestions "
+                    "(file_id, idv_db_id, score) VALUES (?,?,?)",
+                    (entry["file_id"], entry["idv_db_id"], entry["score"]),
+                )
 
     get_writer().submit(_do, wait=True)
     parts = []
@@ -1482,6 +1508,11 @@ def auto_zuordnen():
         parts.append(f"{len(hash_plan)} Hash-Dublette(n) verknüpft")
     if plan:
         parts.append(f"{len(plan)} Ähnlichkeits-Treffer(n) ab Schwelle {auto_threshold}")
+    if suggest_plan:
+        parts.append(
+            f"{len(suggest_plan)} Vorschlag/Vorschläge an den Fachbereich "
+            f"(Score ≥ {suggest_threshold})"
+        )
     flash("Auto-Zuordnung abgeschlossen: " + " · ".join(parts) + ".", "success")
     return redirect(url_for("funde.eingang_funde"))
 
