@@ -148,6 +148,7 @@ def _sheet_register(wb: Workbook, db: sqlite3.Connection) -> None:
         ("Letzte Prüfung",         16),
         ("Nächste Prüfung",        16),
         ("Prüfintervall (Mon.)",   18),
+        ("Freigabe-Verfahren",     20),
     ]
     _write_header(ws, header)
 
@@ -165,7 +166,8 @@ def _sheet_register(wb: Workbook, db: sqlite3.Connection) -> None:
                r.version, r.produktiv_seit,
                (SELECT MAX(pruefungsdatum) FROM pruefungen p WHERE p.idv_id = r.id
                   AND p.abgeschlossen = 1) AS letzte_pruefung,
-               r.naechste_pruefung, r.pruefintervall_monate
+               r.naechste_pruefung, r.pruefintervall_monate,
+               COALESCE(r.freigabe_verfahren, 'Standard') AS freigabe_verfahren
           FROM idv_register r
           LEFT JOIN org_units ou ON ou.id = r.org_unit_id
           LEFT JOIN persons  pf  ON pf.id = r.fachverantwortlicher_id
@@ -193,6 +195,7 @@ def _sheet_register(wb: Workbook, db: sqlite3.Connection) -> None:
         if fill:
             c_faelligkeit.fill = fill
         ws.cell(row=i, column=15, value=r["pruefintervall_monate"])
+        ws.cell(row=i, column=16, value=r["freigabe_verfahren"])
 
     _autofilter(ws, len(header), len(rows))
 

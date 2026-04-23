@@ -1,0 +1,45 @@
+{% extends "self_service/_base.html" %}
+{% block title %}Sicht-Freigabe – idvault{% endblock %}
+{% block content %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h4 class="mb-3"><i class="bi bi-clipboard2-check me-2"></i>Sicht-Freigabe (Stille Freigabe)</h4>
+    <p class="lead">
+      Hallo {{ person.vorname }} {{ person.nachname }},
+    </p>
+    <p>
+      die Eigenentwicklung
+      <strong>{{ idv.bezeichnung }}</strong> ({{ idv.idv_id }})
+      ist als <em>nicht wesentlich</em> klassifiziert. Der Entwickler hat
+      die Funktion und Korrektheit selbst zertifiziert.
+    </p>
+    <p>
+      Bitte bestaetigen Sie die <strong>Sicht-Freigabe</strong> als
+      Fachverantwortlicher. Anschliessend wird die IDV automatisch
+      archiviert (SHA-256) und auf <code>Freigegeben (Stille Freigabe)</code>
+      gesetzt.
+    </p>
+
+    {% if bereits_freigegeben %}
+    <div class="alert alert-success">
+      <i class="bi bi-check-circle me-1"></i>Diese Eigenentwicklung wurde bereits freigegeben.
+    </div>
+    {% else %}
+    <form method="post"
+          action="{{ url_for('silent_release_self.sicht_freigabe_bestaetigen', token=token) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-check mb-3">
+        <input type="checkbox" class="form-check-input" id="ack" name="ack" value="1" required>
+        <label class="form-check-label" for="ack">
+          Ich bestaetige als Fachverantwortlicher die Funktion und
+          Korrektheit dieser nicht-wesentlichen Eigenentwicklung.
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check2-circle me-1"></i>Sicht-Freigabe bestaetigen
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

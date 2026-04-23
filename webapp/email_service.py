@@ -682,6 +682,42 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
     return send_mail(db, recipient_emails, subject, html, text)
 
 
+def notify_silent_release_supervisor(db, idv_db_id: int, magic_link: str,
+                                     entwickler_name: str = "") -> bool:
+    """Mail an den Fachverantwortlichen mit Sicht-Freigabe-Link (Issue #351).
+
+    Bewusst schlank gehalten: nutzt keine eigene Template-Konfiguration,
+    sondern baut die Mail direkt. Wer die Mail anpassen will, kann
+    spaeter eine ``app_settings``-Vorlage einfuehren.
+    """
+    row = db.execute(
+        "SELECT r.idv_id, r.bezeichnung, p.email, p.vorname, p.nachname "
+        "  FROM idv_register r "
+        "  LEFT JOIN persons p ON p.id = r.fachverantwortlicher_id "
+        " WHERE r.id = ?",
+        (idv_db_id,),
+    ).fetchone()
+    if not row or not row["email"]:
+        return False
+    subject = f"[idvault] Sicht-Freigabe erforderlich – {row['idv_id']}"
+    html = (
+        f"<p>Hallo {row['vorname']} {row['nachname']},</p>"
+        f"<p>fuer die nicht-wesentliche Eigenentwicklung "
+        f"<strong>{row['bezeichnung']}</strong> ({row['idv_id']}) liegt eine "
+        f"Selbstzertifizierung des Entwicklers"
+        + (f" ({entwickler_name})" if entwickler_name else "") +
+        f" vor. Bitte bestaetigen Sie die Sicht-Freigabe per Klick:</p>"
+        f'<p style="margin:24px 0;text-align:center;">'
+        f'<a href="{magic_link}" style="background:#0d6efd;color:#fff;'
+        f'padding:12px 28px;border-radius:6px;text-decoration:none;'
+        f'font-weight:bold;display:inline-block;">Sicht-Freigabe oeffnen</a>'
+        f"</p>"
+        f"<p style=\"font-size:12px;color:#777;\">Der Link ist 7 Tage gueltig.</p>"
+    )
+    text = _strip_html_tags(html)
+    return send_mail(db, row["email"], subject, html, text)
+
+
 def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
     """Benachrichtigung wenn alle 4 Freigabe-Schritte erledigt wurden."""
     if not _is_notify_enabled(db, "freigabe_abgeschlossen"):

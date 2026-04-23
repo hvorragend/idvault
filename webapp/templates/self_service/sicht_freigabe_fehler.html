@@ -1,0 +1,16 @@
+{% extends "self_service/_base.html" %}
+{% block title %}Sicht-Freigabe nicht moeglich – idvault{% endblock %}
+{% block content %}
+<div class="card border-0 shadow-sm border-start border-4 border-danger">
+  <div class="card-body">
+    <h4 class="mb-3"><i class="bi bi-x-circle-fill me-2 text-danger"></i>Sicht-Freigabe nicht moeglich</h4>
+    <p class="lead">
+      Der Sicht-Freigabe-Link ist ungueltig oder abgelaufen (max. 7 Tage).
+    </p>
+    <p class="text-muted">
+      Bitte wenden Sie sich an den Entwickler oder den IDV-Koordinator,
+      um einen neuen Link zu erhalten.
+    </p>
+  </div>
+</div>
+{% endblock %}

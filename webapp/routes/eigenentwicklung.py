@@ -840,6 +840,25 @@ def detail_idv(idv_db_id):
 
     completeness = idv_completeness_score(db, idv_db_id)
 
+    # Issue #351: Stille Freigabe verfuegbar?
+    silent_release_enabled = False
+    try:
+        s_row = db.execute(
+            "SELECT value FROM app_settings WHERE key='silent_release_enabled'"
+        ).fetchone()
+        silent_release_enabled = bool(s_row) and (s_row["value"] or "").strip() in ("1", "true", "yes")
+    except Exception:
+        pass
+    silent_release_moeglich = (
+        silent_release_enabled
+        and not ist_wesentlich
+        and not phase1_gestartet
+        and idv["status"] not in (
+            "Freigegeben", "Freigegeben mit Auflagen",
+            "Freigegeben (Stille Freigabe)",
+        )
+    )
+
     return render_template("eigenentwicklung/detail.html",
         idv=idv, file=file, extra_files=extra_files, history=history, massnahmen=massnahmen,
         wesentlichkeit=wesentlichkeit,
@@ -862,6 +881,7 @@ def detail_idv(idv_db_id):
         freigabe_patch_schritte=freigabe_patch_schritte,
         hat_vorgaenger=hat_vorgaenger,
         completeness=completeness,
+        silent_release_moeglich=silent_release_moeglich,
         can_create=can_create())
 
 

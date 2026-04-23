@@ -205,6 +205,10 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('notify_enabled_massnahme_ueberfaellig', '1'),
     ('notify_enabled_owner_digest',           '1'),
     ('self_service_enabled',                  '0'),
+    -- Issue #351: Stille Freigabe (Selbstzertifizierung + Sicht-Freigabe)
+    -- als verkuerztes Verfahren fuer nicht-wesentliche Eigenentwicklungen.
+    -- Default aus (Opt-In pro Bank).
+    ('silent_release_enabled',                '0'),
     ('self_service_frequency_days',           '7'),
     ('self_service_last_digest_date',         ''),
     ('auto_ignore_no_formula', '0'),
@@ -463,7 +467,12 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- 'patch'       = verkürzter Workflow gemäß app_settings.freigabe_patch_schritte
     freigabe_aenderungskategorie  TEXT,
     -- Pflichtfeld bei 'patch': warum reicht ein Patch-Verfahren?
-    freigabe_patch_begruendung    TEXT
+    freigabe_patch_begruendung    TEXT,
+    -- Welches Freigabeverfahren wurde fuer die letzte Freigabe genutzt?
+    -- 'Standard'         = regulaeres 3-Phasen-Verfahren
+    -- 'Stille Freigabe'  = verkuerztes Verfahren (Issue #351, nur fuer
+    --                      nicht-wesentliche IDVs, Opt-In via App-Setting)
+    freigabe_verfahren            TEXT NOT NULL DEFAULT 'Standard'
 );
 
 -- Indizes IDV-Register
