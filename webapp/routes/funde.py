@@ -1,7 +1,9 @@
 """Funde-Blueprint (Scanner-Ergebnisse)"""
+import io
 import json
 import logging
-from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session, jsonify
+from datetime import datetime
+from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session, jsonify, send_file
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
 from ..app_settings import get_bool as _get_bool
 from ..db_writer import get_writer
@@ -73,6 +75,12 @@ _DIR_PATH_EXPR_PLAIN = """CASE WHEN file_name IS NOT NULL AND full_path IS NOT N
 
 
 _VALID_PER_PAGE = (25, 50, 100, 200, 500)
+
+# Excel-Dateiformate, für die der Scanner Blatt-/Arbeitsmappenschutz auslesen kann
+# (OOXML-Container; .xls bleibt außen vor, weil der Scanner dort keine Protection-
+# Flags ermitteln kann und das sonst zu falschen IT-Risiko-Meldungen führen würde).
+_EXCEL_PROTECTABLE_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx")
+_EXCEL_EXT_PLACEHOLDERS = ",".join("?" * len(_EXCEL_PROTECTABLE_EXTS))
 
 
 def _compute_match_scores(dateien, db):
@@ -231,6 +239,18 @@ def list_funde():
             where_parts.append("f.has_macros = 1")
         elif filt == "blattschutz":
             where_parts.append("f.has_sheet_protection = 1")
+        elif filt == "ohne_schutz":
+            # Excel-Dateien ohne Blatt- und Arbeitsmappenschutz
+            # → Kandidaten für IT-Risiko-Erfassung (MaRisk AT 7.2 / DORA)
+            where_parts.append(
+                f"LOWER(f.extension) IN ({_EXCEL_EXT_PLACEHOLDERS})"
+            )
+            params.extend(_EXCEL_PROTECTABLE_EXTS)
+            where_parts.append("COALESCE(f.has_sheet_protection, 0) = 0")
+            where_parts.append("COALESCE(f.workbook_protected, 0) = 0")
+            where_parts.append(
+                "(f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')"
+            )
         elif filt == "ignoriert":
             where_parts.append("f.bearbeitungsstatus = 'Ignoriert'")
         elif filt == "zur_registrierung":
@@ -345,6 +365,15 @@ def list_funde():
     mit_schutz = db.execute(
         "SELECT COUNT(*) FROM idv_files WHERE status='active' AND has_sheet_protection=1"
     ).fetchone()[0]
+    ohne_schutz = db.execute(
+        "SELECT COUNT(*) FROM idv_files"
+        " WHERE status='active'"
+        f"   AND LOWER(extension) IN ({_EXCEL_EXT_PLACEHOLDERS})"
+        "   AND COALESCE(has_sheet_protection, 0) = 0"
+        "   AND COALESCE(workbook_protected, 0) = 0"
+        "   AND (bearbeitungsstatus IS NULL OR bearbeitungsstatus != 'Ignoriert')",
+        _EXCEL_PROTECTABLE_EXTS,
+    ).fetchone()[0]
     archiviert = db.execute(
         "SELECT COUNT(*) FROM idv_files WHERE status='archiviert'"
     ).fetchone()[0]
@@ -426,7 +455,7 @@ def list_funde():
         total=total, total_pages=total_pages, page=page, per_page=per_page,
         gesamt=gesamt, gesamt_inkl_ignoriert=gesamt_inkl_ignoriert,
         ohne_idv=ohne_idv, mit_makro=mit_makro,
-        mit_schutz=mit_schutz, archiviert=archiviert,
+        mit_schutz=mit_schutz, ohne_schutz=ohne_schutz, archiviert=archiviert,
         ignoriert=ignoriert, zur_registrierung=zur_registrierung,
         duplikate_anzahl=duplikate_anzahl,
         idv_typ_vorschlag=_idv_typ_vorschlag,
@@ -452,6 +481,25 @@ def list_funde():
         valid_per_page=_VALID_PER_PAGE,
         match_scores=match_scores,
         **_scan_btn_ctx(),
+    )
+
+
+@bp.route("/export/ohne-schutz.xlsx")
+@login_required
+def export_ohne_schutz():
+    """Excel-Report aller Excel-Dateien ohne Blatt-/Arbeitsmappenschutz.
+
+    Dient als Arbeitsgrundlage für die Anlage von IT-Risiken im IDV-Register
+    (MaRisk AT 7.2 / DORA).
+    """
+    from ..excel_export import unprotected_excel_bytes
+    payload = unprotected_excel_bytes(get_db())
+    fname = f"excel-ohne-zellschutz-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+    return send_file(
+        io.BytesIO(payload),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=fname,
     )
 
 

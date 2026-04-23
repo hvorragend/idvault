@@ -900,6 +900,29 @@ CREATE TABLE IF NOT EXISTS idv_file_links (
 CREATE INDEX IF NOT EXISTS idx_file_links_idv  ON idv_file_links(idv_db_id);
 CREATE INDEX IF NOT EXISTS idx_file_links_file ON idv_file_links(file_id);
 
+-- -----------------------------------------------------------------------------
+-- 12b. AKZEPTANZ „KEIN ZELL-/BLATTSCHUTZ"
+-- -----------------------------------------------------------------------------
+-- Aufsichtsrechtlich (MaRisk AT 7.2 / DORA) muss der Fachverantwortliche
+-- bei der Fachlichen Abnahme bewusst bestätigen, dass eine Excel-Datei
+-- ohne Blatt- oder Arbeitsmappenschutz produktiv geht. Pro IDV und Datei
+-- wird genau eine Akzeptanz-Entscheidung festgehalten (mit optionaler
+-- Begründung und Prüfprotokoll-Verweis auf die zugehörige Freigabe).
+
+CREATE TABLE IF NOT EXISTS idv_zellschutz_akzeptanz (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    idv_db_id           INTEGER NOT NULL REFERENCES idv_register(id)  ON DELETE CASCADE,
+    file_id             INTEGER NOT NULL REFERENCES idv_files(id)      ON DELETE CASCADE,
+    freigabe_id         INTEGER          REFERENCES idv_freigaben(id)  ON DELETE SET NULL,
+    akzeptiert_von_id   INTEGER          REFERENCES persons(id),
+    akzeptiert_am       TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    begruendung         TEXT,
+    UNIQUE(idv_db_id, file_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_idv  ON idv_zellschutz_akzeptanz(idv_db_id);
+CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_file ON idv_zellschutz_akzeptanz(file_id);
+
 -- Performance-Index für Eingang-Ansicht (große Dateimengen)
 CREATE INDEX IF NOT EXISTS idx_files_status_bearb
     ON idv_files(status, bearbeitungsstatus, has_macros, first_seen_at);

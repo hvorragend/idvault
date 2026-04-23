@@ -17,6 +17,82 @@
 {% endblock %}
 
 {% block content %}
+
+{# ── Macro: Liste der Excel-Dateien ohne Zell-/Blattschutz ──────────── #}
+{# readonly=True  → Lesemodus (nur bereits erfasste Akzeptanzen anzeigen) #}
+{# readonly=False → Bearbeitungsmodus (Checkbox + optionale Begründung)   #}
+{% macro zellschutz_akzeptanz_block(dateien, readonly) %}
+<div class="form-section">
+  <div class="form-section-title">
+    <i class="bi bi-unlock-fill text-danger me-1"></i>
+    Excel-Dateien ohne Zell-/Blattschutz
+  </div>
+  <div class="alert alert-warning small mb-3">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    Die folgenden Excel-Dateien sind weder auf Blatt- noch auf Arbeitsmappen-
+    ebene geschützt. Als Fachverantwortliche:r müssen Sie bewusst
+    bestätigen, dass die Dateien trotz fehlendem Schutz abgenommen
+    werden (MaRisk AT 7.2 / DORA). Eine Begründung ist optional, aber
+    empfohlen – sie dient als Nachweis gegenüber Prüfern.
+  </div>
+
+  {% for datei in dateien %}
+  <div class="border rounded p-2 mb-2 {% if datei.akzeptiert_am %}bg-light{% endif %}">
+    <div class="mb-1">
+      <div class="fw-500">
+        <i class="bi bi-file-earmark-excel text-success me-1"></i>{{ datei.file_name }}
+      </div>
+      <div class="text-muted small font-monospace">{{ datei.full_path }}</div>
+      {% if datei.sheet_count or datei.formula_count or datei.has_macros %}
+      <div class="text-muted fs-7 mt-1">
+        {% if datei.sheet_count %}{{ datei.sheet_count }} Blatt{{ '' if datei.sheet_count == 1 else 'er' }}{% endif %}
+        {% if datei.formula_count %} · {{ datei.formula_count }} Formelzellen{% endif %}
+        {% if datei.has_macros %} · <span class="badge bg-danger">VBA</span>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if datei.akzeptiert_am %}
+    <div class="alert alert-success py-1 px-2 mb-0 small">
+      <i class="bi bi-check-circle-fill me-1"></i>
+      Bereits akzeptiert
+      {% if datei.akzeptiert_von %}von <strong>{{ datei.akzeptiert_von }}</strong>{% endif %}
+      am {{ datei.akzeptiert_am[:10]|datefmt }}.
+      {% if datei.begruendung %}
+      <div class="mt-1"><em>Begründung:</em> {{ datei.begruendung }}</div>
+      {% endif %}
+    </div>
+    {% elif readonly %}
+    <div class="alert alert-danger py-1 px-2 mb-0 small">
+      <i class="bi bi-x-circle me-1"></i>Noch keine Akzeptanz erfasst.
+    </div>
+    {% else %}
+    <div class="form-check mt-2">
+      <input type="checkbox" class="form-check-input"
+             id="zellschutz_akz_{{ datei.id }}"
+             name="zellschutz_akz_{{ datei.id }}" value="1" required>
+      <label class="form-check-label small" for="zellschutz_akz_{{ datei.id }}">
+        Ich bestätige bewusst, dass diese Datei ohne Zell-/Blattschutz
+        abgenommen wird. <span class="text-danger">*</span>
+      </label>
+    </div>
+    <div class="mt-2">
+      <label class="form-label small text-muted mb-1"
+             for="zellschutz_begr_{{ datei.id }}">
+        Begründung <span class="fw-normal">(optional)</span>
+      </label>
+      <textarea class="form-control form-control-sm"
+                id="zellschutz_begr_{{ datei.id }}"
+                name="zellschutz_begr_{{ datei.id }}"
+                rows="2"
+                placeholder="z. B. reine Leseansicht, Zugriff nur durch Fachbereich, …"></textarea>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
 <div class="row g-4">
   <div class="col-lg-8">
 
@@ -30,6 +106,10 @@
 
     {% if readonly %}
     <!-- ── Lesemodus: gespeicherte Daten anzeigen ── -->
+    {% if freigabe.schritt == 'Fachliche Abnahme' and ungeschuetzte_excel %}
+    {{ zellschutz_akzeptanz_block(ungeschuetzte_excel, true) }}
+    {% endif %}
+
     <div class="form-section">
       <div class="form-section-title">
         <i class="bi bi-card-text me-1"></i>
@@ -85,6 +165,10 @@
     <form id="form-save" method="post" action="{{ url_for('freigaben.abschliessen', freigabe_id=freigabe.id) }}"
           enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {% if freigabe.schritt == 'Fachliche Abnahme' and ungeschuetzte_excel %}
+      {{ zellschutz_akzeptanz_block(ungeschuetzte_excel, false) }}
+      {% endif %}
 
       <div class="form-section">
         <div class="form-section-title">
