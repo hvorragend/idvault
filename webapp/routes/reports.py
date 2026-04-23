@@ -14,9 +14,7 @@ STATUS_ORDER = [
     "Entwurf",
     "In Prüfung",
     "Freigegeben",
-    "Genehmigt",
     "Freigegeben mit Auflagen",
-    "Genehmigt mit Auflagen",
     "Abgelehnt",
     "Abgekündigt",
 ]
@@ -24,13 +22,11 @@ STATUS_COLORS = {
     "Entwurf": "#94a3b8",
     "In Prüfung": "#60a5fa",
     "Freigegeben": "#22c55e",
-    "Genehmigt": "#16a34a",
     "Freigegeben mit Auflagen": "#eab308",
-    "Genehmigt mit Auflagen": "#eab308",
     "Abgelehnt": "#ef4444",
     "Abgekündigt": "#a855f7",
 }
-APPROVED_STATUSES = ("Freigegeben", "Genehmigt", "Freigegeben mit Auflagen", "Genehmigt mit Auflagen")
+APPROVED_STATUSES = ("Freigegeben", "Freigegeben mit Auflagen")
 
 
 def _month_range(n_months: int):
