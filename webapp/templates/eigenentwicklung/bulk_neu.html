@@ -8,7 +8,15 @@
 {% endblock %}
 
 {% block content %}
-{% set pc = prefill_common or {} %}
+{# Kopffeld-Vorbelegung: zuerst POST-Rückgabe (prefill_common), sonst Pfad-Profil #}
+{% set profil = profil_vorbelegung or {} %}
+{% set pc = prefill_common or {
+     'org_unit_id':             profil.get('org_unit_id'),
+     'fachverantwortlicher_id': profil.get('fachverantwortlicher_id'),
+     'idv_koordinator_id':      profil.get('idv_koordinator_id'),
+     'entwicklungsart':         profil.get('entwicklungsart'),
+     'pruefintervall_monate':   profil.get('pruefintervall_monate'),
+   } %}
 <form method="post" action="{{ url_for('eigenentwicklung.bulk_neu') }}" id="bulk-neu-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -23,6 +31,18 @@
       Ungewünschte Zeilen können direkt aus der Liste entfernt werden.
     </div>
   </div>
+
+  {% if profil_vorbelegung %}
+  <div class="alert alert-success d-flex align-items-start gap-3 mb-3 small">
+    <i class="bi bi-bookmark-star-fill fs-5 flex-shrink-0 mt-1"></i>
+    <div>
+      Kopf-Vorbelegung aus Pfad-Profil
+      <code class="text-success">{{ profil_vorbelegung.pfad_praefix }}</code>
+      übernommen{% if profil_vorbelegung.bemerkung %} ({{ profil_vorbelegung.bemerkung }}){% endif %}.
+      Werte können überschrieben werden.
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Gemeinsame Felder -->
   <div class="card border-0 shadow-sm mb-3">
