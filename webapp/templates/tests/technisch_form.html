@@ -114,6 +114,23 @@
           <i class="bi bi-cpu me-1"></i>Technischer Test
         </div>
 
+        {% if vorlagen %}
+        <div class="d-flex align-items-center gap-2 mb-3 small">
+          <label class="form-label fw-500 mb-0 flex-shrink-0" for="vorlage-select">
+            <i class="bi bi-file-earmark-text me-1"></i>Aus Vorlage anlegen
+          </label>
+          <select id="vorlage-select" class="form-select form-select-sm">
+            <option value="">— keine Vorlage —</option>
+            {% for v in vorlagen %}
+            <option value="{{ v.id }}">{{ v.titel }}{% if v.idv_typ %} ({{ v.idv_typ }}){% endif %}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                  id="vorlage-apply">Übernehmen</button>
+        </div>
+        <script type="application/json" id="vorlagen-json">{{ vorlagen | tojson }}</script>
+        {% endif %}
+
         <div class="row g-3">
 
           <div class="col-12">
@@ -262,6 +279,24 @@
       if (e.h) e.h.value = e.q.root.innerHTML;
     });
   });
+
+  // Testfall-Vorlage übernehmen: befüllt Quill-Editor mit dem Vorlage-Inhalt
+  var vorlBtn = document.getElementById('vorlage-apply');
+  var vorlSel = document.getElementById('vorlage-select');
+  var vorlNode = document.getElementById('vorlagen-json');
+  if (vorlBtn && vorlSel && vorlNode) {
+    var vorlagen = [];
+    try { vorlagen = JSON.parse(vorlNode.textContent) || []; } catch (_) {}
+    vorlBtn.addEventListener('click', function () {
+      var id = parseInt(vorlSel.value || '0', 10);
+      if (!id) return;
+      var v = vorlagen.find(function (x) { return x.id === id; });
+      if (!v) return;
+      var kurz = editors.find(function (e) { return e.name === 'kurzbeschreibung'; });
+      if (!kurz) return;
+      if (v.beschreibung) kurz.q.clipboard.dangerouslyPasteHTML(0, v.beschreibung);
+    });
+  }
 
   // Scanner-Metadaten als vorausgefüllten Prüftext in die Kurzbeschreibung übernehmen
   var btnScan = document.getElementById('btn-scan-in-kurz');
