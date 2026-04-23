@@ -187,19 +187,19 @@ Standardsortierung zu sehen bekommt. #}
         <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert bis</label>
         <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-6">
         <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
         <select name="sort" class="form-select form-select-sm">
-          <option value="scan" {{ 'selected' if sort == 'scan' }}>Scan-Lauf (neueste)</option>
-          <option value="geaendert" {{ 'selected' if sort == 'geaendert' }}>Geändert (neueste)</option>
-          <option value="prioritaet" {{ 'selected' if sort == 'prioritaet' }}>Priorität (Makros zuerst)</option>
-          <option value="dateiname" {{ 'selected' if sort == 'dateiname' }}>Dateiname A→Z</option>
-          <option value="groesse" {{ 'selected' if sort == 'groesse' }}>Größe</option>
-          <option value="eigentümer" {{ 'selected' if sort == 'eigentümer' }}>Eigentümer</option>
-          <option value="dir_path" {{ 'selected' if sort == 'dir_path' }}>Verzeichnis</option>
+          <option value="scan" {{ 'selected' if sort=='scan' }}>Scan-Lauf (neueste)</option>
+          <option value="geaendert" {{ 'selected' if sort=='geaendert' }}>Geändert (neueste)</option>
+          <option value="prioritaet" {{ 'selected' if sort=='prioritaet' }}>Priorität (Makros zuerst)</option>
+          <option value="dateiname" {{ 'selected' if sort=='dateiname' }}>Dateiname A→Z</option>
+          <option value="groesse" {{ 'selected' if sort=='groesse' }}>Größe</option>
+          <option value="eigentümer" {{ 'selected' if sort=='eigentümer' }}>Eigentümer</option>
+          <option value="dir_path" {{ 'selected' if sort=='dir_path' }}>Verzeichnis</option>
         </select>
       </div>
-      <div class="col-md-1 d-flex gap-1 align-items-end">
+      <div class="col-md-2 d-flex gap-1 align-items-end">
         <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
         <a href="{{ url_for('funde.list_funde', filter=filt, sort=sort, order=order) }}"
           class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
