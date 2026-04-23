@@ -148,6 +148,32 @@
             </div>
           </div>
 
+          <!-- ── Quick-Action Freigabe (Issue #352) ─── -->
+          <div class="col-12 mt-3">
+            <hr class="my-2">
+            <h6 class="fw-600 mb-2"><i class="bi bi-lightning-charge me-1"></i>Quick-Action für Freigabe-Schritte</h6>
+            <p class="text-muted mb-3 small">
+              Empfänger einer Freigabe-Benachrichtigung können den Schritt
+              direkt aus der E-Mail heraus freigeben oder ablehnen – ohne
+              sich anmelden zu müssen. Der Magic-Link wird pro Empfänger
+              signiert und ist an die jeweilige Person gebunden. Schritte
+              mit zusätzlichen Nachweisen (Tests, Fachliche Abnahme mit
+              ungeschütztem Excel, Archivierung) verweisen weiter auf das
+              Voll-Formular nach Anmeldung.
+            </p>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="quick_action_freigabe_enabled"
+                     name="quick_action_freigabe_enabled" value="1"
+                     {{ 'checked' if settings.get('quick_action_freigabe_enabled','1') == '1' else '' }}>
+              <label class="form-check-label" for="quick_action_freigabe_enabled">
+                Anonyme Quick-Action aktivieren (Default: an)
+              </label>
+            </div>
+          </div>
+
           <!-- ── E-Mail-Vorlagen ─── -->
           <div class="col-12 mt-3" id="email-vorlagen">
             <hr class="my-2">

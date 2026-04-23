@@ -23,7 +23,8 @@ def mail():
                 "smtp_from", "smtp_tls", "app_base_url",
                 "notify_schedule_enabled", "notify_schedule_time",
                 "self_service_enabled", "self_service_frequency_days",
-                "owner_digest_burst_threshold"]
+                "owner_digest_burst_threshold",
+                "quick_action_freigabe_enabled"]
         for tpl_key in EMAIL_TEMPLATES:
             keys.append(f"notify_enabled_{tpl_key}")
             keys.append(f"email_tpl_{tpl_key}_subject")

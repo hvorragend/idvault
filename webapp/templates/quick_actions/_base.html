@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="de" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}Quick-Action – idvault{% endblock %}</title>
+  <link href="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css') }}" rel="stylesheet">
+  <style nonce="{{ csp_nonce() }}">
+    body { background:#f6f8fb; }
+    .qa-card { max-width: 720px; margin: 2rem auto; }
+    .qa-brand { font-weight: 600; color:#0d6efd; letter-spacing:.02em; }
+    .qa-brand span { color:#212529; }
+    .qa-idv-title { font-weight: 600; }
+    .qa-idv-desc  { color:#495057; }
+    .qa-footer-note { color:#6c757d; }
+  </style>
+</head>
+<body>
+  <div class="container qa-card">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div class="qa-brand h4 m-0">idv<span>ault</span></div>
+      <span class="text-muted small"><i class="bi bi-lightning-charge me-1"></i>Quick-Action</span>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+        <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} py-2 small">
+          {{ msg }}
+        </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+
+    <p class="qa-footer-note small text-center mt-4 mb-0">
+      <i class="bi bi-info-circle me-1"></i>Diese Seite wird über einen
+      signierten Magic-Link aus einer idvault-Benachrichtigung aufgerufen.
+    </p>
+  </div>
+</body>
+</html>

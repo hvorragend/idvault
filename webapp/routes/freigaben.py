@@ -2229,58 +2229,73 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
         entwickler_id = idv["idv_entwickler_id"] or 0
 
         for schritt in schritte:
-            recipient_set = set()
+            # Empfängerliste als (email, person_id) aufbauen, damit pro
+            # Empfänger ein eigener, person-gebundener Magic-Link erzeugt
+            # werden kann (Issue #352). person_id darf None sein — dann bekommt
+            # der Empfänger einen Login-Magic-Link ohne Quick-Action.
+            entries: dict[str, int | None] = {}
 
-            # Koordinatoren/Admins (außer Entwickler)
+            def _add(email: str | None, pid: int | None):
+                if not email:
+                    return
+                # Erste Nennung gewinnt; konkrete person_id überschreibt None.
+                if email not in entries or (entries[email] is None and pid is not None):
+                    entries[email] = pid
+
+            # Koordinatoren/Admins (außer Entwickler): sind meist mehrere
+            # Personen, aber als Gruppe gemeint → bewusst ohne person-Binding.
             for r in db.execute("""
                 SELECT DISTINCT p.email FROM persons p
                 WHERE p.aktiv=1 AND p.email IS NOT NULL
                   AND p.rolle IN ('IDV-Koordinator','IDV-Administrator')
                   AND p.id != ?
             """, (entwickler_id,)).fetchall():
-                if r["email"]:
-                    recipient_set.add(r["email"])
+                _add(r["email"], None)
 
             # Zugewiesene Person für diesen Schritt
             zugewiesen_id = zugewiesen_map.get(schritt)
             if zugewiesen_id:
                 p = db.execute(
-                    "SELECT email FROM persons WHERE id=? AND aktiv=1", (zugewiesen_id,)
+                    "SELECT id, email FROM persons WHERE id=? AND aktiv=1",
+                    (zugewiesen_id,),
                 ).fetchone()
-                if p and p["email"]:
-                    recipient_set.add(p["email"])
+                if p:
+                    _add(p["email"], p["id"])
 
             # Pool-Mitglieder für diesen Schritt (Sofort-Benachrichtigung)
             pool_id = pool_map.get(schritt)
             if pool_id:
                 for r in db.execute("""
-                    SELECT p.email FROM freigabe_pool_members m
+                    SELECT p.id, p.email FROM freigabe_pool_members m
                     JOIN persons p ON p.id = m.person_id
                     WHERE m.pool_id = ?
                       AND p.aktiv = 1
                       AND p.email IS NOT NULL AND p.email <> ''
                       AND p.id != ?
                 """, (pool_id, entwickler_id)).fetchall():
-                    if r["email"]:
-                        recipient_set.add(r["email"])
+                    _add(r["email"], r["id"])
 
-            recipients = list(recipient_set)
-            if not recipients:
+            if not entries:
                 continue
 
-            # Magic-Link generieren, wenn Freigabe-ID und App-URL bekannt
-            action_url = None
+            # Freigabe-ID einmal je Schritt bestimmen (nicht pro Empfänger).
+            fr_id: int | None = None
             if base_url:
                 fr = db.execute(
                     "SELECT id FROM idv_freigaben "
                     "WHERE idv_db_id=? AND schritt=? AND status='Ausstehend'",
-                    (idv_db_id, schritt)
+                    (idv_db_id, schritt),
                 ).fetchone()
                 if fr:
-                    token = make_freigabe_token(secret_key, fr["id"])
-                    action_url = f"{base_url}/quick/freigabe/{fr['id']}?token={token}"
+                    fr_id = fr["id"]
 
-            notify_freigabe_schritt(db, idv, schritt, recipients, action_url=action_url)
+            # Einzelversand pro Empfänger mit person-gebundenem Token.
+            for email, pid in entries.items():
+                action_url = None
+                if fr_id is not None:
+                    token = make_freigabe_token(secret_key, fr_id, person_id=pid)
+                    action_url = f"{base_url}/quick/freigabe/{fr_id}?token={token}"
+                notify_freigabe_schritt(db, idv, schritt, [email], action_url=action_url)
     except Exception as exc:
         # VULN-011: Benachrichtigungsfehler dürfen den Freigabe-Prozess nicht
         # blockieren, werden aber geloggt, damit SMTP-Konfigurationsfehler
