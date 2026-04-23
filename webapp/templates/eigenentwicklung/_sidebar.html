@@ -27,6 +27,102 @@
     </div>
 
 
+    <!-- Teststatus -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-clipboard-check me-2"></i>Teststatus
+      </div>
+      <div class="card-body py-2 px-3">
+        {% if not testverfahren_noetig %}
+        <span class="idv-tag idv-tag-slate">
+          <i class="bi bi-dash-circle me-1"></i>Nicht erforderlich
+        </span>
+        <div class="text-muted fs-8 mt-1">
+          {% if not ist_wesentlich %}
+          Für nicht wesentliche Eigenentwicklungen entfällt das Testverfahren.
+          {% else %}
+          Unwesentliche Änderung – kein erneutes Testverfahren nötig.
+          {% endif %}
+        </div>
+        {% else %}
+        {% set ts = idv.teststatus or 'Wertung ausstehend' %}
+        <div class="d-flex align-items-center gap-2">
+          {% if ts == 'Freigegeben' %}
+          <span id="teststatus-badge" class="idv-tag idv-tag-green">
+            <i class="bi bi-check-circle-fill me-1"></i>{{ ts }}
+          </span>
+          {% elif ts == 'Freigabe ausstehend' %}
+          <span id="teststatus-badge" class="idv-tag idv-tag-amber">
+            <i class="bi bi-hourglass-split me-1"></i>{{ ts }}
+          </span>
+          {% elif ts == 'In Bearbeitung' %}
+          <span id="teststatus-badge" class="idv-tag idv-tag-blue">
+            <i class="bi bi-arrow-repeat me-1"></i>{{ ts }}
+          </span>
+          {% else %}
+          <span id="teststatus-badge" class="idv-tag idv-tag-slate">
+            <i class="bi bi-question-circle me-1"></i>{{ ts }}
+          </span>
+          {% endif %}
+          {% if can_create %}
+          <div class="dropdown" id="teststatus-dropdown"
+               data-url="{{ url_for('eigenentwicklung.change_teststatus', idv_db_id=idv.id) }}">
+            <button class="btn btn-xs btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+              <i class="bi bi-pencil-fill"></i>
+            </button>
+            <ul class="dropdown-menu">
+              {% for s in teststatus_werte %}
+              {% if s != ts %}
+              <li><button class="dropdown-item" data-teststatus="{{ s }}">→ {{ s }}</button></li>
+              {% endif %}
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+        </div>
+        {% if testverfahren_noetig and can_create %}
+        <script>
+        (function () {
+          var dd = document.getElementById('teststatus-dropdown');
+          if (!dd) return;
+          var url = dd.dataset.url;
+          var badge = document.getElementById('teststatus-badge');
+          var TAG_CLASSES = {
+            'Freigegeben':         'idv-tag idv-tag-green',
+            'Freigabe ausstehend': 'idv-tag idv-tag-amber',
+            'In Bearbeitung':      'idv-tag idv-tag-blue',
+          };
+          var TAG_ICONS = {
+            'Freigegeben':         'bi-check-circle-fill',
+            'Freigabe ausstehend': 'bi-hourglass-split',
+            'In Bearbeitung':      'bi-arrow-repeat',
+          };
+          dd.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-teststatus]');
+            if (!btn) return;
+            var val = btn.dataset.teststatus;
+            var fd = new FormData();
+            fd.append('teststatus', val);
+            fetch(url, { method: 'POST', body: fd,
+              headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                if (!data.ok) return;
+                var ts = data.teststatus;
+                badge.className = TAG_CLASSES[ts] || 'idv-tag idv-tag-slate';
+                var icon = TAG_ICONS[ts] || 'bi-question-circle';
+                badge.innerHTML = '<i class="bi ' + icon + ' me-1"></i>' + ts;
+                dd.querySelectorAll('[data-teststatus]').forEach(function (b) {
+                  b.closest('li').style.display = b.dataset.teststatus === ts ? 'none' : '';
+                });
+              });
+          });
+        })();
+        </script>
+        {% endif %}
+      </div>
+    </div>
+
     <!-- Test- und Freigabeverfahren -->
     {% if ist_wesentlich %}
     {% set is_admin = session.get('user_role') == 'IDV-Administrator' %}

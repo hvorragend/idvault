@@ -108,12 +108,14 @@ def index():
         d["verwendungen"] = verwendungen
         wesentlichkeitskriterien.append(d)
 
+    from ...app_settings import get_bool as _get_bool
     return render_template("admin/index.html",
         org_units=org_units,
         geschaeftsprozesse=geschaeftsprozesse, plattformen=plattformen,
         klassifizierungen=klassifizierungen,
         klassifizierungs_bereiche=_KLASSIFIZIERUNGS_BEREICHE,
-        wesentlichkeitskriterien=wesentlichkeitskriterien)
+        wesentlichkeitskriterien=wesentlichkeitskriterien,
+        filter_panel_open_setting=_get_bool(db, "filter_panel_open", False))
 
 
 @bp.route("/export/excel")
@@ -144,6 +146,18 @@ def mitarbeiter():
     return render_template("admin/mitarbeiter.html",
         org_units=org_units,
         persons=persons)
+
+# ── UI-Einstellungen ───────────────────────────────────────────────────────
+
+@bp.route("/ui-einstellungen", methods=["POST"])
+@admin_required
+def save_ui_settings():
+    from ...app_settings import set_bool
+    db = get_db()
+    set_bool(db, "filter_panel_open", "filter_panel_open" in request.form)
+    flash("UI-Einstellungen gespeichert.", "success")
+    return redirect(url_for("admin.index"))
+
 
 # ── App-Einstellungen (SMTP etc.) ──────────────────────────────────────────
 

@@ -108,7 +108,7 @@
 {% set _ef = q_search or dir_path_filt or share_root_filt or scan_run_id_filt or owner_filt or date_from or date_to %}
 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
   <button class="btn btn-sm btn-outline-secondary" type="button"
-    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _ef else 'false' }}">
+    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _ef or filter_panel_open else 'false' }}">
     <i class="bi bi-funnel me-1"></i>Suche & Filter
     {% if _ef %}<span class="badge bg-primary ms-1">{{ [q_search, dir_path_filt, share_root_filt, scan_run_id_filt, owner_filt, date_from, date_to] | select | list | length }}</span>{% endif %}
   </button>
@@ -123,7 +123,7 @@
   {% if date_to %}<span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>bis {{ date_to }}</span>{% endif %}
   {% endif %}
 </div>
-<div class="collapse{{ ' show' if _ef }}" id="filter-panel">
+<div class="collapse{{ ' show' if _ef or filter_panel_open }}" id="filter-panel">
   <form method="get" class="card border-0 shadow-sm p-3 mb-3">
     <div class="row g-2 align-items-end">
       <div class="col-12">
