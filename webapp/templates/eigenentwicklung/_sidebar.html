@@ -80,7 +80,7 @@
           </div>
           {% endif %}
         </div>
-        {% if testverfahren_noetig and can_create %}
+        {% if can_create %}
         <script>
         (function () {
           var dd = document.getElementById('teststatus-dropdown');
@@ -120,6 +120,7 @@
         })();
         </script>
         {% endif %}
+        {% endif %}{# /else-Zweig testverfahren_noetig #}
       </div>
     </div>
 
