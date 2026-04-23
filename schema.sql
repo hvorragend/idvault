@@ -423,9 +423,9 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- -------------------------------------------------------------------------
     -- 'Entwurf'             Ersterfassung, noch nicht geprüft
     -- 'In Prüfung'          Liegt beim IDV-Koordinator / Fachverantwortlichen
-    -- 'Genehmigt'           Freigegeben (ggf. mit Auflagen)
-    -- 'Genehmigt mit Auflagen'
-    -- 'Abgelehnt'           Nicht als IDV eingestuft oder nicht genehmigungsfähig
+    -- 'Freigegeben'         Test- und Freigabeverfahren erfolgreich abgeschlossen
+    -- 'Freigegeben mit Auflagen'
+    -- 'Abgelehnt'           Nicht als IDV eingestuft oder nicht freigabefähig
     -- 'Abgekündigt'         IDV wird abgelöst / abgeschaltet
     -- 'Archiviert'          Nicht mehr aktiv, historisch
     status                  TEXT NOT NULL DEFAULT 'Entwurf',
