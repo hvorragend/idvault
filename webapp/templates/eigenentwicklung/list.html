@@ -6,105 +6,122 @@
 {% block content %}
 
 <!-- ── Filter-Leiste ──────────────────────────────────────────────── -->
-<form method="get" class="card border-0 shadow-sm p-3 mb-4">
-  <div class="row g-2 align-items-end">
+{% set _q = request.args.get('q', '') %}
+{% set _status = request.args.get('status', '') %}
+{% set _filt_active = filt not in ('alle', '') %}
+{% set _ef = _q or _status or _filt_active or oe_id or fv_id or share_root or owner_filt or entwicklungsart %}
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+  <button class="btn btn-sm btn-outline-secondary" type="button"
+    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _ef else 'false' }}">
+    <i class="bi bi-funnel me-1"></i>Suche &amp; Filter
+    {% if _ef %}<span class="badge bg-primary ms-1">{{ [_q, _status, _filt_active, oe_id, fv_id, share_root, owner_filt, entwicklungsart] | select | list | length }}</span>{% endif %}
+  </button>
+  {% if _ef %}
+  <a href="{{ url_for(request.endpoint) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen">
+    <i class="bi bi-x-lg"></i>
+  </a>
+  {% if _q %}<span class="badge bg-secondary">Suche: {{ _q }}</span>{% endif %}
+  {% if _status %}<span class="badge bg-secondary">Status: {{ _status }}</span>{% endif %}
+  {% if _filt_active %}<span class="badge bg-secondary">Filter: {{ filt }}</span>{% endif %}
+  {% if share_root %}<span class="badge bg-secondary font-monospace"><i class="bi bi-folder me-1"></i>{{ share_root | map_path }}</span>{% endif %}
+  {% if entwicklungsart %}<span class="badge bg-secondary">Art: {{ entwicklungsart }}</span>{% endif %}
+  {% if oe_id %}<span class="badge bg-secondary">OE gesetzt</span>{% endif %}
+  {% if fv_id %}<span class="badge bg-secondary">FV gesetzt</span>{% endif %}
+  {% if owner_filt %}<span class="badge bg-secondary">Eigentümer: {{ owner_filt }}</span>{% endif %}
+  {% endif %}
+</div>
+<div class="collapse{{ ' show' if _ef }}" id="filter-panel">
+  <form method="get" class="card border-0 shadow-sm p-3 mb-4">
+    <div class="row g-2 align-items-end">
 
-    <!-- Zeile 1: Suche + Status + Filter + Buttons -->
-    <div class="col-md-4">
-      <label class="form-label form-label-sm">Suche</label>
-      <input type="text" name="q" value="{{ request.args.get('q','') }}" class="form-control form-control-sm"
-        placeholder="ID, Name, Beschreibung …">
-    </div>
-    <div class="col-md-2">
-      <label class="form-label form-label-sm">Status</label>
-      <select name="status" class="form-select form-select-sm">
-        <option value="">Alle</option>
-        {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
-        <option {{ 'selected' if request.args.get('status')==s }}>{{ s }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label form-label-sm">Filter</label>
-      <select name="filter" class="form-select form-select-sm">
-        <option value="alle" {{ 'selected' if filt in ('alle','') }}>Alle Eigenentwicklungen</option>
-        <option value="wesentlich" {{ 'selected' if filt in ('wesentlich','kritisch') }}>Wesentliche Eigenentwicklungen</option>
-        <option value="nicht_wesentlich" {{ 'selected' if filt=='nicht_wesentlich' }}>Nicht wesentliche Eigenentwicklungen</option>
-        <option value="ueberfaellig" {{ 'selected' if filt=='ueberfaellig' }}>Prüfung überfällig</option>
-        <option value="unvollstaendig" {{ 'selected' if filt=='unvollstaendig' }}>Unvollständig</option>
-      </select>
-    </div>
-    <div class="col-md-2 d-flex gap-1 align-items-end">
-      <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
-      <a href="{{ url_for(request.endpoint) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i
-          class="bi bi-x"></i></a>
-    </div>
+      <!-- Zeile 1: Suche + Status + Filter + Buttons -->
+      <div class="col-md-4">
+        <label class="form-label form-label-sm">Suche</label>
+        <input type="text" name="q" value="{{ _q }}" class="form-control form-control-sm"
+          placeholder="ID, Name, Beschreibung …">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label form-label-sm">Status</label>
+        <select name="status" class="form-select form-select-sm">
+          <option value="">Alle</option>
+          {% for s in ['Entwurf','In Prüfung','Freigegeben','Freigegeben mit Auflagen','Abgelehnt','Abgekündigt','Archiviert'] %}
+          <option {{ 'selected' if _status==s }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label form-label-sm">Filter</label>
+        <select name="filter" class="form-select form-select-sm">
+          <option value="alle" {{ 'selected' if filt in ('alle','') }}>Alle Eigenentwicklungen</option>
+          <option value="wesentlich" {{ 'selected' if filt in ('wesentlich','kritisch') }}>Wesentliche Eigenentwicklungen</option>
+          <option value="nicht_wesentlich" {{ 'selected' if filt=='nicht_wesentlich' }}>Nicht wesentliche Eigenentwicklungen</option>
+          <option value="ueberfaellig" {{ 'selected' if filt=='ueberfaellig' }}>Prüfung überfällig</option>
+          <option value="unvollstaendig" {{ 'selected' if filt=='unvollstaendig' }}>Unvollständig</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex gap-1 align-items-end">
+        <button class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i>Suchen</button>
+        <a href="{{ url_for(request.endpoint) }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i
+            class="bi bi-x"></i></a>
+      </div>
 
-    <!-- Zeile 2: Scan-Verzeichnis – volle Breite, Live-Suche -->
-    <div class="col-12">
-      <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
-      {% set field_name = "share_root" %}
-      {% set field_options = share_roots %}
-      {% set field_value = share_root %}
-      {% set input_id = "share-root-search" %}
-      {% include 'funde/_dir_search.html' %}
-    </div>
+      <!-- Zeile 2: Scan-Verzeichnis – volle Breite, Live-Suche -->
+      <div class="col-12">
+        <label class="form-label form-label-sm"><i class="bi bi-folder me-1"></i>Scan-Verzeichnis</label>
+        {% set field_name = "share_root" %}
+        {% set field_options = share_roots %}
+        {% set field_value = share_root %}
+        {% set input_id = "share-root-search" %}
+        {% include 'funde/_dir_search.html' %}
+      </div>
 
-    <div class="col-md-12">
-      <label class="form-label form-label-sm"><i class="bi bi-tag me-1"></i>Entwicklungsart</label>
-      <select name="entwicklungsart" class="form-select form-select-sm">
-        <option value="">– Alle –</option>
-        {% for key, label, desc in entwicklungsarten %}
-        <option value="{{ key }}" title="{{ desc }}" {{ 'selected' if entwicklungsart==key }}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
+      <div class="col-md-12">
+        <label class="form-label form-label-sm"><i class="bi bi-tag me-1"></i>Entwicklungsart</label>
+        <select name="entwicklungsart" class="form-select form-select-sm">
+          <option value="">– Alle –</option>
+          {% for key, label, desc in entwicklungsarten %}
+          <option value="{{ key }}" title="{{ desc }}" {{ 'selected' if entwicklungsart==key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-    <!-- Zeile 3: OE + Fachverantwortlicher -->
-    <div class="col-md-4">
-      <label class="form-label form-label-sm"><i class="bi bi-diagram-3 me-1"></i>Organisationseinheit</label>
-      <select name="oe_id" class="form-select form-select-sm">
-        <option value="">– Alle OEs –</option>
-        {% for ou in org_units %}
-        <option value="{{ ou.id }}" {{ 'selected' if request.args.get('oe_id','')==ou.id|string }}>
-          {{ ou.bezeichnung }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Fachverantwortlicher</label>
-      <select name="fv_id" class="form-select form-select-sm">
-        <option value="">– Alle –</option>
-        {% for p in persons_fv %}
-        <option value="{{ p.id }}" {{ 'selected' if request.args.get('fv_id','')==p.id|string }}>
-          {{ p.nachname }}, {{ p.vorname }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
+      <!-- Zeile 3: OE + Fachverantwortlicher -->
+      <div class="col-md-4">
+        <label class="form-label form-label-sm"><i class="bi bi-diagram-3 me-1"></i>Organisationseinheit</label>
+        <select name="oe_id" class="form-select form-select-sm">
+          <option value="">– Alle OEs –</option>
+          {% for ou in org_units %}
+          <option value="{{ ou.id }}" {{ 'selected' if request.args.get('oe_id','')==ou.id|string }}>
+            {{ ou.bezeichnung }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Fachverantwortlicher</label>
+        <select name="fv_id" class="form-select form-select-sm">
+          <option value="">– Alle –</option>
+          {% for p in persons_fv %}
+          <option value="{{ p.id }}" {{ 'selected' if request.args.get('fv_id','')==p.id|string }}>
+            {{ p.nachname }}, {{ p.vorname }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
 
-    <div class="col-md-4">
-      <label class="form-label form-label-sm"><i class="bi bi-person-badge me-1"></i>Eigentümer (Datei)</label>
-      <select name="owner" class="form-select form-select-sm">
-        <option value="">– Alle –</option>
-        {% for o in owner_list %}
-        <option value="{{ o }}" {{ 'selected' if request.args.get('owner','')==o }}>{{ o }}</option>
-        {% endfor %}
-      </select>
-    </div>
+      <div class="col-md-4">
+        <label class="form-label form-label-sm"><i class="bi bi-person-badge me-1"></i>Eigentümer (Datei)</label>
+        <select name="owner" class="form-select form-select-sm">
+          <option value="">– Alle –</option>
+          {% for o in owner_list %}
+          <option value="{{ o }}" {{ 'selected' if request.args.get('owner','')==o }}>{{ o }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-    <!-- Aktive Filter anzeigen -->
-    {% if share_root or request.args.get('oe_id') or request.args.get('fv_id') %}
-    <div class="col-12 d-flex gap-2 flex-wrap mt-1">
-      {% if share_root %}
-      <span class="badge bg-success font-monospace"><i class="bi bi-folder me-1"></i>{{ share_root | map_path }}</span>
-      {% endif %}
     </div>
-    {% endif %}
-
-  </div>
-</form>
+  </form>
+</div>
 
 <!-- ── Pagination ─────────────────────────────────────────────────── -->
 {% set url_extra = {'q': q, 'status': status, 'filter': filt, 'oe_id': oe_id, 'fv_id': fv_id, 'share_root': share_root,
@@ -171,7 +188,7 @@
                 title="Alle auswählen"></th>{% endif %}
             <th class="sortable">Bezeichnung</th>
             <th class="sortable">Typ</th>
-            <th class="sortable" title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">Art / W.</th>
+            <th class="sortable" title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">Art</th>
             <th class="sortable">Version / Dateien</th>
             <th class="sortable">Status</th>
             <th class="sortable">Fachverantwortlicher</th>
@@ -197,15 +214,16 @@
               {% set _art = r.entwicklungsart or 'arbeitshilfe' %}
               {% set _art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
               'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
-              <div class="d-flex flex-column gap-1 align-items-start">
+              <span class="position-relative d-inline-block">
                 <span class="badge {{ _art_color.get(_art, 'bg-secondary') }}"
                   title="{{ entwicklungsart_label.get(_art, _art) }}">
                   {{ entwicklungsart_label.get(_art, _art) }}
                 </span>
                 {% if r.wesentlich_flag %}
-                <span class="badge bg-danger">Wesentlich</span>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                  style="font-size:.6em" title="Wesentliche Eigenentwicklung">W</span>
                 {% endif %}
-              </div>
+              </span>
             </td>
             <td class="fs-7" style="white-space:nowrap">
               {# Versionskette: Icon wenn Vorgänger oder Nachfolger existiert #}
