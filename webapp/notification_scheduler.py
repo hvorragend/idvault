@@ -231,9 +231,9 @@ def _notification_loop(app) -> None:
                                 h, m = 8, 0
 
                             if now.hour > h or (now.hour == h and now.minute >= m):
-                                _run_daily_dispatch(app)
-                                _last_triggered_in_memory = today_str
-
+                                # Persist-first: bei Crash zwischen DB-Write und
+                                # Dispatch entfällt der Lauf — das ist harmloser als
+                                # ein Doppelversand nach Neustart.
                                 def _mark(c, _today=today_str):
                                     with write_tx(c):
                                         c.execute(
@@ -243,6 +243,8 @@ def _notification_loop(app) -> None:
                                             (_today,)
                                         )
                                 get_writer().submit(_mark, wait=True)
+                                _last_triggered_in_memory = today_str
+                                _run_daily_dispatch(app)
         except Exception:
             try:
                 app.logger.exception("Fehler im Notification-Scheduler")

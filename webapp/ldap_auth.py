@@ -24,9 +24,12 @@ logger = logging.getLogger(__name__)
 def _llog(username: str, step: str, detail: str = "", level: str = "debug") -> None:
     try:
         from .login_logger import log_ldap_step
+    except ImportError:
+        return  # Login-Logger nicht verfügbar (Tests, früher Import)
+    try:
         log_ldap_step(username, step, detail, level)
     except Exception:
-        pass  # Login-Logger nicht verfügbar (Tests, früher Import)
+        logger.warning("login_logger.log_ldap_step failed", exc_info=True)
 
 # ---------------------------------------------------------------------------
 # Passwort-Verschlüsselung (Fernet, Key aus SECRET_KEY abgeleitet)
