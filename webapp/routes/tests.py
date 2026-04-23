@@ -63,6 +63,37 @@ def _get_idv_or_404(db, idv_db_id):
     return idv
 
 
+def _load_testfall_vorlagen(db, art: str, idv_typ: str | None = None) -> list:
+    """Liefert aktive Testfall-Vorlagen für Art (fachlich/technisch).
+
+    Vorlagen mit ``idv_typ IS NULL`` sind typ-unabhängig und werden immer
+    mit aufgenommen. Bei gesetztem ``idv_typ`` werden zusätzlich die passenden
+    typ-spezifischen Vorlagen zurückgegeben.
+    """
+    try:
+        if idv_typ:
+            rows = db.execute(
+                "SELECT id, titel, idv_typ, beschreibung, parametrisierung, "
+                "       testdaten, erwartetes_ergebnis "
+                "  FROM testfall_vorlagen "
+                " WHERE aktiv=1 AND art=? AND (idv_typ IS NULL OR idv_typ=?) "
+                " ORDER BY (idv_typ IS NULL) ASC, titel",
+                (art, idv_typ),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id, titel, idv_typ, beschreibung, parametrisierung, "
+                "       testdaten, erwartetes_ergebnis "
+                "  FROM testfall_vorlagen "
+                " WHERE aktiv=1 AND art=? "
+                " ORDER BY (idv_typ IS NULL) ASC, titel",
+                (art,),
+            ).fetchall()
+    except Exception:
+        return []
+    return [dict(r) for r in rows]
+
+
 def _scanner_metadata_for_idv(db, idv_db_id: int) -> list:
     """Liefert Scanner-Metadaten aller mit der IDV verknüpften Dateien.
 
@@ -252,6 +283,7 @@ def new_fachlicher_testfall(idv_db_id):
                            idv=idv, testfall=None,
                            freigabe_id=freigabe_id,
                            bewertungen=_BEWERTUNGEN,
+                           vorlagen=_load_testfall_vorlagen(db, "fachlich", idv["idv_typ"]),
                            today=_date.today().isoformat())
 
 
@@ -327,6 +359,7 @@ def edit_fachlicher_testfall(testfall_id):
                            idv=idv, testfall=testfall,
                            freigabe_id=freigabe_id,
                            bewertungen=_BEWERTUNGEN,
+                           vorlagen=_load_testfall_vorlagen(db, "fachlich", idv["idv_typ"]),
                            today=_date.today().isoformat())
 
 
@@ -425,6 +458,7 @@ def edit_technischer_test(idv_db_id):
                            freigabe_id=freigabe_id,
                            ergebnisse=_TECH_ERGEBNISSE,
                            scanner_dateien=_scanner_metadata_for_idv(db, idv_db_id),
+                           vorlagen=_load_testfall_vorlagen(db, "technisch", idv["idv_typ"]),
                            today=_date.today().isoformat())
 
 

@@ -758,8 +758,8 @@
         <form method="post" action="{{ url_for('freigaben.schritt_anlegen', idv_db_id=idv.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="schritt" value="Archivierung Originaldatei">
-          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-            <i class="bi bi-archive me-1"></i>Archivierung anlegen
+          <button type="submit" class="btn btn-sm btn-primary w-100">
+            <i class="bi bi-archive me-1"></i>Datei archivieren
           </button>
         </form>
         {% endif %}

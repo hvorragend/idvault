@@ -234,7 +234,9 @@ def _can_complete_schritt(db, freigabe, person_id: int) -> bool:
 
     Admins dürfen immer. Sonst: die zugewiesene Person, deren aktiver
     Stellvertreter, oder (wenn der Schritt an einen Pool gebunden ist) jedes
-    Pool-Mitglied.
+    Pool-Mitglied. Phase-3 (Archivierung) ohne Zuweisung und Pool darf
+    jede schreibberechtigte Person abschließen (Funktionstrennung prüft
+    separat, dass kein Entwickler der IDV sich selbst archiviert).
     """
     from . import ROLE_ADMIN
     if session.get("user_role") == ROLE_ADMIN:
@@ -251,6 +253,10 @@ def _can_complete_schritt(db, freigabe, person_id: int) -> bool:
     except (KeyError, IndexError):
         pool_id = None
     if pool_id and _is_pool_member(db, pool_id, person_id):
+        return True
+    # Archivierung ohne Zuweisung → jeder mit Schreibrecht darf (SoD greift separat)
+    if (freigabe["schritt"] in _PHASE_3
+            and not zugewiesen_id and not pool_id):
         return True
     return False
 
@@ -992,7 +998,10 @@ def schritt_anlegen(idv_db_id):
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     zugewiesen, pool_id = _parse_combined_assignment(request.form.get("zugewiesen_an_id"))
-    if not zugewiesen and not pool_id:
+    # Phase 3 (Archivierung): keine vorgelagerte Zuweisung nötig — jede
+    # schreibberechtigte Person darf die Archivierung durchführen
+    # (Funktionstrennung bleibt per `_funktionstrennung_ok` erzwungen).
+    if schritt not in _PHASE_3 and not zugewiesen and not pool_id:
         flash("Bitte eine Person oder einen Pool für den Schritt auswählen.", "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
     user_name = session.get("user_name", "") or None
@@ -1016,6 +1025,19 @@ def schritt_anlegen(idv_db_id):
     get_writer().submit(_do, wait=True)
 
     _notify_schritte(db, idv_db_id, [schritt], {schritt: zugewiesen})
+
+    # Phase 3: direkt zur Archivierungs-Maske weiterleiten, damit der Nutzer
+    # die Datei in einem Rutsch archivieren kann — ohne zweiten Klick.
+    if schritt in _PHASE_3:
+        neue_fr = db.execute(
+            "SELECT id FROM idv_freigaben WHERE idv_id=? AND schritt=? "
+            "ORDER BY id DESC LIMIT 1",
+            (idv_db_id, schritt),
+        ).fetchone()
+        if neue_fr:
+            return redirect(url_for("freigaben.erledigt_seite",
+                                    freigabe_id=neue_fr["id"]))
+
     flash(f"'{schritt}' wurde angelegt.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
