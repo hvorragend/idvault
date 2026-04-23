@@ -107,20 +107,28 @@
 <!-- ── Filter-Leiste (kollabierbar) ────────────────────────────────── -->
 {% set _ef = q_search or dir_path_filt or share_root_filt or scan_run_id_filt or owner_filt or date_from or date_to %}
 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-  <button class="btn btn-sm btn-outline-secondary" type="button"
-    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _ef or filter_panel_open else 'false' }}">
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+    data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _ef or filter_panel_open else 'false' }}">
     <i class="bi bi-funnel me-1"></i>Suche & Filter
-    {% if _ef %}<span class="badge bg-primary ms-1">{{ [q_search, dir_path_filt, share_root_filt, scan_run_id_filt, owner_filt, date_from, date_to] | select | list | length }}</span>{% endif %}
+    {% if _ef %}<span class="badge bg-primary ms-1">{{ [q_search, dir_path_filt, share_root_filt, scan_run_id_filt,
+      owner_filt, date_from, date_to] | select | list | length }}</span>{% endif %}
   </button>
   {% if _ef %}
-  <a href="{{ url_for('funde.eingang_funde') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
-  {% if q_search %}<span class="badge bg-info text-dark"><i class="bi bi-search me-1"></i>{{ q_search }}</span>{% endif %}
-  {% if dir_path_filt %}<span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>{% endif %}
-  {% if share_root_filt %}<span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt | map_path }}</span>{% endif %}
-  {% if scan_run_id_filt %}<span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{ scan_run_id_filt }}</span>{% endif %}
+  <a href="{{ url_for('funde.eingang_funde') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i
+      class="bi bi-x-lg"></i></a>
+  {% if q_search %}<span class="badge bg-info text-dark"><i class="bi bi-search me-1"></i>{{ q_search }}</span>{% endif
+  %}
+  {% if dir_path_filt %}<span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{
+    dir_path_filt }}</span>{% endif %}
+  {% if share_root_filt %}<span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt |
+    map_path }}</span>{% endif %}
+  {% if scan_run_id_filt %}<span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{
+    scan_run_id_filt }}</span>{% endif %}
   {% if owner_filt %}<span class="badge bg-dark"><i class="bi bi-person me-1"></i>{{ owner_filt }}</span>{% endif %}
-  {% if date_from %}<span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>ab {{ date_from }}</span>{% endif %}
-  {% if date_to %}<span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>bis {{ date_to }}</span>{% endif %}
+  {% if date_from %}<span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>ab {{ date_from }}</span>{%
+  endif %}
+  {% if date_to %}<span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>bis {{ date_to }}</span>{% endif
+  %}
   {% endif %}
 </div>
 <div class="collapse{{ ' show' if _ef or filter_panel_open }}" id="filter-panel">
@@ -128,7 +136,8 @@
     <div class="row g-2 align-items-end">
       <div class="col-12">
         <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
-        <input type="text" name="q" value="{{ q_search }}" class="form-control form-control-sm font-monospace" placeholder="Dateiname …">
+        <input type="text" name="q" value="{{ q_search }}" class="form-control form-control-sm font-monospace"
+          placeholder="Dateiname …">
       </div>
       <div class="col-12">
         <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
@@ -139,7 +148,8 @@
         <select name="share_root" class="form-select form-select-sm" title="{{ share_root_filt }}">
           <option value="">– Alle –</option>
           {% for sr in share_roots %}
-          <option value="{{ sr }}" {{ 'selected' if share_root_filt==sr }} title="{{ sr }}">{% set sr_display = sr | map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
+          <option value="{{ sr }}" {{ 'selected' if share_root_filt==sr }} title="{{ sr }}">{% set sr_display = sr |
+            map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
           {% endfor %}
         </select>
       </div>
@@ -148,7 +158,8 @@
         <select name="scan_run" class="form-select form-select-sm">
           <option value="">– Alle Läufe –</option>
           {% for run in scan_runs %}
-          <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt==run.id|string }}>{{ scan_run_label(run) }}</option>
+          <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt==run.id|string }}>{{ scan_run_label(run) }}
+          </option>
           {% endfor %}
         </select>
       </div>
@@ -169,10 +180,6 @@
         <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert bis</label>
         <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
       </div>
-      <div class="col-md-2 d-flex gap-1 align-items-end">
-        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
-        <a href="{{ url_for('funde.eingang_funde') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
-      </div>
       <div class="col-md-6">
         <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
         <select name="sort" class="form-select form-select-sm">
@@ -181,6 +188,11 @@
           <option value="share" {{ 'selected' if sort=='share' }}>Nach Verzeichnis</option>
           <option value="groesse" {{ 'selected' if sort=='groesse' }}>Größte zuerst</option>
         </select>
+      </div>
+      <div class="col-md-2 d-flex gap-1 align-items-end">
+        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
+        <a href="{{ url_for('funde.eingang_funde') }}" class="btn btn-sm btn-outline-secondary"
+          title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
       </div>
     </div>
   </form>
@@ -253,71 +265,73 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
     </div>
     <div id="bulk-bar" class="card-header bg-light d-none">
       <div class="d-flex align-items-center gap-2 flex-wrap">
-      <span class="fw-600 text-primary me-1">
-        <i class="bi bi-check2-square me-1"></i>
-        <span id="bulk-count">0</span> ausgewählt
-      </span>
-      <button type="submit" name="aktion" value="ignorieren" id="btn-ignorieren"
-        class="btn btn-sm btn-outline-secondary" title="Nur für Dateien ohne Formeln verfügbar">
-        <i class="bi bi-eye-slash me-1"></i>Ignorieren
-      </button>
-      <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
-        <i class="bi bi-pencil-square me-1"></i>Zur Registrierung
-      </button>
-      <button type="submit" name="aktion" value="nicht_wesentlich" class="btn btn-sm btn-outline-secondary"
-        title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
-        <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
-      </button>
-      <button type="submit" name="aktion" value="bulk_registrieren" class="btn btn-sm btn-outline-primary"
-        title="Für jede ausgewählte Datei eine eigene Eigenentwicklung anlegen (gemeinsame Stammdaten)">
-        <i class="bi bi-collection me-1"></i>Bulk-Registrieren
-      </button>
-      <div class="dropdown">
-        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-          <i class="bi bi-three-dots me-1"></i>Weitere
+        <span class="fw-600 text-primary me-1">
+          <i class="bi bi-check2-square me-1"></i>
+          <span id="bulk-count">0</span> ausgewählt
+        </span>
+        <button type="submit" name="aktion" value="ignorieren" id="btn-ignorieren"
+          class="btn btn-sm btn-outline-secondary" title="Nur für Dateien ohne Formeln verfügbar">
+          <i class="bi bi-eye-slash me-1"></i>Ignorieren
         </button>
-        <ul class="dropdown-menu">
-          <li>
-            <button class="dropdown-item" type="submit" name="aktion" value="nicht_mehr_ignorieren"
-              id="btn-nicht-mehr-ignorieren" title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
-              <i class="bi bi-eye me-2"></i>Nicht mehr ignorieren
-            </button>
-          </li>
-          <li>
-            <button class="dropdown-item" type="submit" name="aktion" value="zusammenfassen"
-              title="Ausgewählte Dateien als Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
-              <i class="bi bi-diagram-3 me-2"></i>Zu Projekt zusammenfassen
-            </button>
-          </li>
-          <li>
-            <button class="dropdown-item" type="submit" name="aktion" value="bewertung_anfordern"
-              title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
-              <i class="bi bi-envelope me-2"></i>Bewertung anfordern
-            </button>
-          </li>
-          <li>
-            <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#ownerModal"
-              title="Dateieigentümer für ausgewählte Dateien setzen">
-              <i class="bi bi-person-gear me-2"></i>Eigentümer ändern
-            </button>
-          </li>
-          {% if is_admin %}
-          <li><hr class="dropdown-divider"></li>
-          <li>
-            <button class="dropdown-item text-danger" type="submit" name="aktion" value="loeschen"
-              data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
-              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Verknüpfung)">
-              <i class="bi bi-trash me-2"></i>Löschen
-            </button>
-          </li>
-          {% endif %}
-        </ul>
+        <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
+          <i class="bi bi-pencil-square me-1"></i>Zur Registrierung
+        </button>
+        <button type="submit" name="aktion" value="nicht_wesentlich" class="btn btn-sm btn-outline-secondary"
+          title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
+          <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
+        </button>
+        <button type="submit" name="aktion" value="bulk_registrieren" class="btn btn-sm btn-outline-primary"
+          title="Für jede ausgewählte Datei eine eigene Eigenentwicklung anlegen (gemeinsame Stammdaten)">
+          <i class="bi bi-collection me-1"></i>Bulk-Registrieren
+        </button>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-three-dots me-1"></i>Weitere
+          </button>
+          <ul class="dropdown-menu">
+            <li>
+              <button class="dropdown-item" type="submit" name="aktion" value="nicht_mehr_ignorieren"
+                id="btn-nicht-mehr-ignorieren" title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
+                <i class="bi bi-eye me-2"></i>Nicht mehr ignorieren
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item" type="submit" name="aktion" value="zusammenfassen"
+                title="Ausgewählte Dateien als Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+                <i class="bi bi-diagram-3 me-2"></i>Zu Projekt zusammenfassen
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item" type="submit" name="aktion" value="bewertung_anfordern"
+                title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
+                <i class="bi bi-envelope me-2"></i>Bewertung anfordern
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#ownerModal"
+                title="Dateieigentümer für ausgewählte Dateien setzen">
+                <i class="bi bi-person-gear me-2"></i>Eigentümer ändern
+              </button>
+            </li>
+            {% if is_admin %}
+            <li>
+              <hr class="dropdown-divider">
+            </li>
+            <li>
+              <button class="dropdown-item text-danger" type="submit" name="aktion" value="loeschen"
+                data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+                title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Verknüpfung)">
+                <i class="bi bi-trash me-2"></i>Löschen
+              </button>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+        <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
+          Auswahl aufheben
+        </button>
       </div>
-      <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
-        Auswahl aufheben
-      </button>
     </div>
-  </div>
     <div class="table-responsive">
       <table class="table table-hover mb-0 table-idv small">
         <thead>

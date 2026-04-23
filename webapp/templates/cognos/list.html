@@ -90,10 +90,11 @@
 <!-- ── Filter ────────────────────────────────────────────────────────── -->
 {% set _cf = q or status_filt or komplexitaet_filt or abfragen_filt or pfad_prefix %}
 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-  <button class="btn btn-sm btn-outline-secondary" type="button"
-    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _cf or filter_panel_open else 'false' }}">
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+    data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _cf or filter_panel_open else 'false' }}">
     <i class="bi bi-funnel me-1"></i>Suche &amp; Filter
-    {% if _cf %}<span class="badge bg-primary ms-1">{{ [q, status_filt, komplexitaet_filt, abfragen_filt, pfad_prefix] | select | list | length }}</span>{% endif %}
+    {% if _cf %}<span class="badge bg-primary ms-1">{{ [q, status_filt, komplexitaet_filt, abfragen_filt, pfad_prefix] |
+      select | list | length }}</span>{% endif %}
   </button>
   {% if _cf %}
   <a href="{{ url_for('cognos.list_berichte') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen">
@@ -148,9 +149,8 @@
         <button type="submit" class="btn btn-primary btn-sm">
           <i class="bi bi-search me-1"></i>Filtern
         </button>
-        <a href="{{ url_for('cognos.list_berichte') }}" class="btn btn-outline-secondary btn-sm ms-1">
-          <i class="bi bi-x-circle me-1"></i>Reset
-        </a>
+        <a href="{{ url_for('cognos.list_berichte') }}" class="btn btn-sm btn-outline-secondary"
+          title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
       </div>
     </div>
   </form>
