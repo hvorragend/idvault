@@ -10,7 +10,7 @@
         {{ row.bezeichnung }}
       </div>
       <div class="card-body">
-        <div class="alert alert-info py-2 mb-3" style="font-size:.83rem">
+        <div class="alert alert-info py-2 mb-3 small">
           <i class="bi bi-info-circle me-1"></i>
           Alle Wesentlichkeitskriterien sind vollständig über die Administration
           konfigurierbar. Beim Deaktivieren bleiben bisherige Antworten erhalten
@@ -60,7 +60,7 @@
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
         <i class="bi bi-list-check me-2"></i>Details (Checkboxen im Formular)
-        <span class="text-muted ms-2" style="font-weight:400;font-size:.78rem">
+        <span class="text-muted ms-2 fs-7" style="font-weight:400">
           – einzelne Auswahloptionen innerhalb dieses Kriteriums
         </span>
       </div>
@@ -83,8 +83,8 @@
             <div class="col-md-2 form-check ms-2">
               <input class="form-check-input" type="checkbox" name="aktiv" value="1"
                      id="det_aktiv_{{ d.id }}" {{ 'checked' if d.aktiv else '' }}>
-              <label class="form-check-label" for="det_aktiv_{{ d.id }}"
-                     style="font-size:.82rem">Aktiv</label>
+              <label class="form-check-label small" for="det_aktiv_{{ d.id }}"
+                    >Aktiv</label>
             </div>
             <div class="col-md-2 text-end">
               <button type="submit" class="btn btn-sm btn-outline-primary" title="Speichern">
@@ -100,7 +100,7 @@
           {% endfor %}
         </div>
         {% else %}
-        <div class="text-center text-muted py-2" style="font-size:.83rem">
+        <div class="text-center text-muted py-2 small">
           Noch keine Details hinterlegt.
         </div>
         {% endif %}
@@ -127,7 +127,6 @@
   </div>
 </div>
 <style>
-.fw-600{font-weight:600}
 .d-contents{display:contents}
 </style>
 {% endblock %}

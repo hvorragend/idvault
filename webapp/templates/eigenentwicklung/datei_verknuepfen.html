@@ -3,7 +3,7 @@
 {% block page_title %}
   <i class="bi bi-link-45deg me-2"></i>Dateien verknüpfen –
   <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) }}" class="text-decoration-none">{{ idv.idv_id }}</a>
-  <span class="text-muted fw-400 ms-2" style="font-size:.85rem">{{ idv.bezeichnung }}</span>
+  <span class="text-muted fw-400 ms-2 small">{{ idv.bezeichnung }}</span>
 {% endblock %}
 
 {% block content %}
@@ -40,7 +40,7 @@
       <span class="badge bg-warning text-dark ms-1">
         {{ (hash_vorschlaege|length) + (aehnlichkeit_vorschlaege|length) }}
       </span>
-      <span class="text-muted fw-400 ms-2" style="font-size:.8rem">
+      <span class="text-muted fw-400 ms-2 fs-7">
         — automatisch erkannte Dateien, die zu dieser Eigenentwicklung passen könnten
       </span>
     </div>
@@ -52,9 +52,9 @@
           <i class="bi bi-fingerprint text-success fs-5"></i>
           <span class="fw-600 text-success">Identische Dateien</span>
           <span class="badge bg-success">{{ hash_vorschlaege|length }}</span>
-          <span class="text-muted" style="font-size:.8rem">— gleicher SHA-256-Hash wie eine bereits verknüpfte Datei</span>
+          <span class="text-muted fs-7">— gleicher SHA-256-Hash wie eine bereits verknüpfte Datei</span>
         </div>
-        <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+        <table class="table table-sm table-hover mb-0 small">
           <tbody>
             {% for f in hash_vorschlaege %}
             <tr>
@@ -65,20 +65,20 @@
               <td style="vertical-align:middle">
                 <label class="mb-0 fw-500" for="sug_h_{{ f.id }}">{{ f.file_name }}</label>
                 {% if f.has_macros %}
-                <span class="badge bg-danger ms-1" style="font-size:.68rem">VBA</span>
+                <span class="badge bg-danger ms-1 fs-8">VBA</span>
                 {% endif %}
               </td>
               <td style="max-width:300px;vertical-align:middle" class="text-muted">
                 {% if f.share_root %}
-                <span class="badge bg-primary me-1" style="font-size:.68rem;font-family:monospace">
+                <span class="badge bg-primary me-1 fs-8" style="font-family:monospace">
                   <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
                 </span>
                 {% endif %}
-                <div class="text-truncate" style="font-size:.75rem;max-width:280px"
+                <div class="text-truncate fs-7" style="max-width:280px"
                      title="{{ f.full_path }}">{{ f.relative_path or f.full_path or '' }}</div>
               </td>
               <td style="vertical-align:middle" class="text-nowrap">
-                <span class="badge bg-success" style="font-size:.72rem">
+                <span class="badge bg-success fs-8">
                   <i class="bi bi-check2-circle me-1"></i>Identischer Hash
                 </span>
               </td>
@@ -96,9 +96,9 @@
           <i class="bi bi-search text-primary fs-5"></i>
           <span class="fw-600 text-primary">Ähnliche Dateien</span>
           <span class="badge bg-primary">{{ aehnlichkeit_vorschlaege|length }}</span>
-          <span class="text-muted" style="font-size:.8rem">— Ähnlichkeitsprüfung nach Typ, Verantwortlichem und Name</span>
+          <span class="text-muted fs-7">— Ähnlichkeitsprüfung nach Typ, Verantwortlichem und Name</span>
         </div>
-        <table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+        <table class="table table-sm table-hover mb-0 small">
           <tbody>
             {% for f in aehnlichkeit_vorschlaege %}
             <tr>
@@ -109,23 +109,23 @@
               <td style="vertical-align:middle">
                 <label class="mb-0 fw-500" for="sug_s_{{ f.id }}">{{ f.file_name }}</label>
                 {% if f.has_macros %}
-                <span class="badge bg-danger ms-1" style="font-size:.68rem">VBA</span>
+                <span class="badge bg-danger ms-1 fs-8">VBA</span>
                 {% endif %}
               </td>
               <td style="max-width:300px;vertical-align:middle" class="text-muted">
                 {% if f.share_root %}
-                <span class="badge bg-primary me-1" style="font-size:.68rem;font-family:monospace">
+                <span class="badge bg-primary me-1 fs-8" style="font-family:monospace">
                   <i class="bi bi-folder-fill me-1"></i>{{ f.share_root }}
                 </span>
                 {% endif %}
-                <div class="text-truncate" style="font-size:.75rem;max-width:280px"
+                <div class="text-truncate fs-7" style="max-width:280px"
                      title="{{ f.full_path }}">{{ f.relative_path or f.full_path or '' }}</div>
               </td>
               <td style="vertical-align:middle" class="text-nowrap">
                 {% if f.score >= 70 %}{% set sc = 'bg-success' %}
                 {% elif f.score >= 50 %}{% set sc = 'bg-primary' %}
                 {% else %}{% set sc = 'bg-secondary' %}{% endif %}
-                <span class="badge {{ sc }}" style="font-size:.72rem">
+                <span class="badge {{ sc }} fs-8">
                   <i class="bi bi-graph-up me-1"></i>{{ f.score }}&thinsp;Pkt.
                 </span>
               </td>
@@ -146,7 +146,7 @@
       <i class="bi bi-folder2-open me-1 text-primary"></i>
       Verfügbare Scanner-Funde
       <span class="badge bg-secondary ms-1" id="totalBadge">{{ total_count }}</span>
-      <span class="text-muted fw-400 ms-2" style="font-size:.8rem">
+      <span class="text-muted fw-400 ms-2 fs-7">
         — Dateien, die noch keiner Eigenentwicklung zugeordnet sind
       </span>
     </div>
@@ -155,7 +155,7 @@
     <div class="card-body text-center py-5 text-muted">
       <i class="bi bi-folder2-open fs-1 mb-3 d-block" style="opacity:.3"></i>
       <strong>Keine freien Scanner-Funde vorhanden.</strong>
-      <div class="mt-2" style="font-size:.88rem">
+      <div class="mt-2">
         Alle bekannten Dateien sind bereits einer Eigenentwicklung zugeordnet, oder es wurde
         noch kein Scan durchgeführt.
       </div>
@@ -170,7 +170,7 @@
     </div>
     {% else %}
     <div class="table-responsive">
-      <table class="table table-hover mb-0" style="font-size:.83rem" id="fileTable">
+      <table class="table table-hover mb-0 small" id="fileTable">
         <thead class="table-light">
           <tr>
             <th style="width:2rem">
@@ -311,14 +311,14 @@
         <td><input type="checkbox" class="form-check-input file-cb"${selectedIds.has(f.id) ? ' checked' : ''}></td>
         <td>
           <span class="fw-500">${escHtml(f.file_name)}</span>
-          ${f.has_macros ? '<span class="badge bg-danger ms-1" style="font-size:.68rem">VBA</span>' : ''}
+          ${f.has_macros ? '<span class="badge bg-danger ms-1 fs-8">VBA</span>' : ''}
         </td>
         <td style="max-width:320px">
           ${f.share_root
-            ? `<span class="badge bg-primary" style="font-size:.68rem;font-family:monospace">`
+            ? `<span class="badge bg-primary fs-8" style="font-family:monospace">`
             + `<i class="bi bi-folder-fill me-1"></i>${escHtml(f.share_root)}</span>`
             : ''}
-          <div class="text-truncate text-muted" style="font-size:.75rem;max-width:300px"
+          <div class="text-truncate text-muted fs-7" style="max-width:300px"
                title="${escHtml(f.full_path)}">
             ${escHtml(f.relative_path || f.full_path)}
           </div>
@@ -326,7 +326,7 @@
         <td class="text-nowrap text-muted">${formatSize(f.size_bytes)}</td>
         <td class="text-nowrap text-muted">${formatDate(f.modified_at)}</td>
         <td class="text-center">
-          <span class="badge ${typClass}" style="font-size:.7rem">${escHtml(typBadge)}</span>
+          <span class="badge ${typClass} fs-8">${escHtml(typBadge)}</span>
         </td>`;
 
       tr.querySelector('.file-cb').addEventListener('change', function () {
@@ -358,7 +358,7 @@
       if (data.total > data.files.length) {
         const tr = document.createElement('tr');
         tr.innerHTML =
-          `<td colspan="6" class="text-center text-muted py-2" style="font-size:.8rem">`
+          `<td colspan="6" class="text-center text-muted py-2 fs-7">`
           + `<i class="bi bi-info-circle me-1"></i>`
           + `${data.files.length} von ${data.total} Einträgen — Suche verfeinern für weitere Ergebnisse`
           + `</td>`;

@@ -4,7 +4,7 @@
 
 {% block content %}
 
-<p class="text-muted mb-4" style="font-size:.87rem">
+<p class="text-muted mb-4">
   Eigenentwicklungen, die als <strong>nicht wesentlich</strong> eingestuft wurden.
   Diese unterliegen keiner vollständigen Freigabepflicht gemäß MaRisk AT 7.2,
   sind aber dennoch im Register erfasst.
@@ -45,7 +45,6 @@
       {% set input_id = "share-root-search" %}
       {% include 'funde/_dir_search.html' %}
     </div>
-
 
     <!-- Zeile 2: OE + Fachverantwortlicher + Eigentümer -->
     <div class="col-md-4">
@@ -114,7 +113,7 @@ owner_filt} %}
       </span>
       <div class="d-flex gap-2 align-items-center flex-wrap">
         {% if can_write %}
-        <span id="bulk-info" class="text-muted me-1" style="font-size:.82rem;display:none">
+        <span id="bulk-info" class="text-muted me-1 small" style="display:none">
           <span id="bulk-count">0</span> ausgewählt —
         </span>
         <select name="neuer_status" id="bulk-status-select" class="form-select form-select-sm d-none"
@@ -149,7 +148,7 @@ owner_filt} %}
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table table-hover mb-0 table-idv" id="nw-table" style="font-size:.82rem">
+      <table class="table table-hover mb-0 table-idv small" id="nw-table">
         <thead>
           <tr>
             {% if can_write %}<th style="width:36px"><input type="checkbox" id="select-all" class="form-check-input"
@@ -178,7 +177,7 @@ owner_filt} %}
             <td>
               <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
             </td>
-            <td style="white-space:nowrap;font-size:.78rem">
+            <td class="fs-7" style="white-space:nowrap">
               {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
               <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige Eigenentwicklung"></i>
               {% endif %}
@@ -203,9 +202,9 @@ owner_filt} %}
             <td>
               <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
             </td>
-            <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
-            <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
-            <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}
+            <td class="small">{{ r.fachverantwortlicher or '–' }}</td>
+            <td class="fs-7">{{ r.file_owner or '–' }}</td>
+            <td class="text-nowrap fs-7">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}
             </td>
             <td>
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"
@@ -232,18 +231,6 @@ owner_filt} %}
 {% include 'funde/_pagination.html' %}
 
 <style>
-  .btn-xs {
-    padding: .15rem .4rem;
-    font-size: .75rem;
-  }
-
-  .fw-600 {
-    font-weight: 600;
-  }
-
-  .fw-500 {
-    font-weight: 500;
-  }
 
   th.sortable {
     cursor: pointer;
@@ -393,12 +380,12 @@ owner_filt} %}
       if (!names.length) return false;
       showBulkModal({
         title: `${names.length} Eigenentwicklung(en) löschen`,
-        body: `<div class="alert alert-danger py-2 mb-2" style="font-size:.85rem">
+        body: `<div class="alert alert-danger py-2 mb-2 small">
                  <i class="bi bi-exclamation-triangle-fill me-1"></i>
                  <strong>Unwiderruflich!</strong> Alle verknüpften Prüfungen, Maßnahmen,
                  Freigaben und Dateiverknüpfungen werden ebenfalls gelöscht.
                </div>
-               <ul style="font-size:.88rem;max-height:200px;overflow-y:auto;padding-left:1.2rem">
+               <ul style="max-height:200px; overflow-y:auto; padding-left:1.2rem">
                  ${names.map(n => `<li>${n.replace(/</g,'&lt;')}</li>`).join('')}
                </ul>`,
         confirmLabel: `${names.length} Einträge löschen`,
@@ -419,11 +406,11 @@ owner_filt} %}
       if (!names.length) return false;
       showBulkModal({
         title: `Status ändern: → „${sel.value}"`,
-        body: `<p style="font-size:.88rem;color:#374151">
+        body: `<p style="color:#374151">
                  Folgende ${names.length} Eigenentwicklung(en) erhalten den Status
                  <strong>${sel.value.replace(/</g,'&lt;')}</strong>:
                </p>
-               <ul style="font-size:.88rem;max-height:200px;overflow-y:auto;padding-left:1.2rem">
+               <ul style="max-height:200px; overflow-y:auto; padding-left:1.2rem">
                  ${names.map(n => `<li>${n.replace(/</g,'&lt;')}</li>`).join('')}
                </ul>`,
         confirmLabel: `${names.length} Einträge ändern`,

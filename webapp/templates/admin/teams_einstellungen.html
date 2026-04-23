@@ -6,7 +6,7 @@
 {% include 'admin/_subnav.html' %}
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <span class="text-muted" style="font-size:.88rem">
+  <span class="text-muted">
     Konfiguration und Steuerung des Microsoft Teams / SharePoint Online-Scanners
   </span>
   <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">
@@ -30,7 +30,7 @@
         <i class="bi bi-shield-lock me-2"></i>Azure AD App-Registrierung
       </div>
       <div class="card-body">
-        <div class="alert alert-light border py-2 mb-3" style="font-size:.83rem">
+        <div class="alert alert-light border py-2 mb-3 small">
           <i class="bi bi-info-circle me-1 text-secondary"></i>
           Einmalige Einrichtung durch IT-Administrator:
           Azure Portal → Entra ID → App-Registrierungen → Berechtigungen:
@@ -76,7 +76,7 @@
         <i class="bi bi-collection me-2"></i>Teams &amp; SharePoint-Sites
       </div>
       <div class="card-body pb-2">
-        <p class="text-muted mb-3" style="font-size:.86rem">
+        <p class="text-muted mb-3 small">
           Jede Zeile entspricht einem zu überwachenden Teams-Kanal oder einer SharePoint-Site.
           Typ <strong>Team-ID</strong>: Object-ID des Teams (aus Teams Admin Center oder Azure Portal).
           Typ <strong>Site-URL</strong>: vollständige SharePoint-URL, z.&thinsp;B.
@@ -116,10 +116,10 @@
           <!-- Dateiendungen -->
           <div class="col-md-6">
             <label class="form-label fw-600">Überwachte Dateiendungen
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— eine pro Zeile</span>
+              <span class="text-muted fw-normal ms-1 small">— eine pro Zeile</span>
             </label>
-            <textarea name="extensions" class="form-control font-monospace"
-                      rows="10" style="font-size:.82rem"
+            <textarea name="extensions" class="form-control font-monospace small"
+                      rows="10"
             >{{ cfg.extensions | join('\n') }}</textarea>
           </div>
 
@@ -171,10 +171,10 @@
           <!-- Blacklist -->
           <div class="col-md-6">
             <label class="form-label fw-600">Blacklist
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— Regex oder Substring, eine Regel pro Zeile</span>
+              <span class="text-muted fw-normal ms-1 small">— Regex oder Substring, eine Regel pro Zeile</span>
             </label>
-            <textarea name="blacklist_paths" class="form-control font-monospace"
-                      rows="5" style="font-size:.82rem"
+            <textarea name="blacklist_paths" class="form-control font-monospace small"
+                      rows="5"
                       placeholder="z.B. /Archiv/ oder (?i)temp"
             >{{ cfg.blacklist_paths | join('\n') if cfg.blacklist_paths else '' }}</textarea>
             <div class="form-text">Relative Pfade innerhalb der SharePoint-Site, die diesen Mustern entsprechen, werden übersprungen. Hat Vorrang vor der Whitelist.</div>
@@ -183,10 +183,10 @@
           <!-- Whitelist -->
           <div class="col-md-6">
             <label class="form-label fw-600">Whitelist
-              <span class="text-muted fw-normal ms-1" style="font-size:.82rem">— optional, Regex oder Substring</span>
+              <span class="text-muted fw-normal ms-1 small">— optional, Regex oder Substring</span>
             </label>
-            <textarea name="whitelist_paths" class="form-control font-monospace"
-                      rows="5" style="font-size:.82rem"
+            <textarea name="whitelist_paths" class="form-control font-monospace small"
+                      rows="5"
                       placeholder="z.B. /IDV/ oder (?i)controlling"
             >{{ cfg.whitelist_paths | join('\n') if cfg.whitelist_paths else '' }}</textarea>
             <div class="form-text">Wenn nicht leer: nur relative Pfade verarbeiten, die mindestens einem Muster entsprechen.</div>
@@ -214,7 +214,7 @@
       <div class="card-body">
 
         {% if cfg.teams %}
-        <p class="mb-2 text-muted" style="font-size:.88rem">
+        <p class="mb-2 text-muted">
           Startet den Teams-Scanner für folgende Quellen:
           {% for t in cfg.teams %}
             <code class="d-block ms-3">
@@ -249,7 +249,7 @@
             <i class="bi bi-play-fill me-1"></i>Teams-Scan jetzt starten
           {% endif %}
         </button>
-        <span class="text-muted ms-3" style="font-size:.82rem">
+        <span class="text-muted ms-3 small">
           Der Scan läuft im Hintergrund. Diese Seite kann geschlossen werden.
         </span>
 

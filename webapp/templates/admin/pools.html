@@ -4,7 +4,7 @@
 
 {% block content %}
 {% include 'admin/_subnav.html' %}
-<div class="alert alert-info d-flex align-items-start gap-3 mb-3" style="font-size:.85rem">
+<div class="alert alert-info d-flex align-items-start gap-3 mb-3 small">
   <i class="bi bi-info-circle fs-5 flex-shrink-0 mt-1"></i>
   <div>
     Freigabe-Pools bündeln mehrere Personen, die einen Freigabe-Schritt wahlweise übernehmen können.
@@ -40,7 +40,7 @@
     <i class="bi bi-list-ul me-1"></i>{{ pools|length }} Pool(s)
   </div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover mb-0" style="font-size:.88rem">
+    <table class="table table-sm table-hover mb-0">
       <thead>
         <tr>
           <th>Name</th>
@@ -98,5 +98,4 @@
   </div>
 </div>
 
-<style>.btn-xs{padding:.15rem .45rem;font-size:.75rem}.fw-600{font-weight:600}</style>
 {% endblock %}

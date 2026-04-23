@@ -128,7 +128,7 @@
       </span>
       <div class="d-flex gap-2 align-items-center flex-wrap">
         {% if can_write %}
-        <span id="bulk-info" class="text-muted me-1" style="font-size:.82rem;display:none">
+        <span id="bulk-info" class="text-muted me-1 small" style="display:none">
           <span id="bulk-count">0</span> ausgewählt —
         </span>
         <select name="neuer_status" id="bulk-status-select" class="form-select form-select-sm d-none"
@@ -199,7 +199,7 @@
                 {{ entwicklungsart_label.get(_art, _art) }}
               </span>
             </td>
-            <td style="white-space:nowrap;font-size:.78rem">
+            <td class="fs-7" style="white-space:nowrap">
               {# Versionskette: Icon wenn Vorgänger oder Nachfolger existiert #}
               {% if r.vorgaenger_idv_id or r.hat_nachfolger %}
               <i class="bi bi-diagram-3 text-muted me-1" title="Mehrversionige Eigenentwicklung"></i>
@@ -226,15 +226,15 @@
               {% if r.wesentlich_flag %}
               <span class="badge bg-danger">Ja</span>
               {% else %}
-              <span class="text-muted" style="font-size:.82rem">–</span>
+              <span class="text-muted small">–</span>
               {% endif %}
             </td>
             <td>
               <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
             </td>
-            <td style="font-size:.82rem">{{ r.fachverantwortlicher or '–' }}</td>
-            <td style="font-size:.78rem">{{ r.file_owner or '–' }}</td>
-            <td class="text-nowrap" style="font-size:.76rem">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–'
+            <td class="small">{{ r.fachverantwortlicher or '–' }}</td>
+            <td class="fs-7">{{ r.file_owner or '–' }}</td>
+            <td class="text-nowrap fs-7">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–'
               }}</td>
             <td>
               <div class="d-flex gap-1">
@@ -270,18 +270,6 @@
 {% include 'funde/_pagination.html' %}
 
 <style>
-  .btn-xs {
-    padding: .15rem .4rem;
-    font-size: .75rem;
-  }
-
-  .fw-600 {
-    font-weight: 600;
-  }
-
-  .fw-500 {
-    font-weight: 500;
-  }
 
   th.sortable {
     cursor: pointer;
@@ -305,7 +293,6 @@
     opacity: .8;
   }
 </style>
-
 
 <script>
   (function () {
@@ -454,12 +441,12 @@
       if (!names.length) return false;
       showBulkModal({
         title: `${names.length} Eigenentwicklung(en) löschen`,
-        body: `<div class="alert alert-danger py-2 mb-2" style="font-size:.85rem">
+        body: `<div class="alert alert-danger py-2 mb-2 small">
                  <i class="bi bi-exclamation-triangle-fill me-1"></i>
                  <strong>Unwiderruflich!</strong> Alle verknüpften Prüfungen, Maßnahmen,
                  Freigaben und Dateiverknüpfungen werden ebenfalls gelöscht.
                </div>
-               <ul style="font-size:.88rem;max-height:200px;overflow-y:auto;padding-left:1.2rem">
+               <ul style="max-height:200px; overflow-y:auto; padding-left:1.2rem">
                  ${names.map(n => `<li>${n.replace(/</g,'&lt;')}</li>`).join('')}
                </ul>`,
         confirmLabel: `${names.length} Einträge löschen`,
@@ -480,11 +467,11 @@
       if (!names.length) return false;
       showBulkModal({
         title: `Status ändern: → „${sel.value}"`,
-        body: `<p style="font-size:.88rem;color:#374151">
+        body: `<p style="color:#374151">
                  Folgende ${names.length} Eigenentwicklung(en) erhalten den Status
                  <strong>${sel.value.replace(/</g,'&lt;')}</strong>:
                </p>
-               <ul style="font-size:.88rem;max-height:200px;overflow-y:auto;padding-left:1.2rem">
+               <ul style="max-height:200px; overflow-y:auto; padding-left:1.2rem">
                  ${names.map(n => `<li>${n.replace(/</g,'&lt;')}</li>`).join('')}
                </ul>`,
         confirmLabel: `${names.length} Einträge ändern`,

@@ -6,7 +6,7 @@
 {% include 'admin/_subnav.html' %}
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <span class="text-muted" style="font-size:.88rem">
+  <span class="text-muted">
     Zuordnung von Active-Directory-Gruppen zu idvault-Rollen
   </span>
   <div class="d-flex gap-2">
@@ -54,7 +54,7 @@
             {% for m in mappings %}
             <tr>
               <td class="text-muted">{{ loop.index }}</td>
-              <td style="font-family:monospace;font-size:.82rem;word-break:break-all">
+              <td class="small" style="font-family:monospace; word-break:break-all">
                 {{ m.group_dn }}
               </td>
               <td>{{ m.group_name or '–' }}</td>
@@ -68,7 +68,7 @@
                   {{ m.rolle }}
                 </span>
               </td>
-              <td class="text-center text-muted" style="font-size:.82rem">{{ m.sort_order }}</td>
+              <td class="text-center text-muted small">{{ m.sort_order }}</td>
               <td>
                 <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1"
                         data-bs-toggle="modal" data-bs-target="#editModal{{ m.id }}"
@@ -147,7 +147,7 @@
       <!-- Neue Zuordnung -->
       <div class="card-footer bg-white">
         <details {% if not mappings %}open{% endif %}>
-          <summary class="text-primary" style="cursor:pointer;font-size:.88rem">
+          <summary class="text-primary" style="cursor:pointer">
             <i class="bi bi-plus-circle me-1"></i>Neue Zuordnung anlegen
           </summary>
           <form method="post" action="{{ url_for('admin.ldap_gruppe_neu') }}"
@@ -193,7 +193,7 @@
   <!-- ── Info-Panel ─────────────────────────────────────────────────────── -->
   <div class="col-12">
     <div class="card border-0 shadow-sm border-start border-4 border-info">
-      <div class="card-body" style="font-size:.85rem">
+      <div class="card-body small">
         <strong><i class="bi bi-info-circle me-1"></i>Hinweise:</strong>
         <ul class="mb-0 mt-2">
           <li>Der Gruppen-DN muss exakt mit dem AD-Eintrag übereinstimmen (Groß-/Kleinschreibung wird ignoriert).</li>

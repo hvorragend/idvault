@@ -29,7 +29,7 @@
       </div>
 
       {% if freigabe.durchgefuehrt_von %}
-      <div class="mb-2" style="font-size:.85rem">
+      <div class="mb-2 small">
         <span class="text-muted">Durchgeführt von:</span>
         <strong class="ms-1">{{ freigabe.durchgefuehrt_von }}</strong>
         {% if freigabe.durchgefuehrt_am %}
@@ -39,7 +39,7 @@
       {% endif %}
 
       <div class="mb-3">
-        <div class="form-label text-muted" style="font-size:.82rem">Status der Originaldatei</div>
+        <div class="form-label text-muted small">Status der Originaldatei</div>
         {% if freigabe.datei_verfuegbar == 1 %}
         <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Archiviert</span>
         {% elif freigabe.datei_verfuegbar == 0 %}
@@ -50,44 +50,44 @@
       </div>
 
       {% if freigabe.datei_verfuegbar == 1 and freigabe.archiv_datei_name %}
-      <div class="mb-2" style="font-size:.85rem">
-        <div class="form-label text-muted" style="font-size:.82rem">Archivierte Originaldatei</div>
+      <div class="mb-2 small">
+        <div class="form-label text-muted small">Archivierte Originaldatei</div>
         <i class="bi bi-file-earmark-lock me-1 text-muted"></i>
         <a href="{{ url_for('freigaben.archiv_download', freigabe_id=freigabe.id) }}"
            class="text-decoration-none">{{ freigabe.archiv_datei_name }}</a>
       </div>
       {% if freigabe.archiv_datei_sha256 %}
       <div class="mb-2">
-        <div class="form-label text-muted" style="font-size:.82rem">
+        <div class="form-label text-muted small">
           SHA-256-Prüfsumme (Revisionssicherheit)
         </div>
-        <div class="font-monospace text-break border rounded p-2 bg-light"
-             style="font-size:.78rem">{{ freigabe.archiv_datei_sha256 }}</div>
+        <div class="font-monospace text-break border rounded p-2 bg-light fs-7"
+            >{{ freigabe.archiv_datei_sha256 }}</div>
       </div>
       {% endif %}
       {% endif %}
 
       {% if freigabe.befunde %}
       <div class="mb-2">
-        <div class="form-label text-muted" style="font-size:.82rem">
+        <div class="form-label text-muted small">
           {% if freigabe.datei_verfuegbar == 0 %}Begründung (Datei nicht verfügbar)
           {% else %}Anmerkung{% endif %}
         </div>
-        <div class="border rounded p-2" style="font-size:.9rem">{{ freigabe.befunde }}</div>
+        <div class="border rounded p-2">{{ freigabe.befunde }}</div>
       </div>
       {% endif %}
 
       {% if freigabe.kommentar %}
       <div class="mb-2">
-        <div class="form-label text-muted" style="font-size:.82rem">Kommentar</div>
-        <div class="border rounded p-2" style="font-size:.9rem">{{ freigabe.kommentar }}</div>
+        <div class="form-label text-muted small">Kommentar</div>
+        <div class="border rounded p-2">{{ freigabe.kommentar }}</div>
       </div>
       {% endif %}
     </div>
 
     {% else %}
     <!-- ── Bearbeitungsmodus ── -->
-    <div class="alert alert-info py-2 mb-3" style="font-size:.85rem">
+    <div class="alert alert-info py-2 mb-3 small">
       <i class="bi bi-info-circle me-1"></i>
       <strong>MaRisk AT 7.2 Tz. 7 / HGB § 239:</strong> Die Originaldatei einer
       wesentlichen Eigenentwicklung muss revisionssicher archiviert werden.
@@ -244,7 +244,7 @@
           <div class="detail-label">Beauftragt an</div>
           <div class="fw-500">{{ freigabe.zugewiesen_an }}</div>
           {% if vertreter_name %}
-          <div class="mt-1 text-warning" style="font-size:.8rem">
+          <div class="mt-1 text-warning fs-7">
             <i class="bi bi-person-check me-1"></i>Aktuell vertreten durch <strong>{{ vertreter_name }}</strong>
           </div>
           {% endif %}
@@ -279,7 +279,7 @@
         <form method="post" action="{{ url_for('freigaben.weiterleiten', freigabe_id=freigabe.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="modal-body">
-            <p class="text-muted" style="font-size:.9rem">
+            <p class="text-muted">
               Leitet „{{ freigabe.schritt }}" an eine andere Person weiter.
               Diese Person wird benachrichtigt und als neue Verantwortliche eingetragen.
             </p>

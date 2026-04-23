@@ -66,7 +66,7 @@
       {% endif %}
       <div class="stat-lbl">Fortschritt
         {% if ignoriert_eingang %}
-        <span class="d-block text-muted" style="font-size:.72rem">{{ ignoriert_eingang }} ignoriert</span>
+        <span class="d-block text-muted fs-8">{{ ignoriert_eingang }} ignoriert</span>
         {% endif %}
       </div>
     </div>
@@ -93,7 +93,7 @@
 <div class="card border-0 shadow-sm p-3 mb-3">
   {% set processed = gesamt_zu_bearbeiten - neu_gesamt %}
   {% set pct = ((processed / gesamt_zu_bearbeiten) * 100)|int %}
-  <div class="d-flex justify-content-between align-items-center mb-1" style="font-size:.82rem">
+  <div class="d-flex justify-content-between align-items-center mb-1 small">
     <span class="text-muted">Bearbeitungsfortschritt</span>
     <span class="text-muted">
       {{ processed }} von {{ gesamt_zu_bearbeiten }} zu bearbeitenden Dateien
@@ -113,7 +113,7 @@
   <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
     data-bs-target="#hotspot-collapse" aria-expanded="false" aria-controls="hotspot-collapse">
     <i class="bi bi-bar-chart-line me-1"></i>Hotspot-Übersicht
-    <i class="bi bi-chevron-down ms-1" style="font-size:.7rem"></i>
+    <i class="bi bi-chevron-down ms-1 fs-8"></i>
   </button>
 </div>
 <div class="collapse mb-3" id="hotspot-collapse">
@@ -121,11 +121,11 @@
     {% if nach_share %}
     <div class="col-md-6">
       <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-2" style="font-size:.82rem;font-weight:600">
+        <div class="card-header bg-white py-2 small" style="font-weight:600">
           <i class="bi bi-folder2-open me-1"></i>Top-Speicherorte (Eingang)
         </div>
         <div class="table-responsive">
-          <table class="table table-sm mb-0" style="font-size:.80rem">
+          <table class="table table-sm mb-0 fs-7">
             <thead class="table-light">
               <tr>
                 <th>Speicherort</th>
@@ -144,7 +144,7 @@
                 <td class="text-end fw-500">{{ row.anzahl }}</td>
                 <td class="text-end">
                   {% if row.mit_makros %}
-                  <span class="badge bg-danger" style="font-size:.68rem">{{ row.mit_makros }}</span>
+                  <span class="badge bg-danger fs-8">{{ row.mit_makros }}</span>
                   {% else %}<span class="text-muted">–</span>{% endif %}
                 </td>
                 <td class="text-end">
@@ -170,11 +170,11 @@
     {% if nach_typ %}
     <div class="col-md-6">
       <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-2" style="font-size:.82rem;font-weight:600">
+        <div class="card-header bg-white py-2 small" style="font-weight:600">
           <i class="bi bi-file-earmark-code me-1"></i>Top-Dateitypen (Eingang)
         </div>
         <div class="table-responsive">
-          <table class="table table-sm mb-0" style="font-size:.80rem">
+          <table class="table table-sm mb-0 fs-7">
             <thead class="table-light">
               <tr>
                 <th>Erweiterung</th>
@@ -189,7 +189,7 @@
                 <td class="text-end fw-500">{{ row.anzahl }}</td>
                 <td class="text-end">
                   {% if row.mit_makros %}
-                  <span class="badge bg-danger" style="font-size:.68rem">{{ row.mit_makros }}</span>
+                  <span class="badge bg-danger fs-8">{{ row.mit_makros }}</span>
                   {% else %}<span class="text-muted">–</span>{% endif %}
                 </td>
               </tr>
@@ -319,7 +319,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body py-2">
-        <p class="text-muted mb-2" style="font-size:.82rem">
+        <p class="text-muted mb-2 small">
           Neuen Eigentümer für <strong id="owner-modal-count">0</strong> ausgewählte Datei(en) setzen.
         </p>
         <select id="owner-modal-input" class="form-select form-select-sm">
@@ -419,13 +419,13 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
         {{ dateien|length }} Datei{{ 'en' if dateien|length != 1 }}
         {% endif %}
       </span>
-      <span class="text-muted" style="font-size:.78rem">
+      <span class="text-muted fs-7">
         Sortierung: {{ {'prioritaet':'Makros zuerst','datum':'Neueste zuerst','share':'Nach
         Verzeichnis','groesse':'Größte zuerst'}[sort] }}
       </span>
     </div>
     <div class="table-responsive">
-      <table class="table table-hover mb-0 table-idv" style="font-size:.82rem">
+      <table class="table table-hover mb-0 table-idv small">
         <thead>
           <tr>
             <th style="width:32px"></th>
@@ -464,13 +464,13 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
                   <i class="bi bi-copy me-1"></i>Duplikat
                 </span>
                 {% endif %}
-                <span class="font-monospace text-muted" style="font-size:.68rem" title="SHA-256: {{ f.file_hash }}">
+                <span class="font-monospace text-muted fs-8" title="SHA-256: {{ f.file_hash }}">
                   <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
                 </span>
               </div>
               {% elif f.file_hash == 'HASH_ERROR' %}
               <div class="mt-1">
-                <span class="text-danger" style="font-size:.7rem" title="Hash konnte nicht berechnet werden">
+                <span class="text-danger fs-8" title="Hash konnte nicht berechnet werden">
                   <i class="bi bi-exclamation-triangle me-1"></i>Hash-Fehler
                 </span>
               </div>
@@ -499,12 +499,12 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
             </td>
 
             <!-- Geändert (Dateisystem-Änderungsdatum) -->
-            <td class="text-nowrap" style="font-size:.76rem">
+            <td class="text-nowrap fs-7">
               {{ f.modified_at|datefmt if f.modified_at else '–' }}
             </td>
 
             <!-- Erst gesehen -->
-            <td class="text-nowrap" style="font-size:.76rem">
+            <td class="text-nowrap fs-7">
               {{ f.first_seen_at|datefmt if f.first_seen_at else '–' }}
             </td>
 
@@ -589,21 +589,6 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
 {% include 'funde/_pagination.html' %}
 
 {% endif %}
-
-<style>
-  .btn-xs {
-    padding: .15rem .45rem;
-    font-size: .75rem;
-  }
-
-  .fw-600 {
-    font-weight: 600;
-  }
-
-  .fw-500 {
-    font-weight: 500;
-  }
-</style>
 
 <script>
   // VULN-M: wird über data-action="deleteScannerfund" aufgerufen; this = Button.

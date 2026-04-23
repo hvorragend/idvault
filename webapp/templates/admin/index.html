@@ -9,7 +9,7 @@
   <div class="card-body d-flex flex-wrap align-items-center gap-3">
     <div class="flex-grow-1">
       <div class="fw-600"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Prüfer-Export</div>
-      <div class="text-muted" style="font-size:.82rem">
+      <div class="text-muted small">
         IDV-Register, Maßnahmen, Prüfungen und Nachweise als formatierte Excel-Arbeitsmappe
         mit Ampel für Fristen.
       </div>
@@ -47,7 +47,7 @@
       </div>
       <div class="card-footer bg-white">
         <details>
-          <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neue OE anlegen</summary>
+          <summary class="text-primary" style="cursor:pointer"><i class="bi bi-plus-circle me-1"></i>Neue OE anlegen</summary>
           <form method="post" action="{{ url_for('admin.new_oe') }}" class="row g-2 mt-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-5"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
@@ -77,8 +77,8 @@
             {% for p in plattformen %}
             <tr class="{{ '' if p.aktiv else 'text-muted' }}">
               <td>{{ p.bezeichnung }}</td>
-              <td style="font-size:.78rem">{{ p.typ or '–' }}</td>
-              <td style="font-size:.78rem">{{ p.hersteller or '–' }}</td>
+              <td class="fs-7">{{ p.typ or '–' }}</td>
+              <td class="fs-7">{{ p.hersteller or '–' }}</td>
               <td class="text-center">{% if p.aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
               <td>
                 <a href="{{ url_for('admin.edit_plattform', plid=p.id) }}" class="btn btn-xs btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a>
@@ -94,7 +94,7 @@
       </div>
       <div class="card-footer bg-white">
         <details>
-          <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neue Plattform anlegen</summary>
+          <summary class="text-primary" style="cursor:pointer"><i class="bi bi-plus-circle me-1"></i>Neue Plattform anlegen</summary>
           <form method="post" action="{{ url_for('admin.new_plattform') }}" class="row g-2 mt-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-4"><input type="text" name="bezeichnung" class="form-control form-control-sm" placeholder="Bezeichnung" required></div>
@@ -128,7 +128,7 @@
               data-form-validate="validateGpBulk">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="fw-600 text-primary" style="font-size:.88rem">
+            <span class="fw-600 text-primary">
               <i class="bi bi-check2-square me-1"></i><span id="gpBulkCount">0</span> ausgewählt
             </span>
             <button type="submit" name="action" value="deactivate" class="btn btn-sm btn-outline-secondary">
@@ -176,7 +176,7 @@
       </div>
       <div class="card-footer bg-white">
         <details>
-          <summary class="text-primary" style="cursor:pointer;font-size:.88rem"><i class="bi bi-plus-circle me-1"></i>Neuen GP anlegen</summary>
+          <summary class="text-primary" style="cursor:pointer"><i class="bi bi-plus-circle me-1"></i>Neuen GP anlegen</summary>
           <form method="post" action="{{ url_for('admin.new_gp') }}" class="row g-2 mt-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-3"><input type="text" name="gp_nummer" class="form-control form-control-sm" placeholder="GP-XXX-001" required></div>
@@ -184,11 +184,11 @@
             <div class="col-auto">
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="checkbox" name="ist_kritisch" value="1" id="gp_krit">
-                <label class="form-check-label" for="gp_krit" style="font-size:.83rem">DORA-kritisch</label>
+                <label class="form-check-label small" for="gp_krit">DORA-kritisch</label>
               </div>
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="checkbox" name="ist_wesentlich" value="1" id="gp_wes">
-                <label class="form-check-label" for="gp_wes" style="font-size:.83rem">Wesentlich</label>
+                <label class="form-check-label small" for="gp_wes">Wesentlich</label>
               </div>
             </div>
             <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus me-1"></i>Hinzufügen</button></div>
@@ -196,7 +196,7 @@
         </details>
         <!-- GP CSV-Import -->
         <details class="mt-2">
-          <summary class="text-success" style="cursor:pointer;font-size:.88rem">
+          <summary class="text-success" style="cursor:pointer">
             <i class="bi bi-file-earmark-arrow-up me-1"></i>Geschäftsprozesse aus CSV importieren
           </summary>
           <form method="post" action="{{ url_for('admin.import_geschaeftsprozesse') }}" enctype="multipart/form-data" class="row g-2 mt-2">
@@ -218,10 +218,10 @@
         </details>
         <!-- GP Massenlöschung -->
         <details class="mt-2">
-          <summary class="text-danger" style="cursor:pointer;font-size:.88rem">
+          <summary class="text-danger" style="cursor:pointer">
             <i class="bi bi-trash3 me-1"></i>Alle Geschäftsprozesse löschen
           </summary>
-          <div class="mt-2 p-2 border border-danger rounded" style="font-size:.85rem">
+          <div class="mt-2 p-2 border border-danger rounded small">
             <p class="text-danger mb-2">
               <strong>Unwiderruflich:</strong> Alle Geschäftsprozesse werden aus der Datenbank gelöscht.
               Verknüpfungen in Eigenentwicklungs-Einträgen (GP-Feld) werden dabei auf leer gesetzt.
@@ -243,8 +243,8 @@
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
         <i class="bi bi-check2-square me-2"></i>Wesentlichkeitskriterien
-        <span class="badge bg-secondary ms-2" style="font-weight:400;font-size:.75rem">konfigurierbar</span>
-        <span class="text-muted ms-2" style="font-weight:400;font-size:.78rem">
+        <span class="badge bg-secondary ms-2 fs-7" style="font-weight:400">konfigurierbar</span>
+        <span class="text-muted ms-2 fs-7" style="font-weight:400">
           — vollständig über die Administration definierbar, inkl. Detail-Checkboxen
         </span>
       </div>
@@ -264,9 +264,9 @@
           <tbody>
             {% for k in wesentlichkeitskriterien %}
             <tr class="{{ '' if k.aktiv else 'text-muted' }}">
-              <td class="text-muted" style="font-size:.78rem">{{ k.sort_order }}</td>
+              <td class="text-muted fs-7">{{ k.sort_order }}</td>
               <td class="fw-500">{{ k.bezeichnung }}</td>
-              <td style="font-size:.78rem;color:#6c757d">{{ k.beschreibung or '–' }}</td>
+              <td class="fs-7" style="color:#6c757d">{{ k.beschreibung or '–' }}</td>
               <td class="text-center">
                 {% set aktive_details = k.details | selectattr('aktiv') | list %}
                 {% if aktive_details %}
@@ -311,7 +311,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="7" class="text-center text-muted py-3" style="font-size:.83rem">
+            <tr><td colspan="7" class="text-center text-muted py-3 small">
               Noch keine Kriterien konfiguriert.
             </td></tr>
             {% endfor %}
@@ -336,7 +336,7 @@
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="begruendung_pflicht" value="1"
                        id="wk_bpflicht">
-                <label class="form-check-label" for="wk_bpflicht" style="font-size:.83rem">Begründung Pflicht</label>
+                <label class="form-check-label small" for="wk_bpflicht">Begründung Pflicht</label>
               </div>
             </div>
             <div class="col-md-2">
@@ -347,9 +347,9 @@
           </form>
         </div>
         <div class="p-3 border-top">
-          <div class="alert alert-info py-2 mb-0" style="font-size:.82rem">
-            <i class="bi bi-info-circle me-1"></i>
-            <strong>Hinweis:</strong> Wird ein Kriterium deaktiviert, bleiben alle bisherigen Antworten erhalten
+          <div class="alert-hinweis mb-0 small">
+            <div class="hinweis-title"><i class="bi bi-info-circle me-1"></i>Hinweis</div>
+            Wird ein Kriterium deaktiviert, bleiben alle bisherigen Antworten erhalten
             und sind weiterhin in der Detailansicht sichtbar (mit Hinweis „inaktiv").
             Neue Eigenentwicklungen zeigen das Kriterium nicht mehr im Formular.
           </div>
@@ -363,7 +363,7 @@
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
         <i class="bi bi-sliders me-2"></i>Klassifizierungskriterien
-        <span class="badge bg-secondary ms-2" style="font-weight:400;font-size:.75rem">konfigurierbar</span>
+        <span class="badge bg-secondary ms-2 fs-7" style="font-weight:400">konfigurierbar</span>
       </div>
       <div class="card-body p-0">
         <div class="accordion accordion-flush" id="klassAcc">
@@ -393,10 +393,10 @@
                   <tbody>
                     {% for e in eintraege %}
                     <tr class="{{ '' if e.aktiv else 'text-muted' }}">
-                      <td class="text-muted" style="font-size:.78rem">{{ e.sort_order }}</td>
+                      <td class="text-muted fs-7">{{ e.sort_order }}</td>
                       <td><code>{{ e.wert }}</code></td>
                       <td>{{ e.bezeichnung if e.bezeichnung != e.wert else '–' }}</td>
-                      <td style="font-size:.78rem;color:#6c757d">{{ e.beschreibung or '–' }}</td>
+                      <td class="fs-7" style="color:#6c757d">{{ e.beschreibung or '–' }}</td>
                       <td class="text-center">
                         {% if e.aktiv %}<span class="badge bg-success">Ja</span>
                         {% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
@@ -458,10 +458,6 @@
 
 </div>
 
-<style>
-  .fw-600 { font-weight: 600; }
-  .btn-xs { font-size: .75rem; line-height: 1.4; }
-</style>
 <script>
 // VULN-M: ersetzt inline ``onsubmit="return …confirm(…)"`` am gpBulkForm.
 window.validateGpBulk = function () {

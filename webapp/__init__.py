@@ -275,6 +275,10 @@ def create_app(db_path: str = None) -> Flask:
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
         APP_NAME="idvault",
+        # Optionaler Institutionsname (erscheint im Breadcrumb-Topbar).
+        # Wird aus config.json["IDV_INSTITUTION_NAME"] gelesen. Leer = kein
+        # Prefix, nur Seitentitel.
+        IDV_INSTITUTION_NAME=config_store.get_str("IDV_INSTITUTION_NAME", ""),
         IDV_HTTPS=_https_enabled,
         BUNDLED_VERSION=os.environ.get('BUNDLED_VERSION', '0.1.0'),
         APP_VERSION=os.environ.get('IDV_ACTIVE_VERSION') or os.environ.get('BUNDLED_VERSION', '0.1.0'),
