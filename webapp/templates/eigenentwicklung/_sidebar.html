@@ -198,6 +198,28 @@
                   {% endif %}
                 </div>
                 {% endif %}
+                {% if f and f.status == 'Ausstehend' and f.pool_name %}
+                <div class="mt-1 fs-8">
+                  {% if f.bearbeitet_von %}
+                    <span class="badge bg-info text-dark"><i class="bi bi-person-check me-1"></i>Bearbeitet von: {{ f.bearbeitet_von }}</span>
+                    {% if session.get('person_id') == f.bearbeitet_von_id or session.get('user_role') == 'IDV-Administrator' %}
+                    <form method="post" action="{{ url_for('freigaben.claim_loesen', freigabe_id=f.id) }}" class="d-inline ms-1">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-xs btn-outline-secondary" title="Claim zurückgeben — andere Pool-Mitglieder können wieder übernehmen">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Abgeben
+                      </button>
+                    </form>
+                    {% endif %}
+                  {% else %}
+                    <form method="post" action="{{ url_for('freigaben.claim', freigabe_id=f.id) }}" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-xs btn-outline-primary" title="Aufgabe zur Bearbeitung übernehmen — Pool-Bindung bleibt erhalten">
+                        <i class="bi bi-hand-index me-1"></i>Ich übernehme
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+                {% endif %}
 
                 <div class="d-flex gap-1 mt-2">
                   {% if not f and can_create %}
@@ -308,6 +330,28 @@
                     <i class="bi bi-person me-1"></i>{{ f.zugewiesen_an }}
                   {% elif f.pool_name %}
                     <i class="bi bi-people me-1"></i>Pool: {{ f.pool_name }}
+                  {% endif %}
+                </div>
+                {% endif %}
+                {% if f and f.status == 'Ausstehend' and f.pool_name %}
+                <div class="mt-1 fs-8">
+                  {% if f.bearbeitet_von %}
+                    <span class="badge bg-info text-dark"><i class="bi bi-person-check me-1"></i>Bearbeitet von: {{ f.bearbeitet_von }}</span>
+                    {% if session.get('person_id') == f.bearbeitet_von_id or session.get('user_role') == 'IDV-Administrator' %}
+                    <form method="post" action="{{ url_for('freigaben.claim_loesen', freigabe_id=f.id) }}" class="d-inline ms-1">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-xs btn-outline-secondary" title="Claim zurückgeben — andere Pool-Mitglieder können wieder übernehmen">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Abgeben
+                      </button>
+                    </form>
+                    {% endif %}
+                  {% else %}
+                    <form method="post" action="{{ url_for('freigaben.claim', freigabe_id=f.id) }}" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-xs btn-outline-primary" title="Aufgabe zur Bearbeitung übernehmen — Pool-Bindung bleibt erhalten">
+                        <i class="bi bi-hand-index me-1"></i>Ich übernehme
+                      </button>
+                    </form>
                   {% endif %}
                 </div>
                 {% endif %}
