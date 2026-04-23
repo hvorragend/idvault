@@ -464,19 +464,20 @@ def _finalisiere_freigabe_wenn_komplett(conn, idv_db_id: int, person_id: int,
     _ABGESCHLOSSENE_STATUS = {"Freigegeben", "Freigegeben mit Auflagen",
                                "Abgelehnt", "Abgekündigt", "Archiviert"}
     aktueller_status = row["status"] if row else None
-    status_update = (
-        ", status='Freigegeben', status_geaendert_am=?, status_geaendert_von_id=?"
-        if aktueller_status not in _ABGESCHLOSSENE_STATUS
-        else ""
-    )
-    params: list = [now, idv_db_id]
-    if status_update:
-        params = [now, person_id, now, idv_db_id]
-    conn.execute(
-        f"UPDATE idv_register SET teststatus='Freigegeben', dokumentation_vorhanden=1,"
-        f" aktualisiert_am=?{status_update} WHERE id=?",
-        params,
-    )
+    auto_freigabe = aktueller_status not in _ABGESCHLOSSENE_STATUS
+    if auto_freigabe:
+        conn.execute("""
+            UPDATE idv_register
+            SET teststatus='Freigegeben', dokumentation_vorhanden=1, aktualisiert_am=?,
+                status='Freigegeben', status_geaendert_am=?, status_geaendert_von_id=?
+            WHERE id=?
+        """, (now, now, person_id, idv_db_id))
+    else:
+        conn.execute("""
+            UPDATE idv_register
+            SET teststatus='Freigegeben', dokumentation_vorhanden=1, aktualisiert_am=?
+            WHERE id=?
+        """, (now, idv_db_id))
     conn.execute(
         "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
         (idv_db_id, "freigabe_erteilt",
