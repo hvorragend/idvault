@@ -1032,6 +1032,13 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-color: #a5f3fc;
 }
 
+/* Generic colour modifiers — reusable on any .idv-tag */
+.idv-tag-green  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.idv-tag-amber  { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-200); }
+.idv-tag-blue   { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.idv-tag-red    { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.idv-tag-slate  { background: var(--slate-50); color: var(--slate-500); border-color: var(--slate-200); }
+
 /* 16. Druck-Stylesheet ────────────────────────────────────────────────────── */
 @media print {
   /* Seitenränder + Basis-Typo */
