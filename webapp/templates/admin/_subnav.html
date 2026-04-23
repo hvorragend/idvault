@@ -26,6 +26,12 @@
       </a>
     </li>
     <li class="nav-item">
+      <a href="{{ url_for('admin.similarity_settings') }}"
+         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.similarity_settings' %}active{% endif %}">
+        <i class="bi bi-stars me-1"></i>Ähnlichkeit
+      </a>
+    </li>
+    <li class="nav-item">
       <a href="{{ url_for('admin.scanner_log') }}"
          class="nav-link py-1 px-3 {% if request.endpoint in ('admin.scanner_log','admin.login_log') %}active{% endif %}">
         <i class="bi bi-journal-code me-1"></i>Log-Viewer

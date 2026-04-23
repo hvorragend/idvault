@@ -5,18 +5,46 @@
 {% block content %}
 {% include 'admin/_subnav.html' %}
 
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-body d-flex flex-wrap align-items-center gap-3">
-    <div class="flex-grow-1">
-      <div class="fw-600"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Prüfer-Export</div>
-      <div class="text-muted small">
-        IDV-Register, Maßnahmen, Prüfungen und Nachweise als formatierte Excel-Arbeitsmappe
-        mit Ampel für Fristen.
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="flex-grow-1">
+          <div class="fw-600"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Prüfer-Export</div>
+          <div class="text-muted small">
+            IDV-Register, Maßnahmen, Prüfungen und Nachweise als formatierte Excel-Arbeitsmappe
+            mit Ampel für Fristen.
+          </div>
+        </div>
+        <a href="{{ url_for('admin.export_excel') }}" class="btn btn-sm btn-primary">
+          <i class="bi bi-download me-1"></i>Excel herunterladen
+        </a>
       </div>
     </div>
-    <a href="{{ url_for('admin.export_excel') }}" class="btn btn-sm btn-primary">
-      <i class="bi bi-download me-1"></i>Excel herunterladen
-    </a>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-600"><i class="bi bi-layout-text-sidebar me-2"></i>Benutzeroberfläche</div>
+      <div class="card-body py-2">
+        <form method="post" action="{{ url_for('admin.save_ui_settings') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="filter_panel_open" id="filter_panel_open"
+              value="1" {% if filter_panel_open_setting %}checked{% endif %}>
+            <label class="form-check-label" for="filter_panel_open">
+              <span class="fw-500">„Suche &amp; Filter" standardmäßig eingeblendet</span>
+              <div class="text-muted small">
+                Steuert, ob das Suchformular in Listen-Ansichten beim Öffnen ausgeklappt oder eingeklappt angezeigt wird.
+                Wenn ein aktiver Filter gesetzt ist, wird das Formular immer angezeigt.
+              </div>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary mt-1">
+            <i class="bi bi-floppy me-1"></i>Speichern
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 

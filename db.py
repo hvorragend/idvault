@@ -1208,6 +1208,14 @@ def apply_scan_run_end(conn: sqlite3.Connection, payload: dict) -> None:
     Erwartete Felder: ``scan_run_id``, ``finished_at``, ``status`` ('completed'|
     'cancelled'|'crashed'|'killed'), ``total``, ``new``, ``changed``, ``moved``,
     ``restored``, ``archived``, ``errors``.
+
+    ``archived_files`` wird per ``MAX`` mit dem vorhandenen Wert zusammen-
+    gefuehrt: die Archivierung nicht mehr gesehener Dateien laeuft inzwischen
+    als eigenes OP_ARCHIVE_UNSEEN-Event *vor* OP_END_RUN und hat die Spalte
+    bereits korrekt gesetzt. Der Scanner kann die endgueltige Zahl nicht mehr
+    selbst ermitteln (er liest nur – die Webapp schreibt) und sendet daher
+    ``archived=0``. ``MAX`` verhindert, dass dieser Wert den bereits vom
+    Archive-Handler gesetzten Zaehler ueberschreibt.
     """
     with write_tx(conn):
         conn.execute(
@@ -1215,7 +1223,8 @@ def apply_scan_run_end(conn: sqlite3.Connection, payload: dict) -> None:
             UPDATE scan_runs SET
                 finished_at = ?, total_files = ?, new_files = ?,
                 changed_files = ?, moved_files = ?, restored_files = ?,
-                archived_files = ?, errors = ?, scan_status = ?
+                archived_files = MAX(COALESCE(archived_files, 0), ?),
+                errors = ?, scan_status = ?
             WHERE id = ?
             """,
             (
@@ -1497,6 +1506,63 @@ def apply_scanner_archive_files(conn: sqlite3.Connection, payload: dict) -> None
             "INSERT INTO idv_file_history (file_id, scan_run_id, change_type, changed_at) "
             "VALUES (?, ?, 'archiviert', ?)",
             [(fid, scan_run_id, now) for fid in file_ids],
+        )
+
+
+def apply_scanner_archive_unseen(conn: sqlite3.Connection, payload: dict) -> None:
+    """Archiviert alle aktiven idv_files, die im aktuellen Scan-Lauf nicht mehr
+    gesehen wurden. Die Auswahl erfolgt auf der Writer-Connection, damit sie
+    alle zuvor in der Queue stehenden OP_UPSERT_FILE-Schreibvorgaenge bereits
+    beruecksichtigt (verhindert stale-read-Race: der Scanner nutzt eine eigene
+    Reader-Connection und wuerde sonst gerade aktualisierte Dateien faelsch-
+    licherweise als 'nicht gesehen' einstufen).
+
+    Erwartete Felder:
+      * ``scan_run_id`` (erforderlich)
+      * ``now`` (erforderlich) – ISO-Zeitstempel
+      * ``scan_since`` (optional) – nur Dateien mit ``modified_at >= scan_since``
+      * ``scan_paths`` (optional, Liste[str]) – nur Dateien unterhalb dieser
+        Pfade werden archiviert (bereits gemappt auf DB-Konventionen)
+    """
+    scan_run_id = payload["scan_run_id"]
+    now         = payload["now"]
+    scan_since  = payload.get("scan_since")
+    scan_paths  = payload.get("scan_paths") or []
+
+    conditions = ["status = 'active'", "last_scan_run_id != ?"]
+    params: list = [scan_run_id]
+    if scan_since:
+        conditions.append("modified_at >= ?")
+        params.append(scan_since)
+    if scan_paths:
+        path_conds = " OR ".join("full_path LIKE ?" for _ in scan_paths)
+        conditions.append(f"({path_conds})")
+        for sp in scan_paths:
+            params.append(sp.rstrip("/\\") + "%")
+
+    with write_tx(conn):
+        rows = conn.execute(
+            f"SELECT id FROM idv_files WHERE {' AND '.join(conditions)}",
+            params,
+        ).fetchall()
+        file_ids = [r["id"] for r in rows]
+        if file_ids:
+            placeholders = ",".join("?" * len(file_ids))
+            conn.execute(
+                f"UPDATE idv_files SET status = 'archiviert', last_seen_at = ? "
+                f"WHERE id IN ({placeholders})",
+                [now] + file_ids,
+            )
+            conn.executemany(
+                "INSERT INTO idv_file_history "
+                "(file_id, scan_run_id, change_type, changed_at) "
+                "VALUES (?, ?, 'archiviert', ?)",
+                [(fid, scan_run_id, now) for fid in file_ids],
+            )
+        # Zaehler in scan_runs direkt setzen – OP_END_RUN merged per MAX.
+        conn.execute(
+            "UPDATE scan_runs SET archived_files = ? WHERE id = ?",
+            (len(file_ids), scan_run_id),
         )
 
 

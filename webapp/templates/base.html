@@ -35,7 +35,7 @@
 
     {% if _can_create %}
     <a href="{{ url_for('eigenentwicklung.new_idv') }}" class="nav-link">
-      <i class="bi bi-plus-circle"></i> Neue Eigenentwicklung
+      <i class="bi bi-plus-circle"></i> Neu erfassen
     </a>
     {% endif %}
 
@@ -148,6 +148,7 @@
           <span class="crumb current">{% block page_title %}{% endblock %}</span>
         </nav>
       </div>
+      {% block topbar_actions %}{% endblock %}
       <div class="d-flex align-items-center gap-2">
         {% if session.user_id %}
         <button id="quick-search-btn" class="topbar-action" data-action="openSearch" title="Schnellsuche (Strg+K)">

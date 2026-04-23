@@ -1160,7 +1160,7 @@ def edit_idv(idv_db_id):
           p_fv.nachname || ', ' || p_fv.vorname AS fachverantwortlicher,
           p_en.nachname || ', ' || p_en.vorname AS entwickler,
           ou.bezeichnung AS org_einheit,
-          v.pruefstatus, v.naechste_pruefung, v.letzte_pruefung
+          v.pruefstatus
         FROM idv_register r
         LEFT JOIN v_idv_uebersicht v ON v.idv_id = r.idv_id
         LEFT JOIN persons p_fv ON r.fachverantwortlicher_id = p_fv.id
@@ -1483,12 +1483,9 @@ def link_files(idv_db_id):
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # GET – Vorschläge berechnen (Hash + Ähnlichkeit) und Gesamtanzahl ermitteln
-
-    _NOISE = frozenset({
-        "", "der", "die", "das", "und", "fur", "für", "von", "mit", "zu", "in",
-        "v1", "v2", "v3", "final", "neu", "alt", "copy", "backup", "temp", "tmp",
-        "test", "old", "new", "1", "2", "3",
-    })
+    from .. import similarity as _sim
+    sim_cfg   = _sim.get_config(db)
+    sim_noise = frozenset(sim_cfg["noise_words"])
 
     # 1. Hash-basierte Vorschläge: Dateien mit gleichem SHA-256-Hash wie
     #    eine bereits verknüpfte Datei dieser Eigenentwicklung
@@ -1520,21 +1517,18 @@ def link_files(idv_db_id):
         hash_vorschlaege = [dict(r) for r in hash_rows]
         hash_vorschlag_ids = {r['id'] for r in hash_rows}
 
-    # 2. Ähnlichkeits-basierte Vorschläge: Scoring nach Typ, Verantwortlichem, Name
-    idv_typ = idv['idv_typ']
-    dev_ids_lower: set = set()
+    # 2. Ähnlichkeits-basierte Vorschläge: Scoring zentral in webapp/similarity.py
+    idv_typ = idv['idv_typ'] or ''
+    dev_rows = []
     for pid in filter(None, [idv['idv_entwickler_id'], idv['fachverantwortlicher_id']]):
         p = db.execute(
             "SELECT kuerzel, ad_name, user_id FROM persons WHERE id = ?", (pid,)
         ).fetchone()
         if p:
-            for v in (p['kuerzel'], p['ad_name'], p['user_id']):
-                if v:
-                    dev_ids_lower.add(v.lower().strip())
+            dev_rows.append(p)
+    dev_ids_lower = _sim.collect_dev_ids(dev_rows)
 
-    idv_words = set(re.split(r'[\W_]+', (idv['bezeichnung'] or '').lower())) - _NOISE
-
-    kandidaten = db.execute("""
+    kandidaten = db.execute(f"""
         SELECT f.id, f.file_name, f.extension, f.has_macros, f.share_root,
                f.relative_path, f.full_path, f.size_bytes, f.modified_at, f.file_owner
         FROM idv_files f
@@ -1542,33 +1536,32 @@ def link_files(idv_db_id):
           AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = f.id)
           AND f.id != COALESCE((SELECT file_id FROM idv_register WHERE id = ?), -1)
         ORDER BY f.last_seen_at DESC
-        LIMIT 500
+        LIMIT {int(sim_cfg['max_candidates'])}
     """, (idv_db_id,)).fetchall()
 
+    idv_name = idv['bezeichnung'] or ''
     aehnlichkeit_vorschlaege = []
     for kand in kandidaten:
         if kand['id'] in hash_vorschlag_ids:
             continue
-        score = 0
         fund_typ = _idv_typ_vorschlag(kand['extension'], kand['has_macros'])
-        if fund_typ == idv_typ and fund_typ != 'unklassifiziert':
-            score += 30
-        fund_owner = (kand['file_owner'] or '').lower().strip()
-        if fund_owner and fund_owner in dev_ids_lower:
-            score += 40
-        name_stem = os.path.splitext(kand['file_name'] or '')[0].lower()
-        fund_words = set(re.split(r'[\W_]+', name_stem)) - _NOISE
-        if fund_words and idv_words:
-            overlap = fund_words & idv_words
-            ratio = len(overlap) / max(len(fund_words), len(idv_words))
-            score += int(ratio * 30)
-        if score >= 30:
+        score = _sim.score_pair(
+            fund_typ=fund_typ,
+            fund_owner=kand['file_owner'] or '',
+            fund_name=kand['file_name'] or '',
+            idv_typ=idv_typ,
+            idv_name=idv_name,
+            dev_ids_lower=dev_ids_lower,
+            config=sim_cfg,
+            noise=sim_noise,
+        )
+        if score >= sim_cfg['threshold']:
             row = dict(kand)
             row['score'] = score
             aehnlichkeit_vorschlaege.append(row)
 
     aehnlichkeit_vorschlaege.sort(key=lambda x: x['score'], reverse=True)
-    aehnlichkeit_vorschlaege = aehnlichkeit_vorschlaege[:20]
+    aehnlichkeit_vorschlaege = aehnlichkeit_vorschlaege[:sim_cfg['max_results']]
 
     total_count = db.execute("""
         SELECT COUNT(*)

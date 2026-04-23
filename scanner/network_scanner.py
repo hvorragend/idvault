@@ -46,14 +46,16 @@ try:
     from scanner_protocol import (
         emit,
         OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
-        OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
+        OP_ARCHIVE_FILES, OP_ARCHIVE_UNSEEN,
+        OP_UPDATE_STATUS, OP_FILE_HISTORY,
         OP_LOG, OP_PROGRESS,
     )
 except ImportError:
     from scanner.scanner_protocol import (
         emit,
         OP_START_RUN, OP_END_RUN, OP_UPSERT_FILE, OP_MOVE_FILE,
-        OP_ARCHIVE_FILES, OP_UPDATE_STATUS, OP_FILE_HISTORY,
+        OP_ARCHIVE_FILES, OP_ARCHIVE_UNSEEN,
+        OP_UPDATE_STATUS, OP_FILE_HISTORY,
         OP_LOG, OP_PROGRESS,
     )
 
@@ -1110,8 +1112,16 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
                        scan_paths: Optional[list] = None) -> int:
     """Überführt aktive Dateien, die im aktuellen Scan nicht gesehen wurden, ins Archiv.
 
-    Nutzt last_scan_run_id statt eines Python-Sets – skaliert auch bei 100k+ Dateien.
-    Dateien werden nicht gelöscht, sondern auf status='archiviert' gesetzt.
+    Die Auswahl erfolgt nicht mehr hier, sondern im Webapp-Writer (Event
+    ``OP_ARCHIVE_UNSEEN``). Hintergrund: Der Scanner nutzt eine eigene
+    Reader-Connection. Upsert-Events werden asynchron an den Webapp-Writer
+    gereicht, der sie in Batches anwendet. Zum Zeitpunkt, zu dem der Scanner
+    hier fragen würde, „welche Dateien wurden in diesem Lauf nicht gesehen?",
+    sind die letzten Upserts häufig noch nicht committet – die Scanner-
+    Connection sähe dann einen veralteten ``last_scan_run_id`` und würde
+    gerade aktualisierte Dateien fälschlicherweise archivieren. Mit dem
+    Event-basierten Ansatz läuft das SELECT auf der Writer-Connection und
+    berücksichtigt alle zuvor in der Queue stehenden Upserts.
 
     scan_since:  ISO-Datumsstring (z.B. '2024-07-01'). Wenn gesetzt, werden nur
                  Dateien archiviert, deren modified_at >= scan_since liegt.
@@ -1121,38 +1131,19 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
                  Pfade liegt. Dateien außerhalb des Geltungsbereichs bleiben unberührt
                  — so können mehrere Teilscans auf verschiedene Verzeichnisse korrekt
                  akkumuliert werden.
+
+    Rueckgabe: immer 0. Die tatsaechliche Anzahl ermittelt der Webapp-Handler
+    und schreibt sie in ``scan_runs.archived_files``; ``apply_scan_run_end``
+    merged den Wert per ``MAX``, damit OP_END_RUN ihn nicht ueberschreibt.
     """
-    conditions = ["status = 'active'", "last_scan_run_id != ?"]
-    params: list = [scan_run_id]
-
-    if scan_since:
-        conditions.append("modified_at >= ?")
-        params.append(scan_since)
-
-    if scan_paths:
-        # Nur Dateien im Geltungsbereich der gescannten Pfade archivieren
-        path_conds = " OR ".join("full_path LIKE ?" for _ in scan_paths)
-        conditions.append(f"({path_conds})")
-        for sp in scan_paths:
-            # Normalisierung: Trennzeichen am Ende entfernen, dann % anhängen
-            params.append(sp.rstrip("/\\") + "%")
-
-    rows = conn.execute(
-        f"SELECT id FROM idv_files WHERE {' AND '.join(conditions)}",
-        params
-    ).fetchall()
-
-    if not rows:
-        return 0
-
-    ids = [row["id"] for row in rows]
     emit(
-        OP_ARCHIVE_FILES,
+        OP_ARCHIVE_UNSEEN,
         scan_run_id=scan_run_id,
         now=now,
-        file_ids=ids,
+        scan_since=scan_since,
+        scan_paths=list(scan_paths) if scan_paths else [],
     )
-    return len(ids)
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -1482,7 +1473,10 @@ def run_scan(config: dict, logger: logging.Logger,
                 _run_share(scan_path)
 
         # ── Erfolgreich abgeschlossen ──────────────────────────────────────
-        deleted = mark_deleted_files(conn, scan_run_id, now, scan_since, mapped_scan_paths)
+        # mark_deleted_files emittiert jetzt ein OP_ARCHIVE_UNSEEN-Event;
+        # die tatsaechliche Anzahl archivierter Dateien setzt der Webapp-
+        # Handler in scan_runs.archived_files (siehe apply_scanner_archive_unseen).
+        mark_deleted_files(conn, scan_run_id, now, scan_since, mapped_scan_paths)
 
         # ── Auto-Ignorieren am Scan-Ende: verbleibende Excel-Dateien ohne Formeln ─
         # (deckt Dateien ab, die bereits vor diesem Scan existierten und noch 'Neu' sind)
@@ -1514,7 +1508,7 @@ def run_scan(config: dict, logger: logging.Logger,
             status="completed",
             total=stats["total"], new=stats["new"], changed=stats["changed"],
             moved=stats["moved"], restored=stats["restored"],
-            archived=deleted, errors=stats["errors"],
+            archived=0, errors=stats["errors"],
         )
         conn.close()
 
@@ -1528,7 +1522,7 @@ def run_scan(config: dict, logger: logging.Logger,
         logger.info(f"  Geändert        : {stats['changed']}")
         logger.info(f"  Verschoben      : {stats['moved']}")
         logger.info(f"  Wiederhergest.  : {stats['restored']}")
-        logger.info(f"  Archiviert      : {deleted}")
+        logger.info(f"  Archiviert      : (siehe scan_runs.archived_files – wird vom Webapp-Writer gesetzt)")
         logger.info(f"  Fehler          : {stats['errors']}")
         logger.info("=" * 60)
 

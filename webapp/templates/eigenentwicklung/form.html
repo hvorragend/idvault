@@ -6,6 +6,25 @@
 {% endblock %}
 
 {% block content %}
+<!-- ── Aktionsleiste ────────────────────────────────────────────── -->
+<div class="d-flex justify-content-end gap-2 mb-3">
+  <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) if idv else url_for('eigenentwicklung.list_idv') }}"
+     class="btn btn-sm btn-outline-secondary" data-esc-cancel>
+    <i class="bi bi-arrow-left me-1"></i>Abbrechen
+  </a>
+  <button type="submit" form="idv-form" name="save_action" value="save" class="btn btn-sm btn-primary">
+    <i class="bi bi-floppy me-1"></i>Speichern
+  </button>
+  <button type="submit" form="idv-form" name="save_action" value="save_and_close" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-box-arrow-left me-1"></i>Speichern &amp; Schließen
+  </button>
+  {% if not idv %}
+  <button type="submit" form="idv-form" name="save_action" value="save_and_new" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-plus-circle me-1"></i>Speichern &amp; weitere erfassen
+  </button>
+  {% endif %}
+</div>
+
 {% if idv %}
 <div class="row g-4">
 <div class="col-lg-8">
@@ -688,6 +707,25 @@
 {% include 'eigenentwicklung/_sidebar.html' %}
 </div><!-- /row -->
 {% endif %}
+
+<!-- ── Aktionsleiste unten ──────────────────────────────────────── -->
+<div class="d-flex justify-content-end gap-2 mt-3">
+  <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) if idv else url_for('eigenentwicklung.list_idv') }}"
+     class="btn btn-sm btn-outline-secondary" data-esc-cancel>
+    <i class="bi bi-arrow-left me-1"></i>Abbrechen
+  </a>
+  <button type="submit" form="idv-form" name="save_action" value="save" class="btn btn-sm btn-primary">
+    <i class="bi bi-floppy me-1"></i>Speichern
+  </button>
+  <button type="submit" form="idv-form" name="save_action" value="save_and_close" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-box-arrow-left me-1"></i>Speichern &amp; Schließen
+  </button>
+  {% if not idv %}
+  <button type="submit" form="idv-form" name="save_action" value="save_and_new" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-plus-circle me-1"></i>Speichern &amp; weitere erfassen
+  </button>
+  {% endif %}
+</div>
 
 {# U-C3: Smart-Default-Inferenz. Beim Typ-Wechsel werden Entwicklungsart
    und Prüfintervall automatisch vorgeschlagen – aber nur, wenn der Benutzer

@@ -3,6 +3,14 @@
 {% block title %}Cognos-Berichte{% endblock %}
 {% block page_title %}<i class="bi bi-filetype-xml me-2"></i>Cognos-Berichte{% endblock %}
 
+{% if can_write %}
+{% block topbar_actions %}
+<a href="{{ url_for('cognos.import_berichte') }}" class="btn btn-sm btn-success">
+  <i class="bi bi-cloud-upload me-1"></i>Berichtsübersicht importieren
+</a>
+{% endblock %}
+{% endif %}
+
 {# Sortierung vor dem Rendern aus sessionStorage wiederherstellen. #}
 {% block extra_head %}
 <script>
@@ -80,9 +88,27 @@
 </div>
 
 <!-- ── Filter ────────────────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-body py-2">
-    <form method="get" class="row g-2 align-items-end">
+{% set _cf = q or status_filt or komplexitaet_filt or abfragen_filt or pfad_prefix %}
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+  <button class="btn btn-sm btn-outline-secondary" type="button"
+    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _cf or filter_panel_open else 'false' }}">
+    <i class="bi bi-funnel me-1"></i>Suche &amp; Filter
+    {% if _cf %}<span class="badge bg-primary ms-1">{{ [q, status_filt, komplexitaet_filt, abfragen_filt, pfad_prefix] | select | list | length }}</span>{% endif %}
+  </button>
+  {% if _cf %}
+  <a href="{{ url_for('cognos.list_berichte') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen">
+    <i class="bi bi-x-lg"></i>
+  </a>
+  {% if q %}<span class="badge bg-secondary">Suche: {{ q }}</span>{% endif %}
+  {% if status_filt %}<span class="badge bg-secondary">Status: {{ status_filt }}</span>{% endif %}
+  {% if komplexitaet_filt %}<span class="badge bg-secondary">Kompl.: {{ komplexitaet_filt }}</span>{% endif %}
+  {% if abfragen_filt %}<span class="badge bg-secondary">Abfragen: {{ abfragen_filt }}</span>{% endif %}
+  {% if pfad_prefix %}<span class="badge bg-secondary">Pfad: {{ pfad_prefix }}</span>{% endif %}
+  {% endif %}
+</div>
+<div class="collapse{{ ' show' if _cf or filter_panel_open }}" id="filter-panel">
+  <form method="get" class="card border-0 shadow-sm p-3 mb-3">
+    <div class="row g-2 align-items-end">
       <div class="col-sm-3">
         <label class="form-label small mb-1">Suche</label>
         <input type="text" name="q" class="form-control form-control-sm"
@@ -116,7 +142,6 @@
           <option value="21+" {% if abfragen_filt=='21+' %}selected{% endif %}}>&gt; 20</option>
         </select>
       </div>
-      {# Sortierung und Reihenfolge als hidden fields erhalten #}
       <input type="hidden" name="sort" value="{{ sort }}">
       <input type="hidden" name="order" value="{{ order }}">
       <div class="col-auto">
@@ -127,15 +152,8 @@
           <i class="bi bi-x-circle me-1"></i>Reset
         </a>
       </div>
-      {% if can_write %}
-      <div class="col-auto ms-auto">
-        <a href="{{ url_for('cognos.import_berichte') }}" class="btn btn-success btn-sm">
-          <i class="bi bi-cloud-upload me-1"></i>Berichtsübersicht importieren
-        </a>
-      </div>
-      {% endif %}
-    </form>
-  </div>
+    </div>
+  </form>
 </div>
 
 {% if pfad_prefix %}
@@ -209,48 +227,6 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="new_owner" id="hidden-new-owner" value="">
 
-  {% if can_write %}
-  <!-- Aktionsleiste (erscheint sobald etwas ausgewählt ist) -->
-  <div id="bulk-bar" class="card border-primary shadow-sm mb-3 p-2 d-none">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-      <span class="fw-600 text-primary">
-        <i class="bi bi-check2-square me-1"></i>
-        <span id="bulk-count">0</span> ausgewählt
-      </span>
-      <button type="submit" name="aktion" value="ignorieren" class="btn btn-sm btn-outline-secondary"
-        id="btn-ignorieren" title="Nur für Berichte ohne Verknüpfung verfügbar">
-        <i class="bi bi-eye-slash me-1"></i>Ignorieren
-      </button>
-      <button type="submit" name="aktion" value="nicht_mehr_ignorieren" class="btn btn-sm btn-outline-secondary"
-        id="btn-nicht-mehr-ignorieren" title="Ignorierung aufheben – Bericht wieder auf 'Neu' setzen">
-        <i class="bi bi-eye me-1"></i>Nicht mehr ignorieren
-      </button>
-      <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
-        <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
-      </button>
-      <button type="submit" name="aktion" value="nicht_wesentlich" class="btn btn-sm btn-outline-secondary"
-        title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
-        <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
-      </button>
-      <button type="submit" name="aktion" value="zusammenfassen" class="btn btn-sm btn-outline-primary"
-        title="Ausgewählte Berichte als Eigenentwicklungs-Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
-        <i class="bi bi-diagram-3 me-1"></i>Zu Projekt zusammenfassen
-      </button>
-      <button type="submit" name="aktion" value="bewertung_anfordern" class="btn btn-sm btn-outline-primary"
-        title="E-Mail an Berichts-Eigentümer mit Bitte um Bewertung senden">
-        <i class="bi bi-envelope me-1"></i>Bewertung anfordern
-      </button>
-      <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#ownerModal"
-        title="Eigentümer für ausgewählte Berichte setzen">
-        <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
-      </button>
-      <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
-        Auswahl aufheben
-      </button>
-    </div>
-  </div>
-  {% endif %}
-
   <!-- Ergebnistabelle -->
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white py-2 d-flex align-items-center justify-content-between">
@@ -262,6 +238,59 @@
       </span>
       <span class="text-muted small">Seite {{ page }}/{{ total_pages }}</span>
     </div>
+    {% if can_write %}
+    <!-- Aktionsleiste (erscheint sobald etwas ausgewählt ist) -->
+    <div id="bulk-bar" class="card-header bg-light d-none">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="text-muted small"><span id="bulk-count">0</span> ausgewählt —</span>
+        <button type="submit" name="aktion" value="ignorieren" class="btn btn-sm btn-outline-secondary"
+          id="btn-ignorieren" title="Nur für Berichte ohne Verknüpfung verfügbar">
+          <i class="bi bi-eye-slash me-1"></i>Ignorieren
+        </button>
+        <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
+          <i class="bi bi-pencil-square me-1"></i>Zur Registrierung
+        </button>
+        <button type="submit" name="aktion" value="nicht_wesentlich" class="btn btn-sm btn-outline-secondary"
+          title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
+          <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
+        </button>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-three-dots me-1"></i>Weitere
+          </button>
+          <ul class="dropdown-menu">
+            <li>
+              <button class="dropdown-item" type="submit" name="aktion" value="nicht_mehr_ignorieren"
+                id="btn-nicht-mehr-ignorieren" title="Ignorierung aufheben – Bericht wieder auf 'Neu' setzen">
+                <i class="bi bi-eye me-2"></i>Nicht mehr ignorieren
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item" type="submit" name="aktion" value="zusammenfassen"
+                title="Ausgewählte Berichte als Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+                <i class="bi bi-diagram-3 me-2"></i>Zu Projekt zusammenfassen
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item" type="submit" name="aktion" value="bewertung_anfordern"
+                title="E-Mail an Berichts-Eigentümer mit Bitte um Bewertung senden">
+                <i class="bi bi-envelope me-2"></i>Bewertung anfordern
+              </button>
+            </li>
+            <li>
+              <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#ownerModal"
+                title="Eigentümer für ausgewählte Berichte setzen">
+                <i class="bi bi-person-gear me-2"></i>Eigentümer ändern
+              </button>
+            </li>
+          </ul>
+        </div>
+        <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
+          Auswahl aufheben
+        </button>
+      </div>
+    </div>
+    {% endif %}
     <div class="table-responsive">
       <table class="table table-hover table-sm mb-0 small">
         <thead class="table-light">
