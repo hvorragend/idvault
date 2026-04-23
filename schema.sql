@@ -983,6 +983,116 @@ CREATE TABLE IF NOT EXISTS technischer_test (
     UNIQUE (idv_id)
 );
 
+-- Testfall-Vorlagen: wiederverwendbare Vorlage-Bibliothek je IDV-Typ
+-- UNIQUE(titel, art) ermöglicht idempotente INSERT OR IGNORE-Seeds
+CREATE TABLE IF NOT EXISTS testfall_vorlagen (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    titel                TEXT    NOT NULL,
+    idv_typ              TEXT,                                   -- NULL = für alle Typen
+    art                  TEXT    NOT NULL CHECK(art IN ('fachlich','technisch')),
+    beschreibung         TEXT,
+    parametrisierung     TEXT,
+    testdaten            TEXT,
+    erwartetes_ergebnis  TEXT,
+    aktiv                INTEGER NOT NULL DEFAULT 1,
+    created_at           TEXT    NOT NULL DEFAULT (datetime('now','utc')),
+    updated_at           TEXT,
+    UNIQUE(titel, art)
+);
+
+CREATE INDEX IF NOT EXISTS idx_testfall_vorlagen_lookup
+    ON testfall_vorlagen(aktiv, art, idv_typ);
+
+-- Seed: regulatorisch konforme Vorlagen (MaRisk AT 7.2 Tz. 7 · BAIT Kap. 10 · GoBD · DORA)
+INSERT OR IGNORE INTO testfall_vorlagen
+    (titel, idv_typ, art, beschreibung, parametrisierung, testdaten, erwartetes_ergebnis)
+VALUES
+    (
+        'Excel-Makro: Kernprüfung',
+        'Excel-Makro',
+        'fachlich',
+        '<p><strong>Regulatorische Grundlage:</strong> MaRisk AT&nbsp;7.2 Tz.&nbsp;7 · BAIT Kap.&nbsp;10 · GoBD</p><p>Prüfung der Arbeitsmappe inkl. VBA-Makros auf korrekte Berechnung und regulatorische Konformität:</p><ul><li><strong>Versionsstand</strong>: Dateiversion und Änderungsdatum stimmen mit IDV-Register überein</li><li><strong>Makro-Signatur</strong>: Alle VBA-Module digital signiert; keine unsignierten Module vorhanden</li><li><strong>Externe Verknüpfungen</strong>: Alle Verknüpfungen dokumentiert und funktionsfähig (kein #REF!); Anzahl lt. Scanner-Import</li><li><strong>Formelintegrität</strong>: Ergebniszellen gegen Referenzmappe abgeglichen (Abweichungsanalyse je Blatt)</li><li><strong>Blattschutz</strong>: Ergebnisblätter gegen versehentliches Überschreiben geschützt</li><li><strong>GoBD-Konformität</strong>: Berechnungsweg nachvollziehbar; keine versteckten Zellen mit unkommentierter Logik</li><li><strong>Änderungsdokumentation</strong>: Änderungshistorie im Dokument oder IDV-Register vollständig vorhanden</li></ul>',
+        '<p>Makros aktiv · Dateiversion lt. IDV-Register · Stichtag: <em>[Datum eintragen]</em></p><p>Scanner-Metadaten: Makros <em>(ja/nein)</em> · Blattschutz <em>(ja/nein)</em> · externe Verknüpfungen <em>(Anzahl)</em></p><p>CIA-Schutzbedarf lt. IDV-Register: Vertraulichkeit <em>[H/M/N]</em> · Integrität <em>[H/M/N]</em> · Verfügbarkeit <em>[H/M/N]</em></p>',
+        '<p>Referenz-Mappe aus letztem freigegebenem Stand (Vorgängerversion lt. IDV-Register).</p><p>Produktionsdaten zum Stichtag · ggf. anonymisiert bei hoher Vertraulichkeitsstufe.</p>',
+        '<p>Versionsstand stimmt mit IDV-Register überein · Ergebnisabweichung ≤ Rundungstoleranz · keine ungültigen Makro-Signaturen · keine undokumentierten externen Verknüpfungen · Blattschutz auf allen Ergebnisblättern aktiv · GoBD-konform nachvollziehbare Berechnung.</p>'
+    ),
+    (
+        'Excel-Tabelle: Formel-Review',
+        'Excel-Tabelle',
+        'fachlich',
+        '<p><strong>Regulatorische Grundlage:</strong> MaRisk AT&nbsp;7.2 Tz.&nbsp;7 · BAIT Kap.&nbsp;10 · GoBD · HGB §&nbsp;239</p><p>Review aller Formelzellen sowie Prüfung der Ordnungsmäßigkeit gemäß GoBD:</p><ul><li><strong>Formelzellen</strong>: Alle Formeln nachvollziehbar und gegen Referenzwerte validiert</li><li><strong>Quelldatenabgleich</strong>: Eingabedaten stimmen mit Quelldatensatz überein (Zeilenanzahl, Summen, Datumsbereiche)</li><li><strong>Vollständigkeit</strong>: Datenbasis vollständig übernommen – kein implizites Zeilen-Limit, kein ungewolltes Abschneiden</li><li><strong>Blattschutz</strong>: Ergebnisblätter gegen versehentliche Änderung geschützt</li><li><strong>Benannte Bereiche</strong>: Alle named ranges dokumentiert und korrekt referenziert</li><li><strong>Externe Verknüpfungen</strong>: Keine unbegründeten Verknüpfungen zu externen Dateien</li><li><strong>GoBD-Unveränderlichkeit</strong>: Keine überschreibbaren Zwischenergebnisse ohne Schutzmaßnahme (HGB §&nbsp;239)</li></ul>',
+        '<p>Keine Makros · Blattschutz aktiv · Stichtag: <em>[Datum eintragen]</em></p><p>CIA-Schutzbedarf lt. IDV-Register: Vertraulichkeit <em>[H/M/N]</em> · Integrität <em>[H/M/N]</em> · Verfügbarkeit <em>[H/M/N]</em></p>',
+        '<p>Stichprobe aus dem produktiven Einsatzdatensatz · Referenzwerte aus validiertem Vorsystem.</p><p>Bei Rechnungslegungsrelevanz: vollständige Datenbasis (keine Stichprobe).</p>',
+        '<p>Alle Formelzellen nachvollziehbar · Quelldaten vollständig übernommen (Abweichung 0) · Blattschutz auf allen Ergebnisblättern aktiv · keine undokumentierten externen Verknüpfungen · GoBD-konforme Nachvollziehbarkeit gegeben.</p>'
+    ),
+    (
+        'Access-Datenbank: Abfragen & Berichte',
+        'Access-Datenbank',
+        'fachlich',
+        '<p>Prüfung der Kernabfragen, Berichte und Datenverbindungen.</p><ul><li>Korrektheit der Abfrageergebnisse gegen Referenz</li><li>Verknüpfungen zu Fremdtabellen (ODBC / CSV)</li><li>Berechtigungen auf Datenquelle</li></ul>',
+        '<p>Standardverbindung, lesende Rechte.</p>',
+        '<p>Produktionsdaten zum Stichtag.</p>',
+        '<p>Alle Kernabfragen liefern erwartete Zeilenanzahl und Summe.</p>'
+    ),
+    (
+        'SQL-Skript: Ausführungsprüfung',
+        'SQL-Skript',
+        'fachlich',
+        '<p>Fachliche Plausibilität der Abfrageergebnisse.</p><ul><li>Kein implizites Row-Count-Limit</li><li>Zeitraum-Parameter korrekt gesetzt</li><li>Ergebnis gegen Referenz-Abfrage abgeglichen</li></ul>',
+        '<p>Parametrisiert auf Stichtag; lesender DB-Zugriff.</p>',
+        '<p>Produktions-DB, Lesezugriff auf relevante Schemata.</p>',
+        '<p>Ergebnismenge stimmt mit Referenzabfrage überein (Abweichung 0).</p>'
+    ),
+    (
+        'Python-Skript: End-to-End-Lauf',
+        'Python-Skript',
+        'fachlich',
+        '<p>End-to-End-Ausführung des Skripts mit Referenzinput.</p><ul><li>Abhängigkeiten dokumentiert (requirements.txt)</li><li>Deterministisches Ergebnis</li><li>Logging / Fehlerpfade geprüft</li></ul>',
+        '<p>Python ≥ 3.10, requirements erfüllt.</p>',
+        '<p>Referenzdatei aus letztem Stichtag.</p>',
+        '<p>Ergebnisdatei identisch zur Referenz (Hash-Match).</p>'
+    ),
+    (
+        'Power-BI-Bericht: KPI-Abgleich',
+        'Power-BI-Bericht',
+        'fachlich',
+        '<p>KPI-Abgleich gegen Referenzsystem.</p><ul><li>Datenquelle und Refresh-Logik</li><li>Zentrale KPIs (Summen, Durchschnitte)</li><li>Filterwirkung prüfen</li></ul>',
+        '<p>Veröffentlichte Version; Datenquelle wie Produktion.</p>',
+        '<p>Referenz-Dashboard zum Stichtag.</p>',
+        '<p>Zentrale KPIs stimmen mit Referenz überein; Abweichung ≤ Toleranz.</p>'
+    ),
+    (
+        'Cognos-Report: Fachliche Vollständigkeitsprüfung',
+        'Cognos-Report',
+        'fachlich',
+        '<p><strong>Regulatorische Grundlage:</strong> MaRisk AT&nbsp;7.2 Tz.&nbsp;7 · BAIT Kap.&nbsp;10</p><p>Fachliche Vollständigkeitsprüfung des Cognos-Berichts gegen Referenzlauf und Quelldaten:</p><ul><li><strong>Berichtskennzahlen</strong>: Alle wesentlichen KPIs (Summen, Anzahlen, Durchschnitte) gegen Referenz-Export abgeglichen</li><li><strong>Datenvollständigkeit</strong>: Zeilenanzahl und Datumsbereiche stimmen mit Quelldaten überein; kein implizites Zeilen-Limit aktiv</li><li><strong>Filterparameter</strong>: Alle Filter und Prompts korrekt gesetzt und vollständig dokumentiert</li><li><strong>Abfragelogik</strong>: Anzahl Abfragen, Datenelemente und Filter lt. Cognos-Import auf Plausibilität geprüft</li><li><strong>Ausführungsprotokoll</strong>: Kein Fehler oder Warnung im Cognos-Ausführungslog</li><li><strong>Berechtigungen</strong>: Zugriff nur für autorisierte Rollen; keine unberechtigten Zugriffe im Log nachweisbar</li><li><strong>Quelldaten-Abgleich</strong>: Ergebnisse mit Quelldaten aus dem Package (agree21 Analytics) plausibilisiert</li><li><strong>Ausführungsstatus</strong>: Letzter Ausführungsstatus lt. Cognos-Import: Erfolgreich</li></ul>',
+        '<p>Freigegebener Parameter-Satz lt. IDV-Register · Berichtsversion und Suchpfad lt. Cognos-Import (agree21 Analytics)</p><p>Stichtag / Berichtszeitraum: <em>[Datum eintragen]</em></p><p>Anzahl Abfragen: <em>[aus Cognos-Import]</em> · Anzahl Datenelemente: <em>[aus Cognos-Import]</em> · Anzahl Filter: <em>[aus Cognos-Import]</em></p><p>CIA-Schutzbedarf lt. IDV-Register: Vertraulichkeit <em>[H/M/N]</em> · Integrität <em>[H/M/N]</em> · Verfügbarkeit <em>[H/M/N]</em></p>',
+        '<p>Referenz-Export aus letztem freigegebenem Lauf (Vorgängerversion lt. IDV-Register).</p><p>Quelldaten aus dem zugrunde liegenden Datenpaket (Package) zum Stichtag.</p><p>Cognos-Ausführungsprotokoll (Log-Export) · Benutzerberechtigungsnachweis (Cognos-Rollenliste).</p>',
+        '<p>Alle Berichtskennzahlen stimmen mit Referenz überein (Abweichung ≤ Toleranz) · Ausführungsprotokoll ohne Fehler/Warnungen · Filterparameter vollständig und korrekt · Zugriff nur für autorisierte Rollen · Datenbasis vollständig (Zeilenanzahl und Summen plausibel gegen Quelldaten).</p>'
+    ),
+    -- Technische Vorlagen (nur Beschreibung — parametrisierung/testdaten/ergebnis leer)
+    (
+        'Excel: Technische Prüfung (BAIT/DORA)',
+        NULL,
+        'technisch',
+        '<p><strong>Regulatorische Grundlage:</strong> BAIT Kap.&nbsp;4 · BAIT Kap.&nbsp;10 · DORA Art.&nbsp;6</p><p><strong>Technische Prüfpunkte:</strong></p><ul><li><strong>Makro-Signatur</strong>: Alle VBA-Module digital signiert; keine unsignierten Module</li><li><strong>Externe Verknüpfungen</strong>: Alle Verknüpfungen dokumentiert; keine gebrochenen Links</li><li><strong>Blattschutz</strong>: Ergebnisblätter auf allen relevanten Tabellenblättern aktiv</li><li><strong>Formelschutz</strong>: Formelzellen gegen versehentliches Überschreiben geschützt</li><li><strong>Keine Hardcoded-Pfade</strong>: Alle Dateipfade parametrisiert oder relativ</li><li><strong>Berechtigungskonzept</strong>: Dateizugriff auf autorisierte Rollen beschränkt (lt. Schutzbedarf)</li><li><strong>CIA-Schutzbedarf</strong>: Technische Maßnahmen zu Vertraulichkeit, Integrität und Verfügbarkeit lt. IDV-Register dokumentiert</li><li><strong>Versionskontrolle</strong>: Änderungshistorie nachvollziehbar (Datei-Eigenschaften oder IDV-Register)</li><li><strong>Wiederherstellbarkeit</strong>: Backup-Verfahren dokumentiert; Wiederherstellung verifiziert</li><li><strong>DORA-Kritikalität</strong>: Bei GDA&nbsp;≥&nbsp;3 oder DORA-kritisch/wichtig – erweiterte Abhängigkeitsanalyse und Notfallplan dokumentiert</li></ul>',
+        '', '', ''
+    ),
+    (
+        'Skript: technische Basisprüfung',
+        NULL,
+        'technisch',
+        '<p><strong>Technische Prüfpunkte:</strong></p><ul><li>Versionierung / Git vorhanden</li><li>Abhängigkeiten gepinnt</li><li>Keine Zugangsdaten im Code</li><li>Logging auf stdout / Datei</li><li>Fehlerpfade abgedeckt</li></ul>',
+        '', '', ''
+    ),
+    (
+        'Cognos-Report: Technische Basisprüfung',
+        'Cognos-Report',
+        'technisch',
+        '<p><strong>Regulatorische Grundlage:</strong> BAIT Kap.&nbsp;4 (Berechtigungen) · BAIT Kap.&nbsp;10 (IDV) · DORA Art.&nbsp;6</p><p><strong>Technische Prüfpunkte:</strong></p><ul><li><strong>Berechtigungskonzept</strong>: Cognos-Rollen und -Gruppen dokumentiert; nur autorisierte Nutzer haben Lesezugriff auf Report und zugrunde liegendes Package</li><li><strong>Datenquellensicherheit</strong>: Verbindungsparameter ohne Klartext-Zugangsdaten; Zugriff über dediziertes Service-Konto</li><li><strong>Datenleitweg (Data Lineage)</strong>: Alle verwendeten Datenquellen (Package, Schema, Tabellen) vollständig dokumentiert</li><li><strong>Abfrageperformanz</strong>: Ausführungsdauer innerhalb definierter SLA; keine Resource-Limit-Verstöße im Ausführungslog</li><li><strong>Ausführungsplanung</strong>: Scheduling (falls vorhanden) dokumentiert; kein unkontrollierter Ad-hoc-Betrieb bei kritischen IDVs</li><li><strong>Datenqualität</strong>: Keine systematischen NULL-Werte oder Duplikate in definierten Schlüsselfeldern</li><li><strong>Versionierung</strong>: Berichtsversion und Suchpfad synchron mit IDV-Register; Änderungen über dokumentierten Change-Management-Prozess</li><li><strong>DORA-Kritikalität</strong>: Bei GDA&nbsp;≥&nbsp;3 oder DORA-kritisch/wichtig – erweiterte Prüfung der Abhängigkeiten, Ausfallszenarien und Wiederherstellbarkeit dokumentiert</li></ul>',
+        '', '', ''
+    );
+
 -- -----------------------------------------------------------------------------
 -- Cognos-Berichte (Berichtsübersicht-Import aus agree21Analysen)
 -- -----------------------------------------------------------------------------
