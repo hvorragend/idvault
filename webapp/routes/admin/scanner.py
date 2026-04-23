@@ -2003,3 +2003,208 @@ def scanner_log_raw():
             mimetype="text/plain; charset=utf-8",
         )
     return Response("".join(lines), mimetype="text/plain; charset=utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Auto-Klassifizierungs-Regeln (Issue #345)
+# ---------------------------------------------------------------------------
+
+_CLASSIFY_PATTERN_TYPES = ("prefix", "suffix", "contains", "regex")
+_CLASSIFY_ACTIONS       = ("Zur Registrierung", "Nicht wesentlich", "Ignoriert")
+
+
+@bp.route("/scanner/klassifizierungs-regeln", methods=["GET"])
+@admin_required
+def classify_rules_list():
+    db = get_db()
+    from db import load_auto_classify_rules
+    rules = load_auto_classify_rules(db, only_enabled=False)
+    # Organisationseinheiten für die Scope-Anzeige pro Regel mitladen.
+    oe_map = {
+        r["id"]: r["bezeichnung"]
+        for r in db.execute(
+            "SELECT id, bezeichnung FROM org_units WHERE aktiv = 1 "
+            "ORDER BY bezeichnung"
+        ).fetchall()
+    }
+    return render_template(
+        "admin/classify_rules_list.html",
+        rules=rules,
+        oe_map=oe_map,
+        pattern_types=_CLASSIFY_PATTERN_TYPES,
+        actions=_CLASSIFY_ACTIONS,
+    )
+
+
+def _load_classify_rule(db, rule_id: int):
+    return db.execute(
+        "SELECT id, bezeichnung, pattern_type, pattern, action, oe_id, "
+        "       enabled, sort_order "
+        "FROM auto_classify_rules WHERE id = ?",
+        (rule_id,),
+    ).fetchone()
+
+
+def _parse_classify_rule_form(form, fallback=None):
+    """Liest die Formularfelder ins Rule-Dict; gibt (data, errors) zurück."""
+    errors: list[str] = []
+    bezeichnung = (form.get("bezeichnung") or "").strip()
+    pattern     = (form.get("pattern") or "").strip()
+    ptype       = (form.get("pattern_type") or "").strip()
+    action      = (form.get("action") or "").strip()
+    oe_raw      = (form.get("oe_id") or "").strip()
+    enabled     = "1" if form.get("enabled") == "1" else "0"
+    sort_raw    = (form.get("sort_order") or "").strip()
+
+    if not bezeichnung:
+        errors.append("Bezeichnung ist Pflicht.")
+    if ptype not in _CLASSIFY_PATTERN_TYPES:
+        errors.append(f"Ungültiger Pattern-Typ: {ptype!r}.")
+    if not pattern:
+        errors.append("Pattern ist Pflicht.")
+    if action not in _CLASSIFY_ACTIONS:
+        errors.append(f"Ungültige Aktion: {action!r}.")
+
+    if ptype == "regex" and pattern:
+        from db import validate_regex_pattern
+        re_err = validate_regex_pattern(pattern)
+        if re_err:
+            errors.append(f"Ungültige Regex: {re_err}")
+
+    oe_id = None
+    if oe_raw:
+        try:
+            oe_id = int(oe_raw)
+        except ValueError:
+            errors.append("Ungültige OE-ID.")
+
+    try:
+        sort_order = int(sort_raw) if sort_raw else (
+            fallback["sort_order"] if fallback else 100
+        )
+    except ValueError:
+        errors.append("Reihenfolge muss eine Zahl sein.")
+        sort_order = 100
+
+    return {
+        "bezeichnung": bezeichnung,
+        "pattern_type": ptype,
+        "pattern": pattern,
+        "action": action,
+        "oe_id": oe_id,
+        "enabled": enabled,
+        "sort_order": sort_order,
+    }, errors
+
+
+@bp.route("/scanner/klassifizierungs-regeln/neu", methods=["GET", "POST"])
+@admin_required
+def classify_rule_new():
+    db = get_db()
+    errors: list[str] = []
+    data = None
+
+    if request.method == "POST":
+        data, errors = _parse_classify_rule_form(request.form)
+        if not errors:
+            def _do(c, _d=data):
+                with write_tx(c):
+                    c.execute(
+                        "INSERT INTO auto_classify_rules "
+                        "(bezeichnung, pattern_type, pattern, action, oe_id, "
+                        " enabled, sort_order) "
+                        "VALUES (?,?,?,?,?,?,?)",
+                        (_d["bezeichnung"], _d["pattern_type"], _d["pattern"],
+                         _d["action"], _d["oe_id"], int(_d["enabled"]),
+                         _d["sort_order"]),
+                    )
+            get_writer().submit(_do, wait=True)
+            flash("Regel angelegt.", "success")
+            return redirect(url_for("admin.classify_rules_list"))
+
+    oe_rows = db.execute(
+        "SELECT id, bezeichnung FROM org_units WHERE aktiv = 1 "
+        "ORDER BY bezeichnung"
+    ).fetchall()
+    return render_template(
+        "admin/classify_rule_form.html",
+        rule=data,
+        errors=errors,
+        oe_rows=oe_rows,
+        pattern_types=_CLASSIFY_PATTERN_TYPES,
+        actions=_CLASSIFY_ACTIONS,
+        mode="neu",
+    )
+
+
+@bp.route("/scanner/klassifizierungs-regeln/<int:rule_id>", methods=["GET", "POST"])
+@admin_required
+def classify_rule_edit(rule_id: int):
+    db = get_db()
+    existing = _load_classify_rule(db, rule_id)
+    if existing is None:
+        flash("Regel nicht gefunden.", "error")
+        return redirect(url_for("admin.classify_rules_list"))
+
+    errors: list[str] = []
+    data = dict(existing)
+
+    if request.method == "POST":
+        data, errors = _parse_classify_rule_form(request.form, fallback=dict(existing))
+        if not errors:
+            def _do(c, _rid=rule_id, _d=data):
+                with write_tx(c):
+                    c.execute(
+                        "UPDATE auto_classify_rules "
+                        "SET bezeichnung=?, pattern_type=?, pattern=?, action=?, "
+                        "    oe_id=?, enabled=?, sort_order=? "
+                        "WHERE id = ?",
+                        (_d["bezeichnung"], _d["pattern_type"], _d["pattern"],
+                         _d["action"], _d["oe_id"], int(_d["enabled"]),
+                         _d["sort_order"], _rid),
+                    )
+            get_writer().submit(_do, wait=True)
+            flash("Regel gespeichert.", "success")
+            return redirect(url_for("admin.classify_rules_list"))
+
+    oe_rows = db.execute(
+        "SELECT id, bezeichnung FROM org_units WHERE aktiv = 1 "
+        "ORDER BY bezeichnung"
+    ).fetchall()
+    return render_template(
+        "admin/classify_rule_form.html",
+        rule=data,
+        errors=errors,
+        oe_rows=oe_rows,
+        pattern_types=_CLASSIFY_PATTERN_TYPES,
+        actions=_CLASSIFY_ACTIONS,
+        mode="bearbeiten",
+    )
+
+
+@bp.route("/scanner/klassifizierungs-regeln/<int:rule_id>/loeschen",
+          methods=["POST"])
+@admin_required
+def classify_rule_delete(rule_id: int):
+    def _do(c, _rid=rule_id):
+        with write_tx(c):
+            c.execute("DELETE FROM auto_classify_rules WHERE id = ?", (_rid,))
+    get_writer().submit(_do, wait=True)
+    flash("Regel gelöscht.", "success")
+    return redirect(url_for("admin.classify_rules_list"))
+
+
+@bp.route("/scanner/klassifizierungs-regeln/<int:rule_id>/toggle",
+          methods=["POST"])
+@admin_required
+def classify_rule_toggle(rule_id: int):
+    def _do(c, _rid=rule_id):
+        with write_tx(c):
+            c.execute(
+                "UPDATE auto_classify_rules "
+                "SET enabled = CASE enabled WHEN 1 THEN 0 ELSE 1 END "
+                "WHERE id = ?",
+                (_rid,),
+            )
+    get_writer().submit(_do, wait=True)
+    return redirect(url_for("admin.classify_rules_list"))

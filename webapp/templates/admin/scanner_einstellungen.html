@@ -160,9 +160,11 @@
                 <label class="form-check-label" for="auto_classify_by_filename">Aktiviert</label>
               </div>
               <div class="form-text">
-                Dateien, deren Name <strong>(AH)</strong> enthält (Arbeitshilfe), werden
-                automatisch als <em>Nicht wesentlich</em> eingestuft; Dateien mit
-                <strong>(IDV)</strong> im Namen als <em>Zur Registrierung</em> vorgemerkt.
+                Neue Funde werden gemäß
+                <a href="{{ url_for('admin.classify_rules_list') }}">konfigurierbaren
+                Regeln</a> klassifiziert. Standard deckt die bisherigen
+                <strong>(IDV)</strong>/<strong>(AH)</strong>-Tags ab; eigene
+                Regeln (Prefix/Suffix/Regex, optional pro OE) können ergänzt werden.
               </div>
             </div>
 

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Klassifizierungs-Regel {{ mode }}{% endblock %}
+{% block page_title %}<i class="bi bi-rule me-2"></i>Klassifizierungs-Regel {{ mode }}{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+{% if errors %}
+<div class="alert alert-danger">
+  <ul class="mb-0">
+    {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form method="post" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-9">
+          <label class="form-label fw-600">Bezeichnung</label>
+          <input type="text" name="bezeichnung" class="form-control" maxlength="200"
+                 required value="{{ rule.bezeichnung if rule else '' }}">
+          <div class="form-text">
+            Kurzer sprechender Name, z. B. „Treasury Regex Report-Serie".
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-600">Reihenfolge</label>
+          <input type="number" name="sort_order" class="form-control" min="0" max="9999"
+                 value="{{ rule.sort_order if rule else 100 }}">
+          <div class="form-text">Kleiner = höhere Priorität.</div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-600">Pattern-Typ</label>
+          <select name="pattern_type" class="form-select">
+            {% for t in pattern_types %}
+            <option value="{{ t }}" {% if rule and rule.pattern_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-9">
+          <label class="form-label fw-600">Pattern</label>
+          <input type="text" name="pattern" class="form-control" maxlength="500"
+                 required value="{{ rule.pattern if rule else '' }}">
+          <div class="form-text">
+            Für <code>prefix</code>/<code>suffix</code>/<code>contains</code> ein
+            (case-insensitives) Textfragment. Für <code>regex</code> eine
+            Python-Regex; ungültige Ausdrücke werden beim Speichern abgelehnt.
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-600">Aktion</label>
+          <select name="action" class="form-select">
+            {% for a in actions %}
+            <option value="{{ a }}" {% if rule and rule.action == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-600">OE-Scope</label>
+          <select name="oe_id" class="form-select">
+            <option value="">– alle Organisationseinheiten –</option>
+            {% for oe in oe_rows %}
+            <option value="{{ oe.id }}"
+                {% if rule and rule.oe_id == oe.id %}selected{% endif %}>{{ oe.bezeichnung }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            Regel greift nur, wenn der Datei-Owner zu dieser OE gehört.
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="enabled" name="enabled" value="1"
+                   {% if not rule or rule.enabled %}checked{% endif %}>
+            <label class="form-check-label" for="enabled">Regel aktiv</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-white text-end">
+      <a href="{{ url_for('admin.classify_rules_list') }}"
+         class="btn btn-outline-secondary">Abbrechen</a>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check2 me-1"></i>Speichern
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

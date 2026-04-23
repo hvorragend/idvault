@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Klassifizierungs-Regeln{% endblock %}
+{% block page_title %}<i class="bi bi-rule me-2"></i>Klassifizierungs-Regeln{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+<p class="text-muted mb-3">
+  Regelwerk für die Auto-Klassifizierung neuer Scanner-Funde nach Dateiname.
+  Regeln werden in der angegebenen Reihenfolge ausgewertet (kleinste
+  <em>Reihenfolge</em> zuerst). Die erste passende Regel gewinnt.
+  OE-gebundene Regeln greifen nur, wenn der Datei-Owner zu dieser OE gehört;
+  Regeln ohne OE gelten global.
+</p>
+
+<div class="mb-3">
+  <a href="{{ url_for('admin.classify_rule_new') }}" class="btn btn-sm btn-primary">
+    <i class="bi bi-plus-circle me-1"></i>Neue Regel
+  </a>
+  <a href="{{ url_for('admin.scanner_einstellungen') }}"
+     class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Zurück zu den Scanner-Einstellungen
+  </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="width:60px;">Reihen&shy;folge</th>
+          <th>Bezeichnung</th>
+          <th style="width:120px;">Typ</th>
+          <th>Pattern</th>
+          <th style="width:180px;">Aktion</th>
+          <th style="width:160px;">OE-Scope</th>
+          <th class="text-center" style="width:80px;">Aktiv</th>
+          <th class="text-end" style="width:180px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rules %}
+        <tr {% if not r.enabled %}class="text-muted"{% endif %}>
+          <td>{{ r.sort_order }}</td>
+          <td>{{ r.bezeichnung }}</td>
+          <td>
+            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">
+              {{ r.pattern_type }}
+            </span>
+          </td>
+          <td><code>{{ r.pattern }}</code></td>
+          <td>{{ r.action }}</td>
+          <td>
+            {% if r.oe_id %}{{ oe_map.get(r.oe_id, '?') }}
+            {% else %}<span class="text-muted">alle OE</span>{% endif %}
+          </td>
+          <td class="text-center">
+            <form method="post" class="d-inline"
+                  action="{{ url_for('admin.classify_rule_toggle', rule_id=r.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit"
+                      class="btn btn-sm {{ 'btn-success' if r.enabled else 'btn-outline-secondary' }}"
+                      title="{{ 'Regel deaktivieren' if r.enabled else 'Regel aktivieren' }}">
+                {% if r.enabled %}
+                <i class="bi bi-check-circle-fill"></i>
+                {% else %}
+                <i class="bi bi-circle"></i>
+                {% endif %}
+              </button>
+            </form>
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.classify_rule_edit', rule_id=r.id) }}"
+               class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-pencil me-1"></i>Bearbeiten
+            </a>
+            <form method="post" class="d-inline"
+                  action="{{ url_for('admin.classify_rule_delete', rule_id=r.id) }}"
+                  onsubmit="return confirm('Regel wirklich löschen?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">
+            Keine Regeln definiert. <a href="{{ url_for('admin.classify_rule_new') }}">Erste Regel anlegen</a>.
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="alert alert-light border mt-3 small">
+  <strong>Pattern-Typen:</strong>
+  <ul class="mb-0">
+    <li><code>prefix</code> / <code>suffix</code> — case-insensitiver Vergleich
+        gegen den Dateinamen ohne Extension.</li>
+    <li><code>contains</code> — Teilstring-Vergleich (case-insensitiv),
+        entspricht den klassischen <code>(IDV)</code>- / <code>(AH)</code>-Tags.</li>
+    <li><code>regex</code> — Python-Regex gegen den vollständigen Dateinamen
+        (inkl. Extension). Eigene Anker wie <code>^…$</code> erlaubt.</li>
+  </ul>
+</div>
+{% endblock %}
