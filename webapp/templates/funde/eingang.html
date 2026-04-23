@@ -36,25 +36,25 @@
 <!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+    <div class="card border-0 stat-card p-3 text-center">
       <div class="stat-val text-warning">{{ neu_gesamt }}</div>
       <div class="stat-lbl">Unbearbeitet (Eingang)</div>
     </div>
   </div>
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+    <div class="card border-0 stat-card p-3 text-center">
       <div class="stat-val text-danger">{{ neu_mit_makros }}</div>
       <div class="stat-lbl">Davon mit Makros</div>
     </div>
   </div>
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+    <div class="card border-0 stat-card p-3 text-center">
       <div class="stat-val text-info">{{ zur_registrierung_count }}</div>
       <div class="stat-lbl">Zur Registrierung</div>
     </div>
   </div>
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+    <div class="card border-0 stat-card p-3 text-center">
       {% if gesamt_zu_bearbeiten > 0 %}
       <div class="stat-val text-success">{{ ((gesamt_zu_bearbeiten - neu_gesamt) / gesamt_zu_bearbeiten * 100)|int }}%
       </div>

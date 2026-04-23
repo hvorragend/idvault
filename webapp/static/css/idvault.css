@@ -252,14 +252,14 @@ body {
   background: var(--idv-surface);
   border: 1px solid var(--idv-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   transition: transform var(--t-base), box-shadow var(--t-base);
 }
 
 .stat-card:hover,
 .idv-card:hover {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
 }
 
 .stat-card .stat-val {

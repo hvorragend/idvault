@@ -5,7 +5,7 @@
 
 {% block content %}
 
-<div class="d-flex justify-content-end align-items-center mb-3">
+<div class="d-flex justify-content-end align-items-center mt-2 mb-4">
   {% include 'funde/_scan_button.html' %}
 </div>
 
@@ -18,7 +18,7 @@
 <!-- ── Kennzahl ──────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
   <div class="col-sm-3">
-    <div class="card border-0 shadow-sm stat-card p-3 text-center">
+    <div class="card border-0 stat-card p-3 text-center">
       <div class="stat-val text-secondary">{{ ignoriert_count }}</div>
       <div class="stat-lbl">Ignorierte Dateien</div>
     </div>
