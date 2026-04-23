@@ -100,20 +100,20 @@
             </div>
           </div>
 
-          <!-- ── Self-Service (Owner-Mail-Digest, Issue #315) ─── -->
+          <!-- ── Self-Service (Sammelbenachrichtigung an Owner, Issue #315) ─── -->
           <div class="col-12 mt-3">
             <hr class="my-2">
             <h6 class="fw-600 mb-2"><i class="bi bi-person-check me-1"></i>Self-Service für Fachbereiche</h6>
             <p class="text-muted mb-3 small">
-              Fachbereichs-Mitarbeiter erhalten wahlweise einen
-              Owner-Digest per E-Mail mit ihren offenen Scanner-Funden und
-              können <em>Ignorieren</em> bzw. <em>Zur Registrierung vormerken</em>
+              Fachbereichs-Mitarbeiter erhalten wahlweise eine
+              Sammelbenachrichtigung per E-Mail mit ihren offenen Scanner-Funden
+              und können <em>Ignorieren</em> bzw. <em>Zur Registrierung vormerken</em>
               per Magic-Link selbst anstoßen – ohne Anmeldung. Der Link ist
               HMAC-signiert, 7&nbsp;Tage gültig und nach dem Klick
               protokolliert. Default: deaktiviert.
             </p>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <div class="form-check form-switch mt-md-3">
               <input class="form-check-input" type="checkbox" role="switch"
                      id="self_service_enabled" name="self_service_enabled" value="1"
@@ -124,12 +124,24 @@
             </div>
           </div>
           <div class="col-md-3">
-            <label class="form-label form-label-sm fw-600">Digest-Intervall (Tage)</label>
+            <label class="form-label form-label-sm fw-600">Intervall (Tage)</label>
             <input type="number" min="1" max="90" name="self_service_frequency_days"
                    class="form-control form-control-sm"
                    value="{{ settings.get('self_service_frequency_days','7') }}">
+            <div class="form-text">Reguläre Versand-Frequenz der Sammelbenachrichtigung.</div>
           </div>
-          <div class="col-md-5 d-flex align-items-end">
+          <div class="col-md-3">
+            <label class="form-label form-label-sm fw-600">Sofort-Schwelle</label>
+            <input type="number" min="0" max="500" name="owner_digest_burst_threshold"
+                   class="form-control form-control-sm"
+                   value="{{ settings.get('owner_digest_burst_threshold','25') }}">
+            <div class="form-text">
+              Ab dieser Anzahl offener Funde pro Empfänger wird die
+              Sammelbenachrichtigung sofort gesendet – auch wenn das Intervall
+              noch läuft. <code>0</code> = nur Intervall-Versand.
+            </div>
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
             <div class="form-text mb-1">
               Zuletzt versendet:
               <strong>{{ settings.get('self_service_last_digest_date') or '–' }}</strong>

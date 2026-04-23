@@ -37,6 +37,12 @@ _NOTIFY_DEFAULTS = {
     "notify_pool_reminder_max_days": "14",
     "self_service_enabled":          "0",
     "self_service_frequency_days":   "7",
+    # Sofort-Schwelle für die Sammelbenachrichtigung an Owner (Issue #346):
+    # Ab dieser Anzahl offener Scanner-Funde pro Empfänger wird die
+    # Sammelbenachrichtigung sofort gesendet – auch wenn das reguläre
+    # Intervall noch nicht erreicht ist. ``0`` deaktiviert den Sofort-Versand
+    # (altes Verhalten).
+    "owner_digest_burst_threshold":  "25",
 }
 
 _MEASURE_KIND       = "massnahme_ueberfaellig"
@@ -295,10 +301,15 @@ def _self_service_master_enabled(db) -> bool:
 
 
 def _dispatch_owner_digest(db, today_iso: str) -> int:
-    """Wöchentlicher Owner-Digest: gruppiert neue Scanner-Funde nach
-    Fachbereichs-Mitarbeiter (aus ``file_owner`` → ``persons`` resolved)
-    und sendet pro Empfänger **höchstens eine** Digest-Mail innerhalb des
-    konfigurierten Intervalls.
+    """Wöchentliche Sammelbenachrichtigung an Fachbereichs-Mitarbeiter:
+    gruppiert neue Scanner-Funde nach Empfänger (aus ``file_owner`` →
+    ``persons`` resolved) und sendet pro Empfänger **höchstens eine** Mail
+    innerhalb des konfigurierten Intervalls.
+
+    Ab ``owner_digest_burst_threshold`` offenen Funden pro Empfänger wird
+    das Intervall ignoriert und sofort versendet (Sofort-Schwelle,
+    Issue #346). Ein hartes Tageslimit verhindert auch in diesem Fall
+    mehr als eine Mail pro Empfänger und Tag.
 
     Greift nur, wenn ``_self_service_master_enabled`` True liefert.
     """
@@ -318,6 +329,17 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
         freq_days = max(1, int(freq_row["value"])) if freq_row else 7
     except Exception:
         freq_days = 7
+
+    # Sofort-Schwelle: bei ≥ N offenen Funden pro Empfänger wird die
+    # Sammelbenachrichtigung sofort gesendet, auch wenn das Intervall
+    # (freq_days) noch läuft. 0 deaktiviert den Sofort-Versand.
+    try:
+        burst_row = db.execute(
+            "SELECT value FROM app_settings WHERE key='owner_digest_burst_threshold'"
+        ).fetchone()
+        burst_threshold = max(0, int(burst_row["value"])) if burst_row else 0
+    except Exception:
+        burst_threshold = 0
 
     # Offene Funde gruppieren: file_owner ↔ persons (user_id | kuerzel | ad_name)
     rows = db.execute("""
@@ -359,7 +381,7 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
     base_url   = get_app_base_url(db)
     if not base_url or not secret_key:
         log.warning(
-            "Owner-Digest übersprungen: app_base_url oder SECRET_KEY fehlt."
+            "Sammelbenachrichtigung übersprungen: app_base_url oder SECRET_KEY fehlt."
         )
         return 0
 
@@ -368,13 +390,30 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
         datetime.utcnow().replace(microsecond=0).isoformat(" ")
     )  # Platzhalter – wird unten überschrieben
     for person_id, group in grouped.items():
-        # Dedup pro Empfänger + Intervall
+        file_count = len(group["files"])
+
+        # Hartes Tageslimit: pro Empfänger höchstens **eine** Sammel-Mail
+        # pro Tag – verhindert Mail-Flut, auch wenn Sofort-Schwelle und
+        # Intervall-Ablauf am selben Tag zusammentreffen.
+        sent_today = db.execute(
+            "SELECT 1 FROM notification_log "
+            "WHERE kind=? AND ref_id=? AND sent_date = date('now')",
+            (_OWNER_DIGEST_KIND, person_id),
+        ).fetchone()
+        if sent_today:
+            continue
+
+        # Dedup pro Empfänger + Intervall. Sofort-Versand: wenn die Anzahl
+        # offener Funde die Schwelle erreicht, wird das Intervall ignoriert.
         recent = db.execute(
             "SELECT 1 FROM notification_log "
             "WHERE kind=? AND ref_id=? AND sent_date >= date('now', ?)",
             (_OWNER_DIGEST_KIND, person_id, f"-{freq_days} days"),
         ).fetchone()
-        if recent:
+        burst_mode = bool(
+            recent and burst_threshold > 0 and file_count >= burst_threshold
+        )
+        if recent and not burst_mode:
             continue
 
         jti = _secrets.token_urlsafe(18)
@@ -412,9 +451,14 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
                 file_rows=group["files"],
                 magic_link=magic_link,
                 base_url=base_url,
+                burst=burst_mode,
             )
         except Exception:
-            log.exception("Fehler beim Versand Owner-Digest (person_id=%s)", person_id)
+            log.exception(
+                "Fehler beim Versand der Sammelbenachrichtigung "
+                "(person_id=%s, burst=%s)",
+                person_id, burst_mode,
+            )
             ok = False
 
         if ok:
@@ -450,7 +494,7 @@ def _run_daily_dispatch(app) -> None:
         o_sent = _dispatch_owner_digest(db, today)
         log.info(
             "Notification-Dispatch abgeschlossen: %d Maßnahmen, %d Prüfungen, "
-            "%d Pool-Reminder, %d Owner-Digest.",
+            "%d Pool-Reminder, %d Sammelbenachrichtigung(en) an Owner.",
             m_sent, r_sent, p_sent, o_sent,
         )
 
