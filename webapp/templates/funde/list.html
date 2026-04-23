@@ -139,7 +139,6 @@ Standardsortierung zu sehen bekommt. #}
 <div class="collapse{{ ' show' if _lf or filter_panel_open }}" id="filter-panel">
   <form method="get" class="card border-0 shadow-sm p-3 mb-3">
     <input type="hidden" name="filter" value="{{ filt }}">
-    <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="order" value="{{ order }}">
     <div class="row g-2 align-items-end">
       <div class="col-12">
@@ -187,6 +186,18 @@ Standardsortierung zu sehen bekommt. #}
       <div class="col-md-2">
         <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert bis</label>
         <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
+        <select name="sort" class="form-select form-select-sm">
+          <option value="scan" {{ 'selected' if sort == 'scan' }}>Scan-Lauf (neueste)</option>
+          <option value="geaendert" {{ 'selected' if sort == 'geaendert' }}>Geändert (neueste)</option>
+          <option value="prioritaet" {{ 'selected' if sort == 'prioritaet' }}>Priorität (Makros zuerst)</option>
+          <option value="dateiname" {{ 'selected' if sort == 'dateiname' }}>Dateiname A→Z</option>
+          <option value="groesse" {{ 'selected' if sort == 'groesse' }}>Größe</option>
+          <option value="eigentümer" {{ 'selected' if sort == 'eigentümer' }}>Eigentümer</option>
+          <option value="dir_path" {{ 'selected' if sort == 'dir_path' }}>Verzeichnis</option>
+        </select>
       </div>
       <div class="col-md-1 d-flex gap-1 align-items-end">
         <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
@@ -417,7 +428,6 @@ date_to} %}
             {{ sort_th('scan', 'Scan-Lauf') }}
             {{ sort_th('groesse', 'Größe') }}
             {{ sort_th('geaendert', 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert') }}
-            {{ sort_th('prioritaet', 'Priorität', 'text-center') }}
             {{ sort_th('eigentümer', 'Eigentümer') }}
             <th class="text-center">Makros</th>
             <th class="text-center">Formeln</th>
@@ -445,7 +455,7 @@ date_to} %}
               {% endfor %}
               <input type="checkbox" class="form-check-input dup-master-cb" data-gid="{{ gid }}">
             </td>
-            <td colspan="13">
+            <td colspan="12">
               <span class="fw-600">
                 <i class="bi bi-copy me-1 text-danger"></i>
                 {{ grp | length }} identische Dateien
@@ -501,21 +511,6 @@ date_to} %}
             <td class="text-nowrap fs-7">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
             <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
             <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
-            <td class="text-center">
-              {% if f.has_macros %}
-              <span class="badge bg-danger-subtle text-danger border border-danger-subtle"
-                title="Makros{% if f.formula_count %} · {{ f.formula_count }} Formeln{% endif %}">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-              </span>
-              {% elif f.formula_count %}
-              <span class="badge bg-warning-subtle text-warning-emphasis border"
-                title="{{ f.formula_count }} Formeln">
-                <i class="bi bi-calculator"></i>
-              </span>
-              {% else %}
-              <i class="bi bi-dash text-muted"></i>
-              {% endif %}
-            </td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} (Office-Autor: {{ f.office_author }}){% endif %}">
               {{ f.file_owner or f.office_author or '–' }}
@@ -565,7 +560,7 @@ date_to} %}
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="15" class="text-center text-muted py-5">
+            <td colspan="14" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
             </td>
           </tr>
@@ -652,21 +647,6 @@ date_to} %}
             <td class="text-nowrap">
               {{ f.last_seen_at|datefmt if (filt == 'archiv' and f.last_seen_at) else (f.modified_at|datefmt if
               f.modified_at else '–') }}
-            </td>
-            <td class="text-center">
-              {% if f.has_macros %}
-              <span class="badge bg-danger-subtle text-danger border border-danger-subtle"
-                title="Makros{% if f.formula_count %} · {{ f.formula_count }} Formeln{% endif %}">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-              </span>
-              {% elif f.formula_count %}
-              <span class="badge bg-warning-subtle text-warning-emphasis border"
-                title="{{ f.formula_count }} Formeln">
-                <i class="bi bi-calculator"></i>
-              </span>
-              {% else %}
-              <i class="bi bi-dash text-muted"></i>
-              {% endif %}
             </td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
@@ -801,7 +781,7 @@ date_to} %}
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 16 if match_scores else 15 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 15 if match_scores else 14 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Dateien gefunden.
             </td>
