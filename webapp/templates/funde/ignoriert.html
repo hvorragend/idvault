@@ -2,12 +2,9 @@
 {% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
 {% block title %}Ignorierte Dateien{% endblock %}
 {% block page_title %}<i class="bi bi-eye-slash me-2"></i>Ignorierte Dateien{% endblock %}
+{% block topbar_actions %}{% include 'funde/_scan_button.html' %}{% endblock %}
 
 {% block content %}
-
-<div class="d-flex justify-content-end align-items-center mt-2 mb-4">
-  {% include 'funde/_scan_button.html' %}
-</div>
 
 <p class="text-muted mb-4">
   Als <strong>Ignoriert</strong> markierte Scanner-Funde. Diese Dateien enthalten keine relevanten
