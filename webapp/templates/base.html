@@ -28,7 +28,16 @@
     <a href="{{ url_for('dashboard.index') }}" class="brand">idv<span>ault</span></a>
 
     <div class="nav-label">Übersicht</div>
-    <a href="{{ url_for('dashboard.index') }}"
+    {% if _is_admin or _is_koord %}
+    <a href="{{ url_for('dashboard_ausnahmen.index') }}"
+      class="nav-link {% if request.endpoint == 'dashboard_ausnahmen.index' %}active{% endif %}">
+      <i class="bi bi-cone-striped"></i> Ausnahmen
+      {% if ausnahmen_badge and ausnahmen_badge > 0 %}
+      <span class="badge bg-danger ms-auto fs-9">{{ ausnahmen_badge }}</span>
+      {% endif %}
+    </a>
+    {% endif %}
+    <a href="{{ url_for('dashboard.index', classic=1) if (_is_admin or _is_koord) else url_for('dashboard.index') }}"
       class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
       <i class="bi bi-speedometer2"></i> Dashboard
     </a>

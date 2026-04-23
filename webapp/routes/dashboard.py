@@ -1,5 +1,5 @@
-from flask import Blueprint, render_template
-from . import login_required, get_db, can_read_all, current_person_id
+from flask import Blueprint, render_template, redirect, url_for, request, session
+from . import login_required, get_db, can_read_all, current_person_id, ROLE_KOORDINATOR
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (get_dashboard_stats, idv_incomplete_owners,
@@ -11,7 +11,12 @@ bp = Blueprint("dashboard", __name__)
 @bp.route("/")
 @login_required
 def index():
-    from flask import request
+    # Issue #353: Standard-Landingpage des IDV-Koordinators ist das
+    # Ausnahmen-Dashboard. Die alte Uebersicht bleibt ueber den
+    # Navigations-Eintrag bzw. den ?classic=1 Override erreichbar.
+    if (session.get("user_role") == ROLE_KOORDINATOR
+            and not request.args.get("classic")):
+        return redirect(url_for("dashboard_ausnahmen.index"))
     db  = get_db()
     # Eingeschränkte Nutzer (z.B. Fachverantwortliche) sehen nur ihre eigenen
     # unvollständigen IDVs, damit der Zähler zu ihren Berechtigungen passt.
