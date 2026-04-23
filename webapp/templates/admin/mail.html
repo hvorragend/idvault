@@ -148,6 +148,34 @@
             </div>
           </div>
 
+          <!-- ── Stille Freigabe (Issue #351) ─── -->
+          <div class="col-12 mt-3">
+            <hr class="my-2">
+            <h6 class="fw-600 mb-2"><i class="bi bi-lightning-charge me-1 text-success"></i>Stille Freigabe (nicht-wesentliche IDVs)</h6>
+            <p class="text-muted mb-3 small">
+              Verkürztes Verfahren für Eigenentwicklungen mit Klassifikation
+              <em>nicht wesentlich</em>: Selbstzertifizierung des Entwicklers,
+              gefolgt von einer Sicht-Freigabe des Fachverantwortlichen per
+              Magic-Link (HMAC-signiert, 7 Tage gültig). Keine Pool-Schritte,
+              keine separate technische Prüfung. Audit-Trail bleibt erhalten;
+              Status wird zu <code>Freigegeben (Stille Freigabe)</code>.
+              MaRisk AT 7.2 Tz. 7 verlangt das Vier-Augen-Prinzip nur für
+              wesentliche Eigenentwicklungen — die Stille Freigabe erfüllt
+              dies bewusst minimal (Default: deaktiviert; Opt-In pro Bank).
+            </p>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="silent_release_enabled"
+                     name="silent_release_enabled" value="1"
+                     {{ 'checked' if settings.get('silent_release_enabled','0') == '1' else '' }}>
+              <label class="form-check-label" for="silent_release_enabled">
+                Stille Freigabe aktivieren (Opt-In)
+              </label>
+            </div>
+          </div>
+
           <!-- ── Quick-Action Freigabe (Issue #352) ─── -->
           <div class="col-12 mt-3">
             <hr class="my-2">

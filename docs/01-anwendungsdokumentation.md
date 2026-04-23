@@ -329,7 +329,11 @@ Maßnahmen. Jede Maßnahme enthält:
 ### 5.5 Test- und Freigabeverfahren
 
 Für **wesentliche IDVs** mit wesentlicher Änderung ist ein fünfstufiges
-Test-, Abnahme- und Archivierungsverfahren in drei Phasen vorgesehen:
+Test-, Abnahme- und Archivierungsverfahren in drei Phasen vorgesehen.
+Für **nicht-wesentliche IDVs** steht zusätzlich die optionale **Stille
+Freigabe** zur Verfügung (Issue #351, Opt-In über
+`app_settings.silent_release_enabled`); siehe
+[Aufsichtsrecht 2.1](07-aufsichtsrecht.md#21-stille-freigabe-für-nicht-wesentliche-idvs-issue-351).
 
 ```
 Phase 1 (parallel):         Phase 2 (parallel):         Phase 3:

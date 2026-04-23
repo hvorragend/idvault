@@ -15,6 +15,10 @@ _SALT = "idvault-quick-action-v1"
 # verschiedenen Kontexten nicht vertauscht werden können.
 _SALT_SELF_SERVICE = "idvault-self-service-v1"
 
+# Stille Freigabe (Issue #351): eigener Salt fuer den Sicht-Freigabe-Link
+# an den Fachverantwortlichen / Fachbereichsleiter.
+_SALT_SILENT_RELEASE = "idvault-silent-release-v1"
+
 
 def _serializer(secret_key: str):
     from itsdangerous import URLSafeTimedSerializer
@@ -63,6 +67,36 @@ def verify_self_service_token(secret_key: str, token: str) -> dict | None:
     oder None bei Fehler/Ablauf."""
     try:
         return _serializer_self_service(secret_key).loads(
+            token, max_age=MAX_AGE_SECONDS
+        )
+    except Exception:
+        return None
+
+
+def _serializer_silent_release(secret_key: str):
+    from itsdangerous import URLSafeTimedSerializer
+    return URLSafeTimedSerializer(secret_key, salt=_SALT_SILENT_RELEASE)
+
+
+def make_silent_release_token(secret_key: str, idv_db_id: int,
+                              person_id: int) -> str:
+    """Magic-Link fuer den Fachverantwortlichen zur Sicht-Freigabe (Issue #351).
+
+    Payload: ``{"i": idv_db_id, "p": person_id}``. Anders als beim
+    Owner-Digest wird hier kein serverseitiger jti gefuehrt — der Magic-Link
+    bleibt 7 Tage gueltig und ist mehrfach abrufbar (idempotente
+    POST-Handler), bis die IDV den Status ``Freigegeben (Stille Freigabe)``
+    erreicht.
+    """
+    return _serializer_silent_release(secret_key).dumps(
+        {"i": int(idv_db_id), "p": int(person_id)}
+    )
+
+
+def verify_silent_release_token(secret_key: str, token: str) -> dict | None:
+    """Verifiziert den Sicht-Freigabe-Token (Issue #351)."""
+    try:
+        return _serializer_silent_release(secret_key).loads(
             token, max_age=MAX_AGE_SECONDS
         )
     except Exception:

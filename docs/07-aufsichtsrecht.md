@@ -37,7 +37,7 @@ umfasst.
 | Wesentlichkeitsbeurteilung | Konfigurierbarer Kriterienkatalog | `wesentlichkeitskriterien`, `idv_wesentlichkeit` |
 | Steuerungs- und Rechnungslegungsrelevanz | Separate Felder mit Begründung | `steuerungsrelevant`, `rechnungslegungsrelevant` |
 | Berechtigungsverwaltung | Rollenkonzept (5 Rollen), LDAP-Integration | [05 – Sicherheitskonzept](05-sicherheitskonzept.md) |
-| Entwicklungs-, Test-, Freigabeverfahren | 5-stufiges Freigabeverfahren in 3 Phasen (Test / Abnahme / Archivierung) | `idv_freigaben`, `fachliche_testfaelle`, `technischer_test` |
+| Entwicklungs-, Test-, Freigabeverfahren | 5-stufiges Freigabeverfahren in 3 Phasen (Test / Abnahme / Archivierung); für *nicht-wesentliche* IDVs optional „Stille Freigabe" als verkürztes Verfahren (Issue #351) | `idv_freigaben`, `fachliche_testfaelle`, `technischer_test`, `idv_register.freigabe_verfahren` |
 | Revisionssichere Archivierung der Originaldatei | Phase 3 – Upload + SHA-256 oder dokumentierte Nicht-Verfügbarkeit (z.B. Cognos) | `idv_freigaben.datei_verfuegbar`, `archiv_datei_pfad`, `archiv_datei_sha256` |
 | Funktionstrennung | Entwickler darf eigene IDV nicht freigeben | `webapp/routes/freigaben.py` |
 | Dokumentation | Verpflichtendes `dokumentation_vorhanden`-Flag | `idv_register` |
@@ -46,6 +46,34 @@ umfasst.
 | Änderungsverfolgung | Append-only History | `idv_history` |
 | 4-Augen-Prinzip | Zweistufige Genehmigung (Koordinator + IT-Sicherheit bei GDA 4) | `genehmigungen` |
 | Versionierung | "Neue Version" erzeugt IDV-Kopie mit Rückverweis | `idv_register.vorgaenger_idv_id` |
+
+### 2.1 Stille Freigabe für nicht-wesentliche IDVs (Issue #351)
+
+Für Eigenentwicklungen mit Klassifikation **nicht wesentlich** ist das
+fünfstufige Test-/Freigabeverfahren regulatorisch nicht zwingend
+vorgeschrieben (MaRisk AT 7.2 Tz. 7 fordert das volle Verfahren nur für
+wesentliche IDVs). idvault stellt deshalb optional die **Stille Freigabe**
+zur Verfügung — ein verkürztes Verfahren in drei Schritten:
+
+1. **Selbstzertifizierung des Entwicklers** (1 Klick): bestätigt
+   Funktion und Korrektheit. Audit-Eintrag
+   `silent_release_self_certified` in `idv_history`.
+2. **Sicht-Freigabe Fachverantwortlicher** (per Magic-Link, 2 Klicks):
+   HMAC-signierter Link mit 7 Tagen TTL; Audit-Eintrag
+   `silent_release_supervisor_acknowledged`.
+3. **Automatische Archivierung mit SHA-256**: sofern eine Hauptdatei
+   verknüpft ist; Audit-Eintrag `silent_release_archived`.
+
+Status nach Abschluss: `Freigegeben (Stille Freigabe)`. In Reports und
+im Excel-Export ist das Verfahren über die Spalte „Freigabe-Verfahren"
+(Werte: `Standard` / `Stille Freigabe`) erkennbar.
+
+**MaRisk-Konformität**: Das Vier-Augen-Prinzip wird eingehalten
+(Entwickler → Fachverantwortlicher), die Funktionstrennung ebenfalls
+(Selbstzertifizierung ≠ Sicht-Freigabe). Vollständiger Audit-Trail
+bleibt erhalten. Default ist die Stille Freigabe **deaktiviert**
+(`app_settings.silent_release_enabled='0'`); jedes Institut entscheidet
+in eigener Verantwortung über die Aktivierung.
 
 ## 3 Mapping BAIT
 

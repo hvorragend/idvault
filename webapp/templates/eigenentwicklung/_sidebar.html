@@ -432,6 +432,17 @@
 
         {# Freigabeverfahren starten (Phase 1) #}
         {% if not phase1_gestartet and not phase2_erledigt and can_create %}
+        {% if silent_release_moeglich %}
+        {# Issue #351: Stille Freigabe als verkuerztes Verfahren #}
+        <form method="post"
+              action="{{ url_for('silent_release.stille_freigabe_starten', idv_db_id=idv.id) }}"
+              data-confirm="Selbstzertifizierung absenden? Der Fachverantwortliche erhaelt eine Mail zur Sicht-Freigabe.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-outline-success w-100">
+            <i class="bi bi-lightning-charge me-1"></i>Stille Freigabe starten
+          </button>
+        </form>
+        {% endif %}
         <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal"
           data-bs-target="#modal-starten">
           <i class="bi bi-play-circle me-1"></i>Freigabeverfahren starten
