@@ -885,16 +885,16 @@ _EXCEL_EXTENSIONS = {".xlsx", ".xlsm", ".xlsb", ".xls", ".xltm", ".xltx"}
 
 
 def _classify_by_filename(file_name: str) -> Optional[str]:
-    """Gibt bearbeitungsstatus anhand von Dateinamen-Präfix/-Suffix zurück oder None.
+    """Gibt bearbeitungsstatus anhand des Dateinamen-Tags zurück oder None.
 
-    Dateiname enthält 'IDV' (Präfix/Suffix) → 'Zur Registrierung' (wesentliche Eigenentwicklung)
-    Dateiname enthält 'AH'  (Präfix/Suffix) → 'Nicht wesentlich'  (unwesentliche Eigenentwicklung/Arbeitshilfe)
+    Dateiname enthält '(IDV)' → 'Zur Registrierung' (wesentliche Eigenentwicklung)
+    Dateiname enthält '(AH)'  → 'Nicht wesentlich'  (unwesentliche Eigenentwicklung/Arbeitshilfe)
     IDV hat Vorrang gegenüber AH.
     """
     stem = Path(file_name).stem.upper()
-    if stem.startswith("IDV") or stem.endswith("IDV"):
+    if "(IDV)" in stem:
         return "Zur Registrierung"
-    if stem.startswith("AH") or stem.endswith("AH"):
+    if "(AH)" in stem:
         return "Nicht wesentlich"
     return None
 
@@ -910,7 +910,7 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
 
     auto_ignore:            Neue Excel-Dateien ohne Formeln/Makros sofort als 'Ignoriert' markieren.
     discard_no_formula:     Neue Excel-Dateien ohne Formeln/Makros komplett überspringen (nicht in DB).
-    auto_classify_filename: Neue Dateien mit Präfix/Suffix 'AH' oder 'IDV' automatisch klassifizieren.
+    auto_classify_filename: Neue Dateien mit Tag '(AH)' oder '(IDV)' im Dateinamen automatisch klassifizieren.
     progress_lock:          Optionaler Lock, der ``stats``-Mutationen serialisiert, wenn
                             mehrere Worker-Threads gleichzeitig Chunks verarbeiten.
     """
@@ -960,7 +960,7 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                     full_path=data["full_path"],
                 )
 
-            # ── Auto-Klassifizierung nach Dateiname (AH / IDV) ──
+            # ── Auto-Klassifizierung nach Dateiname ((AH) / (IDV)) ──
             if auto_classify_filename and change in ("new", "restored"):
                 fn_status = _classify_by_filename(data.get("file_name", ""))
                 if fn_status:
@@ -1318,7 +1318,7 @@ def run_scan(config: dict, logger: logging.Logger,
     if runtime_discard:
         logger.info("Verwerfen aktiv: neue Excel-Dateien ohne Formeln werden nicht in die DB aufgenommen")
     if runtime_classify_filename:
-        logger.info("Auto-Klassifizierung nach Dateiname aktiv: AH (Arbeitshilfe) → 'Nicht wesentlich', IDV → 'Zur Registrierung'")
+        logger.info("Auto-Klassifizierung nach Dateiname aktiv: '(AH)' (Arbeitshilfe) → 'Nicht wesentlich', '(IDV)' → 'Zur Registrierung'")
 
     # Startdatum-Filter auswerten
     scan_since    = config.get("scan_since") or None

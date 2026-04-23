@@ -5,14 +5,9 @@
 {% block content %}
 {% include 'admin/_subnav.html' %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <span class="text-muted">
-    Konfiguration und Steuerung des Eigenentwicklungs-Dateiscanners
-  </span>
-  <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-arrow-left me-1"></i>Zurück zur Administration
-  </a>
-</div>
+<p class="text-muted mb-3">
+  Konfiguration und Steuerung des Eigenentwicklungs-Dateiscanners
+</p>
 
 <div class="row g-4">
 
@@ -165,9 +160,9 @@
                 <label class="form-check-label" for="auto_classify_by_filename">Aktiviert</label>
               </div>
               <div class="form-text">
-                Dateien mit Präfix/Suffix <strong>AH</strong> (Arbeitshilfe) werden automatisch
-                als <em>Nicht wesentlich</em> eingestuft, Dateien mit Präfix/Suffix
-                <strong>IDV</strong> als <em>Zur Registrierung</em> vorgemerkt.
+                Dateien, deren Name <strong>(AH)</strong> enthält (Arbeitshilfe), werden
+                automatisch als <em>Nicht wesentlich</em> eingestuft; Dateien mit
+                <strong>(IDV)</strong> im Namen als <em>Zur Registrierung</em> vorgemerkt.
               </div>
             </div>
 
