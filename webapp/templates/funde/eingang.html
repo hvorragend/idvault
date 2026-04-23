@@ -358,8 +358,8 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
 
   <!-- Aktionsleiste -->
   <div id="bulk-bar" class="card border-primary shadow-sm mb-3 p-2 d-none">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-      <span class="fw-600 text-primary">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="fw-600 text-primary me-1">
         <i class="bi bi-check2-square me-1"></i>
         <span id="bulk-count">0</span> ausgewählt
       </span>
@@ -367,40 +367,58 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
         class="btn btn-sm btn-outline-secondary" title="Nur für Dateien ohne Formeln verfügbar">
         <i class="bi bi-eye-slash me-1"></i>Ignorieren
       </button>
-      <button type="submit" name="aktion" value="nicht_mehr_ignorieren" id="btn-nicht-mehr-ignorieren"
-        class="btn btn-sm btn-outline-secondary" title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
-        <i class="bi bi-eye me-1"></i>Nicht mehr ignorieren
-      </button>
       <button type="submit" name="aktion" value="zur_registrierung" class="btn btn-sm btn-outline-info">
-        <i class="bi bi-pencil-square me-1"></i>Zur Registrierung vormerken
+        <i class="bi bi-pencil-square me-1"></i>Zur Registrierung
       </button>
       <button type="submit" name="aktion" value="nicht_wesentlich" class="btn btn-sm btn-outline-secondary"
         title="Als nicht wesentliche Eigenentwicklung einstufen (kein weiterer Handlungsbedarf)">
         <i class="bi bi-dash-circle me-1"></i>Nicht wesentlich
       </button>
-      <button type="submit" name="aktion" value="zusammenfassen" class="btn btn-sm btn-outline-primary"
-        title="Ausgewählte Dateien als Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
-        <i class="bi bi-diagram-3 me-1"></i>Zu Projekt zusammenfassen
-      </button>
       <button type="submit" name="aktion" value="bulk_registrieren" class="btn btn-sm btn-outline-primary"
         title="Für jede ausgewählte Datei eine eigene Eigenentwicklung anlegen (gemeinsame Stammdaten)">
         <i class="bi bi-collection me-1"></i>Bulk-Registrieren
       </button>
-      <button type="submit" name="aktion" value="bewertung_anfordern" class="btn btn-sm btn-outline-primary"
-        title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
-        <i class="bi bi-envelope me-1"></i>Bewertung anfordern
-      </button>
-      <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#ownerModal"
-        title="Dateieigentümer für ausgewählte Dateien setzen">
-        <i class="bi bi-person-gear me-1"></i>Eigentümer ändern
-      </button>
-      {% if is_admin %}
-      <button type="submit" name="aktion" value="loeschen" class="btn btn-sm btn-outline-danger"
-        data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
-        title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Verknüpfung)">
-        <i class="bi bi-trash me-1"></i>Löschen
-      </button>
-      {% endif %}
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-three-dots me-1"></i>Weitere
+        </button>
+        <ul class="dropdown-menu">
+          <li>
+            <button class="dropdown-item" type="submit" name="aktion" value="nicht_mehr_ignorieren"
+              id="btn-nicht-mehr-ignorieren" title="Ignorierung aufheben – Datei wieder auf 'Neu' setzen">
+              <i class="bi bi-eye me-2"></i>Nicht mehr ignorieren
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" type="submit" name="aktion" value="zusammenfassen"
+              title="Ausgewählte Dateien als Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+              <i class="bi bi-diagram-3 me-2"></i>Zu Projekt zusammenfassen
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" type="submit" name="aktion" value="bewertung_anfordern"
+              title="E-Mail an Datei-Ersteller mit Bitte um Bewertung senden">
+              <i class="bi bi-envelope me-2"></i>Bewertung anfordern
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#ownerModal"
+              title="Dateieigentümer für ausgewählte Dateien setzen">
+              <i class="bi bi-person-gear me-2"></i>Eigentümer ändern
+            </button>
+          </li>
+          {% if is_admin %}
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <button class="dropdown-item text-danger" type="submit" name="aktion" value="loeschen"
+              data-confirm="Ausgewählte Funde wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+              title="Ausgewählte Scanner-Funde dauerhaft löschen (nur ohne Verknüpfung)">
+              <i class="bi bi-trash me-2"></i>Löschen
+            </button>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
       <button type="button" class="btn btn-sm btn-link text-muted ms-auto" id="btn-deselect-all">
         Auswahl aufheben
       </button>
