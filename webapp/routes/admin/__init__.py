@@ -745,7 +745,7 @@ def glossar_erklaerung():
 
 
 # ── Submodule registrieren (Blueprint-Routen anhängen) ─────────────────
-from . import scanner, mail, sicherheit, ldap, stammdaten  # noqa: E402,F401
+from . import scanner, mail, sicherheit, ldap, stammdaten, similarity  # noqa: E402,F401
 from .scanner import (  # noqa: E402,F401
     start_scheduler,
     _scan_is_running,

@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Ähnlichkeitsanalyse{% endblock %}
+{% block page_title %}<i class="bi bi-stars me-2"></i>Ähnlichkeitsanalyse{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+<p class="text-muted">
+  Stellt ein, wie stark Typ, Eigentümer und Dateiname bei der Zuordnung von
+  Scanner-Funden zu Eigenentwicklungen gewichtet werden. Vorschläge erscheinen
+  erst ab der konfigurierten Mindestpunktzahl.
+</p>
+
+{% if not rapidfuzz_available %}
+<div class="alert alert-warning d-flex align-items-start gap-2 small">
+  <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+  <div>
+    Das Paket <code>rapidfuzz</code> ist nicht installiert. Die Algorithmen
+    <em>Token-Set</em> und <em>Partial</em> fallen daher automatisch auf
+    <em>Jaccard</em> (reine Wortmengen-Überschneidung) zurück. Zum Nachinstallieren:
+    <code>pip install rapidfuzz</code>.
+  </div>
+</div>
+{% endif %}
+
+<form method="post" class="row g-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-sliders me-1"></i>Gewichtung &amp; Schwelle
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label fw-600">Gewicht Typ</label>
+            <input type="number" name="weight_type" min="0" max="100" step="1"
+                   value="{{ cfg.weight_type }}" class="form-control">
+            <div class="form-text">Default: {{ defaults.weight_type }}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-600">Gewicht Eigentümer</label>
+            <input type="number" name="weight_owner" min="0" max="100" step="1"
+                   value="{{ cfg.weight_owner }}" class="form-control">
+            <div class="form-text">Default: {{ defaults.weight_owner }}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-600">Gewicht Name</label>
+            <input type="number" name="weight_name" min="0" max="100" step="1"
+                   value="{{ cfg.weight_name }}" class="form-control">
+            <div class="form-text">Default: {{ defaults.weight_name }}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-600">Mindestpunktzahl</label>
+            <input type="number" name="threshold" min="0" max="100" step="1"
+                   value="{{ cfg.threshold }}" class="form-control">
+            <div class="form-text">
+              Default: {{ defaults.threshold }} –
+              höhere Werte = weniger, aber genauere Vorschläge.
+            </div>
+          </div>
+        </div>
+        <hr>
+        <div class="small text-muted">
+          Summe der Gewichte:
+          <strong>{{ cfg.weight_type + cfg.weight_owner + cfg.weight_name }}</strong>
+          – die Mindestpunktzahl wird gegen diese Summe verglichen (max. 100 ist
+          erreichbar, wenn alle Kriterien greifen).
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-fonts me-1"></i>Namensähnlichkeit
+      </div>
+      <div class="card-body">
+        <label class="form-label fw-600">Algorithmus</label>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="name_algorithm"
+                 id="algo_token_set" value="token_set"
+                 {% if cfg.name_algorithm == 'token_set' %}checked{% endif %}>
+          <label class="form-check-label" for="algo_token_set">
+            <strong>Token-Set</strong> (empfohlen)
+            <span class="text-muted fs-7">
+              – reihenfolge-unabhängige Fuzzy-Suche mit <code>rapidfuzz</code>.
+              Robust gegen Abkürzungen, Tippfehler und Umsortierung.
+            </span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="name_algorithm"
+                 id="algo_partial" value="partial"
+                 {% if cfg.name_algorithm == 'partial' %}checked{% endif %}>
+          <label class="form-check-label" for="algo_partial">
+            <strong>Partial</strong>
+            <span class="text-muted fs-7">
+              – findet Teilzeichenketten. Hilfreich bei sehr langen
+              Bezeichnungen, tendiert aber zu höheren Falsch-Treffern.
+            </span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="name_algorithm"
+                 id="algo_jaccard" value="jaccard"
+                 {% if cfg.name_algorithm == 'jaccard' %}checked{% endif %}>
+          <label class="form-check-label" for="algo_jaccard">
+            <strong>Jaccard</strong>
+            <span class="text-muted fs-7">
+              – reine Wortmengen-Überschneidung (|∩|/|∪|), ohne externe
+              Abhängigkeit. Strikt, aber reihenfolge-unabhängig.
+            </span>
+          </label>
+        </div>
+
+        <label class="form-label fw-600 mt-3">Rausch-Wörter (Noise Words)</label>
+        <textarea name="noise_words" class="form-control font-monospace" rows="6"
+                  placeholder="Ein Wort pro Zeile oder komma-separiert …"
+        >{{ cfg.noise_words | join('\n') }}</textarea>
+        <div class="form-text">
+          Werden bei der Namensanalyse ignoriert (z.B. <code>v1</code>,
+          <code>kopie</code>, <code>test</code>). Damit werden generische
+          Wörter nicht mehr als Treffer gewertet.
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-collection me-1"></i>Leistungsgrenzen
+      </div>
+      <div class="card-body row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-600">Max. Kandidaten</label>
+          <input type="number" name="max_candidates" min="10" max="10000" step="10"
+                 value="{{ cfg.max_candidates }}" class="form-control">
+          <div class="form-text">
+            Obergrenze der Scanner-Funde, die pro Aufruf bewertet werden
+            (Datei → Eigenentwicklung). Default: {{ defaults.max_candidates }}.
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-600">Max. Vorschläge</label>
+          <input type="number" name="max_results" min="1" max="500" step="1"
+                 value="{{ cfg.max_results }}" class="form-control">
+          <div class="form-text">
+            Wie viele Ähnlichkeitsvorschläge maximal angezeigt werden.
+            Default: {{ defaults.max_results }}.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-save me-1"></i>Speichern
+      </button>
+      <button type="submit" name="reset" value="1"
+              class="btn btn-outline-secondary"
+              onclick="return confirm('Alle Werte auf Standard zurücksetzen?')">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Auf Standard zurücksetzen
+      </button>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-lightbulb me-1"></i>Hinweise
+      </div>
+      <div class="card-body small">
+        <p>
+          Der Score pro Fund/Eigenentwicklung-Paar setzt sich aus drei Teilen
+          zusammen:
+        </p>
+        <ul class="mb-3">
+          <li><strong>Typ:</strong> exakter IDV-Typ-Match (z.B. Excel-Makro).</li>
+          <li><strong>Eigentümer:</strong> Datei-Eigentümer = Entwickler/Fachverantwortlicher.</li>
+          <li><strong>Name:</strong> gemäß gewähltem Algorithmus, skaliert auf das Gewicht.</li>
+        </ul>
+        <p class="mb-2"><strong>Tipps gegen falsche Vorschläge:</strong></p>
+        <ul class="mb-0">
+          <li>Mindestpunktzahl anheben (z.B. 60–70).</li>
+          <li>Generische Wörter in die Rausch-Liste aufnehmen.</li>
+          <li>Gewicht <em>Name</em> reduzieren, wenn viele Dateinamen ähnlich klingen.</li>
+          <li>Gewicht <em>Eigentümer</em> erhöhen, wenn AD-Pflege zuverlässig ist.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</form>
+
+{% endblock %}

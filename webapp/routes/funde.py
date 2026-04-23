@@ -1,8 +1,6 @@
 """Funde-Blueprint (Scanner-Ergebnisse)"""
 import json
 import logging
-import os
-import re
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session, jsonify
 from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
 from ..app_settings import get_bool as _get_bool
@@ -10,6 +8,7 @@ from ..db_writer import get_writer
 from db_write_tx import write_tx
 from ..security import in_clause
 from ..helpers import _EXT_TO_TYP, _idv_typ_vorschlag
+from .. import similarity as _sim
 
 log = logging.getLogger("idvault.funde")
 
@@ -75,18 +74,13 @@ _DIR_PATH_EXPR_PLAIN = """CASE WHEN file_name IS NOT NULL AND full_path IS NOT N
 
 _VALID_PER_PAGE = (25, 50, 100, 200, 500)
 
-_MATCH_NOISE_WORDS = frozenset({
-    "", "der", "die", "das", "und", "fur", "für", "von", "mit", "zu", "in",
-    "v1", "v2", "v3", "final", "neu", "alt", "copy", "backup", "temp", "tmp",
-    "test", "neu", "old", "new", "1", "2", "3",
-})
-
 
 def _compute_match_scores(dateien, db):
     """For unregistered funds compute the best-matching IDV score.
 
     Returns {file_id: {"score": int, "idv_db_id": int, "idv_id": str, "bezeichnung": str}}.
-    Only entries with score >= 30 are included.
+    Nur Einträge oberhalb der konfigurierten Schwelle (``similarity_config.threshold``)
+    werden aufgenommen. Das Scoring selbst liegt zentral in ``webapp/similarity.py``.
     """
     unregistered = [f for f in dateien if not f["reg_idv_id"]]
     if not unregistered:
@@ -108,52 +102,39 @@ def _compute_match_scores(dateien, db):
     if not idv_candidates:
         return {}
 
+    cfg   = _sim.get_config(db)
+    noise = frozenset(cfg["noise_words"])
+    threshold = cfg["threshold"]
+
     result = {}
     for fund in unregistered:
         fund_typ   = _idv_typ_vorschlag(fund["extension"], fund["has_macros"])
-        fund_owner = (fund["file_owner"] or "").lower().strip()
-        name_stem  = os.path.splitext(fund["file_name"] or "")[0].lower()
-        fund_words = set(re.split(r"[\W_]+", name_stem)) - _MATCH_NOISE_WORDS
+        fund_owner = fund["file_owner"] or ""
+        fund_name  = fund["file_name"] or ""
 
         best_score = 0
         best_idv   = None
 
         for idv in idv_candidates:
-            score = 0
-
-            # Typ-Match (30 pts)
-            if fund_typ == idv["idv_typ"] and fund_typ != "unklassifiziert":
-                score += 30
-
-            # Owner/Developer-Match (40 pts)
-            if fund_owner:
-                dev_ids = {
-                    (idv["dev_kuerzel"] or "").lower(),
-                    (idv["dev_ad"]      or "").lower(),
-                    (idv["dev_uid"]     or "").lower(),
-                    (idv["fv_kuerzel"]  or "").lower(),
-                    (idv["fv_ad"]       or "").lower(),
-                }
-                dev_ids.discard("")
-                if fund_owner in dev_ids:
-                    score += 40
-
-            # Namensähnlichkeit (30 pts)
-            if fund_words:
-                idv_words = (
-                    set(re.split(r"[\W_]+", (idv["bezeichnung"] or "").lower()))
-                    - _MATCH_NOISE_WORDS
-                )
-                if idv_words:
-                    overlap = fund_words & idv_words
-                    ratio   = len(overlap) / max(len(fund_words), len(idv_words))
-                    score  += int(ratio * 30)
-
+            dev_ids = (
+                idv["dev_kuerzel"], idv["dev_ad"], idv["dev_uid"],
+                idv["fv_kuerzel"],  idv["fv_ad"],
+            )
+            score = _sim.score_pair(
+                fund_typ=fund_typ,
+                fund_owner=fund_owner,
+                fund_name=fund_name,
+                idv_typ=idv["idv_typ"] or "",
+                idv_name=idv["bezeichnung"] or "",
+                dev_ids_lower=[d for d in dev_ids if d],
+                config=cfg,
+                noise=noise,
+            )
             if score > best_score:
                 best_score = score
                 best_idv   = idv
 
-        if best_score >= 30 and best_idv:
+        if best_score >= threshold and best_idv:
             result[fund["id"]] = {
                 "score":       best_score,
                 "idv_db_id":   best_idv["id"],
