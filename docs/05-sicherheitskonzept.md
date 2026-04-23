@@ -107,11 +107,10 @@ beim Koordinator.
 Schutzmaßnahmen (Implementierung in `webapp/routes/self_service.py`,
 `webapp/tokens.py`, Tabellen `self_service_tokens` und `self_service_audit`):
 
-- **Doppelter Master-Schalter** (Defense-in-Depth): Self-Service ist nur
-  aktiv, wenn `config.json["IDV_SELF_SERVICE_ENABLED"] = true` **und** in
-  der Admin-UI `self_service_enabled = 1` gesetzt ist. Ist einer der beiden
-  Schalter ausgeschaltet, antwortet die Route mit HTTP 404 und es werden
-  keine Digest-Mails versendet. Default: beide aus.
+- **Master-Schalter**: Self-Service ist nur aktiv, wenn in der Admin-UI
+  `app_settings.self_service_enabled = 1` gesetzt ist. Ist der Schalter
+  ausgeschaltet, antwortet die Route `/selbst/meine-funde` mit HTTP 404
+  und es werden keine Digest-Mails versendet. Default: aus.
 - **Magic-Link-Token**: HMAC-SHA256-signiert via
   `itsdangerous.URLSafeTimedSerializer` mit dediziertem Salt
   (`idvault-self-service-v1`, isoliert von Quick-Actions). TTL: 7 Tage.

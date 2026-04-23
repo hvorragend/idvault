@@ -282,14 +282,9 @@ def _dispatch_pool_claim_reminders(db, today_iso: str) -> int:
 
 
 def _self_service_master_enabled(db) -> bool:
-    """Self-Service greift nur, wenn sowohl der Bootstrap-Schalter in
-    ``config.json["IDV_SELF_SERVICE_ENABLED"]`` als auch die Admin-UI-
-    Einstellung ``self_service_enabled`` aktiviert sind (Defense-in-Depth,
-    siehe Issue #315).
-    """
-    from . import config_store
-    if not config_store.get_bool("IDV_SELF_SERVICE_ENABLED", False):
-        return False
+    """Self-Service greift nur, wenn der Admin-UI-Schalter
+    ``app_settings.self_service_enabled`` gesetzt ist (Default: aus,
+    siehe Issue #315)."""
     try:
         row = db.execute(
             "SELECT value FROM app_settings WHERE key='self_service_enabled'"

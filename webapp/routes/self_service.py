@@ -7,8 +7,8 @@ per Owner-Digest-Mail verschickt wird.
 Sicherheits-Eckpunkte (siehe docs/05-sicherheitskonzept.md):
 - HMAC-signierter Token (itsdangerous) + serverseitiger jti mit One-Use-
   Semantik und 7-Tage-TTL.
-- Master-Schalter: config.json["IDV_SELF_SERVICE_ENABLED"] UND
-  app_settings["self_service_enabled"] müssen beide aktiviert sein.
+- Master-Schalter: app_settings["self_service_enabled"] (Admin-UI,
+  Default aus).
 - Rate-Limit pro Client-IP auf den Actions (kein Brute-Force des jti).
 - Keine Anzeige fremder Dateien: strikter Filter auf die owner-Person.
 - Audit-Eintrag bei jeder Aktion (self_service_audit, Quelle „mail-link").
@@ -44,10 +44,8 @@ _SS_SESSION_JTI    = "_ss_jti"
 # ---------------------------------------------------------------------------
 
 def _self_service_master_enabled(db) -> bool:
-    """True nur, wenn beide Schalter aktiviert sind."""
-    from .. import config_store
-    if not config_store.get_bool("IDV_SELF_SERVICE_ENABLED", False):
-        return False
+    """True nur, wenn der Admin-UI-Schalter ``self_service_enabled``
+    in app_settings gesetzt ist (Default: aus)."""
     try:
         row = db.execute(
             "SELECT value FROM app_settings WHERE key='self_service_enabled'"

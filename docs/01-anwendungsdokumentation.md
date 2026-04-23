@@ -502,14 +502,13 @@ ausschließlich beim Koordinator.
 - Jede Self-Service-Aktion erzeugt einen Audit-Eintrag in
   `self_service_audit` (Quelle `mail-link`).
 
-Aktivierung (beide Schalter nötig — Defense-in-Depth):
+Aktivierung (Default: deaktiviert):
 
-1. Bootstrap: `config.json["IDV_SELF_SERVICE_ENABLED"] = true`.
-2. Admin-UI: `Administration → E-Mail-Einstellungen → Self-Service
-   aktivieren` ankreuzen, Intervall optional anpassen.
+- `Administration → E-Mail-Einstellungen → Self-Service aktivieren`
+  ankreuzen, Intervall optional anpassen.
 
-Ist einer der beiden Schalter deaktiviert, werden keine Digest-Mails
-versendet **und** die Route `/selbst/meine-funde` antwortet mit HTTP 404.
+Ist der Schalter ausgeschaltet, werden keine Digest-Mails versendet
+**und** die Route `/selbst/meine-funde` antwortet mit HTTP 404.
 
 ### 5.8 Administration
 
