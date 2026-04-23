@@ -1,0 +1,87 @@
+{% extends "self_service/_base.html" %}
+{% block title %}Als Eigenentwicklung registrieren – idvault{% endblock %}
+{% block content %}
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-diagram-3 me-2 text-primary"></i>Als eine Eigenentwicklung registrieren
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Die folgenden {{ dateien|length }} Datei(en) werden gemeinsam als
+      <strong>eine</strong> Eigenentwicklung erfasst. Bitte ergänzen Sie eine
+      sprechende Bezeichnung und wählen Sie eine Klassifikation.
+      Als Verantwortlicher werden Sie ({{ person.vorname }} {{ person.nachname }})
+      automatisch eingetragen; die Einordnung prüft anschließend der
+      IDV-Koordinator.
+    </p>
+
+    <div class="mb-3 border rounded p-2 bg-light-subtle">
+      <div class="small fw-600 mb-1">
+        <i class="bi bi-files me-1"></i>Ausgewählte Dateien
+      </div>
+      {% for f in dateien %}
+      <div class="small">
+        <i class="bi bi-file-earmark-text me-1 text-primary"></i>
+        <span class="fw-500">{{ f.file_name }}</span>
+        <div class="ss-path">{{ f.full_path }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <form method="post" action="{{ url_for('self_service.bulk_register') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="confirm" value="1">
+      {% for f in dateien %}
+      <input type="hidden" name="file_ids" value="{{ f.id }}">
+      {% endfor %}
+
+      <div class="mb-3">
+        <label class="form-label form-label-sm fw-600" for="ss-bezeichnung">
+          Bezeichnung <span class="text-danger">*</span>
+        </label>
+        <input type="text" class="form-control form-control-sm" id="ss-bezeichnung"
+               name="bezeichnung" required maxlength="200"
+               value="{{ bezeichnung_vorschlag or '' }}"
+               placeholder="z.B. Monatsreport Risikocontrolling">
+        <div class="form-text small">
+          Sprechender Projektname – unter dem werden alle Dateien im
+          Eigenentwicklungs-Register geführt.
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label form-label-sm fw-600" for="ss-idv-typ">
+          Klassifikation <span class="text-danger">*</span>
+        </label>
+        <select class="form-select form-select-sm" id="ss-idv-typ" name="idv_typ" required>
+          <option value="">– bitte wählen –</option>
+          {% for val in idv_typ_options %}
+          <option value="{{ val }}" {{ 'selected' if val == idv_typ_vorschlag }}>{{ val }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label form-label-sm fw-600">Verantwortlicher</label>
+        <input type="text" class="form-control form-control-sm"
+               value="{{ person.vorname }} {{ person.nachname }}" readonly>
+        <div class="form-text small">
+          Vorbelegt mit Ihrem Namen. Eine Änderung ist nur über den
+          IDV-Koordinator möglich.
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center">
+        <a href="{{ url_for('self_service.meine_funde') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Abbrechen
+        </a>
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="bi bi-check2-circle me-1"></i>Registrieren
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

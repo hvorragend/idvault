@@ -15,7 +15,9 @@ Sicherheits-Eckpunkte (siehe docs/05-sicherheitskonzept.md):
 """
 from __future__ import annotations
 
+import json
 import logging
+from datetime import date, datetime, timezone
 from flask import (
     Blueprint, request, render_template, redirect, url_for, flash,
     current_app, session, abort,
@@ -25,6 +27,7 @@ from .. import limiter
 from ..db_flask import get_db
 from ..db_writer import get_writer
 from ..tokens import verify_self_service_token
+from db import generate_idv_id
 from db_write_tx import write_tx
 
 log = logging.getLogger("idvault.self_service")
@@ -429,6 +432,299 @@ def vorschlag_entscheiden(suggestion_id: int):
             "success",
         )
     return redirect(url_for("self_service.meine_funde"))
+
+
+# Liste der für die Self-Service-Bulk-Registrierung erlaubten idv_typ-Werte.
+# Bewusst knapp gehalten – der IDV-Koordinator verfeinert später.
+_SS_IDV_TYP_OPTIONS = (
+    "Excel-Tabelle",
+    "Excel-Makro",
+    "Excel-Modell",
+    "Access-Datenbank",
+    "Python-Skript",
+    "SQL-Skript",
+    "Power-BI-Bericht",
+    "Sonstige",
+    "unklassifiziert",
+)
+
+# Einfache Default-Abbildung Klassifikation → Entwicklungsart / Prüfintervall.
+# Spiegelt die _TYP_DEFAULTS aus eigenentwicklung.py, ohne Import-Zyklus.
+_SS_TYP_DEFAULTS = {
+    "Excel-Makro":      {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Excel-Modell":     {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Access-Datenbank": {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Python-Skript":    {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "SQL-Skript":       {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Power-BI-Bericht": {"entwicklungsart": "idv",          "pruefintervall_monate": 12},
+    "Excel-Tabelle":    {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 24},
+    "Sonstige":         {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 24},
+    "unklassifiziert":  {"entwicklungsart": "arbeitshilfe", "pruefintervall_monate": 12},
+}
+
+
+def _bezeichnung_vorschlag(dateien) -> str:
+    """Sinnvoller Default-Vorschlag für die Bezeichnung: Namensstamm der
+    längsten gemeinsamen Präfix-Datei, sonst erster Dateiname."""
+    names = [d["file_name"] or "" for d in dateien]
+    if not names:
+        return ""
+    # Gemeinsamen Präfix (case-insensitive) bestimmen; stoppe bei "_" / "-" /
+    # Ziffer, damit Versionssuffixe wie "_2025-01" abgeschnitten werden.
+    first = names[0]
+    prefix = ""
+    for i in range(len(first)):
+        ch = first[i].lower()
+        if any(i >= len(n) or n[i].lower() != ch for n in names):
+            break
+        prefix += first[i]
+    prefix = prefix.rstrip(" _-.0123456789")
+    return prefix if len(prefix) >= 3 else first.rsplit(".", 1)[0]
+
+
+@bp.route("/bulk-register", methods=["POST"])
+@limiter.limit("10 per minute; 60 per hour")
+def bulk_register():
+    """Bulk-Registrierung: mehrere Scanner-Funde zu einer Eigenentwicklung.
+
+    Ablauf (ein Endpoint, zwei Phasen):
+
+    1. POST mit ``file_ids`` → Formular rendern
+       (Bezeichnung + Klassifikation).
+    2. POST mit ``file_ids`` + ``confirm=1`` + Formularfeldern → anlegen,
+       Dateien via ``idv_file_links`` verknüpfen, ``bearbeitungsstatus``
+       auf ``Registriert`` setzen, Audit-Eintrag schreiben.
+    """
+    db = get_db()
+    if not _self_service_master_enabled(db):
+        abort(404)
+
+    ctx = _resolve_session(db)
+    if ctx is None:
+        flash("Sitzung abgelaufen. Bitte Link aus der E-Mail erneut öffnen.", "error")
+        return redirect(url_for("self_service.meine_funde"))
+
+    person_row = db.execute(
+        "SELECT id, user_id, kuerzel, ad_name, email, vorname, nachname "
+        "FROM persons WHERE id = ?",
+        (ctx["person_id"],),
+    ).fetchone()
+    if person_row is None:
+        abort(404)
+    person = dict(person_row)
+
+    raw_ids = request.form.getlist("file_ids")
+    try:
+        file_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        flash("Ungültige Datei-IDs.", "error")
+        return redirect(url_for("self_service.meine_funde"))
+
+    # Duplikate entfernen, Reihenfolge stabil
+    seen: set[int] = set()
+    file_ids = [fid for fid in file_ids if not (fid in seen or seen.add(fid))]
+
+    if len(file_ids) < 1:
+        flash("Bitte mindestens eine Datei auswählen.", "warning")
+        return redirect(url_for("self_service.meine_funde"))
+
+    # Eigentümer-Prüfung je Datei – hart, nicht überspringbar.
+    for fid in file_ids:
+        if not _file_belongs_to_person(db, fid, person):
+            flash("Mindestens eine Datei steht nicht in Ihrer Zuständigkeit.",
+                  "error")
+            return redirect(url_for("self_service.meine_funde"))
+
+    # Für beide Phasen: die Dateien für die Anzeige bzw. Audit-Texte laden.
+    placeholders = ",".join(["?"] * len(file_ids))
+    dateien = db.execute(
+        f"SELECT id, file_name, full_path, extension, has_macros, formula_count "
+        f"  FROM idv_files WHERE id IN ({placeholders})",
+        file_ids,
+    ).fetchall()
+    # Reihenfolge wie in file_ids (rank-map)
+    rank = {fid: i for i, fid in enumerate(file_ids)}
+    dateien = sorted(dateien, key=lambda r: rank.get(r["id"], 0))
+
+    # Phase 1: Formular zeigen
+    if request.form.get("confirm") != "1":
+        # Default-Klassifikation: Vorschlag der ersten Datei
+        first = dateien[0] if dateien else None
+        typ_vorschlag = ""
+        if first is not None:
+            ext = (first["extension"] or "").lower()
+            if ext in (".xlsx", ".xls", ".xltx") and first["has_macros"]:
+                typ_vorschlag = "Excel-Makro"
+            else:
+                typ_vorschlag = {
+                    ".xlsx": "Excel-Tabelle",
+                    ".xls":  "Excel-Tabelle",
+                    ".xltx": "Excel-Tabelle",
+                    ".xlsm": "Excel-Makro",
+                    ".xlsb": "Excel-Makro",
+                    ".xltm": "Excel-Makro",
+                    ".accdb": "Access-Datenbank",
+                    ".mdb":   "Access-Datenbank",
+                    ".accde": "Access-Datenbank",
+                    ".accdr": "Access-Datenbank",
+                    ".py":    "Python-Skript",
+                    ".sql":   "SQL-Skript",
+                    ".pbix":  "Power-BI-Bericht",
+                    ".pbit":  "Power-BI-Bericht",
+                }.get(ext, "unklassifiziert")
+        return render_template(
+            "self_service/bulk_register.html",
+            person=person,
+            dateien=dateien,
+            bezeichnung_vorschlag=_bezeichnung_vorschlag(dateien),
+            idv_typ_options=_SS_IDV_TYP_OPTIONS,
+            idv_typ_vorschlag=typ_vorschlag,
+        )
+
+    # Phase 2: anlegen
+    bezeichnung = (request.form.get("bezeichnung") or "").strip()
+    idv_typ     = (request.form.get("idv_typ") or "").strip()
+
+    if not bezeichnung:
+        flash("Bitte eine Bezeichnung angeben.", "error")
+        return render_template(
+            "self_service/bulk_register.html",
+            person=person,
+            dateien=dateien,
+            bezeichnung_vorschlag=bezeichnung,
+            idv_typ_options=_SS_IDV_TYP_OPTIONS,
+            idv_typ_vorschlag=idv_typ,
+        ), 400
+    if idv_typ not in _SS_IDV_TYP_OPTIONS:
+        flash("Bitte eine gültige Klassifikation auswählen.", "error")
+        return render_template(
+            "self_service/bulk_register.html",
+            person=person,
+            dateien=dateien,
+            bezeichnung_vorschlag=bezeichnung,
+            idv_typ_options=_SS_IDV_TYP_OPTIONS,
+            idv_typ_vorschlag="",
+        ), 400
+    if len(bezeichnung) > 200:
+        bezeichnung = bezeichnung[:200]
+
+    defaults = _SS_TYP_DEFAULTS.get(idv_typ, _SS_TYP_DEFAULTS["unklassifiziert"])
+    intervall = int(defaults["pruefintervall_monate"])
+
+    # naechste_pruefung inline berechnen (Monats-Addition mit Tag-Clamp)
+    today = date.today()
+    m = today.month - 1 + intervall
+    y = today.year + m // 12
+    m = m % 12 + 1
+    import calendar as _cal
+    d = min(today.day, _cal.monthrange(y, m)[1])
+    naechste_pruefung = date(y, m, d).isoformat()
+
+    now = datetime.now(timezone.utc).isoformat()
+    person_id = ctx["person_id"]
+    jti       = ctx["jti"]
+
+    bearbeiter_name = (
+        f"{person.get('vorname') or ''} {person.get('nachname') or ''}".strip()
+        or (person.get("ad_name") or person.get("kuerzel") or "")
+    )
+
+    def _do(c,
+            _bez=bezeichnung, _typ=idv_typ,
+            _entwart=defaults["entwicklungsart"],
+            _intervall=intervall, _np=naechste_pruefung, _now=now,
+            _pid=person_id, _name=bearbeiter_name,
+            _fids=list(file_ids), _jti=jti):
+        with write_tx(c):
+            idv_id = generate_idv_id(c)
+            cur = c.execute(
+                """
+                INSERT INTO idv_register (
+                    idv_id, bezeichnung, version, idv_typ, entwicklungsart,
+                    fachverantwortlicher_id, idv_entwickler_id,
+                    status, teststatus,
+                    pruefintervall_monate, naechste_pruefung,
+                    erfasst_von_id, erstellt_am, aktualisiert_am,
+                    tags
+                ) VALUES (
+                    ?, ?, '1.0', ?, ?,
+                    ?, ?,
+                    'Entwurf', 'Wertung ausstehend',
+                    ?, ?,
+                    ?, ?, ?,
+                    ?
+                )
+                """,
+                (idv_id, _bez, _typ, _entwart,
+                 _pid, _pid,
+                 _intervall, _np,
+                 _pid, _now, _now,
+                 json.dumps(["self-service"], ensure_ascii=False)),
+            )
+            new_id = cur.lastrowid
+
+            c.execute(
+                """
+                INSERT INTO idv_history
+                  (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name)
+                VALUES (?, 'erstellt', ?, ?, ?)
+                """,
+                (new_id,
+                 f"IDV {idv_id} via Self-Service aus {len(_fids)} Fund(en) erstellt",
+                 _pid, _name or None),
+            )
+
+            for fid in _fids:
+                c.execute(
+                    "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) "
+                    "VALUES (?, ?)",
+                    (new_id, fid),
+                )
+                c.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus='Registriert' "
+                    "WHERE id = ?",
+                    (fid,),
+                )
+
+            # Audit-Einträge: pro file_id eine Zeile für die vorhandenen
+            # Indizes, zusätzlich eine Sammelzeile mit JSON-Liste zur
+            # schnellen Nachvollziehbarkeit (file_id=NULL dort).
+            for fid in _fids:
+                c.execute(
+                    "INSERT INTO self_service_audit "
+                    "(person_id, file_id, aktion, quelle, jti) "
+                    "VALUES (?, ?, 'self_service_bulk_registered', "
+                    "        'mail-link', ?)",
+                    (_pid, fid, _jti),
+                )
+            c.execute(
+                "INSERT INTO self_service_audit "
+                "(person_id, file_id, aktion, quelle, jti) "
+                "VALUES (?, NULL, ?, 'mail-link', ?)",
+                (_pid,
+                 "self_service_bulk_registered:"
+                 + json.dumps({"idv_db_id": new_id,
+                               "idv_id": idv_id,
+                               "file_ids": _fids},
+                              ensure_ascii=False),
+                 _jti),
+            )
+            return new_id, idv_id
+
+    try:
+        new_id, new_idv_id = get_writer().submit(_do, wait=True)
+    except Exception:
+        log.exception("Self-Service: Bulk-Registrierung fehlgeschlagen")
+        flash("Beim Anlegen ist ein Fehler aufgetreten. Bitte erneut versuchen.",
+              "error")
+        return redirect(url_for("self_service.meine_funde"))
+
+    return render_template(
+        "self_service/bulk_registered.html",
+        idv_id=new_idv_id,
+        bezeichnung=bezeichnung,
+        anzahl=len(file_ids),
+    )
 
 
 @bp.route("/abmelden", methods=["POST"])
