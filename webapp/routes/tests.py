@@ -63,6 +63,37 @@ def _get_idv_or_404(db, idv_db_id):
     return idv
 
 
+def _scanner_metadata_for_idv(db, idv_db_id: int) -> list:
+    """Liefert Scanner-Metadaten aller mit der IDV verknüpften Dateien.
+
+    Wird im Technischen Test als Prefill-Quelle angeboten: Makros, externe
+    Verknüpfungen, Blattschutz, Formel-Anzahl etc. sind bereits vom Scan
+    bekannt und müssen vom Prüfer nur bestätigt/kommentiert werden.
+    """
+    rows = db.execute("""
+        SELECT f.id, f.file_name, f.full_path, f.extension, f.size_bytes,
+               f.modified_at, f.file_owner, f.file_hash,
+               f.has_macros, f.has_external_links,
+               f.sheet_count, f.named_ranges_count, f.formula_count,
+               f.has_sheet_protection, f.protected_sheets_count,
+               f.sheet_protection_has_pw, f.workbook_protected
+          FROM idv_files f
+         WHERE f.id = (SELECT file_id FROM idv_register WHERE id = ?)
+        UNION
+        SELECT f.id, f.file_name, f.full_path, f.extension, f.size_bytes,
+               f.modified_at, f.file_owner, f.file_hash,
+               f.has_macros, f.has_external_links,
+               f.sheet_count, f.named_ranges_count, f.formula_count,
+               f.has_sheet_protection, f.protected_sheets_count,
+               f.sheet_protection_has_pw, f.workbook_protected
+          FROM idv_files f
+          JOIN idv_file_links lnk ON lnk.file_id = f.id
+         WHERE lnk.idv_db_id = ?
+        ORDER BY file_name
+    """, (idv_db_id, idv_db_id)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def _reset_freigabe_schritt(db, idv_db_id: int, schritt: str) -> None:
     """Setzt einen Freigabe-Schritt auf 'Ausstehend' zurück, wenn der Test gelöscht wird."""
     def _do(c):
@@ -393,6 +424,7 @@ def edit_technischer_test(idv_db_id):
                            idv=idv, tech_test=tech_test,
                            freigabe_id=freigabe_id,
                            ergebnisse=_TECH_ERGEBNISSE,
+                           scanner_dateien=_scanner_metadata_for_idv(db, idv_db_id),
                            today=_date.today().isoformat())
 
 

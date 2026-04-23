@@ -37,6 +37,78 @@
         </button>
       </div>
 
+      {% if scanner_dateien %}
+      <div class="form-section">
+        <div class="form-section-title d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-clipboard-data me-1"></i>Scanner-Metadaten (vorausgefüllt)</span>
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  id="btn-scan-in-kurz">
+            <i class="bi bi-arrow-down-square me-1"></i>In Kurzbeschreibung übernehmen
+          </button>
+        </div>
+        <div class="form-text mb-2">
+          Diese Werte stammen aus dem letzten Scan und dienen als Basis der
+          technischen Prüfung. Mit dem Button wird eine Zusammenfassung in die
+          Kurzbeschreibung eingefügt — du kannst sie dort ergänzen oder ändern.
+        </div>
+
+        {% for d in scanner_dateien %}
+        <div class="border rounded p-2 mb-2 small">
+          <div class="fw-600 text-break mb-1">
+            <i class="bi bi-file-earmark me-1"></i>{{ d.file_name }}
+          </div>
+          <div class="text-muted font-monospace text-break mb-2" style="font-size:0.80rem">
+            {{ d.full_path }}
+          </div>
+          <div class="d-flex flex-wrap gap-1 mb-1">
+            {% if d.has_macros %}<span class="badge bg-warning text-dark">Makros</span>{% endif %}
+            {% if d.has_external_links %}<span class="badge bg-warning text-dark">Externe Verknüpfungen</span>{% endif %}
+            {% if d.has_sheet_protection %}<span class="badge bg-info text-dark">Blattschutz ({{ d.protected_sheets_count or 0 }})</span>{% endif %}
+            {% if d.workbook_protected %}<span class="badge bg-info text-dark">Arbeitsmappenschutz</span>{% endif %}
+            {% if d.sheet_protection_has_pw %}<span class="badge bg-secondary">Passwort gesetzt</span>{% endif %}
+            {% if not d.has_macros and not d.has_external_links and not d.has_sheet_protection and not d.workbook_protected %}
+              <span class="badge bg-success">keine Makros / Verknüpfungen / Schutz</span>
+            {% endif %}
+          </div>
+          <dl class="row mb-0" style="font-size:0.85rem">
+            {% if d.sheet_count is not none %}
+            <dt class="col-sm-5 fw-normal text-muted">Tabellenblätter</dt>
+            <dd class="col-sm-7 mb-0">{{ d.sheet_count }}</dd>
+            {% endif %}
+            {% if d.formula_count %}
+            <dt class="col-sm-5 fw-normal text-muted">Formelzellen</dt>
+            <dd class="col-sm-7 mb-0">{{ d.formula_count }}</dd>
+            {% endif %}
+            {% if d.named_ranges_count %}
+            <dt class="col-sm-5 fw-normal text-muted">Benannte Bereiche</dt>
+            <dd class="col-sm-7 mb-0">{{ d.named_ranges_count }}</dd>
+            {% endif %}
+            {% if d.size_bytes %}
+            <dt class="col-sm-5 fw-normal text-muted">Dateigröße</dt>
+            <dd class="col-sm-7 mb-0">{{ (d.size_bytes / 1024) | round(1) }} KB</dd>
+            {% endif %}
+            {% if d.modified_at %}
+            <dt class="col-sm-5 fw-normal text-muted">Letzte Änderung</dt>
+            <dd class="col-sm-7 mb-0">{{ d.modified_at[:19] | replace('T', ' ') }}</dd>
+            {% endif %}
+            {% if d.file_owner %}
+            <dt class="col-sm-5 fw-normal text-muted">Eigentümer</dt>
+            <dd class="col-sm-7 mb-0">{{ d.file_owner }}</dd>
+            {% endif %}
+            {% if d.file_hash %}
+            <dt class="col-sm-5 fw-normal text-muted">SHA-256</dt>
+            <dd class="col-sm-7 mb-0 font-monospace text-break" style="font-size:0.75rem">{{ d.file_hash }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+        {% endfor %}
+
+        <script type="application/json" id="scanner-meta-json">
+          {{ scanner_dateien | tojson }}
+        </script>
+      </div>
+      {% endif %}
+
       <div class="form-section">
         <div class="form-section-title">
           <i class="bi bi-cpu me-1"></i>Technischer Test
@@ -183,13 +255,51 @@
       }
     });
     if (hidden && hidden.value) q.clipboard.dangerouslyPasteHTML(0, hidden.value);
-    editors.push({ q: q, h: hidden });
+    editors.push({ q: q, h: hidden, name: hiddenName });
   });
   document.getElementById('form-save').addEventListener('submit', function () {
     editors.forEach(function (e) {
       if (e.h) e.h.value = e.q.root.innerHTML;
     });
   });
+
+  // Scanner-Metadaten als vorausgefüllten Prüftext in die Kurzbeschreibung übernehmen
+  var btnScan = document.getElementById('btn-scan-in-kurz');
+  var metaNode = document.getElementById('scanner-meta-json');
+  if (btnScan && metaNode) {
+    btnScan.addEventListener('click', function () {
+      var files;
+      try { files = JSON.parse(metaNode.textContent); } catch (_) { return; }
+      if (!files || !files.length) return;
+      var kurz = editors.find(function (e) { return e.name === 'kurzbeschreibung'; });
+      if (!kurz) return;
+
+      var parts = ['<p><strong>Technische Prüfpunkte (aus Scan vorausgefüllt):</strong></p>'];
+      files.forEach(function (d) {
+        parts.push('<p><strong>Datei:</strong> ' + escapeHtml(d.file_name) + '</p>');
+        var li = [];
+        li.push('Makros: ' + (d.has_macros ? 'ja – geprüft (<em>bitte ergänzen</em>)' : 'nein'));
+        li.push('Externe Verknüpfungen: ' + (d.has_external_links ? 'ja – geprüft (<em>bitte ergänzen</em>)' : 'nein'));
+        li.push('Blattschutz: ' + (d.has_sheet_protection ? 'aktiv auf ' + (d.protected_sheets_count || 0) + ' Blatt/Blättern' : 'keiner'));
+        if (d.workbook_protected) li.push('Arbeitsmappenschutz: aktiv');
+        if (d.formula_count) li.push('Formelzellen: ' + d.formula_count);
+        if (d.sheet_count != null) li.push('Tabellenblätter: ' + d.sheet_count);
+        if (d.file_hash) li.push('SHA-256: ' + escapeHtml(d.file_hash));
+        parts.push('<ul>' + li.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>');
+      });
+      var html = parts.join('');
+      // Vorhandenen Text erhalten, neue Vorlage davor einfügen
+      var existing = kurz.q.root.innerHTML;
+      kurz.q.clipboard.dangerouslyPasteHTML(0, existing && existing.replace(/<p><br><\/p>/g, '') ? html + existing : html);
+    });
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
 })();
 </script>
 {% endblock %}
