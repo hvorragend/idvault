@@ -2,6 +2,7 @@
 {% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
 {% block title %}Scanner-Eingang{% endblock %}
 {% block page_title %}<i class="bi bi-arrow-down-circle me-2"></i>Scanner-Eingang{% endblock %}
+{% block topbar_actions %}{% include 'funde/_scan_button.html' %}{% endblock %}
 
 {# Sortierung vor dem Rendern aus sessionStorage wiederherstellen. #}
 {% block extra_head %}
@@ -31,10 +32,6 @@
 {% endblock %}
 
 {% block content %}
-
-<div class="d-flex justify-content-end align-items-center mb-3">
-  {% include 'funde/_scan_button.html' %}
-</div>
 
 <!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
@@ -107,206 +104,87 @@
 </div>
 {% endif %}
 
-<!-- ── Hotspot-Tabellen ─────────────────────────────────────────────── -->
-{% if nach_share or nach_typ %}
-<div class="mb-3">
-  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
-    data-bs-target="#hotspot-collapse" aria-expanded="false" aria-controls="hotspot-collapse">
-    <i class="bi bi-bar-chart-line me-1"></i>Hotspot-Übersicht
-    <i class="bi bi-chevron-down ms-1 fs-8"></i>
+<!-- ── Filter-Leiste (kollabierbar) ────────────────────────────────── -->
+{% set _ef = q_search or dir_path_filt or share_root_filt or scan_run_id_filt or owner_filt or date_from or date_to %}
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+  <button class="btn btn-sm btn-outline-secondary" type="button"
+    data-bs-toggle="collapse" data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _ef else 'false' }}">
+    <i class="bi bi-funnel me-1"></i>Suche & Filter
+    {% if _ef %}<span class="badge bg-primary ms-1">{{ [q_search, dir_path_filt, share_root_filt, scan_run_id_filt, owner_filt, date_from, date_to] | select | list | length }}</span>{% endif %}
   </button>
-</div>
-<div class="collapse mb-3" id="hotspot-collapse">
-  <div class="row g-3">
-    {% if nach_share %}
-    <div class="col-md-6">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-2 small" style="font-weight:600">
-          <i class="bi bi-folder2-open me-1"></i>Top-Speicherorte (Eingang)
-        </div>
-        <div class="table-responsive">
-          <table class="table table-sm mb-0 fs-7">
-            <thead class="table-light">
-              <tr>
-                <th>Speicherort</th>
-                <th class="text-end">Neu</th>
-                <th class="text-end">Makros</th>
-                <th class="text-end">Formeln</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in nach_share %}
-              <tr>
-                <td class="font-monospace text-truncate" style="max-width:200px" title="{{ row.dir_path }}">
-                  {{ row.dir_path or '–' }}
-                </td>
-                <td class="text-end fw-500">{{ row.anzahl }}</td>
-                <td class="text-end">
-                  {% if row.mit_makros %}
-                  <span class="badge bg-danger fs-8">{{ row.mit_makros }}</span>
-                  {% else %}<span class="text-muted">–</span>{% endif %}
-                </td>
-                <td class="text-end">
-                  {% if row.mit_formeln %}
-                  <span class="text-warning fw-500">{{ row.mit_formeln }}</span>
-                  {% else %}<span class="text-muted">–</span>{% endif %}
-                </td>
-                <td>
-                  <a href="{{ url_for('funde.eingang_funde', dir_path=row.dir_path, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
-                    class="btn btn-xs btn-outline-secondary" title="Nach diesem Speicherort filtern">
-                    <i class="bi bi-funnel"></i>
-                  </a>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if nach_typ %}
-    <div class="col-md-6">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-2 small" style="font-weight:600">
-          <i class="bi bi-file-earmark-code me-1"></i>Top-Dateitypen (Eingang)
-        </div>
-        <div class="table-responsive">
-          <table class="table table-sm mb-0 fs-7">
-            <thead class="table-light">
-              <tr>
-                <th>Erweiterung</th>
-                <th class="text-end">Anzahl</th>
-                <th class="text-end">Makros</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in nach_typ %}
-              <tr>
-                <td><span class="badge bg-light text-dark border font-monospace">{{ row.extension }}</span></td>
-                <td class="text-end fw-500">{{ row.anzahl }}</td>
-                <td class="text-end">
-                  {% if row.mit_makros %}
-                  <span class="badge bg-danger fs-8">{{ row.mit_makros }}</span>
-                  {% else %}<span class="text-muted">–</span>{% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
-<!-- ── Filter-Leiste ───────────────────────────────────────────────── -->
-<form method="get" class="card border-0 shadow-sm p-3 mb-3">
-  <div class="row g-2 align-items-end">
-    <!-- Dateiname-Suche -->
-    <div class="col-12">
-      <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
-      <input type="text" name="q" value="{{ q_search }}" class="form-control form-control-sm font-monospace"
-        placeholder="Dateiname …">
-    </div>
-    <!-- Speicherort – durchsuchbares Eingabefeld, volle Breite -->
-    <div class="col-12">
-      <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
-      {% include 'funde/_dir_search.html' %}
-    </div>
-    <!-- Scan-Pfad (share_root) -->
-    <div class="col-md-4">
-      <label class="form-label form-label-sm"><i class="bi bi-hdd-network me-1"></i>Scan-Pfad</label>
-      <select name="share_root" class="form-select form-select-sm" title="{{ share_root_filt }}">
-        <option value="">– Alle –</option>
-        {% for sr in share_roots %}
-        <option value="{{ sr }}" {{ 'selected' if share_root_filt==sr }} title="{{ sr }}">{% set sr_display = sr |
-          map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <!-- Scan-Lauf -->
-    <div class="col-md-5">
-      <label class="form-label form-label-sm"><i class="bi bi-clock-history me-1"></i>Scan-Lauf</label>
-      <select name="scan_run" class="form-select form-select-sm">
-        <option value="">– Alle Läufe –</option>
-        {% for run in scan_runs %}
-        <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt==run.id|string }}>
-          {{ scan_run_label(run) }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
-    <!-- Eigentümer -->
-    <div class="col-md-3">
-      <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Eigentümer</label>
-      <select name="owner" class="form-select form-select-sm">
-        <option value="">– Alle –</option>
-        {% for o in owner_list %}
-        <option value="{{ o }}" {{ 'selected' if owner_filt==o }}>{{ o }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <!-- Datum von/bis -->
-    <div class="col-md-2">
-      <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert ab</label>
-      <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
-    </div>
-    <div class="col-md-2">
-      <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert bis</label>
-      <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
-    </div>
-    <!-- Buttons -->
-    <div class="col-md-2 d-flex gap-1 align-items-end">
-      <button type="submit" class="btn btn-sm btn-primary w-100">
-        <i class="bi bi-funnel me-1"></i>Filtern
-      </button>
-      <a href="{{ url_for('funde.eingang_funde') }}" class="btn btn-sm btn-outline-secondary"
-        title="Filter zurücksetzen">
-        <i class="bi bi-x-lg"></i>
-      </a>
-    </div>
-    <!-- Sortierung -->
-    <div class="col-md-6">
-      <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
-      <select name="sort" class="form-select form-select-sm">
-        <option value="prioritaet" {{ 'selected' if sort=='prioritaet' }}>Priorität (Makros zuerst)</option>
-        <option value="datum" {{ 'selected' if sort=='datum' }}>Neueste zuerst</option>
-        <option value="share" {{ 'selected' if sort=='share' }}>Nach Verzeichnis</option>
-        <option value="groesse" {{ 'selected' if sort=='groesse' }}>Größte zuerst</option>
-      </select>
-    </div>
-  </div>
-  {% if q_search or dir_path_filt or share_root_filt or scan_run_id_filt or owner_filt or date_from or date_to %}
-  <div class="mt-2 d-flex gap-2 flex-wrap">
-    {% if q_search %}
-    <span class="badge bg-info text-dark"><i class="bi bi-search me-1"></i>{{ q_search }}</span>
-    {% endif %}
-    {% if dir_path_filt %}
-    <span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>
-    {% endif %}
-    {% if share_root_filt %}
-    <span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt | map_path }}</span>
-    {% endif %}
-    {% if scan_run_id_filt %}
-    <span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{ scan_run_id_filt }}</span>
-    {% endif %}
-    {% if owner_filt %}
-    <span class="badge bg-dark"><i class="bi bi-person me-1"></i>{{ owner_filt }}</span>
-    {% endif %}
-    {% if date_from %}
-    <span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>ab {{ date_from }}</span>
-    {% endif %}
-    {% if date_to %}
-    <span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>bis {{ date_to }}</span>
-    {% endif %}
-  </div>
+  {% if _ef %}
+  <a href="{{ url_for('funde.eingang_funde') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
+  {% if q_search %}<span class="badge bg-info text-dark"><i class="bi bi-search me-1"></i>{{ q_search }}</span>{% endif %}
+  {% if dir_path_filt %}<span class="badge bg-success font-monospace"><i class="bi bi-folder2-open me-1"></i>{{ dir_path_filt }}</span>{% endif %}
+  {% if share_root_filt %}<span class="badge bg-primary"><i class="bi bi-hdd-network me-1"></i>{{ share_root_filt | map_path }}</span>{% endif %}
+  {% if scan_run_id_filt %}<span class="badge bg-secondary"><i class="bi bi-clock-history me-1"></i>Scan-Lauf #{{ scan_run_id_filt }}</span>{% endif %}
+  {% if owner_filt %}<span class="badge bg-dark"><i class="bi bi-person me-1"></i>{{ owner_filt }}</span>{% endif %}
+  {% if date_from %}<span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>ab {{ date_from }}</span>{% endif %}
+  {% if date_to %}<span class="badge bg-secondary"><i class="bi bi-calendar me-1"></i>bis {{ date_to }}</span>{% endif %}
   {% endif %}
-</form>
+</div>
+<div class="collapse{{ ' show' if _ef }}" id="filter-panel">
+  <form method="get" class="card border-0 shadow-sm p-3 mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-12">
+        <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
+        <input type="text" name="q" value="{{ q_search }}" class="form-control form-control-sm font-monospace" placeholder="Dateiname …">
+      </div>
+      <div class="col-12">
+        <label class="form-label form-label-sm"><i class="bi bi-folder2-open me-1"></i>Speicherort</label>
+        {% include 'funde/_dir_search.html' %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label form-label-sm"><i class="bi bi-hdd-network me-1"></i>Scan-Pfad</label>
+        <select name="share_root" class="form-select form-select-sm" title="{{ share_root_filt }}">
+          <option value="">– Alle –</option>
+          {% for sr in share_roots %}
+          <option value="{{ sr }}" {{ 'selected' if share_root_filt==sr }} title="{{ sr }}">{% set sr_display = sr | map_path %}{{ ('…' + sr_display[-60:]) if sr_display|length > 63 else sr_display }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label form-label-sm"><i class="bi bi-clock-history me-1"></i>Scan-Lauf</label>
+        <select name="scan_run" class="form-select form-select-sm">
+          <option value="">– Alle Läufe –</option>
+          {% for run in scan_runs %}
+          <option value="{{ run.id }}" {{ 'selected' if scan_run_id_filt==run.id|string }}>{{ scan_run_label(run) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label form-label-sm"><i class="bi bi-person me-1"></i>Eigentümer</label>
+        <select name="owner" class="form-select form-select-sm">
+          <option value="">– Alle –</option>
+          {% for o in owner_list %}
+          <option value="{{ o }}" {{ 'selected' if owner_filt==o }}>{{ o }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert ab</label>
+        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert bis</label>
+        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-2 d-flex gap-1 align-items-end">
+        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filtern</button>
+        <a href="{{ url_for('funde.eingang_funde') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen"><i class="bi bi-x-lg"></i></a>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
+        <select name="sort" class="form-select form-select-sm">
+          <option value="prioritaet" {{ 'selected' if sort=='prioritaet' }}>Priorität (Makros zuerst)</option>
+          <option value="datum" {{ 'selected' if sort=='datum' }}>Neueste zuerst</option>
+          <option value="share" {{ 'selected' if sort=='share' }}>Nach Verzeichnis</option>
+          <option value="groesse" {{ 'selected' if sort=='groesse' }}>Größte zuerst</option>
+        </select>
+      </div>
+    </div>
+  </form>
+</div>
 
 <!-- ── Eigentümer-Modal ────────────────────────────────────────────── -->
 <div class="modal fade" id="ownerModal" tabindex="-1" aria-labelledby="ownerModalLabel" aria-hidden="true">
@@ -356,9 +234,25 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
   <input type="hidden" name="per_page" value="{{ per_page }}">
   <input type="hidden" name="sort" value="{{ sort }}">
 
-  <!-- Aktionsleiste -->
-  <div id="bulk-bar" class="card border-primary shadow-sm mb-3 p-2 d-none">
-    <div class="d-flex align-items-center gap-2 flex-wrap">
+  <!-- ── Tabelle ──────────────────────────────────────────────────── -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <span class="fw-600">
+        <input type="checkbox" id="select-all" class="form-check-input me-2" title="Alle auf dieser Seite auswählen">
+        <i class="bi bi-arrow-down-circle me-1"></i>
+        {% if total > per_page %}
+        {{ dateien|length }} von {{ total }} Dateien (Seite {{ page }})
+        {% else %}
+        {{ dateien|length }} Datei{{ 'en' if dateien|length != 1 }}
+        {% endif %}
+      </span>
+      <span class="text-muted fs-7">
+        Sortierung: {{ {'prioritaet':'Makros zuerst','datum':'Neueste zuerst','share':'Nach
+        Verzeichnis','groesse':'Größte zuerst'}[sort] }}
+      </span>
+    </div>
+    <div id="bulk-bar" class="card-header bg-light d-none">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
       <span class="fw-600 text-primary me-1">
         <i class="bi bi-check2-square me-1"></i>
         <span id="bulk-count">0</span> ausgewählt
@@ -424,24 +318,6 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
       </button>
     </div>
   </div>
-
-  <!-- ── Tabelle ──────────────────────────────────────────────────── -->
-  <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-      <span class="fw-600">
-        <input type="checkbox" id="select-all" class="form-check-input me-2" title="Alle auf dieser Seite auswählen">
-        <i class="bi bi-arrow-down-circle me-1"></i>
-        {% if total > per_page %}
-        {{ dateien|length }} von {{ total }} Dateien (Seite {{ page }})
-        {% else %}
-        {{ dateien|length }} Datei{{ 'en' if dateien|length != 1 }}
-        {% endif %}
-      </span>
-      <span class="text-muted fs-7">
-        Sortierung: {{ {'prioritaet':'Makros zuerst','datum':'Neueste zuerst','share':'Nach
-        Verzeichnis','groesse':'Größte zuerst'}[sort] }}
-      </span>
-    </div>
     <div class="table-responsive">
       <table class="table table-hover mb-0 table-idv small">
         <thead>
@@ -605,6 +481,99 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
 
 <!-- ── Pagination unten ─────────────────────────────────────────── -->
 {% include 'funde/_pagination.html' %}
+
+<!-- ── Hotspot-Tabellen ─────────────────────────────────────────────── -->
+{% if nach_share or nach_typ %}
+<div class="mt-4 mb-2">
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+    data-bs-target="#hotspot-collapse" aria-expanded="false" aria-controls="hotspot-collapse">
+    <i class="bi bi-bar-chart-line me-1"></i>Hotspot-Übersicht
+    <i class="bi bi-chevron-down ms-1 fs-8"></i>
+  </button>
+</div>
+<div class="collapse mb-3" id="hotspot-collapse">
+  <div class="row g-3">
+    {% if nach_share %}
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2 small" style="font-weight:600">
+          <i class="bi bi-folder2-open me-1"></i>Top-Speicherorte (Eingang)
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 fs-7">
+            <thead class="table-light">
+              <tr>
+                <th>Speicherort</th>
+                <th class="text-end">Neu</th>
+                <th class="text-end">Makros</th>
+                <th class="text-end">Formeln</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in nach_share %}
+              <tr>
+                <td class="font-monospace text-truncate" style="max-width:200px" title="{{ row.dir_path }}">
+                  {{ row.dir_path or '–' }}
+                </td>
+                <td class="text-end fw-500">{{ row.anzahl }}</td>
+                <td class="text-end">
+                  {% if row.mit_makros %}<span class="badge bg-danger fs-8">{{ row.mit_makros }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if row.mit_formeln %}<span class="text-warning fw-500">{{ row.mit_formeln }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+                <td>
+                  <a href="{{ url_for('funde.eingang_funde', dir_path=row.dir_path, sort=sort, per_page=per_page, share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+                    class="btn btn-xs btn-outline-secondary" title="Nach diesem Speicherort filtern">
+                    <i class="bi bi-funnel"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% if nach_typ %}
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2 small" style="font-weight:600">
+          <i class="bi bi-file-earmark-code me-1"></i>Top-Dateitypen (Eingang)
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 fs-7">
+            <thead class="table-light">
+              <tr>
+                <th>Erweiterung</th>
+                <th class="text-end">Anzahl</th>
+                <th class="text-end">Makros</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in nach_typ %}
+              <tr>
+                <td><span class="badge bg-light text-dark border font-monospace">{{ row.extension }}</span></td>
+                <td class="text-end fw-500">{{ row.anzahl }}</td>
+                <td class="text-end">
+                  {% if row.mit_makros %}<span class="badge bg-danger fs-8">{{ row.mit_makros }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 {% endif %}
 
