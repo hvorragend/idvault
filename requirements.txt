@@ -42,6 +42,11 @@ pywin32>=306
 # Optional: Schnelleres Hashing großer Dateien
 xxhash>=3.0.0
 
+# Fuzzy-String-Matching für die Ähnlichkeitsanalyse (Funde ↔ Eigenentwicklungen).
+# Optional: Fällt das Paket, nutzt webapp/similarity.py automatisch einen
+# Jaccard-Fallback auf reinem Stdlib.
+rapidfuzz>=3.6.0
+
 # Teams-Scanner: Microsoft Graph API (optional, nur für teams_scanner.py benötigt)
 msal>=1.28.0
 requests>=2.31.0
