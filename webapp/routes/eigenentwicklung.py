@@ -1744,10 +1744,14 @@ def neue_version(idv_db_id):
     # Felder entfernen, die create_idv selbst setzt oder die versionsexklusiv sind.
     # file_id und weitere_dateien werden NICHT kopiert: jede Version muss ihre eigene
     # Datei explizit verknüpfen, damit die Dateihistorie je Version nachvollziehbar ist.
+    # freigabe_aenderungskategorie / freigabe_patch_begruendung gehören zum
+    # Freigabeverfahren der Vorgänger-Version (#320) – die neue Version startet
+    # ohne Einstufung, damit „Freigabeverfahren starten" wieder angeboten wird.
     for k in ("id", "idv_id", "status", "status_geaendert_am", "status_geaendert_von_id",
               "erstellt_am", "aktualisiert_am", "erfasst_von_id",
               "naechste_pruefung", "letzte_pruefung",
-              "file_id", "weitere_dateien"):
+              "file_id", "weitere_dateien",
+              "freigabe_aenderungskategorie", "freigabe_patch_begruendung"):
         data.pop(k, None)
 
     person_id = session.get("person_id")
