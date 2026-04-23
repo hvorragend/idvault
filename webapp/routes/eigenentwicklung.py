@@ -1160,7 +1160,7 @@ def edit_idv(idv_db_id):
           p_fv.nachname || ', ' || p_fv.vorname AS fachverantwortlicher,
           p_en.nachname || ', ' || p_en.vorname AS entwickler,
           ou.bezeichnung AS org_einheit,
-          v.pruefstatus, v.naechste_pruefung, v.letzte_pruefung
+          v.pruefstatus
         FROM idv_register r
         LEFT JOIN v_idv_uebersicht v ON v.idv_id = r.idv_id
         LEFT JOIN persons p_fv ON r.fachverantwortlicher_id = p_fv.id
