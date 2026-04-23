@@ -7,7 +7,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (create_idv, update_idv, change_status, search_idv,
                 get_klassifizierungen, get_wesentlichkeitskriterien,
                 get_idv_wesentlichkeit, save_idv_wesentlichkeit,
-                get_fachliche_testfaelle, get_technischer_test)
+                get_fachliche_testfaelle, get_technischer_test,
+                idv_completeness_score)
 from db_write_tx import write_tx
 from ..db_writer import get_writer
 from ..security import (ensure_can_read_idv, ensure_can_write_idv,
@@ -252,7 +253,14 @@ def list_idv():
         ORDER BY wesentlich_flag DESC, v.bezeichnung
         LIMIT ? OFFSET ?
     """
-    idvs = db.execute(sql, params + [per_page, (page - 1) * per_page]).fetchall()
+    idvs_raw = db.execute(sql, params + [per_page, (page - 1) * per_page]).fetchall()
+    # Vollständigkeits-Score (Issue #348) für die aktuelle Seite anreichern.
+    # Wird pro Seite einmal berechnet — max. per_page Rows, daher tragbar.
+    idvs = []
+    for row in idvs_raw:
+        d = dict(row)
+        d["completeness_score"] = idv_completeness_score(db, row["id"])["score"]
+        idvs.append(d)
 
     # Filter-Optionen für Dropdowns
     org_units = db.execute(
@@ -830,6 +838,8 @@ def detail_idv(idv_db_id):
     fachlich_vorhanden  = bool(fachliche_testfaelle)
     technisch_vorhanden = technischer_test is not None
 
+    completeness = idv_completeness_score(db, idv_db_id)
+
     return render_template("eigenentwicklung/detail.html",
         idv=idv, file=file, extra_files=extra_files, history=history, massnahmen=massnahmen,
         wesentlichkeit=wesentlichkeit,
@@ -851,6 +861,7 @@ def detail_idv(idv_db_id):
         freigabe_gda4_gesperrt=freigabe_gda4_gesperrt,
         freigabe_patch_schritte=freigabe_patch_schritte,
         hat_vorgaenger=hat_vorgaenger,
+        completeness=completeness,
         can_create=can_create())
 
 
@@ -1064,6 +1075,72 @@ def new_idv():
                            wesentlichkeit_antworten={},
                            can_write=can_write(),
                            **_form_lookups(db))
+
+
+# ── Schnell-Anlage (Issue #348) ────────────────────────────────────────────
+
+@bp.route("/neu-quick", methods=["GET", "POST"])
+@own_write_required
+def new_idv_quick():
+    """Schnell-Anlage mit drei Pflichtfeldern (Bezeichnung, Verantwortlicher,
+    vorläufige Klassifikation). Weitere Felder werden in der Nachpflege
+    ergänzt; ein ``idv_incomplete_reminder`` erinnert den Verantwortlichen,
+    und ``/freigaben/.../starten`` bleibt gesperrt, bis der Vollständigkeits-
+    Score 100 % erreicht."""
+    db = get_db()
+    if request.method == "POST":
+        bezeichnung = (request.form.get("bezeichnung") or "").strip()
+        fv_id       = _int_or_none(request.form.get("fachverantwortlicher_id"))
+        idv_typ     = (request.form.get("idv_typ") or "unklassifiziert").strip()
+
+        if not bezeichnung or not fv_id:
+            flash("Bitte Bezeichnung und Verantwortlichen angeben.", "error")
+            return redirect(url_for("eigenentwicklung.new_idv_quick"))
+
+        data = {
+            "bezeichnung":             bezeichnung,
+            "fachverantwortlicher_id": fv_id,
+            "idv_typ":                 idv_typ,
+            # Sinnvolle Defaults für die Zwei-Phasen-Anlage; Entwicklungsart
+            # und Prüfintervall werden aus dem Typ-Default übernommen, falls
+            # vorhanden, sonst greifen die Fallbacks in create_idv().
+            "entwicklungsart":         _TYP_DEFAULTS.get(
+                idv_typ, {}
+            ).get("entwicklungsart", "arbeitshilfe"),
+            "pruefintervall_monate":   _TYP_DEFAULTS.get(
+                idv_typ, {}
+            ).get("pruefintervall_monate", 12),
+        }
+        person_id = session.get("person_id")
+        user_name = session.get("user_name", "")
+
+        def _do(c):
+            with write_tx(c):
+                return create_idv(c, data, erfasser_id=person_id,
+                                  bearbeiter_name=user_name, commit=False)
+        try:
+            new_id = get_writer().submit(_do, wait=True)
+        except Exception as e:
+            flash(f"Fehler beim Anlegen: {e}", "error")
+            return redirect(url_for("eigenentwicklung.new_idv_quick"))
+
+        flash("Eigenentwicklung schnell angelegt. Bitte in den nächsten "
+              "14 Tagen die verbleibenden Felder nachpflegen.", "success")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=new_id))
+
+    # GET: Default-Verantwortlicher = aktuell eingeloggte Person (falls vorhanden)
+    prefill = {}
+    my_pid = current_person_id()
+    if my_pid:
+        prefill["fachverantwortlicher_id"] = my_pid
+
+    lookups = _form_lookups(db)
+    return render_template(
+        "eigenentwicklung/form_quick.html",
+        prefill=prefill,
+        persons=lookups["persons"],
+        idv_typen=lookups["idv_typen"],
+    )
 
 
 # ── Bulk-Registrierung (P3) ────────────────────────────────────────────────

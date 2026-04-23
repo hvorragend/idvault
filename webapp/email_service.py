@@ -490,6 +490,29 @@ _DEFAULTS["owner_digest_body"] = """\
 
 # ── 8. Überfällige Maßnahme ──────────────────────────────────────────────
 
+_DEFAULTS["idv_incomplete_reminder_subject"] = "[idvault] IDV unvollständig: {idv_id} – {bezeichnung}"
+_DEFAULTS["idv_incomplete_reminder_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#fd7e14;">idvault – Nachpflege erforderlich</h2>
+<p>die folgende Eigenentwicklung ist über die Schnell-Anlage erfasst und
+   noch nicht vollständig dokumentiert. Bitte pflegen Sie die fehlenden
+   Angaben innerhalb der nächsten 14 Tage nach.</p>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
+      <td style="padding:6px;">{idv_id}</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
+      <td style="padding:6px;">{bezeichnung}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold;">Vollständigkeit</td>
+      <td style="padding:6px;font-weight:bold;color:#fd7e14;">{score} %</td></tr>
+  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;vertical-align:top;">Noch offen</td>
+      <td style="padding:6px;">{missing}</td></tr>
+</table>
+<p style="margin-top:16px;">Der Freigabe-Workflow kann erst gestartet werden,
+   sobald der Vollständigkeits-Score 100 % erreicht.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
 _DEFAULTS["massnahme_ueberfaellig_subject"] = "[idvault] Überfällige Maßnahme: {titel}"
 _DEFAULTS["massnahme_ueberfaellig_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
@@ -544,6 +567,10 @@ EMAIL_TEMPLATES = {
     "owner_digest": {
         "label": "Sammelbenachrichtigung an Owner: offene Scanner-Funde (Self-Service)",
         "placeholders": ["empfaenger", "anzahl", "link"],
+    },
+    "idv_incomplete_reminder": {
+        "label": "IDV unvollständig – Nachpflege erforderlich (Schnell-Anlage)",
+        "placeholders": ["idv_id", "bezeichnung", "score", "missing"],
     },
 }
 
@@ -988,6 +1015,26 @@ def notify_owner_digest(db, recipient_email: str, recipient_name: str,
     text = _strip_html_tags(html)
 
     return send_mail(db, recipient_email, subject, html, text)
+
+
+def notify_idv_incomplete(db, idv_row, score: int, missing: list,
+                          responsible_email: str) -> bool:
+    """Erinnerung an unvollständige IDV (Schnell-Anlage, Issue #348)."""
+    if not _is_notify_enabled(db, "idv_incomplete_reminder"):
+        return False
+    placeholders = {
+        "idv_id":      idv_row["idv_id"],
+        "bezeichnung": idv_row["bezeichnung"],
+        "score":       str(int(score or 0)),
+        "missing":     ", ".join(missing) if missing else "–",
+    }
+    subject, html, text = _load_template(
+        db, "idv_incomplete_reminder",
+        _DEFAULTS["idv_incomplete_reminder_subject"],
+        _DEFAULTS["idv_incomplete_reminder_body"],
+        placeholders,
+    )
+    return send_mail(db, responsible_email, subject, html, text)
 
 
 def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:

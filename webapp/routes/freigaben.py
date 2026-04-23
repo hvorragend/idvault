@@ -28,6 +28,7 @@ from werkzeug.utils import secure_filename
 from . import login_required, own_write_required, admin_required, get_db, current_person_id
 from ..db_writer import get_writer
 from db_write_tx import write_tx
+from db import idv_completeness_score
 from ..security import (sanitize_html, validate_upload_mime,
                         ensure_can_read_idv, ensure_can_write_idv,
                         in_clause)
@@ -662,6 +663,19 @@ def starten(idv_db_id):
             flash("Kein Testverfahren erforderlich – Änderung wurde als unwesentlich eingestuft.", "info")
         else:
             flash("Freigabeverfahren nur für wesentliche Eigenentwicklungen erforderlich.", "warning")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
+    # Issue #348: Freigabe erst bei vollständig gepflegter IDV.
+    completeness = idv_completeness_score(db, idv_db_id)
+    if completeness["score"] < 100:
+        flash(
+            "Freigabe-Workflow ist gesperrt: Vollständigkeits-Score {s} % – "
+            "bitte zuerst diese Felder nachpflegen: {m}.".format(
+                s=completeness["score"],
+                m=", ".join(completeness["missing"]) or "–",
+            ),
+            "warning",
+        )
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # Guard: Phase 1 darf noch nicht gestartet sein. Prüft auf alle Phase-1-

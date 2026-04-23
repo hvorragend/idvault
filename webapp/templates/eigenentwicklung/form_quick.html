@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Eigenentwicklung – Schnell-Anlage{% endblock %}
+{% block page_title %}
+<i class="bi bi-lightning-charge me-2"></i>Eigenentwicklung – Schnell-Anlage
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-7">
+    <div class="alert alert-info d-flex align-items-start gap-3 mb-3">
+      <i class="bi bi-info-circle fs-4 flex-shrink-0 mt-1"></i>
+      <div>
+        <strong>Schnell-Anlage mit drei Pflichtfeldern.</strong>
+        Die IDV wird mit einem niedrigen Vollständigkeits-Score angelegt und kann
+        in den nächsten 14 Tagen nachgepflegt werden. Eine Erinnerung per Mail
+        geht automatisch an die hinterlegte verantwortliche Person. Der
+        Freigabe-Workflow wird erst bei 100 % Vollständigkeit freigeschaltet.
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <a href="{{ url_for('eigenentwicklung.list_idv') }}"
+         class="btn btn-sm btn-outline-secondary" data-esc-cancel>
+        <i class="bi bi-arrow-left me-1"></i>Abbrechen
+      </a>
+      <a href="{{ url_for('eigenentwicklung.new_idv') }}"
+         class="btn btn-sm btn-outline-primary">
+        Zum vollständigen Formular wechseln
+        <i class="bi bi-arrow-right-circle ms-1"></i>
+      </a>
+    </div>
+
+    <form method="post" class="form-section">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-section-title">Pflichtfelder</div>
+      <div class="row g-3">
+
+        <div class="col-12">
+          <label class="form-label">Bezeichnung <span class="required-star">*</span></label>
+          <input type="text" name="bezeichnung" class="form-control" required autofocus
+                 value="{{ prefill.get('bezeichnung', '') }}">
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Verantwortlicher (Fachverantwortlicher)
+            <span class="required-star">*</span></label>
+          <select name="fachverantwortlicher_id" class="form-select" required>
+            <option value="">– bitte wählen –</option>
+            {% for p in persons %}
+            <option value="{{ p.id }}"
+              {{ 'selected' if prefill.get('fachverantwortlicher_id')==p.id }}>
+              {{ p.nachname }}, {{ p.vorname }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Vorläufige Klassifikation (Typ)
+            <span class="required-star">*</span></label>
+          <select name="idv_typ" class="form-select" required>
+            {% for t in idv_typen %}
+            <option value="{{ t.wert }}"
+              {{ 'selected' if prefill.get('idv_typ', 'unklassifiziert')==t.wert }}>
+              {{ t.bezeichnung }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            Kann später in der Nachpflege angepasst werden.
+          </div>
+        </div>
+
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mt-4">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-lightning-charge me-1"></i>Schnell anlegen
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="form-section">
+      <div class="form-section-title">Was passiert danach?</div>
+      <ol class="mb-0 small">
+        <li>Der Datensatz erscheint sofort im Register mit Status <em>Entwurf</em>
+            und einem Vollständigkeits-Score unter 100 %.</li>
+        <li>Die verantwortliche Person erhält eine Erinnerungs-Mail an ihre
+            hinterlegte Adresse (täglicher Lauf, 7-Tage-Dedup, max. 4 Erinnerungen).</li>
+        <li>Der Freigabe-Workflow bleibt gesperrt, bis die Nachpflege den
+            Score auf 100 % anhebt.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+{% endblock %}

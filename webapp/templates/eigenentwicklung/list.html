@@ -148,6 +148,10 @@
           <i class="bi bi-file-earmark-excel me-1"></i>Excel-Export
         </a>
         {% if can_write %}
+        <a href="{{ url_for('eigenentwicklung.new_idv_quick') }}" class="btn btn-sm btn-outline-primary"
+           title="Nur 3 Pflichtfelder – Nachpflege per Erinnerungs-Mail">
+          <i class="bi bi-lightning-charge me-1"></i>Schnell-Anlage
+        </a>
         <a href="{{ url_for('eigenentwicklung.new_idv') }}" class="btn btn-sm btn-primary">
           <i class="bi bi-plus-lg me-1"></i>Neue Eigenentwicklung
         </a>
@@ -191,6 +195,7 @@
             <th class="sortable" title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">Art</th>
             <th class="sortable">Version / Dateien</th>
             <th class="sortable">Status</th>
+            <th class="sortable" title="Vollständigkeits-Score 0–100 %">Vollst.</th>
             <th class="sortable">Fachverantwortlicher</th>
             <th class="sortable">Eigentümer</th>
             <th class="sortable">Geändert</th>
@@ -249,6 +254,18 @@
             <td>
               <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
             </td>
+            <td style="min-width:110px">
+              {% set _s = r.completeness_score or 0 %}
+              {% set _c = 'bg-success' if _s >= 100 else ('bg-info' if _s >= 70 else ('bg-warning' if _s >= 40 else 'bg-danger')) %}
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" role="progressbar"
+                     aria-valuenow="{{ _s }}" aria-valuemin="0" aria-valuemax="100"
+                     style="height:6px; min-width:60px">
+                  <div class="progress-bar {{ _c }}" style="width: {{ _s }}%"></div>
+                </div>
+                <span class="fs-8 text-muted" style="min-width:2.5em">{{ _s }}%</span>
+              </div>
+            </td>
             <td class="small">{{ r.fachverantwortlicher or '–' }}</td>
             <td class="fs-7">{{ r.file_owner or '–' }}</td>
             <td class="text-nowrap fs-7">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–'
@@ -270,7 +287,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 11 if can_write else 10 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 12 if can_write else 11 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Eigenentwicklungen gefunden.
               {% if can_write %}<a href="{{ url_for('eigenentwicklung.new_idv') }}">Erste Eigenentwicklung erfassen →</a>{% endif %}
