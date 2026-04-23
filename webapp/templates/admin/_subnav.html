@@ -44,6 +44,12 @@
       </a>
     </li>
     <li class="nav-item">
+      <a href="{{ url_for('admin.list_testfall_vorlagen') }}"
+         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.list_testfall_vorlagen','admin.new_testfall_vorlage','admin.edit_testfall_vorlage','admin.delete_testfall_vorlage') %}active{% endif %}">
+        <i class="bi bi-clipboard2-data me-1"></i>Testfall-Vorlagen
+      </a>
+    </li>
+    <li class="nav-item">
       <a href="{{ url_for('admin.scanner_log') }}"
          class="nav-link py-1 px-3 {% if request.endpoint in ('admin.scanner_log','admin.login_log') %}active{% endif %}">
         <i class="bi bi-journal-code me-1"></i>Log-Viewer

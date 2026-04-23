@@ -428,7 +428,37 @@ In der rechten Sidebar der IDV-Detailsicht sowie auf dem Dashboard in der
 Aufgaben-Inbox wird bei Pool-Schritten angezeigt, wer sie aktuell bearbeitet.
 So sehen alle Mitglieder auf einen Blick, ob die Aufgabe bereits vergeben ist.
 
-#### 5.5.2 Administrative Eingriffe
+#### 5.5.2 Testfall-Vorlagen
+
+Fachliche und technische Tests enthalten pro IDV-Typ (Excel, Access, SQL,
+Power BI, Python u. a.) typischerweise wiederkehrende Prüfpunkte. Die
+Anwendung pflegt daher in der Tabelle `testfall_vorlagen` eine
+Vorlagen-Bibliothek, aus der Prüfer beim Öffnen eines Test-Formulars eine
+passende Vorlage auswählen können. Die ausgewählte Vorlage befüllt die
+Rich-Text-Felder *Beschreibung*, *Parametrisierung*, *Testdaten* und
+*erwartetes Ergebnis* direkt im Browser — kein Server-Roundtrip, kein
+Zwang zur Vorlage.
+
+| Feld | Bedeutung |
+|---|---|
+| `titel` | Anzeigename im Dropdown |
+| `idv_typ` | Whitelist-Wert aus Klassifizierungen (`bereich='idv_typ'`); `NULL` = typ-unabhängig |
+| `art` | `fachlich` oder `technisch` — entscheidet, in welchem Test-Formular die Vorlage erscheint |
+| `beschreibung`, `parametrisierung`, `testdaten`, `erwartetes_ergebnis` | HTML (QuillJS-kompatibel, via `sanitize_html` bereinigt) |
+| `aktiv` | Deaktivierte Vorlagen verschwinden aus dem Dropdown, bereits genutzte Tests bleiben lesbar |
+
+Die Vorlage-Auswahl im Prüfformular filtert auf den konkreten IDV-Typ
+der IDV und zeigt zusätzlich alle typ-unabhängigen Vorlagen an.
+
+**Pflege:** `Administration → Testfall-Vorlagen` — CRUD-Oberfläche mit
+Rich-Text-Editor pro Feld, Aktiv/Inaktiv-Schalter, Löschen. Seed-Bestand
+aus Migration 0006 deckt Excel-Makro, Excel-Tabelle, Access-Datenbank,
+SQL-Skript, Python-Skript, Power-BI-Bericht, Cognos-Report (fachlich) und
+zwei typ-unabhängige technische Basischecks ab. Bestehende Tests sind
+Snapshots der Vorlage zum Zeitpunkt der Übernahme — spätere Änderungen
+an der Vorlage wirken sich nicht rückwirkend auf bereits erfasste Tests aus.
+
+#### 5.5.3 Administrative Eingriffe
 
 | Aktion | Berechtigte Rolle | Effekt |
 |---|---|---|
@@ -519,6 +549,7 @@ versendet **und** die Route `/selbst/meine-funde` antwortet mit HTTP 404.
 - **Plattformen** – Technologiekatalog (Excel, Python, Power BI …)
 - **Klassifizierungen** – Konfigurierbare Enum-Werte
 - **Wesentlichkeitskriterien** – Konfigurierbarer Fragebogen
+- **Testfall-Vorlagen** – Vorlagen-Bibliothek für fachliche/technische Tests (siehe 5.5.2)
 - **E-Mail-Einstellungen** – SMTP-Konfiguration
 - **LDAP / Active Directory** – Server-Konfiguration und Gruppen-Mapping
 - **Scanner-Einstellungen** – Scan-Pfade, Dateitypen, Ausschlüsse
