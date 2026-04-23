@@ -2,7 +2,7 @@ from flask import Blueprint, render_template
 from . import login_required, get_db, can_read_all, current_person_id
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from db import get_dashboard_stats
+from db import get_dashboard_stats, idv_incomplete_owners
 
 bp = Blueprint("dashboard", __name__)
 
@@ -127,6 +127,20 @@ def index():
     except Exception:
         offene_vorschlaege = 0
 
+    # Issue #348: Unvollständige Eigenentwicklungen pro Verantwortlichem.
+    # Admins/Koordinatoren sehen die Top-10-Verantwortlichen, Fachverantwortliche
+    # nur den eigenen Eintrag — das Panel zeigt ihnen, wie viele ihrer IDVs
+    # noch Nachpflege benötigen.
+    if can_read_all():
+        unvollstaendig_pro_verantwortlicher = idv_incomplete_owners(db, limit=10)
+    elif my_person_id:
+        unvollstaendig_pro_verantwortlicher = [
+            r for r in idv_incomplete_owners(db, limit=1000)
+            if r["person_id"] == my_person_id
+        ]
+    else:
+        unvollstaendig_pro_verantwortlicher = []
+
     return render_template("dashboard.html",
         stats=stats,
         kritische_idvs=kritische_idvs,
@@ -136,4 +150,5 @@ def index():
         unverknuepfte_funde=unverknuepfte_funde,
         offene_vorschlaege=offene_vorschlaege,
         meine_schritte=meine_schritte,
+        unvollstaendig_pro_verantwortlicher=unvollstaendig_pro_verantwortlicher,
     )

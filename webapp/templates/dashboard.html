@@ -110,6 +110,41 @@
   </div>
 </div>
 
+<!-- ── Unvollständige Eigenentwicklungen (Issue #348) ────────────────── -->
+{% if unvollstaendig_pro_verantwortlicher %}
+<div class="card border-0 shadow-sm mb-4 border-start border-4 border-warning">
+  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-exclamation-circle-fill me-2 text-warning"></i>Unvollständige Eigenentwicklungen
+      pro Verantwortlichem</span>
+    <a href="{{ url_for('eigenentwicklung.list_idv') }}?filter=unvollstaendig"
+       class="btn btn-sm btn-outline-secondary">Liste öffnen</a>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <tbody>
+        {% for row in unvollstaendig_pro_verantwortlicher %}
+        <tr>
+          <td class="ps-3 py-2 fw-500">
+            {{ row.nachname }}, {{ row.vorname }}
+          </td>
+          <td class="py-2 text-muted small">
+            {{ row.email or '–' }}
+          </td>
+          <td class="py-2 pe-3 text-end">
+            <a href="{{ url_for('eigenentwicklung.list_idv') }}?filter=unvollstaendig&fv_id={{ row.person_id }}"
+               class="badge bg-warning text-dark text-decoration-none"
+               title="Unvollständige IDVs dieser Person filtern">
+              {{ row.anzahl }} offen
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <!-- ── Meine Aufgaben (persönliche Inbox) ──────────────────────────── -->
 {% if meine_schritte %}
 <div class="card border-0 shadow-sm mb-4 border-start border-4 border-primary">

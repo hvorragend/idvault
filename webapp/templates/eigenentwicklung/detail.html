@@ -62,7 +62,42 @@
 
 {% set testverfahren_noetig = ist_wesentlich and idv.letzte_aenderungsart != 'unwesentlich' %}
 
+{# ── Vollständigkeits-Gauge (Issue #348) ────────────────────────────── #}
+{% if completeness is defined %}
+{% set _score = completeness.score %}
+{% set _color = 'bg-success' if _score >= 100 else ('bg-info' if _score >= 70 else ('bg-warning' if _score >= 40 else 'bg-danger')) %}
+<div class="form-section mb-3" aria-label="Vollständigkeits-Gauge">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div>
+      <i class="bi bi-clipboard-check me-1"></i>
+      <strong>Vollständigkeit:</strong>
+      <span class="ms-1">{{ _score }} %</span>
+      {% if _score < 100 %}
+      <span class="text-muted ms-2 fs-7">
+        – Freigabe-Workflow startet erst bei 100 %
+      </span>
+      {% else %}
+      <span class="text-success ms-2 fs-7">
+        <i class="bi bi-check2-circle"></i> vollständig – Freigabe startbereit
+      </span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="progress" role="progressbar"
+       aria-valuenow="{{ _score }}" aria-valuemin="0" aria-valuemax="100"
+       style="height:10px;">
+    <div class="progress-bar {{ _color }}" style="width: {{ _score }}%"></div>
+  </div>
+  {% if completeness.missing %}
+  <div class="mt-2 small text-muted">
+    Noch offen: {{ completeness.missing | join(', ') }}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <!-- ══ 3-Spalten-Grid ═════════════════════════════════════════════ -->
+
 <div class="row g-4">
 
   <!-- ── Linke Spalte: Kernfelder ─────────────────────────────── -->

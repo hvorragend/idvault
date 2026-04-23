@@ -49,10 +49,16 @@ _MEASURE_KIND       = "massnahme_ueberfaellig"
 _REVIEW_KIND        = "pruefung_faellig"
 _POOL_REMINDER_KIND  = "freigabe_pool_reminder"
 _OWNER_DIGEST_KIND   = "owner_digest"
+_IDV_INCOMPLETE_KIND = "idv_incomplete_reminder"
 
 # Anti-Spam: gleiche (kind, ref_id) wird innerhalb dieses Fensters nicht
 # erneut gemailt – auch wenn die Fälligkeit weiter in der Vergangenheit liegt.
 _DEDUP_WINDOW_DAYS = 7
+
+# Maximale Anzahl Erinnerungen für unvollständige IDVs (Issue #348): danach
+# verstummt der Reminder, um Mail-Flut zu vermeiden — die IDV ist dann
+# weiterhin in der Liste unvollständiger IDVs sichtbar.
+_IDV_INCOMPLETE_MAX_REMINDERS = 4
 
 _scheduler_thread_obj: threading.Thread = None
 _last_triggered_in_memory: str = None
@@ -483,6 +489,73 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
     return sent
 
 
+def _dispatch_idv_incomplete_reminders(db, today_iso: str) -> int:
+    """Mailt Erinnerung an die Fachverantwortlichen für IDVs, deren
+    Vollständigkeits-Score < 100 % beträgt (Issue #348).
+
+    Regeln:
+    - Kandidaten-Quelle ist ``v_unvollstaendige_idvs`` — dieselbe
+      Definition, die das Dashboard für den Zähler nutzt.
+    - Dedup-Fenster: 7 Tage (``_DEDUP_WINDOW_DAYS``).
+    - Harte Obergrenze: höchstens ``_IDV_INCOMPLETE_MAX_REMINDERS``
+      Wiederholungen pro IDV (über ``notification_log``-Einträge gezählt).
+    - Archivierte IDVs werden von der View bereits gefiltert.
+    - Mail geht an den Fachverantwortlichen (bzw. dessen aktiven
+      Stellvertreter via ``_effective_email``).
+    """
+    from .email_service import notify_idv_incomplete
+
+    # Vollständigkeits-Score lokal berechnen, um keine zweite DB-Runde
+    # pro IDV zu brauchen. Nutzt dieselbe Funktion wie die Detailansicht.
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.dirname(__file__))))
+    from db import idv_completeness_score
+
+    rows = db.execute("""
+        SELECT r.id           AS idv_db_id,
+               r.idv_id       AS idv_id,
+               r.bezeichnung  AS bezeichnung,
+               p.id           AS person_id,
+               p.email        AS email
+          FROM v_unvollstaendige_idvs v
+          JOIN idv_register r ON r.idv_id = v.idv_id
+          JOIN persons p      ON p.id     = r.fachverantwortlicher_id
+         WHERE p.aktiv = 1
+           AND p.email IS NOT NULL AND p.email <> ''
+    """).fetchall()
+
+    sent = 0
+    for r in rows:
+        if _recent_sent(db, _IDV_INCOMPLETE_KIND, r["idv_db_id"]):
+            continue
+
+        total_sent = db.execute(
+            "SELECT COUNT(*) AS c FROM notification_log "
+            "WHERE kind=? AND ref_id=?",
+            (_IDV_INCOMPLETE_KIND, r["idv_db_id"]),
+        ).fetchone()
+        if total_sent and total_sent["c"] >= _IDV_INCOMPLETE_MAX_REMINDERS:
+            # Obergrenze erreicht — künftig keine Mails mehr für diese IDV.
+            continue
+
+        score_info = idv_completeness_score(db, r["idv_db_id"])
+        email = _effective_email(db, r["person_id"], r["email"])
+        try:
+            ok = notify_idv_incomplete(
+                db, r, score_info["score"], score_info["missing"], email,
+            )
+        except Exception:
+            log.exception(
+                "Fehler beim Versand der IDV-Nachpflege-Erinnerung (idv_db_id=%s)",
+                r["idv_db_id"],
+            )
+            ok = False
+        if ok:
+            _record_sent(_IDV_INCOMPLETE_KIND, r["idv_db_id"], today_iso)
+            sent += 1
+    return sent
+
+
 def _run_daily_dispatch(app) -> None:
     """Einmaliger Durchlauf für den aktuellen Tag (idempotent dank Dedup)."""
     with app.app_context():
@@ -492,10 +565,12 @@ def _run_daily_dispatch(app) -> None:
         r_sent = _dispatch_due_reviews(db, today)
         p_sent = _dispatch_pool_claim_reminders(db, today)
         o_sent = _dispatch_owner_digest(db, today)
+        i_sent = _dispatch_idv_incomplete_reminders(db, today)
         log.info(
             "Notification-Dispatch abgeschlossen: %d Maßnahmen, %d Prüfungen, "
-            "%d Pool-Reminder, %d Sammelbenachrichtigung(en) an Owner.",
-            m_sent, r_sent, p_sent, o_sent,
+            "%d Pool-Reminder, %d Sammelbenachrichtigung(en) an Owner, "
+            "%d IDV-Nachpflege-Erinnerung(en).",
+            m_sent, r_sent, p_sent, o_sent, i_sent,
         )
 
 
@@ -583,8 +658,9 @@ def trigger_now(app) -> dict:
         db    = get_db()
         today = datetime.now().strftime("%Y-%m-%d")
         return {
-            "massnahmen":    _dispatch_overdue_measures(db, today),
-            "pruefungen":    _dispatch_due_reviews(db, today),
-            "pool_reminder": _dispatch_pool_claim_reminders(db, today),
-            "owner_digest":  _dispatch_owner_digest(db, today),
+            "massnahmen":             _dispatch_overdue_measures(db, today),
+            "pruefungen":             _dispatch_due_reviews(db, today),
+            "pool_reminder":          _dispatch_pool_claim_reminders(db, today),
+            "owner_digest":           _dispatch_owner_digest(db, today),
+            "idv_incomplete_reminder": _dispatch_idv_incomplete_reminders(db, today),
         }

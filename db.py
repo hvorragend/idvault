@@ -712,6 +712,134 @@ def get_dashboard_stats(conn: sqlite3.Connection, person_id: Optional[int] = Non
     }
 
 
+# ---------------------------------------------------------------------------
+# Vollständigkeits-Score (Issue #348)
+# ---------------------------------------------------------------------------
+#
+# Gewichtete 0–100-Bewertung je IDV. Die Kernpflichtfelder aus
+# ``v_unvollstaendige_idvs`` (Fachverantwortlicher, Geschäftsprozess, Typ,
+# Wesentlichkeits-Begründung) decken zusammen 60 Punkte ab – dieselbe
+# Basis, auf der die Qualitätssicherungs-View aufsetzt. Die übrigen
+# 40 Punkte belohnen weitere Pflege (Kurzbeschreibung, Entwickler,
+# Org.-Einheit, Plattform, Nutzungsfrequenz, Datenschutz-Kategorie),
+# sodass 100 % nur bei echter Nachpflege erreicht werden.
+COMPLETENESS_WEIGHTS = {
+    "bezeichnung":                 5,
+    "fachverantwortlicher_id":    20,
+    "idv_typ_klassifiziert":      15,
+    "geschaeftsprozess":          10,
+    "wesentlichkeit_begruendet":  15,
+    "kurzbeschreibung":            5,
+    "idv_entwickler_id":           5,
+    "org_unit_id":                 5,
+    "plattform_id":                5,
+    "nutzungsfrequenz":            5,
+    "datenschutz_kategorie":       5,
+    "naechste_pruefung":           5,
+}
+assert sum(COMPLETENESS_WEIGHTS.values()) == 100  # Invariante für die Skala
+
+
+def idv_incomplete_owners(conn: sqlite3.Connection, limit: int = 10) -> list:
+    """Aggregiert unvollständige IDVs pro Verantwortlichem (Fachverantwortlicher).
+
+    Stützt sich auf ``v_unvollstaendige_idvs``, damit das Dashboard und
+    die Detailansicht dieselbe Definition von „unvollständig" teilen.
+    """
+    rows = conn.execute("""
+        SELECT p.id          AS person_id,
+               p.nachname    AS nachname,
+               p.vorname     AS vorname,
+               p.email       AS email,
+               COUNT(*)      AS anzahl
+          FROM v_unvollstaendige_idvs v
+          JOIN idv_register r ON r.idv_id = v.idv_id
+          JOIN persons p      ON p.id     = r.fachverantwortlicher_id
+         WHERE p.aktiv = 1
+         GROUP BY p.id, p.nachname, p.vorname, p.email
+         ORDER BY anzahl DESC, nachname ASC
+         LIMIT ?
+    """, (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def idv_completeness_score(conn: sqlite3.Connection, idv_db_id: int) -> dict:
+    """Liefert den Vollständigkeits-Score (0–100) einer IDV zusammen mit
+    einer Liste fehlender Pflegepunkte.
+
+    Rückgabe::
+
+        {"score": 0..100, "missing": ["Fachverantwortlicher", ...]}
+
+    Die View ``v_unvollstaendige_idvs`` flaggt eine IDV ganz als
+    „unvollständig", sobald eines der Kern-Pflichtfelder fehlt. Diese
+    Funktion gibt stattdessen einen kontinuierlichen Score zurück, damit
+    eine Schnell-Anlage (Issue #348) bei Teil-Erfassung einen Teil-Score
+    bekommen kann – und der Nachpflegefortschritt sichtbar wird.
+    """
+    row = conn.execute("""
+        SELECT r.id, r.bezeichnung, r.fachverantwortlicher_id, r.idv_typ,
+               r.gp_id, r.gp_freitext, r.kurzbeschreibung,
+               r.idv_entwickler_id, r.org_unit_id, r.plattform_id,
+               r.nutzungsfrequenz, r.datenschutz_kategorie,
+               r.naechste_pruefung
+        FROM idv_register r WHERE r.id = ?
+    """, (idv_db_id,)).fetchone()
+    if row is None:
+        return {"score": 0, "missing": ["IDV nicht gefunden"]}
+
+    # Wesentlichkeits-Begründungen: fehlt die Begründung bei einem
+    # erfüllten pflichtigen Kriterium, gilt das Feld als offen
+    # (konsistent zur v_unvollstaendige_idvs-Logik).
+    fehlende_begr = conn.execute("""
+        SELECT 1 FROM idv_wesentlichkeit iw
+        JOIN wesentlichkeitskriterien k ON k.id = iw.kriterium_id
+        WHERE iw.idv_db_id = ?
+          AND iw.erfuellt = 1
+          AND k.begruendung_pflicht = 1
+          AND (iw.begruendung IS NULL OR TRIM(iw.begruendung) = '')
+        LIMIT 1
+    """, (idv_db_id,)).fetchone()
+
+    checks = {
+        "bezeichnung":                 bool(row["bezeichnung"] and str(row["bezeichnung"]).strip()),
+        "fachverantwortlicher_id":     row["fachverantwortlicher_id"] is not None,
+        "idv_typ_klassifiziert":       (row["idv_typ"] or "") != "unklassifiziert" and bool(row["idv_typ"]),
+        "geschaeftsprozess":           row["gp_id"] is not None or bool(row["gp_freitext"]),
+        "wesentlichkeit_begruendet":   fehlende_begr is None,
+        "kurzbeschreibung":            bool(row["kurzbeschreibung"] and str(row["kurzbeschreibung"]).strip()),
+        "idv_entwickler_id":           row["idv_entwickler_id"] is not None,
+        "org_unit_id":                 row["org_unit_id"] is not None,
+        "plattform_id":                row["plattform_id"] is not None,
+        "nutzungsfrequenz":            bool(row["nutzungsfrequenz"]),
+        "datenschutz_kategorie":       bool(row["datenschutz_kategorie"]) and row["datenschutz_kategorie"] != "keine",
+        "naechste_pruefung":           bool(row["naechste_pruefung"]),
+    }
+    labels = {
+        "bezeichnung":                 "Bezeichnung",
+        "fachverantwortlicher_id":     "Fachverantwortlicher",
+        "idv_typ_klassifiziert":       "Typ (klassifiziert)",
+        "geschaeftsprozess":           "Geschäftsprozess",
+        "wesentlichkeit_begruendet":   "Wesentlichkeits-Begründung",
+        "kurzbeschreibung":            "Kurzbeschreibung",
+        "idv_entwickler_id":           "Entwickler",
+        "org_unit_id":                 "Organisations-Einheit",
+        "plattform_id":                "Plattform",
+        "nutzungsfrequenz":            "Nutzungsfrequenz",
+        "datenschutz_kategorie":       "Datenschutz-Kategorie",
+        "naechste_pruefung":           "Nächste Prüfung",
+    }
+    score = 0
+    missing = []
+    for key, weight in COMPLETENESS_WEIGHTS.items():
+        if checks.get(key):
+            score += weight
+        else:
+            missing.append(labels[key])
+    # Kappen auf 100 (Invariante, aber defensiv falls Gewichte mal driften)
+    return {"score": min(100, max(0, score)), "missing": missing}
+
+
 def search_idv(conn: sqlite3.Connection, suchbegriff: str = "",
                status: str = "",
                wesentlich: Optional[bool] = None,
