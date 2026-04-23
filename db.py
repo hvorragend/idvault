@@ -70,13 +70,49 @@ def init_register_db(db_path: str) -> sqlite3.Connection:
 
     - Legt das Verzeichnis für die SQLite-Datei bei Bedarf an.
     - Fährt ``alembic upgrade head`` (idempotent).
+    - Gleicht Schema-Additionen ohne eigene Migration an (Pre-Release).
     - Gibt eine Anwendungs-Connection (mit den Standard-PRAGMAs) zurück.
     """
     from alembic import command
 
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     command.upgrade(_alembic_config(db_path), "head")
-    return get_connection(db_path)
+    conn = get_connection(db_path)
+    _ensure_runtime_schema(conn)
+    return conn
+
+
+_RUNTIME_SCHEMA_DDL = (
+    # Akzeptanz „kein Zell-/Blattschutz" – Fachverantwortlicher bestätigt
+    # bewusst pro (IDV, Datei). Pre-Release ohne eigene Alembic-Revision.
+    """
+    CREATE TABLE IF NOT EXISTS idv_zellschutz_akzeptanz (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        idv_db_id           INTEGER NOT NULL REFERENCES idv_register(id)  ON DELETE CASCADE,
+        file_id             INTEGER NOT NULL REFERENCES idv_files(id)      ON DELETE CASCADE,
+        freigabe_id         INTEGER          REFERENCES idv_freigaben(id)  ON DELETE SET NULL,
+        akzeptiert_von_id   INTEGER          REFERENCES persons(id),
+        akzeptiert_am       TEXT NOT NULL DEFAULT (datetime('now','utc')),
+        begruendung         TEXT,
+        UNIQUE(idv_db_id, file_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_idv  ON idv_zellschutz_akzeptanz(idv_db_id)",
+    "CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_file ON idv_zellschutz_akzeptanz(file_id)",
+)
+
+
+def _ensure_runtime_schema(conn: sqlite3.Connection) -> None:
+    """Idempotente Schema-Ergänzungen, die nach dem Alembic-Upgrade laufen.
+
+    Nur für Pre-Release-Ergänzungen, bei denen keine eigene Migration
+    geschrieben wird. Jedes Statement muss ``IF NOT EXISTS`` verwenden,
+    damit frische DBs (vom Initial-Schema aufgesetzt) nicht in Konflikt
+    geraten.
+    """
+    for stmt in _RUNTIME_SCHEMA_DDL:
+        conn.execute(stmt)
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
