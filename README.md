@@ -194,8 +194,14 @@ Noch offene Punkte vor bzw. kurz nach Produktivstart:
 
 Vollständige Pre-Go-Live-Checkliste: [docs/05-sicherheitskonzept.md](docs/05-sicherheitskonzept.md) Abschnitt 7.
 
+## Copyright
+
+Copyright &copy; 2026 **Volksbank Gronau-Ahaus eG** und
+**Carsten Volmer** (Entwicklung). Alle Rechte vorbehalten.
+
 ## Lizenz und Support
 
-Entwickelt für bankinterne Verwendung. Ansprechpartner für
-Fachanfragen: IDV-Koordinator der Bank. Issue-Tracking:
+Das Lizenzmodell ist in der Datei [`LICENSE`](LICENSE) im Projekt-Root
+dokumentiert. Ansprechpartner für Fachanfragen: IDV-Koordinator der
+Bank. Issue-Tracking:
 [GitHub](https://github.com/hvorragend/idvault).

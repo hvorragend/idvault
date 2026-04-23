@@ -91,3 +91,9 @@ gemeinsam mit der **IT-Leitung** und dem **Informationssicherheits-
 beauftragten (ISB)**. Jede produktive Änderung an der Anwendung ist mit
 einer entsprechenden Aktualisierung dieser Dokumentation zu
 begleiten (vgl. MaRisk AT 5 Tz. 1).
+
+## Copyright
+
+Copyright &copy; 2026 **Volksbank Gronau-Ahaus eG** und **Carsten
+Volmer** (Entwicklung). Alle Rechte vorbehalten. Das Lizenzmodell ist
+in der Datei [`LICENSE`](../LICENSE) im Projekt-Root dokumentiert.

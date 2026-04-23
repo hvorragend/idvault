@@ -3,6 +3,9 @@ idvault – Flask Web Application
 ================================
 IDV-Register für MaRisk AT 7.2 / DORA-konforme Verwaltung
 von Eigenentwicklungen (Individuelle Datenverarbeitung).
+
+Copyright (c) 2026 Volksbank Gronau-Ahaus eG und Carsten Volmer.
+Alle Rechte vorbehalten. Siehe LICENSE im Projekt-Root.
 """
 
 import os
@@ -596,6 +599,11 @@ def create_app(db_path: str = None) -> Flask:
             return {"filter_panel_open": _aps.get_bool(get_db(), "filter_panel_open", False)}
         except Exception:
             return {"filter_panel_open": False}
+
+    # Context Processor: Copyright-Jahr für Footer
+    @app.context_processor
+    def inject_copyright_year():
+        return {"copyright_year": datetime.now().year}
 
     # Context Processor: Scanner-Eingang Badge-Count für alle Templates
     @app.context_processor

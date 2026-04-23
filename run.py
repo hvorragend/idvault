@@ -31,6 +31,9 @@ Konfiguration (config.json):
   OS-Umgebungsvariablen werden nicht mehr ausgewertet – außer den
   prozessinternen Hilfsvariablen IDV_PROJECT_ROOT, IDV_ACTIVE_VERSION und
   BUNDLED_VERSION, die run.py selbst setzt.
+
+Copyright (c) 2026 Volksbank Gronau-Ahaus eG und Carsten Volmer.
+Alle Rechte vorbehalten. Siehe LICENSE im Projekt-Root.
 """
 
 import gc
