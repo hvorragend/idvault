@@ -1586,6 +1586,88 @@ def delete_technischer_test(conn: sqlite3.Connection, idv_db_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Prüfzeugnis der technischen Abnahme (Issue #349)
+# ---------------------------------------------------------------------------
+# Persistiert ausschliesslich Abweichungen gegenueber dem maschinellen
+# Scanner-Befund. Zeilen mit manual_override=1 halten die manuelle
+# Korrektur (Pflichtkommentar + Prueferin/Pruefer) fest; das Fehlen einer
+# Zeile (test_id, file_id, check_kind) bedeutet "maschinell bestaetigt".
+
+def get_prefilled_findings(conn: sqlite3.Connection, test_id: int) -> list:
+    """Liefert alle persistierten Prüfzeugnis-Overrides eines technischen Tests."""
+    rows = conn.execute(
+        """
+        SELECT pf.id, pf.test_id, pf.file_id, pf.check_kind,
+               pf.machine_result, pf.source_scan_run_id,
+               pf.manual_override, pf.manual_comment,
+               pf.confirmed_by_id, pf.recorded_at,
+               TRIM(COALESCE(p.vorname,'') || ' ' || COALESCE(p.nachname,'')) AS confirmed_by_name
+          FROM tests_prefilled_findings pf
+     LEFT JOIN persons p ON p.id = pf.confirmed_by_id
+         WHERE pf.test_id = ?
+        """,
+        (test_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def save_prefilled_findings(
+    conn: sqlite3.Connection,
+    test_id: int,
+    overrides: list,
+    confirmed_by_id: int | None = None,
+) -> tuple[int, int]:
+    """Persistiert die vom Prüfer erfassten Abweichungen für einen Test.
+
+    ``overrides`` ist eine Liste von Dicts mit den Feldern
+    ``file_id`` (int), ``check_kind`` (str), ``machine_result`` (str|None),
+    ``source_scan_run_id`` (int|None) und ``manual_comment`` (str).
+
+    Alle bestehenden Prüfzeugnis-Zeilen des Tests werden überschrieben:
+    nur explizit übergebene Overrides verbleiben in der Tabelle – fehlende
+    Einträge gelten damit automatisch als "maschinell bestätigt,
+    ungeändert". Rückgabe: (persisted_count, cleared_count).
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    with write_tx(conn):
+        cleared = conn.execute(
+            "DELETE FROM tests_prefilled_findings WHERE test_id = ?",
+            (test_id,),
+        ).rowcount or 0
+        persisted = 0
+        for ov in overrides or []:
+            file_id = int(ov.get("file_id") or 0)
+            check_kind = (ov.get("check_kind") or "").strip()
+            comment = (ov.get("manual_comment") or "").strip()
+            if not (file_id and check_kind and comment):
+                # Override ohne Kommentar wird verworfen – der Prüfer muss
+                # bei Abweichung begründen. Akzeptierte Checks landen gar
+                # nicht erst in der Tabelle (nur Delta wird persistiert).
+                continue
+            conn.execute(
+                """
+                INSERT INTO tests_prefilled_findings
+                    (test_id, file_id, check_kind, machine_result,
+                     source_scan_run_id, manual_override, manual_comment,
+                     confirmed_by_id, recorded_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+                """,
+                (
+                    test_id,
+                    file_id,
+                    check_kind,
+                    ov.get("machine_result"),
+                    ov.get("source_scan_run_id"),
+                    comment,
+                    confirmed_by_id,
+                    now,
+                ),
+            )
+            persisted += 1
+        return persisted, cleared
+
+
+# ---------------------------------------------------------------------------
 # Scanner-Protokoll-Handler
 # ---------------------------------------------------------------------------
 # Werden von der Webapp aufgerufen, wenn sie eine NDJSON-Zeile des

@@ -37,10 +37,104 @@
         </button>
       </div>
 
+      {% if pruefzeugnis %}
+      <div class="form-section">
+        <div class="form-section-title">
+          <i class="bi bi-patch-check me-1"></i>Prüfzeugnis – Maschinelle Befunde
+        </div>
+        <div class="form-text mb-3">
+          Die folgenden Prüfpunkte wurden beim letzten Scan
+          <strong>maschinell festgestellt</strong> und gelten damit als
+          bestätigt. Ein Haken bei „Manuell überschrieben“ ist nur nötig,
+          wenn der maschinelle Befund aus Sicht des Prüfers nicht zutrifft –
+          in diesem Fall ist ein Kommentar Pflicht. Alle nicht überschriebenen
+          Items landen als „Maschinell, ungeändert“ im Audit-Trail.
+        </div>
+
+        {% for pz in pruefzeugnis %}
+        <div class="border rounded p-2 mb-3">
+          <div class="fw-600 text-break mb-1">
+            <i class="bi bi-file-earmark me-1"></i>{{ pz.file_name }}
+            {% if pz.last_scan_run_id %}
+            <span class="badge bg-light text-muted fw-normal ms-1"
+                  title="Scan-Run, aus dem die maschinellen Werte stammen">
+              Scan-Run #{{ pz.last_scan_run_id }}
+            </span>
+            {% endif %}
+          </div>
+          {% if pz.full_path %}
+          <div class="text-muted font-monospace text-break mb-2" style="font-size:0.78rem">
+            {{ pz.full_path }}
+          </div>
+          {% endif %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:0.88rem">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col" style="width:24%">Prüfpunkt</th>
+                  <th scope="col" style="width:30%">Maschineller Befund</th>
+                  <th scope="col" style="width:14%">Manuell überschrieben</th>
+                  <th scope="col">Begründung (Pflicht bei Override)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in pz.checks %}
+                <tr>
+                  <td class="fw-500">{{ c.label }}</td>
+                  <td class="text-break">
+                    <code class="small text-break">{{ c.machine_summary }}</code>
+                    <input type="hidden"
+                           name="machine_result_{{ pz.file_id }}_{{ c.kind }}"
+                           value="{{ c.machine_summary }}">
+                    {% if c.is_override %}
+                    <div class="small text-danger mt-1">
+                      <i class="bi bi-exclamation-circle me-1"></i>manuell überschrieben
+                      {% if c.confirmed_by %}durch {{ c.confirmed_by }}{% endif %}
+                      {% if c.recorded_at %} am {{ c.recorded_at[:19] | replace('T', ' ') }}{% endif %}
+                    </div>
+                    {% else %}
+                    <div class="small text-success mt-1">
+                      <i class="bi bi-check2-circle me-1"></i>maschinell bestätigt
+                    </div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="form-check">
+                      <input class="form-check-input pz-override-toggle" type="checkbox"
+                             id="override_{{ pz.file_id }}_{{ c.kind }}"
+                             name="override_{{ pz.file_id }}_{{ c.kind }}"
+                             value="1"
+                             data-comment="override_comment_{{ pz.file_id }}_{{ c.kind }}"
+                             {% if c.is_override %}checked{% endif %}>
+                      <label class="form-check-label small"
+                             for="override_{{ pz.file_id }}_{{ c.kind }}">
+                        Override
+                      </label>
+                    </div>
+                  </td>
+                  <td>
+                    <textarea class="form-control form-control-sm pz-override-comment"
+                              name="override_comment_{{ pz.file_id }}_{{ c.kind }}"
+                              id="override_comment_{{ pz.file_id }}_{{ c.kind }}"
+                              rows="1"
+                              placeholder="Pflicht bei Override – warum weicht der Befund ab?"
+                              {% if not c.is_override %}disabled{% endif %}
+                    >{{ c.manual_comment }}</textarea>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       {% if scanner_dateien %}
       <div class="form-section">
         <div class="form-section-title d-flex justify-content-between align-items-center">
-          <span><i class="bi bi-clipboard-data me-1"></i>Scanner-Metadaten (vorausgefüllt)</span>
+          <span><i class="bi bi-clipboard-data me-1"></i>Scanner-Metadaten (Rohansicht)</span>
           <button type="button" class="btn btn-outline-secondary btn-sm"
                   id="btn-scan-in-kurz">
             <i class="bi bi-arrow-down-square me-1"></i>In Kurzbeschreibung übernehmen
@@ -111,8 +205,16 @@
 
       <div class="form-section">
         <div class="form-section-title">
-          <i class="bi bi-cpu me-1"></i>Technischer Test
+          <i class="bi bi-cpu me-1"></i>Manuelle Prüfpunkte
         </div>
+        {% if pruefzeugnis %}
+        <div class="form-text mb-2">
+          Dieser Abschnitt deckt die Prüfpunkte ab, die <em>nicht</em>
+          maschinell erhoben werden können (Makro-Signaturen prüfen,
+          Datenbankanbindung, Zugriffsschutz, Versionierung etc.). Die
+          maschinellen Befunde werden oben als Prüfzeugnis vorausgefüllt.
+        </div>
+        {% endif %}
 
         {% if vorlagen %}
         <div class="d-flex align-items-center gap-2 mb-3 small">
@@ -335,6 +437,31 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+
+  // Prüfzeugnis (Issue #349): Kommentar-Feld nur aktiv, wenn "Manuell
+  // überschrieben" angehakt ist — und beim Aktivieren in den Fokus setzen,
+  // damit der Pflicht-Kommentar nicht übersehen wird.
+  document.querySelectorAll('.pz-override-toggle').forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      var id = cb.getAttribute('data-comment');
+      if (!id) return;
+      var ta = document.getElementById(id);
+      if (!ta) return;
+      ta.disabled = !cb.checked;
+      if (cb.checked) {
+        ta.required = true;
+        ta.focus();
+      } else {
+        ta.required = false;
+        ta.value = '';
+      }
+    });
+    // Initial: Pflichtfeld-Status synchronisieren
+    if (cb.checked) {
+      var ta0 = document.getElementById(cb.getAttribute('data-comment'));
+      if (ta0) ta0.required = true;
+    }
+  });
 })();
 </script>
 {% endblock %}

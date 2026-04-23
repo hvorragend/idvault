@@ -428,7 +428,53 @@ In der rechten Sidebar der IDV-Detailsicht sowie auf dem Dashboard in der
 Aufgaben-Inbox wird bei Pool-Schritten angezeigt, wer sie aktuell bearbeitet.
 So sehen alle Mitglieder auf einen Blick, ob die Aufgabe bereits vergeben ist.
 
-#### 5.5.2 Testfall-Vorlagen
+#### 5.5.2 Prüfzeugnis der technischen Abnahme
+
+Der technische Test nutzt ein **Prüfzeugnis-Modell**: Prüfpunkte, die der
+Scanner bereits maschinell erhoben hat, gelten per Default als bestätigt
+– der Prüfer muss sie nicht aktiv abhaken, sondern **widerlegt** sie nur
+bei Bedarf. So bleibt die Arbeit auf die Punkte konzentriert, die
+tatsächlich eine fachliche Bewertung erfordern.
+
+Maschinell vorausgefüllte Prüfpunkte (Tabelle `tests_prefilled_findings`):
+
+| Check (`check_kind`) | Quelle in `idv_files` |
+|---|---|
+| `makros` | `has_macros` |
+| `externe_verknuepfungen` | `has_external_links` |
+| `blattschutz` | `has_sheet_protection`, `protected_sheets_count`, `sheet_protection_has_pw` |
+| `zellschutz` | `workbook_protected` |
+| `formel_anzahl` | `formula_count` |
+| `sha256` | `file_hash` |
+| `dateigroesse_blaetter` | `size_bytes`, `sheet_count` |
+
+Jede Datei, die mit der IDV verknüpft ist (`idv_register.file_id` oder
+`idv_file_links`), bekommt im Formular eine Zeile pro Check. Standard:
+„Maschinell bestätigt“. Hakt der Prüfer **„Manuell überschrieben“** an,
+wird der Pflichtkommentar aktiv – ohne Kommentar wird der Haken beim
+Speichern ignoriert und eine Warnung angezeigt.
+
+**Persistenz & Audit-Trail:**
+
+- Nur Abweichungen landen in `tests_prefilled_findings` (`manual_override=1`,
+  `manual_comment`, `confirmed_by_id`, `source_scan_run_id`, `recorded_at`).
+  Das Fehlen einer Zeile bedeutet damit „maschinell, ungeändert“.
+- In `idv_history` wird beim Speichern je eine Summen-Zeile
+  `pruefzeugnis_gespeichert` geschrieben (Anzahl bestätigt vs.
+  überschrieben) sowie eine Detail-Zeile `pruefzeugnis_override` pro
+  widerlegtem Check (Datei, Prüfpunkt, Maschinen-Rohwert, Begründung).
+  Die Revision kann damit über `SELECT * FROM idv_history WHERE aktion
+  LIKE 'pruefzeugnis\_%' ESCAPE '\\'` alle maschinell vs. manuell
+  entschiedenen Items einsehen.
+- `source_scan_run_id` referenziert den Scan-Run, aus dem der
+  maschinelle Ausgangswert stammt – spätere Re-Scans sind damit
+  vergleichbar.
+
+Der bisherige Kopf „Scanner-Metadaten (vorausgefüllt)“ mit dem
+Button *In Kurzbeschreibung übernehmen* bleibt als Rohansicht erhalten
+und ergänzt das Prüfzeugnis um die Freitext-Übernahme.
+
+#### 5.5.3 Testfall-Vorlagen
 
 Fachliche und technische Tests enthalten pro IDV-Typ (Excel, Access, SQL,
 Power BI, Python u. a.) typischerweise wiederkehrende Prüfpunkte. Die
@@ -458,7 +504,7 @@ zwei typ-unabhängige technische Basischecks ab. Bestehende Tests sind
 Snapshots der Vorlage zum Zeitpunkt der Übernahme — spätere Änderungen
 an der Vorlage wirken sich nicht rückwirkend auf bereits erfasste Tests aus.
 
-#### 5.5.3 Administrative Eingriffe
+#### 5.5.4 Administrative Eingriffe
 
 | Aktion | Berechtigte Rolle | Effekt |
 |---|---|---|
@@ -548,7 +594,7 @@ Ist der Schalter ausgeschaltet, werden keine Digest-Mails versendet
 - **Plattformen** – Technologiekatalog (Excel, Python, Power BI …)
 - **Klassifizierungen** – Konfigurierbare Enum-Werte
 - **Wesentlichkeitskriterien** – Konfigurierbarer Fragebogen
-- **Testfall-Vorlagen** – Vorlagen-Bibliothek für fachliche/technische Tests (siehe 5.5.2)
+- **Testfall-Vorlagen** – Vorlagen-Bibliothek für fachliche/technische Tests (siehe 5.5.3)
 - **E-Mail-Einstellungen** – SMTP-Konfiguration
 - **LDAP / Active Directory** – Server-Konfiguration und Gruppen-Mapping
 - **Scanner-Einstellungen** – Scan-Pfade, Dateitypen, Ausschlüsse
