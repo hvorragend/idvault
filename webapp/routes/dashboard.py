@@ -28,10 +28,13 @@ def index():
                      WHEN f.zugewiesen_an_id != :pid THEN 1
                      ELSE 0
                    END AS als_vertreter,
-                   pool.name AS pool_name
+                   pool.name AS pool_name,
+                   f.bearbeitet_von_id,
+                   (p_c.nachname || ', ' || p_c.vorname) AS bearbeitet_von
             FROM idv_freigaben f
             JOIN idv_register r ON f.idv_id = r.id
             LEFT JOIN freigabe_pools pool ON pool.id = f.pool_id
+            LEFT JOIN persons p_c ON p_c.id = f.bearbeitet_von_id
             WHERE f.status = 'Ausstehend'
               AND (
                 f.zugewiesen_an_id = :pid

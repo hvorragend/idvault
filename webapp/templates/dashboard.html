@@ -123,14 +123,28 @@
           <td class="py-2">
             <span class="badge bg-primary bg-opacity-10 text-primary border border-primary fs-7">{{ s.schritt }}</span>
             {% if s.als_vertreter == 1 %}<span class="badge bg-secondary ms-1 fs-8" title="Sie vertreten den regulären Bearbeiter">Vertretung</span>{% endif %}
-            {% if s.als_vertreter == 2 %}<span class="badge bg-info text-dark ms-1 fs-8" title="Diese Aufgabe ist dem Pool '{{ s.pool_name }}' zugewiesen und noch nicht übernommen">Pool: {{ s.pool_name }}</span>{% endif %}
+            {% if s.als_vertreter == 2 %}
+              {% if s.bearbeitet_von_id %}
+                {% if s.bearbeitet_von_id == session.get('person_id') %}
+                  <span class="badge bg-success ms-1 fs-8" title="Sie haben diese Pool-Aufgabe übernommen">
+                    <i class="bi bi-person-check-fill me-1"></i>Von mir übernommen
+                  </span>
+                {% else %}
+                  <span class="badge bg-info text-dark ms-1 fs-8" title="Pool '{{ s.pool_name }}' – wird bearbeitet von {{ s.bearbeitet_von }}">
+                    <i class="bi bi-person-check me-1"></i>Bearbeitet von: {{ s.bearbeitet_von }}
+                  </span>
+                {% endif %}
+              {% else %}
+                <span class="badge bg-info text-dark ms-1 fs-8" title="Diese Aufgabe ist dem Pool '{{ s.pool_name }}' zugewiesen und noch nicht übernommen">Pool: {{ s.pool_name }} – offen</span>
+              {% endif %}
+            {% endif %}
           </td>
           <td class="py-2 pe-3 text-end">
-            {% if s.als_vertreter == 2 %}
-            <form method="post" action="{{ url_for('freigaben.uebernehmen', freigabe_id=s.freigabe_id) }}" class="d-inline">
+            {% if s.als_vertreter == 2 and not s.bearbeitet_von_id %}
+            <form method="post" action="{{ url_for('freigaben.claim', freigabe_id=s.freigabe_id) }}" class="d-inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" class="btn btn-sm btn-outline-primary" title="Aufgabe persönlich übernehmen">
-                <i class="bi bi-person-check me-1"></i>Übernehmen
+              <button type="submit" class="btn btn-sm btn-outline-primary" title="Aufgabe weich reservieren – Pool-Bindung bleibt erhalten">
+                <i class="bi bi-hand-index me-1"></i>Ich übernehme
               </button>
             </form>
             {% endif %}

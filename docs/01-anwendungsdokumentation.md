@@ -371,6 +371,36 @@ Beim Starten einer Phase wird jedem Schritt entweder eine Person oder ein
 Administratoren können jederzeit eingreifen; Entwickler der betroffenen
 IDV sind unabhängig von der Zuweisung gesperrt (siehe 3.4).
 
+##### Claim-Flow „Ich übernehme" bei Pool-Schritten
+
+Damit in einem Pool mit mehreren Mitgliedern keine Aufgabe liegen bleibt, weil
+„jemand anders sie machen wird", kann ein Pool-Mitglied einen offenen Schritt
+**weich reservieren** (Claim). Der Claim ändert die Zuweisung nicht — die
+Pool-Bindung bleibt erhalten —, er macht aber sichtbar, wer sich der Aufgabe
+angenommen hat.
+
+| Feld | Bedeutung |
+|---|---|
+| `idv_freigaben.bearbeitet_von_id` | Person-ID des aktuellen Claim-Inhabers, `NULL` = keine Reservierung |
+| `idv_freigaben.bearbeitet_am` | Zeitstempel des Claims (UTC, ISO 8601) |
+
+- **Ich übernehme**: Setzt den Claim. Nur Mitglieder des zugewiesenen Pools
+  (oder Administratoren) dürfen claimen; es kann immer nur *ein* Claim pro
+  Schritt aktiv sein.
+- **Abgeben**: Löst den eigenen Claim wieder, damit andere Mitglieder
+  übernehmen können. Admins können fremde Claims abgeben.
+- **Abschließen** bleibt unverändert möglich — mit oder ohne Claim. Der Claim
+  ist ein Koordinationsmechanismus, keine zusätzliche Berechtigungshürde.
+
+Abzugrenzen vom Claim ist der bestehende **Hart-Übernehmen-Pfad**
+(`uebernehmen`): Dort wird die Pool-Bindung endgültig auf eine Einzelperson
+umgeschrieben. Der Claim dagegen bleibt rückgängig und erhält die
+Pool-Zugehörigkeit.
+
+In der rechten Sidebar der IDV-Detailsicht sowie auf dem Dashboard in der
+Aufgaben-Inbox wird bei Pool-Schritten angezeigt, wer sie aktuell bearbeitet.
+So sehen alle Mitglieder auf einen Blick, ob die Aufgabe bereits vergeben ist.
+
 #### 5.5.2 Administrative Eingriffe
 
 | Aktion | Berechtigte Rolle | Effekt |
@@ -513,9 +543,21 @@ werden aus der Personen-Tabelle abgeleitet.
 | Neue Datei im Scanner erkannt | IDV-Koordinatoren und Administratoren |
 | Prüfung überfällig | Fachverantwortlicher der IDV |
 | Maßnahme überfällig | Verantwortlicher der Maßnahme |
-| Freigabeverfahren gestartet (Phase 1/2) | Zugewiesene Prüfer + Koordinatoren |
+| Freigabeverfahren gestartet (Phase 1/2) | Zugewiesene Prüfer + Koordinatoren; bei Pool-Zuweisung zusätzlich alle aktiven Pool-Mitglieder (außer IDV-Entwickler) |
+| Pool-Schritt wartet auf Claim (täglich) | Aktive Pool-Mitglieder des zugewiesenen Pools, solange kein Claim gesetzt ist und der Schritt nicht älter als `notify_pool_reminder_max_days` Tage ist (Default 14) |
 | Freigabeverfahren vollständig bestanden | Koordinatoren, Administratoren, Entwickler |
 | Datei-Bewertung | Verantwortlicher |
+
+Die Pool-Reminder starten automatisch am Tag nach Anlage des Schritts und
+enden, sobald ein Pool-Mitglied *Ich übernehme* anklickt (Claim gesetzt)
+oder der Schritt abgeschlossen wird. Pools mit weniger als zwei aktiven
+Mitgliedern mit E-Mail-Adresse erzeugen weder Sofort- noch Reminder-Mails
+— damit entfällt die Mail-Flut für personenbezogene 1-Mitglied-Pools.
+
+Jede Benachrichtigungsart lässt sich im Administrationsbereich unter
+`Administration → E-Mail-Einstellungen (SMTP)` einzeln via
+`notify_enabled_<template_key>` deaktivieren; die E-Mail-Vorlagen (Betreff
++ Body, HTML oder Text) sind dort ebenfalls anpassbar.
 
 Die Konfiguration erfolgt ausschließlich unter `Administration →
 E-Mail-Einstellungen (SMTP)`. Die Werte werden in der SQLite-Tabelle
