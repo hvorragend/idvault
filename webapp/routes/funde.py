@@ -1280,9 +1280,11 @@ def auto_zuordnen():
     cfg   = _sim.get_config(db)
     noise = frozenset(cfg["noise_words"])
     auto_threshold = cfg["auto_assign_threshold"]
+    hash_dedup     = bool(cfg.get("auto_link_hash_duplicates", True))
 
     neu_funde = db.execute(f"""
-        SELECT f.id, f.file_name, f.extension, f.file_owner, f.has_macros
+        SELECT f.id, f.file_name, f.extension, f.file_owner, f.has_macros,
+               f.file_hash
           FROM idv_files f
          WHERE f.status='active' AND f.bearbeitungsstatus='Neu'
            AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
@@ -1292,6 +1294,42 @@ def auto_zuordnen():
     if not neu_funde:
         flash("Keine neuen Funde für die Auto-Zuordnung gefunden.", "info")
         return redirect(url_for("funde.eingang_funde"))
+
+    # ── Schritt 1: Hash-Dubletten automatisch als Zusatz-Link ──
+    hash_plan = []  # list of dicts {file_id, file_name, idv_db_id, idv_id}
+    used_file_ids: set[int] = set()
+    if hash_dedup:
+        for fund in neu_funde:
+            h = (fund["file_hash"] or "").strip()
+            if not h or h == "HASH_ERROR":
+                continue
+            # Ziel-IDV(s) ermitteln: IDVs mit derselben Hauptdatei oder Zusatz-Link
+            targets = db.execute(
+                """
+                SELECT DISTINCT r.id AS idv_db_id, r.idv_id
+                  FROM idv_register r
+                  JOIN idv_files f ON r.file_id = f.id
+                 WHERE f.file_hash = ? AND f.id != ?
+                UNION
+                SELECT DISTINCT r.id AS idv_db_id, r.idv_id
+                  FROM idv_register r
+                  JOIN idv_file_links l ON l.idv_db_id = r.id
+                  JOIN idv_files f      ON f.id        = l.file_id
+                 WHERE f.file_hash = ? AND f.id != ?
+                """,
+                (h, fund["id"], h, fund["id"]),
+            ).fetchall()
+            if len(targets) == 1:
+                t = targets[0]
+                hash_plan.append({
+                    "file_id":   fund["id"],
+                    "file_name": fund["file_name"] or "",
+                    "idv_db_id": t["idv_db_id"],
+                    "idv_id":    t["idv_id"],
+                    "hash":      h,
+                })
+                used_file_ids.add(fund["id"])
+    remaining = [f for f in neu_funde if f["id"] not in used_file_ids]
 
     idv_candidates = db.execute("""
         SELECT r.id, r.idv_id, r.bezeichnung, r.idv_typ,
@@ -1307,7 +1345,7 @@ def auto_zuordnen():
         return redirect(url_for("funde.eingang_funde"))
 
     plan = []
-    for fund in neu_funde:
+    for fund in remaining:
         fund_typ   = _idv_typ_vorschlag(fund["extension"], fund["has_macros"])
         fund_owner = fund["file_owner"] or ""
         fund_name  = fund["file_name"] or ""
@@ -1343,16 +1381,34 @@ def auto_zuordnen():
                     "score":     best_score,
                 })
 
-    if not plan:
+    if not plan and not hash_plan:
         flash(
-            f"Keine Funde erreichten die Auto-Schwelle von {auto_threshold} "
-            "mit erfüllter Plausibilität.",
+            f"Keine Hash-Dubletten gefunden und keine Funde erreichten die "
+            f"Auto-Schwelle von {auto_threshold} mit erfüllter Plausibilität.",
             "info",
         )
         return redirect(url_for("funde.eingang_funde"))
 
     def _do(c):
         with write_tx(c):
+            for entry in hash_plan:
+                c.execute(
+                    "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                    (entry["idv_db_id"], entry["file_id"]),
+                )
+                c.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id = ?",
+                    (entry["file_id"],),
+                )
+                c.execute(
+                    "INSERT INTO idv_history "
+                    "(idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) "
+                    "VALUES (?,?,?,?,?)",
+                    (entry["idv_db_id"], "scan_auto_linked_hash",
+                     f"Hash-Dublette '{entry['file_name']}' (file_id={entry['file_id']}) "
+                     f"automatisch verknüpft (SHA-256 identisch: {entry['hash']})",
+                     person_id, user_name),
+                )
             for entry in plan:
                 c.execute(
                     "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
@@ -1373,11 +1429,12 @@ def auto_zuordnen():
                 )
 
     get_writer().submit(_do, wait=True)
-    flash(
-        f"Auto-Zuordnung abgeschlossen: {len(plan)} Fund(e) verknüpft "
-        f"(Schwelle {auto_threshold}).",
-        "success",
-    )
+    parts = []
+    if hash_plan:
+        parts.append(f"{len(hash_plan)} Hash-Dublette(n) verknüpft")
+    if plan:
+        parts.append(f"{len(plan)} Ähnlichkeits-Treffer(n) ab Schwelle {auto_threshold}")
+    flash("Auto-Zuordnung abgeschlossen: " + " · ".join(parts) + ".", "success")
     return redirect(url_for("funde.eingang_funde"))
 
 

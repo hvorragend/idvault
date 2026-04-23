@@ -82,6 +82,22 @@
             sollte deutlich höher liegen als die Mindestpunktzahl, damit nur
             eindeutige Treffer automatisch verknüpft werden.
           </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="auto_link_hash_duplicates"
+                     name="auto_link_hash_duplicates" value="1"
+                     {% if cfg.auto_link_hash_duplicates %}checked{% endif %}>
+              <label class="form-check-label" for="auto_link_hash_duplicates">
+                <strong>Hash-Dubletten automatisch verknüpfen</strong>
+                <span class="text-muted fs-7">
+                  – Ein Fund mit identischem SHA-256 wie eine bereits
+                  registrierte Datei wird direkt als Zusatz-Link zu genau
+                  dieser Eigenentwicklung gesetzt (nur wenn das Ziel eindeutig
+                  ist; <code>HASH_ERROR</code> wird nie als Dublette behandelt).
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
     </div>

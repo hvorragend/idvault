@@ -56,6 +56,11 @@ DEFAULT_CONFIG: dict = {
     # Zusätzlich verlangt der Batch einen Plausibilitätscheck
     # (Owner-Match ODER Namensüberschneidung mit dem IDV-Bezeichner).
     "auto_assign_threshold": 95,
+    # Hash-Dubletten: wenn ein Fund denselben SHA-256 hat wie eine bereits
+    # registrierte Datei (und die Ziel-IDV eindeutig ist), wird er als
+    # Zusatz-Link verknüpft statt im Eingang zu landen. HASH_ERROR wird
+    # nie als Dublette behandelt.
+    "auto_link_hash_duplicates": True,
 }
 
 _NAME_ALGORITHMS = ("token_set", "partial", "jaccard")
@@ -72,7 +77,9 @@ def get_config(db) -> dict:
             val = raw.get(key)
             if val is None:
                 continue
-            if isinstance(default, int) and not isinstance(val, bool):
+            if isinstance(default, bool):
+                cfg[key] = bool(val)
+            elif isinstance(default, int) and not isinstance(val, bool):
                 try:
                     cfg[key] = int(val)
                 except (TypeError, ValueError):

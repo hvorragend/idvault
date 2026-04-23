@@ -48,6 +48,7 @@ def similarity_settings():
                 request.form.get("auto_assign_threshold"),
                 cfg["auto_assign_threshold"], hi=100,
             ),
+            "auto_link_hash_duplicates": request.form.get("auto_link_hash_duplicates") == "1",
         }
 
         if request.form.get("reset") == "1":
