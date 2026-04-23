@@ -1,0 +1,169 @@
+idvault – Proprietäre Lizenz
+============================
+
+SPDX-License-Identifier: LicenseRef-Proprietary-idvault
+
+Copyright (c) 2026 Volksbank Gronau-Ahaus eG und Carsten Volmer.
+Alle Rechte vorbehalten.
+
+
+1. Urheberrecht und Rechteinhaberschaft
+---------------------------------------
+
+Die Software "idvault" einschließlich sämtlicher Quell- und
+Objektcode-Bestandteile, Dokumentation, Datenbankschemata, Skripte,
+Grafiken, Textbausteine und sonstiger zugehöriger Materialien
+(nachfolgend "die Software") ist urheberrechtlich geschützt. Sämtliche
+Rechte stehen gemeinschaftlich der
+
+    Volksbank Gronau-Ahaus eG
+
+und dem Entwickler
+
+    Carsten Volmer
+
+(nachfolgend gemeinsam "die Rechteinhaber") zu. Alle nicht
+ausdrücklich in dieser Lizenz eingeräumten Rechte verbleiben bei den
+Rechteinhabern.
+
+
+2. Keine Rechteeinräumung durch Hosting
+---------------------------------------
+
+Die öffentliche Verfügbarkeit der Software auf GitHub
+(https://github.com/hvorragend/idvault) dient ausschließlich
+Hosting-, Versionskontroll- und Nachvollziehbarkeitszwecken. Weder
+das Aufrufen des Repositories noch das Klonen, Herunterladen,
+Forken oder sonstige Abrufen des Quelltextes räumt dem Nutzer
+irgendwelche Nutzungs-, Verwertungs- oder Bearbeitungsrechte an
+der Software ein.
+
+Insbesondere stellen der Zugriff auf das Repository und dessen
+technische Replikation durch GitHub-Mechanismen keine
+konkludente Lizenzvereinbarung dar.
+
+
+3. Ausdrücklich untersagte Handlungen
+-------------------------------------
+
+Ohne vorherige, ausdrückliche schriftliche Genehmigung der
+Rechteinhaber sind insbesondere folgende Handlungen untersagt:
+
+    a) die Nutzung der Software im Produktivbetrieb, einschließlich
+       bankinterner Nutzung durch Dritte außerhalb der Volksbank
+       Gronau-Ahaus eG;
+    b) die Vervielfältigung, Weitergabe, Verbreitung oder
+       Zugänglichmachung der Software oder von Teilen davon an
+       Dritte, auf welche Weise auch immer;
+    c) die Modifikation, Bearbeitung, Übersetzung, Anpassung oder
+       Erstellung abgeleiteter Werke, soweit gesetzlich zulässig
+       (vgl. §§ 69d, 69e UrhG);
+    d) die Dekompilierung, das Reverse-Engineering oder die
+       Disassemblierung, soweit nicht durch zwingende gesetzliche
+       Vorschriften ausdrücklich erlaubt;
+    e) der Betrieb der Software als Dienstleistung (Software-as-a-
+       Service, Application-Service-Providing oder vergleichbare
+       Modelle) für Dritte;
+    f) die Entfernung, Veränderung oder Verdeckung von
+       Urheberrechtsvermerken, Lizenzhinweisen oder sonstigen
+       Kennzeichnungen der Rechteinhaber in Quellcode, Binärform
+       oder Benutzeroberfläche.
+
+
+4. Klarstellend gestattete Handlungen
+-------------------------------------
+
+Ungeachtet Ziffer 3 sind folgende Handlungen zulässig:
+
+    a) das Betrachten des Quellcodes im GitHub-Repository zu
+       Informations- und Bewertungszwecken;
+    b) eine zeitlich auf dreißig (30) Tage befristete Evaluierung
+       der Software auf einer nicht-produktiven, nicht öffentlich
+       erreichbaren Einzelinstanz ausschließlich zum Zweck der
+       Entscheidungsfindung über einen Lizenzerwerb. Eine
+       Verarbeitung echter personenbezogener oder
+       geschäftskritischer Daten in der Evaluierungsinstanz ist
+       untersagt.
+
+Weitergehende Rechte (produktiver Einsatz, Vervielfältigung zum
+Zweck des Einsatzes in mehreren Instanzen, Weitergabe an Dritte)
+bedürfen eines gesonderten schriftlichen Lizenzvertrages.
+
+
+5. Lizenzerwerb
+---------------
+
+Nutzungsrechte werden ausschließlich auf Grundlage eines
+individuellen, entgeltlichen Lizenzvertrages eingeräumt.
+Konditionen und Vertragsentwürfe sind erhältlich bei:
+
+    Volksbank Gronau-Ahaus eG
+    Ansprechpartner: IDV-Koordinator / Rechtsabteilung
+
+Ein Anspruch auf Vertragsabschluss besteht nicht. Die
+Rechteinhaber behalten sich vor, Lizenzanfragen ohne Angabe von
+Gründen abzulehnen.
+
+
+6. Drittkomponenten
+-------------------
+
+Die Software enthält Komponenten Dritter, insbesondere im
+Verzeichnis `webapp/static/vendor/` (u. a. Bootstrap, Bootstrap
+Icons, QuillJS, ApexCharts). Diese Komponenten unterliegen den
+Lizenzbedingungen ihrer jeweiligen Urheber. Die vorliegende
+Lizenz gilt nicht für diese Drittkomponenten. Die jeweiligen
+Lizenztexte sind in den entsprechenden Unterverzeichnissen
+hinterlegt (Beispiel:
+`webapp/static/vendor/apexcharts-3.54.1/LICENSE`).
+
+
+7. Keine Gewährleistung
+-----------------------
+
+Soweit gesetzlich zulässig, wird die Software "wie besehen" und
+"wie verfügbar" ohne jegliche ausdrückliche oder stillschweigende
+Gewährleistung zur Verfügung gestellt, insbesondere ohne
+Gewährleistung der Marktgängigkeit, der Eignung für einen
+bestimmten Zweck, der Freiheit von Rechten Dritter oder der
+Fehlerfreiheit.
+
+
+8. Haftungsbeschränkung
+-----------------------
+
+Soweit gesetzlich zulässig, haften die Rechteinhaber nicht für
+mittelbare Schäden, Folgeschäden, entgangenen Gewinn,
+Datenverluste oder Betriebsunterbrechungen, die aus der Nutzung
+oder der Unmöglichkeit der Nutzung der Software entstehen.
+Zwingende gesetzliche Haftungstatbestände (insbesondere nach dem
+Produkthaftungsgesetz sowie bei Vorsatz und grober Fahrlässigkeit)
+bleiben unberührt.
+
+
+9. Salvatorische Klausel
+------------------------
+
+Sollte eine Bestimmung dieser Lizenz ganz oder teilweise
+unwirksam oder undurchführbar sein oder werden, so wird die
+Wirksamkeit der übrigen Bestimmungen hiervon nicht berührt. An
+die Stelle der unwirksamen oder undurchführbaren Bestimmung
+tritt diejenige wirksame und durchführbare Regelung, deren
+Wirkungen der wirtschaftlichen Zielsetzung am nächsten kommen,
+die die Rechteinhaber mit der unwirksamen bzw. undurchführbaren
+Bestimmung verfolgt haben.
+
+
+10. Anwendbares Recht und Gerichtsstand
+---------------------------------------
+
+Diese Lizenz unterliegt dem Recht der Bundesrepublik Deutschland
+unter Ausschluss des UN-Kaufrechts. Ausschließlicher
+Gerichtsstand für alle Streitigkeiten aus oder im Zusammenhang
+mit dieser Lizenz ist – soweit gesetzlich zulässig – der Sitz
+der Volksbank Gronau-Ahaus eG.
+
+
+---
+
+Kontakt für Lizenzanfragen: Volksbank Gronau-Ahaus eG, IDV-Koordinator.

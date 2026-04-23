@@ -1,5 +1,8 @@
 # idvault – Standalone-Executable erstellen
 
+> Copyright &copy; 2026 Volksbank Gronau-Ahaus eG und Carsten Volmer.
+> Alle Rechte vorbehalten. Siehe [`LICENSE`](LICENSE).
+
 > **Hinweis:** Für die vollständige Build- und Deployment-Dokumentation
 > siehe [docs/11-build-deployment.md](docs/11-build-deployment.md). Diese
 > Datei dient als Schnell-Anleitung für Entwickler.
