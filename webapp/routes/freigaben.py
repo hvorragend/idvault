@@ -202,6 +202,42 @@ def _verfuegbare_scanner_dateien(db, idv_db_id: int) -> list:
     return [dict(r) for r in rows]
 
 
+# Excel-OOXML-Formate, für die der Scanner Blatt-/Arbeitsmappenschutz prüfen kann.
+# Deckt sich bewusst mit webapp.routes.funde._EXCEL_PROTECTABLE_EXTS.
+_EXCEL_OOXML_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx")
+
+
+def _unprotected_excel_files_for_idv(db, idv_db_id: int) -> list:
+    """Excel-Dateien der IDV ohne Blatt-/Arbeitsmappenschutz inkl. Akzeptanz-Status.
+
+    Grundlage für die bewusste Fachverantwortlichen-Entscheidung während der
+    Fachlichen Abnahme (MaRisk AT 7.2 / DORA). Liefert pro Datei die bereits
+    erfasste Akzeptanz (Person + Zeitstempel + Begründung) oder None.
+    """
+    placeholders = ",".join("?" * len(_EXCEL_OOXML_EXTS))
+    rows = db.execute(f"""
+        SELECT f.id, f.full_path, f.file_name, f.extension, f.share_root,
+               f.sheet_count, f.formula_count, f.has_macros,
+               az.akzeptiert_am,
+               az.begruendung,
+               (p.nachname || ', ' || p.vorname) AS akzeptiert_von
+          FROM idv_files f
+          LEFT JOIN idv_zellschutz_akzeptanz az
+                 ON az.file_id = f.id AND az.idv_db_id = ?
+          LEFT JOIN persons p ON p.id = az.akzeptiert_von_id
+         WHERE f.status = 'active'
+           AND LOWER(f.extension) IN ({placeholders})
+           AND COALESCE(f.has_sheet_protection, 0) = 0
+           AND COALESCE(f.workbook_protected, 0) = 0
+           AND (
+                f.id = (SELECT file_id FROM idv_register WHERE id = ?)
+             OR f.id IN (SELECT file_id FROM idv_file_links WHERE idv_db_id = ?)
+           )
+         ORDER BY f.file_name
+    """, (idv_db_id, *_EXCEL_OOXML_EXTS, idv_db_id, idv_db_id)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def _save_upload(file):
     """Speichert eine hochgeladene Datei. Gibt (relativer_pfad, originaldateiname) zurück.
 
@@ -928,10 +964,19 @@ def erledigt_seite(freigabe_id):
     # Phase 2: Abnahmeformular – bearbeitbar wenn Ausstehend und zuständig, sonst Lesemodus
     readonly = freigabe["status"] != "Ausstehend" or not darf_abschliessen
     scanner_dateien = _verfuegbare_scanner_dateien(db, idv["id"]) if not readonly else []
+
+    # Für die Fachliche Abnahme: Excel-Dateien ohne Zell-/Blattschutz anzeigen.
+    # Auch im Lesemodus, damit dokumentiert ist, wer welche Ausnahme akzeptiert hat.
+    ungeschuetzte_excel = (
+        _unprotected_excel_files_for_idv(db, idv["id"])
+        if freigabe["schritt"] == "Fachliche Abnahme" else []
+    )
+
     return render_template("freigaben/bestanden_form.html",
                            freigabe=freigabe, idv=idv, readonly=readonly,
                            vertreter_name=vertreter_name, persons=persons,
                            scanner_dateien=scanner_dateien,
+                           ungeschuetzte_excel=ungeschuetzte_excel,
                            freigabe_pools=freigabe_pools)
 
 
@@ -999,6 +1044,33 @@ def abschliessen(freigabe_id):
                 nachweis_name = sf["file_name"]
 
     schritt = freigabe["schritt"]
+
+    # Fachliche Abnahme: Wenn verknüpfte Excel-Dateien ohne Zell-/Blattschutz
+    # existieren, muss der Fachverantwortliche jede dieser Dateien bewusst
+    # akzeptieren (MaRisk AT 7.2 / DORA). Begründung ist optional.
+    zellschutz_akzeptanzen: list[tuple[int, str | None]] = []
+    if schritt == "Fachliche Abnahme":
+        ungeschuetzt = _unprotected_excel_files_for_idv(db, idv_db_id)
+        fehlend: list[str] = []
+        for datei in ungeschuetzt:
+            if datei.get("akzeptiert_am"):
+                continue  # bereits früher akzeptiert → nicht erneut einfordern
+            akz_flag = request.form.get(f"zellschutz_akz_{datei['id']}")
+            if akz_flag != "1":
+                fehlend.append(datei["file_name"])
+                continue
+            begr = (request.form.get(f"zellschutz_begr_{datei['id']}") or "").strip() or None
+            zellschutz_akzeptanzen.append((datei["id"], begr))
+        if fehlend:
+            err = (
+                "Fehlender Zell-/Blattschutz muss bewusst akzeptiert werden: "
+                + ", ".join(fehlend)
+            )
+            if is_xhr:
+                return jsonify({"ok": False, "error": err}), 400
+            flash(err, "error")
+            return redirect(url_for("freigaben.erledigt_seite", freigabe_id=freigabe_id))
+
     user_name = session.get("user_name", "") or None
     hist_aktion, hist_kommentar = _sod_log_fields(
         db, idv_db_id, person_id,
@@ -1018,6 +1090,14 @@ def abschliessen(freigabe_id):
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, hist_aktion, hist_kommentar, person_id, user_name),
             )
+
+            for file_id, begr in zellschutz_akzeptanzen:
+                c.execute("""
+                    INSERT INTO idv_zellschutz_akzeptanz
+                        (idv_db_id, file_id, freigabe_id, akzeptiert_von_id,
+                         akzeptiert_am, begruendung)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (idv_db_id, file_id, freigabe_id, person_id, now, begr))
 
             phase2_done = False
             phase1_done = False

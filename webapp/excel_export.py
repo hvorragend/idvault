@@ -411,10 +411,14 @@ def _sheet_ohne_schutz_deckblatt(wb: Workbook, anzahl: int) -> None:
         "Hinweis: Die Liste ist als Arbeitsgrundlage für die Anlage von "
         "IT-Risiken im IDV-Register gedacht. Pro Eintrag ist zu bewerten, "
         "ob ein Zellschutz zwingend erforderlich ist oder eine begründete "
-        "Ausnahme dokumentiert werden kann."
+        "Ausnahme dokumentiert werden kann. Die bewusste Akzeptanz einer "
+        "fehlenden Protektion wird vom Fachverantwortlichen im Rahmen der "
+        "Fachlichen Abnahme (Phase 2) gesetzt – siehe Spalten „Akzeptiert "
+        "von / am / Begründung“. Grüne Zelle = akzeptiert, rote Zelle = "
+        "einer IDV zugeordnet, aber Akzeptanz noch offen."
     )
     ws["A17"].alignment = Alignment(wrap_text=True, vertical="top")
-    ws.merge_cells("A17:F20")
+    ws.merge_cells("A17:F22")
 
     ws.column_dimensions["A"].width = 32
     ws.column_dimensions["B"].width = 14
@@ -437,6 +441,9 @@ def _sheet_ohne_schutz_liste(wb: Workbook, db: sqlite3.Connection) -> list:
         ("Zuletzt gesehen",        20),
         ("Bearbeitungsstatus",     20),
         ("IDV-ID (falls verknüpft)", 18),
+        ("Akzeptiert von",         24),
+        ("Akzeptiert am",          16),
+        ("Begründung (Akzeptanz)", 48),
     ]
     _write_header(ws, header)
 
@@ -446,11 +453,19 @@ def _sheet_ohne_schutz_liste(wb: Workbook, db: sqlite3.Connection) -> list:
                f.sheet_count, f.formula_count, f.has_macros,
                f.has_external_links, f.office_author, f.file_owner,
                f.modified_at, f.last_seen_at, f.bearbeitungsstatus,
-               COALESCE(reg.idv_id, lnk_reg.idv_id) AS idv_id
+               COALESCE(reg.idv_id, lnk_reg.idv_id)  AS idv_id,
+               COALESCE(reg.id,     lnk_reg.id)      AS idv_db_id,
+               az.akzeptiert_am,
+               az.begruendung,
+               (p.nachname || ', ' || p.vorname) AS akzeptiert_von
           FROM idv_files f
           LEFT JOIN idv_register  reg     ON reg.file_id = f.id
           LEFT JOIN idv_file_links lnk    ON lnk.file_id = f.id
           LEFT JOIN idv_register  lnk_reg ON lnk_reg.id  = lnk.idv_db_id
+          LEFT JOIN idv_zellschutz_akzeptanz az
+                 ON az.file_id = f.id
+                AND az.idv_db_id = COALESCE(reg.id, lnk_reg.id)
+          LEFT JOIN persons p ON p.id = az.akzeptiert_von_id
          WHERE f.status = 'active'
            AND LOWER(f.extension) IN ({placeholders})
            AND COALESCE(f.has_sheet_protection, 0) = 0
@@ -476,6 +491,17 @@ def _sheet_ohne_schutz_liste(wb: Workbook, db: sqlite3.Connection) -> list:
         ws.cell(row=i, column=12, value=(r["last_seen_at"] or "")[:19].replace("T", " "))
         ws.cell(row=i, column=13, value=r["bearbeitungsstatus"])
         ws.cell(row=i, column=14, value=r["idv_id"])
+        ws.cell(row=i, column=15, value=r["akzeptiert_von"])
+        c_akz_am = ws.cell(
+            row=i, column=16,
+            value=(r["akzeptiert_am"] or "")[:10],
+        )
+        if r["akzeptiert_am"]:
+            c_akz_am.fill = _AMPEL_GRUEN
+        elif r["idv_db_id"]:
+            # Datei ist einer IDV zugeordnet, aber Akzeptanz fehlt → offenes IT-Risiko
+            c_akz_am.fill = _AMPEL_ROT
+        ws.cell(row=i, column=17, value=r["begruendung"])
 
     _autofilter(ws, len(header), len(rows))
     return rows
