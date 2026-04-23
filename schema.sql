@@ -1078,6 +1078,24 @@ CREATE TABLE IF NOT EXISTS testfall_vorlagen (
 CREATE INDEX IF NOT EXISTS idx_testfall_vorlagen_lookup
     ON testfall_vorlagen(aktiv, art, idv_typ);
 
+-- Scope-Eintraege je Vorlage (Issue #350): zusaetzlich zum bestehenden
+-- ``idv_typ``-Filter koennen Vorlagen auf bestimmte OEs / Klassifikationen
+-- eingeschraenkt werden. NULL = unbeschraenkt. ``mandatory=1`` macht
+-- die Vorlage zur Pflicht (im Formular ``disabled``).
+CREATE TABLE IF NOT EXISTS testfall_vorlage_scope (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    vorlage_id      INTEGER NOT NULL REFERENCES testfall_vorlagen(id) ON DELETE CASCADE,
+    oe_id           INTEGER REFERENCES org_units(id) ON DELETE CASCADE,
+    klassifikation  TEXT CHECK (klassifikation IN ('wesentlich','nicht wesentlich')),
+    mandatory       INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now','utc'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_tv_scope_vorlage
+    ON testfall_vorlage_scope(vorlage_id);
+CREATE INDEX IF NOT EXISTS idx_tv_scope_oe
+    ON testfall_vorlage_scope(oe_id);
+
 -- Seed: regulatorisch konforme Vorlagen (MaRisk AT 7.2 Tz. 7 · BAIT Kap. 10 · GoBD · DORA)
 INSERT OR IGNORE INTO testfall_vorlagen
     (titel, idv_typ, art, beschreibung, parametrisierung, testdaten, erwartetes_ergebnis)

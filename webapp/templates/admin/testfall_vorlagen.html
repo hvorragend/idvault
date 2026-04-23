@@ -121,6 +121,12 @@
             <td>
               {% if v.aktiv %}<span class="badge bg-success">Aktiv</span>
               {% else %}<span class="badge bg-secondary">Deaktiviert</span>{% endif %}
+              {% if v.mandatory_count and v.mandatory_count > 0 %}
+              <span class="badge bg-warning text-dark ms-1"
+                    title="{{ v.mandatory_count }} Pflicht-Scope(s)">
+                <i class="bi bi-pin-angle-fill me-1"></i>Pflicht
+              </span>
+              {% endif %}
             </td>
             <td class="text-muted fs-8">
               {% if v.updated_at %}{{ v.updated_at[:10] }}
@@ -230,6 +236,106 @@
                 <label class="form-check-label" for="aktiv-{{ v.id }}">Aktiv</label>
               </div>
             </div>
+
+            <!-- Scope-Pflege (Issue #350) -->
+            <div class="col-12">
+              <hr class="my-2">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label fw-600 mb-0">
+                  <i class="bi bi-bullseye me-1"></i>Anwendungs-Scope
+                </label>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        data-add-scope="{{ v.id }}">
+                  <i class="bi bi-plus-circle me-1"></i>Scope-Zeile
+                </button>
+              </div>
+              <div class="form-text mb-2">
+                Ohne Scope: Vorlage gilt typ-basiert für alle. Pro Zeile lässt sich
+                Filter auf eine OE und/oder Klassifikation einschränken; Pflicht-Vorlagen
+                erscheinen im Test-Formular vorbelegt &amp; nicht abwählbar.
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" data-scope-table="{{ v.id }}">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width:40%">Organisationseinheit</th>
+                      <th style="width:30%">Klassifikation</th>
+                      <th style="width:15%">Pflicht</th>
+                      <th style="width:15%" class="text-end"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for s in v.scopes %}
+                    <tr>
+                      <td>
+                        <select name="scope_oe_id" class="form-select form-select-sm">
+                          <option value="">— alle OEs —</option>
+                          {% for o in org_units %}
+                          <option value="{{ o.id }}" {% if s.oe_id==o.id %}selected{% endif %}>{{ o.bezeichnung }}</option>
+                          {% endfor %}
+                        </select>
+                      </td>
+                      <td>
+                        <select name="scope_klassifikation" class="form-select form-select-sm">
+                          <option value="">— alle —</option>
+                          {% for k in klassifikationen %}
+                          <option value="{{ k }}" {% if s.klassifikation==k %}selected{% endif %}>{{ k|capitalize }}</option>
+                          {% endfor %}
+                        </select>
+                      </td>
+                      <td>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox"
+                                 name="scope_mandatory" value="1"
+                                 {% if s.mandatory %}checked{% endif %}>
+                          <label class="form-check-label small">Verpflichtend</label>
+                        </div>
+                      </td>
+                      <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                data-remove-scope>
+                          <i class="bi bi-x-lg"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <template data-scope-template="{{ v.id }}">
+                <tr>
+                  <td>
+                    <select name="scope_oe_id" class="form-select form-select-sm">
+                      <option value="">— alle OEs —</option>
+                      {% for o in org_units %}
+                      <option value="{{ o.id }}">{{ o.bezeichnung }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select name="scope_klassifikation" class="form-select form-select-sm">
+                      <option value="">— alle —</option>
+                      {% for k in klassifikationen %}
+                      <option value="{{ k }}">{{ k|capitalize }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox"
+                             name="scope_mandatory" value="1">
+                      <label class="form-check-label small">Verpflichtend</label>
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            data-remove-scope>
+                      <i class="bi bi-x-lg"></i>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -283,6 +389,24 @@
       var form = modal.querySelector('.vorlage-edit-form');
       if (form) initQuillsInForm(form);
     });
+  });
+
+  // Scope-Zeilen dynamisch hinzufügen/entfernen (Issue #350)
+  document.querySelectorAll('[data-add-scope]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id  = btn.getAttribute('data-add-scope');
+      var tpl = document.querySelector('[data-scope-template="' + id + '"]');
+      var tbl = document.querySelector('[data-scope-table="' + id + '"] tbody');
+      if (tpl && tbl) {
+        tbl.appendChild(tpl.content.firstElementChild.cloneNode(true));
+      }
+    });
+  });
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-remove-scope]');
+    if (!btn) return;
+    var tr = btn.closest('tr');
+    if (tr) tr.remove();
   });
 })();
 </script>
