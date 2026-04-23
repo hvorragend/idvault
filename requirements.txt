@@ -4,12 +4,6 @@
 # Web-Framework
 flask>=3.0.0
 
-# Schema-Migrationen. Alembic + SQLAlchemy werden ausschließlich für die
-# Versionierung / das Anwenden der Migrationen in alembic/versions/ genutzt –
-# die Anwendungs-Queries laufen weiterhin über raw sqlite3.
-alembic>=1.13.0
-sqlalchemy>=2.0.0
-
 # CSRF-Schutz (VULN-A)
 flask-wtf>=1.2.0
 
