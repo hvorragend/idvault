@@ -171,9 +171,8 @@
                 title="Alle auswählen"></th>{% endif %}
             <th class="sortable">Bezeichnung</th>
             <th class="sortable">Typ</th>
-            <th class="sortable" title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">Art</th>
+            <th class="sortable" title="Regulatorische Entwicklungsart (MaRisk AT 7.2 / DORA)">Art / W.</th>
             <th class="sortable">Version / Dateien</th>
-            <th class="sortable">Wesentlichkeit</th>
             <th class="sortable">Status</th>
             <th class="sortable">Fachverantwortlicher</th>
             <th class="sortable">Eigentümer</th>
@@ -198,10 +197,15 @@
               {% set _art = r.entwicklungsart or 'arbeitshilfe' %}
               {% set _art_color = {'idv':'bg-warning text-dark','arbeitshilfe':'bg-success',
               'eigenprogrammierung':'bg-primary','auftragsprogrammierung':'bg-info text-dark'} %}
-              <span class="badge {{ _art_color.get(_art, 'bg-secondary') }}"
-                title="{{ entwicklungsart_label.get(_art, _art) }}">
-                {{ entwicklungsart_label.get(_art, _art) }}
-              </span>
+              <div class="d-flex flex-column gap-1 align-items-start">
+                <span class="badge {{ _art_color.get(_art, 'bg-secondary') }}"
+                  title="{{ entwicklungsart_label.get(_art, _art) }}">
+                  {{ entwicklungsart_label.get(_art, _art) }}
+                </span>
+                {% if r.wesentlich_flag %}
+                <span class="badge bg-danger">Wesentlich</span>
+                {% endif %}
+              </div>
             </td>
             <td class="fs-7" style="white-space:nowrap">
               {# Versionskette: Icon wenn Vorgänger oder Nachfolger existiert #}
@@ -224,13 +228,6 @@
               {% if r.file_formula_count %}
               <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{
                 r.file_formula_count }}</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if r.wesentlich_flag %}
-              <span class="badge bg-danger">Ja</span>
-              {% else %}
-              <span class="text-muted small">–</span>
               {% endif %}
             </td>
             <td>
