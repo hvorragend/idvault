@@ -233,6 +233,11 @@ verloren geht. #}
     class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
     <i class="bi bi-lock-fill me-1"></i>Mit Blattschutz ({{ mit_schutz }})
   </a>
+  <a href="{{ url_for('funde.list_funde', filter='ohne_schutz', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
+    class="btn btn-sm {{ 'btn-danger' if filt == 'ohne_schutz' else 'btn-outline-danger' }}"
+    title="Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz (Kandidaten für IT-Risiko-Erfassung)">
+    <i class="bi bi-unlock-fill me-1"></i>Ohne Zellschutz ({{ ohne_schutz }})
+  </a>
   <a href="{{ url_for('funde.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
     class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
     <i class="bi bi-check-circle me-1"></i>Bereits registriert
@@ -265,6 +270,35 @@ verloren geht. #}
         Die Verknüpfung zur Eigenentwicklung im Register bleibt erhalten. Wurde die Datei nur umbenannt oder verschoben,
         wird sie beim nächsten Scan als neuer Fund erkannt und kann dann erneut zugeordnet werden.
       </span>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if filt == 'ohne_schutz' %}
+<div class="alert alert-danger mb-3">
+  <div class="d-flex gap-2">
+    <i class="bi bi-unlock-fill fs-5 flex-shrink-0 mt-1"></i>
+    <div class="flex-grow-1">
+      <strong>Excel-Dateien ohne Zell-/Blattschutz</strong><br>
+      Die folgenden Excel-Dateien haben weder einen aktiven Blattschutz
+      (<code>&lt;sheetProtection&gt;</code>) noch einen Arbeitsmappenschutz
+      (<code>&lt;workbookProtection&gt;</code>). Aufsichtsrechtlich (MaRisk AT 7.2 /
+      DORA) ist der Schutz von Zellen bzw. Tabellenblättern zu prüfen, um
+      unbeabsichtigte Änderungen an Formeln und Eingabefeldern zu verhindern.
+      Die Liste dient als Basis für die Anlage eines IT-Risikos im jeweiligen
+      Register-Eintrag.
+      <div class="text-muted mt-1 small">
+        Berücksichtigt werden OOXML-Formate (.xlsx, .xlsm, .xlsb, .xltm, .xltx).
+        Ältere <code>.xls</code>-Dateien lassen sich vom Scanner nicht auf
+        Zellschutz prüfen und sind daher nicht enthalten.
+      </div>
+    </div>
+    <div class="flex-shrink-0">
+      <a href="{{ url_for('funde.export_ohne_schutz', share_root=share_root_filt, scan_run=scan_run_id_filt) }}"
+         class="btn btn-sm btn-danger">
+        <i class="bi bi-file-earmark-excel me-1"></i>Report herunterladen
+      </a>
     </div>
   </div>
 </div>

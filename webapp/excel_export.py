@@ -365,3 +365,139 @@ def register_excel_bytes(db: sqlite3.Connection) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Report: Excel-Dateien ohne Zell-/Blattschutz (IT-Risiko-Kandidaten)
+# ---------------------------------------------------------------------------
+
+_UNPROTECTED_EXCEL_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx")
+
+
+def _sheet_ohne_schutz_deckblatt(wb: Workbook, anzahl: int) -> None:
+    ws = wb.active
+    ws.title = "Deckblatt"
+
+    ws["A1"] = "Excel-Dateien ohne Zell-/Blattschutz"
+    ws["A1"].font = _TITLE_FONT
+    ws["A2"] = f"Stichtag: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    ws["A2"].font = Font(italic=True, color="475569")
+
+    ws["A4"] = "Anzahl betroffener Dateien:"
+    ws["A4"].font = Font(bold=True)
+    ws.cell(row=4, column=2, value=anzahl).font = Font(bold=True, color="B91C1C")
+
+    ws["A6"] = (
+        "Aufsichtsrechtlicher Hintergrund: MaRisk AT 7.2 / DORA fordern, dass "
+        "Individuelle Datenverarbeitung (IDV) vor unbeabsichtigten Änderungen "
+        "geschützt ist. Für Excel-Tabellen umfasst dies insbesondere den "
+        "Schutz von Formelzellen und Eingabemasken über Blatt- bzw. "
+        "Arbeitsmappenschutz."
+    )
+    ws["A6"].alignment = Alignment(wrap_text=True, vertical="top")
+    ws.merge_cells("A6:F10")
+
+    ws["A12"] = (
+        "Quelle: Scanner-Analyse der OOXML-Container (xl/workbook.xml + "
+        "xl/worksheets/sheet*.xml). Berücksichtigt werden .xlsx, .xlsm, "
+        ".xlsb, .xltm, .xltx. Binäre .xls-Dateien lassen sich nicht prüfen "
+        "und sind nicht enthalten."
+    )
+    ws["A12"].alignment = Alignment(wrap_text=True, vertical="top")
+    ws["A12"].font = Font(italic=True, color="475569")
+    ws.merge_cells("A12:F15")
+
+    ws["A17"] = (
+        "Hinweis: Die Liste ist als Arbeitsgrundlage für die Anlage von "
+        "IT-Risiken im IDV-Register gedacht. Pro Eintrag ist zu bewerten, "
+        "ob ein Zellschutz zwingend erforderlich ist oder eine begründete "
+        "Ausnahme dokumentiert werden kann."
+    )
+    ws["A17"].alignment = Alignment(wrap_text=True, vertical="top")
+    ws.merge_cells("A17:F20")
+
+    ws.column_dimensions["A"].width = 32
+    ws.column_dimensions["B"].width = 14
+
+
+def _sheet_ohne_schutz_liste(wb: Workbook, db: sqlite3.Connection) -> list:
+    ws = wb.create_sheet("Ohne Zellschutz")
+    header = [
+        ("Dateiname",              38),
+        ("Vollständiger Pfad",     70),
+        ("Share-Root",             28),
+        ("Endung",                 10),
+        ("Blätter",                10),
+        ("Formelzellen",           14),
+        ("Makros (VBA)",           14),
+        ("Externe Verknüpfungen",  20),
+        ("Office-Autor",           22),
+        ("Datei-Eigentümer",       22),
+        ("Zuletzt geändert",       20),
+        ("Zuletzt gesehen",        20),
+        ("Bearbeitungsstatus",     20),
+        ("IDV-ID (falls verknüpft)", 18),
+    ]
+    _write_header(ws, header)
+
+    placeholders = ",".join("?" * len(_UNPROTECTED_EXCEL_EXTS))
+    rows = db.execute(f"""
+        SELECT f.file_name, f.full_path, f.share_root, f.extension,
+               f.sheet_count, f.formula_count, f.has_macros,
+               f.has_external_links, f.office_author, f.file_owner,
+               f.modified_at, f.last_seen_at, f.bearbeitungsstatus,
+               COALESCE(reg.idv_id, lnk_reg.idv_id) AS idv_id
+          FROM idv_files f
+          LEFT JOIN idv_register  reg     ON reg.file_id = f.id
+          LEFT JOIN idv_file_links lnk    ON lnk.file_id = f.id
+          LEFT JOIN idv_register  lnk_reg ON lnk_reg.id  = lnk.idv_db_id
+         WHERE f.status = 'active'
+           AND LOWER(f.extension) IN ({placeholders})
+           AND COALESCE(f.has_sheet_protection, 0) = 0
+           AND COALESCE(f.workbook_protected, 0) = 0
+           AND (f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')
+         ORDER BY f.share_root, f.full_path
+    """, _UNPROTECTED_EXCEL_EXTS).fetchall()
+
+    for i, r in enumerate(rows, start=2):
+        ws.cell(row=i, column=1,  value=r["file_name"])
+        ws.cell(row=i, column=2,  value=r["full_path"])
+        ws.cell(row=i, column=3,  value=r["share_root"])
+        ws.cell(row=i, column=4,  value=r["extension"])
+        ws.cell(row=i, column=5,  value=r["sheet_count"])
+        ws.cell(row=i, column=6,  value=r["formula_count"])
+        c_vba = ws.cell(row=i, column=7, value="Ja" if r["has_macros"] else "Nein")
+        if r["has_macros"]:
+            c_vba.fill = _AMPEL_ROT
+        ws.cell(row=i, column=8,  value="Ja" if r["has_external_links"] else "Nein")
+        ws.cell(row=i, column=9,  value=r["office_author"])
+        ws.cell(row=i, column=10, value=r["file_owner"])
+        ws.cell(row=i, column=11, value=(r["modified_at"] or "")[:19].replace("T", " "))
+        ws.cell(row=i, column=12, value=(r["last_seen_at"] or "")[:19].replace("T", " "))
+        ws.cell(row=i, column=13, value=r["bearbeitungsstatus"])
+        ws.cell(row=i, column=14, value=r["idv_id"])
+
+    _autofilter(ws, len(header), len(rows))
+    return rows
+
+
+def build_unprotected_excel_workbook(db: sqlite3.Connection) -> Workbook:
+    """Arbeitsmappe mit Excel-Dateien ohne Blatt-/Arbeitsmappenschutz."""
+    wb = Workbook()
+    # Deckblatt übernimmt das automatisch angelegte Default-Sheet
+    # (analog zu build_register_workbook); die Anzahl wird nachträglich gesetzt.
+    rows_count_placeholder = 0
+    _sheet_ohne_schutz_deckblatt(wb, anzahl=rows_count_placeholder)
+    rows = _sheet_ohne_schutz_liste(wb, db)
+    # Anzahl nachtragen, jetzt wo wir sie kennen
+    wb["Deckblatt"].cell(row=4, column=2, value=len(rows)).font = Font(
+        bold=True, color="B91C1C"
+    )
+    return wb
+
+
+def unprotected_excel_bytes(db: sqlite3.Connection) -> bytes:
+    wb = build_unprotected_excel_workbook(db)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
