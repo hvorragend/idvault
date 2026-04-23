@@ -849,6 +849,11 @@ CREATE TABLE IF NOT EXISTS idv_freigaben (
     archiv_datei_pfad       TEXT,       -- relativer Pfad im Archiv-Ordner
     archiv_datei_name       TEXT,       -- Originaldateiname der archivierten Datei
     archiv_datei_sha256     TEXT,       -- SHA-256-Hash zur Integritätssicherung
+    -- Pool-Zuweisung (alternativ zu zugewiesen_an_id)
+    pool_id                 INTEGER REFERENCES freigabe_pools(id),
+    -- Wer hat den Schritt aus dem Pool übernommen (Claim)
+    bearbeitet_von_id       INTEGER REFERENCES persons(id),
+    bearbeitet_am           TEXT,
     -- Admin-Abbruch
     abgebrochen_von_id      INTEGER REFERENCES persons(id),
     abgebrochen_am          TEXT,
@@ -858,9 +863,30 @@ CREATE TABLE IF NOT EXISTS idv_freigaben (
 
 CREATE INDEX IF NOT EXISTS idx_freigaben_idv    ON idv_freigaben(idv_id);
 CREATE INDEX IF NOT EXISTS idx_freigaben_status ON idv_freigaben(status, schritt);
+CREATE INDEX IF NOT EXISTS idx_freigaben_pool   ON idv_freigaben(pool_id);
 
 -- -----------------------------------------------------------------------------
--- 11. MEHRFACH-DATEI-VERKNÜPFUNGEN (IDV ↔ mehrere Scanner-Dateien)
+-- 11. FREIGABE-POOLS (Pool-basierte Zuweisung von Prüfschritten)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS freigabe_pools (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT    NOT NULL,
+    beschreibung    TEXT,
+    aktiv           INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now','utc'))
+);
+
+CREATE TABLE IF NOT EXISTS freigabe_pool_members (
+    pool_id     INTEGER NOT NULL REFERENCES freigabe_pools(id)  ON DELETE CASCADE,
+    person_id   INTEGER NOT NULL REFERENCES persons(id)          ON DELETE CASCADE,
+    PRIMARY KEY (pool_id, person_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pool_members_person ON freigabe_pool_members(person_id);
+
+-- -----------------------------------------------------------------------------
+-- 12. MEHRFACH-DATEI-VERKNÜPFUNGEN (IDV ↔ mehrere Scanner-Dateien)
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS idv_file_links (
@@ -1231,3 +1257,14 @@ CREATE INDEX IF NOT EXISTS idx_self_service_audit_person
     ON self_service_audit(person_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_self_service_audit_file
     ON self_service_audit(file_id);
+
+-- -----------------------------------------------------------------------------
+-- 17. IDV-DRAFT (temporärer Entwurf beim Anlegen neuer IDV-Einträge)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS idv_draft (
+    user_id     TEXT PRIMARY KEY,
+    draft_json  TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','utc')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now','utc'))
+);
