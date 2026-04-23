@@ -30,6 +30,62 @@
 
 </div>
 
+<!-- ── Kennzahlen / KPIs (Issue #354) ───────────────────────────────── -->
+{% if kpis %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Kennzahlen
+      <span class="text-muted small ms-2">letzte {{ kpi_window_days }} Tage</span>
+    </span>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Zeitfenster">
+      <a href="{{ url_for('dashboard.index', kpi_days=30) }}"
+         class="btn btn-outline-secondary {% if kpi_window_days == 30 %}active{% endif %}">30 Tage</a>
+      <a href="{{ url_for('dashboard.index', kpi_days=90) }}"
+         class="btn btn-outline-secondary {% if kpi_window_days == 90 %}active{% endif %}">90 Tage</a>
+      <a href="{{ url_for('admin.export_excel') if 'admin.export_excel' else '#' }}"
+         class="btn btn-outline-primary"
+         title="Excel-Export inkl. Kennzahlen-Sheet">
+        <i class="bi bi-file-earmark-excel me-1"></i>Excel
+      </a>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      {% for k in kpis %}
+      <div class="col-md-6 col-xl-4">
+        <div class="border rounded p-3 h-100 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <div class="text-muted small fw-500">{{ k.label }}</div>
+              <div class="display-6 fw-600 text-{{ k.tone }}">{{ k.value }}</div>
+              <div class="text-muted fs-7">{{ k.sub }}</div>
+            </div>
+            <span class="text-{{ k.tone }} fs-3"><i class="bi {{ k.icon }}"></i></span>
+          </div>
+          {% if k.sparkline %}
+          {% set _max = k.sparkline|max %}
+          {% set _len = k.sparkline|length %}
+          <svg viewBox="0 0 {{ (_len-1) * 8 + 4 }} 24" preserveAspectRatio="none"
+               style="width:100%;height:32px" aria-hidden="true">
+            <polyline fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      class="text-{{ k.tone }}"
+                      points="
+                        {%- for v in k.sparkline -%}
+                          {{ loop.index0 * 8 + 2 }},{{ 22 - (v / (_max if _max > 0 else 1)) * 18 }}{{ ' ' }}
+                        {%- endfor -%}"
+            />
+          </svg>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- ── Alert-Zeile ─────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
   {% if stats.pruefung_ueberfaellig > 0 %}

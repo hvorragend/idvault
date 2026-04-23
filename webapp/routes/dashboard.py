@@ -2,7 +2,8 @@ from flask import Blueprint, render_template
 from . import login_required, get_db, can_read_all, current_person_id
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from db import get_dashboard_stats, idv_incomplete_owners, idvs_missing_mandatory_testfaelle
+from db import (get_dashboard_stats, idv_incomplete_owners,
+                idvs_missing_mandatory_testfaelle, get_dashboard_kpis)
 
 bp = Blueprint("dashboard", __name__)
 
@@ -10,11 +11,24 @@ bp = Blueprint("dashboard", __name__)
 @bp.route("/")
 @login_required
 def index():
+    from flask import request
     db  = get_db()
     # Eingeschränkte Nutzer (z.B. Fachverantwortliche) sehen nur ihre eigenen
     # unvollständigen IDVs, damit der Zähler zu ihren Berechtigungen passt.
     pid   = None if can_read_all() else current_person_id()
     stats = get_dashboard_stats(db, person_id=pid)
+
+    # Issue #354: Prozesskennzahlen (KPIs) — 30 / 90 Tage Zeitfenster.
+    try:
+        kpi_window_days = int(request.args.get("kpi_days") or 30)
+    except (ValueError, TypeError):
+        kpi_window_days = 30
+    if kpi_window_days not in (30, 90):
+        kpi_window_days = 30
+    try:
+        kpis = get_dashboard_kpis(db, days=kpi_window_days) if can_read_all() else []
+    except Exception:
+        kpis = []
 
     # Persönliche Aufgaben-Inbox: offene Freigabe-Schritte die mir zugewiesen sind
     # (direkt oder als aktiver Stellvertreter einer abwesenden Person).
@@ -151,6 +165,8 @@ def index():
 
     return render_template("dashboard.html",
         stats=stats,
+        kpis=kpis,
+        kpi_window_days=kpi_window_days,
         kritische_idvs=kritische_idvs,
         prueffaelligkeiten=prueffaelligkeiten,
         offene_massnahmen=offene_massnahmen,

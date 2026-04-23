@@ -834,6 +834,260 @@ def get_dashboard_stats(conn: sqlite3.Connection, person_id: Optional[int] = Non
 
 
 # ---------------------------------------------------------------------------
+# Prozesskennzahlen / KPIs (Issue #354)
+# ---------------------------------------------------------------------------
+# Liefern Median, Anteilswerte, Quoten — bewusst nur aus vorhandenem
+# Audit-Trail (`notification_log`, `self_service_audit`, `idv_history`,
+# `scan_runs` + Datei-Zeitstempel). Kein neuer DB-State.
+
+def _percentile(values: list[float], p: float) -> float | None:
+    """Approximierte Perzentile (linearer Interpolant). p in [0,100]."""
+    if not values:
+        return None
+    s = sorted(values)
+    if len(s) == 1:
+        return s[0]
+    k = (len(s) - 1) * (p / 100.0)
+    lo = int(k)
+    hi = min(lo + 1, len(s) - 1)
+    frac = k - lo
+    return s[lo] + (s[hi] - s[lo]) * frac
+
+
+def _safe_pct(numerator: int, denominator: int) -> int:
+    if not denominator:
+        return 0
+    return round(100.0 * numerator / denominator)
+
+
+def kpi_durchlaufzeit_scan_registrierung(conn: sqlite3.Connection,
+                                         days: int = 30) -> dict:
+    """Median / p95 der Tage zwischen erstem Scan und Registrierung.
+
+    Heuristik: ``idv_register.erstellt_am`` minus ``idv_files.created_at``
+    (Scanner-Eintrag der verknuepften Datei). Nur IDVs der letzten
+    ``days`` Tage werden betrachtet.
+    """
+    rows = conn.execute(f"""
+        SELECT julianday(r.erstellt_am) - julianday(f.created_at) AS delta
+          FROM idv_register r
+          JOIN idv_files f ON f.id = r.file_id
+         WHERE r.erstellt_am >= date('now', '-{int(days)} days')
+           AND f.created_at IS NOT NULL
+           AND r.erstellt_am IS NOT NULL
+    """).fetchall()
+    deltas = [float(r[0]) for r in rows if r[0] is not None and r[0] >= 0]
+    return {
+        "n":      len(deltas),
+        "median": round(_percentile(deltas, 50) or 0, 1),
+        "p95":    round(_percentile(deltas, 95) or 0, 1),
+    }
+
+
+def kpi_selbstbearbeitungsquote(conn: sqlite3.Connection,
+                                days: int = 30) -> dict:
+    """Anteil Self-Service-Aktionen an allen Funde-Statuswechseln.
+
+    Self-Service-Aktionen aus ``self_service_audit``, alle Statuswechsel
+    aus ``idv_files`` (modifiziert via ``bearbeitungsstatus``-Wechsel
+    weg von 'Neu'). Mangels Audit-Tabelle der Statuswechsel naehern wir
+    den Nenner ueber alle Files mit ``bearbeitungsstatus != 'Neu'`` der
+    letzten ``days`` Tage an (modified_at).
+    """
+    self_service = conn.execute(f"""
+        SELECT COUNT(*) FROM self_service_audit
+         WHERE created_at >= datetime('now','-{int(days)} days')
+    """).fetchone()[0] or 0
+    gesamt = conn.execute(f"""
+        SELECT COUNT(*) FROM idv_files
+         WHERE modified_at >= date('now','-{int(days)} days')
+           AND bearbeitungsstatus != 'Neu'
+    """).fetchone()[0] or 0
+    return {
+        "self_service": int(self_service),
+        "gesamt":       int(gesamt),
+        "anteil_pct":   _safe_pct(int(self_service), int(gesamt)),
+    }
+
+
+def kpi_pool_claim_quote(conn: sqlite3.Connection, days: int = 30) -> dict:
+    """Anteil Pool-Schritte, die binnen 24 h claimed wurden.
+
+    Quelle: ``idv_freigaben.beauftragt_am`` (Pool-Versand) und
+    ``bearbeitet_von_id`` (Claim-Anker — der Schritt wurde uebernommen,
+    sobald er erledigt oder explizit zugewiesen wurde).
+    """
+    rows = conn.execute(f"""
+        SELECT f.beauftragt_am, f.durchgefuehrt_am, f.bearbeitet_von_id
+          FROM idv_freigaben f
+         WHERE f.pool_id IS NOT NULL
+           AND f.beauftragt_am >= datetime('now','-{int(days)} days')
+           AND (f.bearbeitet_von_id IS NOT NULL OR f.durchgefuehrt_am IS NOT NULL)
+    """).fetchall()
+    n_total = 0
+    n_24h = 0
+    for r in rows:
+        if not r["beauftragt_am"]:
+            continue
+        n_total += 1
+        first_action = r["durchgefuehrt_am"]
+        if not first_action:
+            # Hat einen bearbeitet_von_id-Claim, aber kein Abschluss-Datum —
+            # Claim-Zeitpunkt nicht ermittelbar; konservativ: zaehlt nicht
+            # als „in 24 h".
+            continue
+        try:
+            from datetime import datetime as _dt
+            t0 = _dt.fromisoformat(r["beauftragt_am"].replace("Z", "+00:00"))
+            t1 = _dt.fromisoformat(str(first_action).replace("Z", "+00:00"))
+            if (t1 - t0).total_seconds() <= 24 * 3600:
+                n_24h += 1
+        except Exception:
+            continue
+    return {"n_total": n_total, "n_24h": n_24h,
+            "anteil_pct": _safe_pct(n_24h, n_total)}
+
+
+def kpi_auto_match_anteil(conn: sqlite3.Connection, days: int = 30) -> dict:
+    """Anteil registrierter Files der letzten ``days`` Tage, die ueber
+    ``idv_match_suggestions`` mit ``decision='confirmed'`` registriert wurden.
+    """
+    try:
+        registriert = conn.execute(f"""
+            SELECT COUNT(*) FROM idv_files
+             WHERE bearbeitungsstatus IN ('Registriert','In Bearbeitung')
+               AND modified_at >= date('now','-{int(days)} days')
+        """).fetchone()[0] or 0
+        auto = conn.execute(f"""
+            SELECT COUNT(DISTINCT s.file_id) FROM idv_match_suggestions s
+             WHERE s.decision = 'confirmed'
+               AND s.decided_at >= date('now','-{int(days)} days')
+        """).fetchone()[0] or 0
+    except Exception:
+        return {"auto": 0, "gesamt": 0, "anteil_pct": 0}
+    return {"auto": int(auto), "gesamt": int(registriert),
+            "anteil_pct": _safe_pct(int(auto), int(registriert))}
+
+
+def kpi_stille_freigabe_quote(conn: sqlite3.Connection, days: int = 30) -> dict:
+    """Anteil stiller Freigaben an allen Freigaben in ``days``."""
+    try:
+        stille = conn.execute(f"""
+            SELECT COUNT(*) FROM idv_register
+             WHERE freigabe_verfahren = 'Stille Freigabe'
+               AND status_geaendert_am >= date('now','-{int(days)} days')
+        """).fetchone()[0] or 0
+        gesamt = conn.execute(f"""
+            SELECT COUNT(*) FROM idv_register
+             WHERE status IN ('Freigegeben','Freigegeben mit Auflagen','Freigegeben (Stille Freigabe)')
+               AND status_geaendert_am >= date('now','-{int(days)} days')
+        """).fetchone()[0] or 0
+    except Exception:
+        return {"stille": 0, "gesamt": 0, "anteil_pct": 0}
+    return {"stille": int(stille), "gesamt": int(gesamt),
+            "anteil_pct": _safe_pct(int(stille), int(gesamt))}
+
+
+def kpi_owner_digest_reaktion(conn: sqlite3.Connection, days: int = 30) -> dict:
+    """Reaktionsrate auf Owner-Digest-Mails (geclickt + Aktion durchgefuehrt).
+
+    Naehern: # Tokens mit ``first_used_at`` / # Tokens insgesamt im
+    Zeitraum.
+    """
+    try:
+        gesamt = conn.execute(f"""
+            SELECT COUNT(*) FROM self_service_tokens
+             WHERE created_at >= datetime('now','-{int(days)} days')
+        """).fetchone()[0] or 0
+        reagiert = conn.execute(f"""
+            SELECT COUNT(*) FROM self_service_tokens
+             WHERE created_at >= datetime('now','-{int(days)} days')
+               AND first_used_at IS NOT NULL
+        """).fetchone()[0] or 0
+    except Exception:
+        return {"reagiert": 0, "gesamt": 0, "anteil_pct": 0}
+    return {"reagiert": int(reagiert), "gesamt": int(gesamt),
+            "anteil_pct": _safe_pct(int(reagiert), int(gesamt))}
+
+
+def kpi_sparkline(conn: sqlite3.Connection, kind: str, days: int = 30) -> list:
+    """Liefert eine Liste mit ``days`` Tageswerten fuer Inline-Sparklines.
+
+    ``kind`` beschreibt die Quelle:
+      * ``self_service`` – Aktionen pro Tag aus ``self_service_audit``
+      * ``stille_freigabe`` – Anzahl stiller Freigaben je Tag
+      * ``auto_match`` – Anzahl confirmed Suggestions je Tag
+    """
+    sql_map = {
+        "self_service": (
+            "SELECT date(created_at) AS d, COUNT(*) "
+            "  FROM self_service_audit "
+            " WHERE created_at >= date('now','-{} days') "
+            " GROUP BY d"
+        ),
+        "stille_freigabe": (
+            "SELECT date(status_geaendert_am) AS d, COUNT(*) "
+            "  FROM idv_register "
+            " WHERE freigabe_verfahren='Stille Freigabe' "
+            "   AND status_geaendert_am >= date('now','-{} days') "
+            " GROUP BY d"
+        ),
+        "auto_match": (
+            "SELECT date(decided_at) AS d, COUNT(*) "
+            "  FROM idv_match_suggestions "
+            " WHERE decision='confirmed' "
+            "   AND decided_at >= date('now','-{} days') "
+            " GROUP BY d"
+        ),
+    }
+    sql = sql_map.get(kind)
+    if not sql:
+        return [0] * days
+    try:
+        rows = conn.execute(sql.format(int(days))).fetchall()
+    except Exception:
+        return [0] * days
+    by_day = {r[0]: int(r[1]) for r in rows}
+    from datetime import date as _date_, timedelta as _td_
+    today = _date_.today()
+    return [by_day.get((today - _td_(days=days - 1 - i)).isoformat(), 0)
+            for i in range(days)]
+
+
+def get_dashboard_kpis(conn: sqlite3.Connection, days: int = 30) -> list[dict]:
+    """Liefert die Liste der KPI-Kacheln fuer das Dashboard (Issue #354)."""
+    durchlauf = kpi_durchlaufzeit_scan_registrierung(conn, days)
+    selbst    = kpi_selbstbearbeitungsquote(conn, days)
+    pool      = kpi_pool_claim_quote(conn, days)
+    auto      = kpi_auto_match_anteil(conn, days)
+    stille    = kpi_stille_freigabe_quote(conn, days)
+    digest    = kpi_owner_digest_reaktion(conn, days)
+    return [
+        {"key": "durchlaufzeit", "label": "Durchlaufzeit Scan → Registrierung",
+         "value": f"{durchlauf['median']}d", "sub": f"p95: {durchlauf['p95']}d (n={durchlauf['n']})",
+         "icon": "bi-stopwatch", "tone": "primary", "sparkline": []},
+        {"key": "selbstbearbeitungsquote", "label": "Selbstbearbeitungsquote",
+         "value": f"{selbst['anteil_pct']} %", "sub": f"{selbst['self_service']} / {selbst['gesamt']} via Self-Service",
+         "icon": "bi-person-check", "tone": "success",
+         "sparkline": kpi_sparkline(conn, "self_service", days)},
+        {"key": "pool_claim", "label": "Pool-Claim ≤ 24 h",
+         "value": f"{pool['anteil_pct']} %", "sub": f"{pool['n_24h']} / {pool['n_total']} Pool-Schritte",
+         "icon": "bi-people", "tone": "info", "sparkline": []},
+        {"key": "auto_match", "label": "Auto-Match-Anteil",
+         "value": f"{auto['anteil_pct']} %", "sub": f"{auto['auto']} / {auto['gesamt']} Registrierungen",
+         "icon": "bi-shuffle", "tone": "primary",
+         "sparkline": kpi_sparkline(conn, "auto_match", days)},
+        {"key": "stille_freigabe", "label": "Quote stille Freigabe",
+         "value": f"{stille['anteil_pct']} %", "sub": f"{stille['stille']} / {stille['gesamt']} Freigaben",
+         "icon": "bi-lightning-charge", "tone": "secondary",
+         "sparkline": kpi_sparkline(conn, "stille_freigabe", days)},
+        {"key": "owner_digest", "label": "Owner-Digest-Reaktionsrate",
+         "value": f"{digest['anteil_pct']} %", "sub": f"{digest['reagiert']} / {digest['gesamt']} Mails",
+         "icon": "bi-envelope-check", "tone": "warning", "sparkline": []},
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Vollständigkeits-Score (Issue #348)
 # ---------------------------------------------------------------------------
 #

@@ -1,7 +1,7 @@
 """silent_release Spalte + Setting (Issue #351)
 
 Revision ID: 0003_silent_release
-Revises: 0002_tests_prefilled_findings
+Revises: 0003_testfall_vorlage_scope
 Create Date: 2026-04-23
 
 Fuehrt die ``Stille Freigabe`` als verkuerztes Verfahren fuer
@@ -10,6 +10,12 @@ um die Variante ``Freigegeben (Stille Freigabe)`` und persistiert das
 verwendete Verfahren in einer neuen Spalte ``freigabe_verfahren`` von
 ``idv_register``. Die App-Setting ``silent_release_enabled`` ist als
 Opt-In hinterlegt (Default: aus).
+
+Anmerkung: Ursprünglich gegen ``0002`` aufgesetzt, weil parallel zu
+``0003_testfall_vorlage_scope`` (Issue #350) entwickelt. Nach dem
+Merge beider PRs in ``main`` wurde diese Revision auf
+``0003_testfall_vorlage_scope`` umkettet, damit ``alembic upgrade head``
+eindeutig bleibt.
 """
 
 from __future__ import annotations
@@ -18,7 +24,7 @@ from alembic import op
 
 
 revision = "0003_silent_release"
-down_revision = "0002_tests_prefilled_findings"
+down_revision = "0003_testfall_vorlage_scope"
 branch_labels = None
 depends_on = None
 
