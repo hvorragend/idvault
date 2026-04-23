@@ -50,7 +50,18 @@ Die Scanner-Einstellungen liegen im `"scanner"`-Abschnitt der gemeinsamen
 |---|---|---|---|
 | `scan_paths` | Liste | `[]` | Zu scannende Pfade (UNC oder Laufwerksbuchstaben) |
 | `extensions` | Liste | `.xlsx`, `.xlsm`, `.py`, `.sql`, … | Erfasste Dateierweiterungen |
-| `exclude_paths` | Liste | `["~$", ".tmp", …]` | Pfadmuster, die ausgeschlossen werden |
+| `blacklist_paths` | Liste | siehe unten | Pfad-/Dateinamen-Muster (Regex, case-insensitive), die Verzeichnis- **und** Dateiebene filtern |
+| `exclude_paths` | Liste | `[]` | Legacy-Alias, für neue Installationen leer |
+
+**Blacklist-Defaults** (wirken sowohl als Ordner- als auch als Dateinamen-Filter):
+
+- `~\$` – Office-Lock-Dateien (`~$foo.xlsx`)
+- `\.tmp(\b|$)` – Temp-Suffixe
+- `\$RECYCLE\.BIN`, `System Volume Information`, `[\\/]Papierkorb[\\/]`, `[\\/]AppData[\\/]`, `[\\/]Temp[\\/]` – System-/Papierkorb-Pfade
+- `[\\/]\.git[\\/]`, `[\\/]__pycache__[\\/]`, `[\\/]node_modules[\\/]`, `[\\/]\.venv[\\/]`, `[\\/]venv[\\/]` – Entwickler-/VCS-Ordner
+- ` - Kopie[\s.(]`, ` - Copy[\s.(]`, `[\\/]Kopie von `, `[\\/]Copy of ` – Windows-Explorer-Dubletten
+- `_alt\.`, `_backup\.`, `_bak\.`, `_old\.` – Alt-/Backup-Suffixe am Dateinamen
+
 | `db_path` | String | `"instance/idvault.db"` | Pfad zur SQLite-Datenbank |
 | `log_path` | String | `"scanner/network_scanner.log"` | Pfad zur Logdatei |
 | `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |

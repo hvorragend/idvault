@@ -55,6 +55,51 @@ _TYP_DEFAULTS = {
 }
 
 
+def _normalize_for_prefix(path: str) -> str:
+    """Normalisiert Pfade für Präfix-Vergleich: Slashes → Backslash, lower()."""
+    if not path:
+        return ""
+    return path.replace("/", "\\").lower()
+
+
+def _best_fund_pfad_profil(db, full_paths: list) -> dict | None:
+    """Bestimmt das für die Mehrheit der übergebenen Pfade passende Profil.
+
+    Strategie: pro Profil wird gezählt, wie viele der Pfade mit dessen
+    ``pfad_praefix`` beginnen. Bei Gleichstand gewinnt das längere Präfix
+    (spezifischer). Rückgabe: Profil-Row als dict oder ``None``.
+    """
+    try:
+        profile = db.execute(
+            "SELECT * FROM fund_pfad_profile WHERE aktiv=1"
+        ).fetchall()
+    except Exception:
+        return None
+    if not profile or not full_paths:
+        return None
+
+    norm_paths = [_normalize_for_prefix(p) for p in full_paths if p]
+    if not norm_paths:
+        return None
+
+    best = None
+    best_hits = 0
+    best_len  = 0
+    for prof in profile:
+        praefix = _normalize_for_prefix(prof["pfad_praefix"] or "")
+        if not praefix:
+            continue
+        hits = sum(1 for p in norm_paths if p.startswith(praefix))
+        if hits == 0:
+            continue
+        if (hits > best_hits
+                or (hits == best_hits and len(praefix) > best_len)):
+            best = dict(prof)
+            best_hits = hits
+            best_len  = len(praefix)
+    return best
+
+
 def _form_lookups(db):
     """Liefert Nachschlagedaten für IDV-Formulare.
 
@@ -1111,6 +1156,10 @@ def bulk_neu():
         ph_params
     ).fetchall()
 
+    # Pfad-Profil-Vorschlag: das auf die Mehrheit der selektierten Funde
+    # passende Profil wird als Kopf-Vorbelegung gezogen (längstes Präfix gewinnt).
+    profil_vorbelegung = _best_fund_pfad_profil(db, [d["full_path"] for d in dateien])
+
     # Pro Datei: Bezeichnungs-/Typ-/Entwickler-Vorschläge aufbereiten
     vorschlaege = []
     for d in dateien:
@@ -1143,6 +1192,7 @@ def bulk_neu():
 
     return render_template("eigenentwicklung/bulk_neu.html",
                            vorschlaege=vorschlaege,
+                           profil_vorbelegung=profil_vorbelegung,
                            **_form_lookups(db))
 
 

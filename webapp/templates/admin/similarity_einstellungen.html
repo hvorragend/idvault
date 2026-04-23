@@ -62,11 +62,42 @@
           </div>
         </div>
         <hr>
-        <div class="small text-muted">
-          Summe der Gewichte:
-          <strong>{{ cfg.weight_type + cfg.weight_owner + cfg.weight_name }}</strong>
-          – die Mindestpunktzahl wird gegen diese Summe verglichen (max. 100 ist
-          erreichbar, wenn alle Kriterien greifen).
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label fw-600">Auto-Zuordnungs-Schwelle</label>
+            <input type="number" name="auto_assign_threshold" min="0" max="100" step="1"
+                   value="{{ cfg.auto_assign_threshold }}" class="form-control">
+            <div class="form-text">
+              Default: {{ defaults.auto_assign_threshold }} – ab diesem Score
+              werden Funde per Batch-Aktion automatisch dem besten IDV zugeordnet.
+              Zusätzlich greift ein Plausibilitätscheck (Owner-Match ODER
+              Namens-Überschneidung).
+            </div>
+          </div>
+          <div class="col-md-8 small text-muted">
+            Summe der Gewichte:
+            <strong>{{ cfg.weight_type + cfg.weight_owner + cfg.weight_name }}</strong>
+            – die Mindestpunktzahl wird gegen diese Summe verglichen (max. 100
+            ist erreichbar, wenn alle Kriterien greifen). Die Auto-Schwelle
+            sollte deutlich höher liegen als die Mindestpunktzahl, damit nur
+            eindeutige Treffer automatisch verknüpft werden.
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="auto_link_hash_duplicates"
+                     name="auto_link_hash_duplicates" value="1"
+                     {% if cfg.auto_link_hash_duplicates %}checked{% endif %}>
+              <label class="form-check-label" for="auto_link_hash_duplicates">
+                <strong>Hash-Dubletten automatisch verknüpfen</strong>
+                <span class="text-muted fs-7">
+                  – Ein Fund mit identischem SHA-256 wie eine bereits
+                  registrierte Datei wird direkt als Zusatz-Link zu genau
+                  dieser Eigenentwicklung gesetzt (nur wenn das Ziel eindeutig
+                  ist; <code>HASH_ERROR</code> wird nie als Dublette behandelt).
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
     </div>

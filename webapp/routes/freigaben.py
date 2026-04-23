@@ -1427,7 +1427,7 @@ def archivieren(freigabe_id):
                                     freigabe_id=freigabe_id))
 
         scanner_row = db.execute(
-            "SELECT full_path, file_name FROM idv_files WHERE id=?",
+            "SELECT full_path, file_name, file_hash FROM idv_files WHERE id=?",
             (scanner_file_id,),
         ).fetchone()
         if not scanner_row or not scanner_row["full_path"]:
@@ -1436,6 +1436,7 @@ def archivieren(freigabe_id):
                                     freigabe_id=freigabe_id))
 
         src_path = scanner_row["full_path"]
+        scan_hash = (scanner_row["file_hash"] or "").strip()
         if not os.path.isfile(src_path):
             flash(
                 "Die gescannte Datei ist am hinterlegten Pfad nicht mehr "
@@ -1497,6 +1498,33 @@ def archivieren(freigabe_id):
                                     freigabe_id=freigabe_id))
 
         archiv_sha256 = h.hexdigest()
+
+        # Hash-Abgleich gegen den beim Scan aufgezeichneten Wert: verhindert,
+        # dass ein zwischen Scan und Archivierung manipuliertes Original
+        # unbemerkt ins Archiv übernommen wird. Bei `HASH_ERROR` (Datei damals
+        # nicht hashbar) ist kein Vergleich möglich — dann wird archiviert,
+        # aber mit klarem Protokollvermerk.
+        if scan_hash and scan_hash not in ("HASH_ERROR",):
+            if archiv_sha256.lower() != scan_hash.lower():
+                try:
+                    os.remove(dest)
+                except OSError:
+                    pass
+                current_app.logger.warning(
+                    "Archiv-Hash-Mismatch für IDV %s (file_id %s): "
+                    "scan=%s, aktuell=%s",
+                    idv_db_id, scanner_file_id, scan_hash, archiv_sha256,
+                )
+                flash(
+                    "Archivierung abgebrochen: Der aktuelle SHA-256 der Datei "
+                    "stimmt NICHT mit der Aufzeichnung aus dem letzten Scan "
+                    "überein. Die Datei wurde zwischen Scan und Archivierung "
+                    "verändert. Bitte erneut scannen und dann archivieren.",
+                    "error",
+                )
+                return redirect(url_for("freigaben.erledigt_seite",
+                                        freigabe_id=freigabe_id))
+
         archiv_pfad   = save_name
         archiv_name   = original_name
 
@@ -1505,10 +1533,14 @@ def archivieren(freigabe_id):
         except OSError:
             pass
 
+        if scan_hash and scan_hash in ("HASH_ERROR",):
+            hash_note = " (Scan-Hash war HASH_ERROR, kein Abgleich möglich)"
+        else:
+            hash_note = ""
         befunde = (
             begruendung
             or f"Originaldatei aus Scanner-Pfad übernommen ({src_path}); "
-               f"SHA-256: {archiv_sha256}"
+               f"SHA-256: {archiv_sha256}{hash_note}"
         )
 
     else:  # quelle == "nicht_verfuegbar"
