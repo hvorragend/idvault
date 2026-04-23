@@ -1,15 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Scan-Läufe{% endblock %}
 {% block page_title %}<i class="bi bi-clock-history me-2"></i>Scan-Läufe{% endblock %}
+{% block topbar_actions %}{% include 'funde/_scan_button.html' %}{% endblock %}
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mt-2 mb-4">
-  <span class="text-muted">Letzte 100 Scanner-Ausführungen</span>
-  <div class="d-flex gap-2 align-items-center">
-    {% include 'funde/_scan_button.html' %}
-  </div>
-</div>
+<p class="text-muted mb-4">Letzte 100 Scanner-Ausführungen</p>
 
 <div class="card border-0 shadow-sm">
   <div class="table-responsive">

@@ -131,29 +131,6 @@
     {% endfor %}
   </div>
 
-  <!-- ── Buttons oben ─────────────────────────────────────────── -->
-  <div class="d-flex justify-content-between mb-3">
-    <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) if idv else url_for('eigenentwicklung.list_idv') }}"
-       class="btn btn-outline-secondary" data-esc-cancel>
-      <i class="bi bi-arrow-left me-1"></i>Abbrechen
-    </a>
-    <div class="d-flex gap-2">
-      <button type="submit" name="save_action" value="save" class="btn btn-primary">
-        <i class="bi bi-floppy me-1"></i>Speichern
-        <kbd class="fs-8" style="background:rgba(255,255,255,.25); border:1px solid rgba(255,255,255,.5); padding:.05rem .3rem; color:#fff; margin-left:.35rem; vertical-align:middle">Strg S</kbd>
-      </button>
-      <button type="submit" name="save_action" value="save_and_close" class="btn btn-outline-secondary">
-        <i class="bi bi-box-arrow-left me-1"></i>Speichern &amp; Schließen
-        <kbd class="fs-8" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:.05rem .3rem; color:#1e293b; margin-left:.35rem; vertical-align:middle">Strg ⇧ S</kbd>
-      </button>
-      {% if not idv %}
-      <button type="submit" name="save_action" value="save_and_new" class="btn btn-outline-primary">
-        <i class="bi bi-plus-circle me-1"></i>Speichern &amp; weitere erfassen
-      </button>
-      {% endif %}
-    </div>
-  </div>
-
   <!-- ═══════════════════════════════════════════════════════════ -->
   <!-- 1. STAMMDATEN                                              -->
   <!-- ═══════════════════════════════════════════════════════════ -->
@@ -677,28 +654,6 @@
     </div>
   </div>
 
-  <!-- ── Speichern ─────────────────────────────────────────────── -->
-  <div class="d-flex justify-content-between">
-    <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) if idv else url_for('eigenentwicklung.list_idv') }}"
-       class="btn btn-outline-secondary" data-esc-cancel>
-      <i class="bi bi-arrow-left me-1"></i>Abbrechen
-    </a>
-    <div class="d-flex gap-2">
-      <button type="submit" name="save_action" value="save" class="btn btn-primary">
-        <i class="bi bi-floppy me-1"></i>Speichern
-        <kbd class="fs-8" style="background:rgba(255,255,255,.25); border:1px solid rgba(255,255,255,.5); padding:.05rem .3rem; color:#fff; margin-left:.35rem; vertical-align:middle">Strg S</kbd>
-      </button>
-      <button type="submit" name="save_action" value="save_and_close" class="btn btn-outline-secondary">
-        <i class="bi bi-box-arrow-left me-1"></i>Speichern &amp; Schließen
-        <kbd class="fs-8" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:.05rem .3rem; color:#1e293b; margin-left:.35rem; vertical-align:middle">Strg ⇧ S</kbd>
-      </button>
-      {% if not idv %}
-      <button type="submit" name="save_action" value="save_and_new" class="btn btn-outline-primary">
-        <i class="bi bi-plus-circle me-1"></i>Speichern &amp; weitere erfassen
-      </button>
-      {% endif %}
-    </div>
-  </div>
 
 </form>
 

@@ -148,7 +148,9 @@
           <span class="crumb current">{% block page_title %}{% endblock %}</span>
         </nav>
       </div>
-      {% block topbar_actions %}{% endblock %}
+      <div class="topbar-slot d-flex align-items-center gap-2 ms-3 me-3">
+        {% block topbar_actions %}{% endblock %}
+      </div>
       <div class="d-flex align-items-center gap-2">
         {% if session.user_id %}
         <button id="quick-search-btn" class="topbar-action" data-action="openSearch" title="Schnellsuche (Strg+K)">
