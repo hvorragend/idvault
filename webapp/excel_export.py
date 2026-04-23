@@ -347,6 +347,43 @@ def _sheet_nachweise(wb: Workbook, db: sqlite3.Connection) -> None:
     _autofilter(ws, len(header), len(rows))
 
 
+def _sheet_kennzahlen(wb: Workbook, db: sqlite3.Connection) -> None:
+    """Issue #354: Prozesskennzahlen fuer Revision/Aufsicht.
+
+    Ein Sheet ``Kennzahlen`` mit den Werten fuer 30 und 90 Tage. Quelle
+    ist ``db.get_dashboard_kpis``; die Werte basieren ausschliesslich auf
+    Audit-Trail / Notification-Log / Self-Service-Audit (kein neuer
+    DB-State).
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from db import get_dashboard_kpis  # noqa: WPS433
+
+    ws = wb.create_sheet("Kennzahlen")
+    header = [
+        ("Kennzahl",        38),
+        ("Wert (30 Tage)",  18),
+        ("Detail (30 Tage)",36),
+        ("Wert (90 Tage)",  18),
+        ("Detail (90 Tage)",36),
+    ]
+    _write_header(ws, header)
+
+    kpis_30 = get_dashboard_kpis(db, days=30)
+    kpis_90 = get_dashboard_kpis(db, days=90)
+    by_key_90 = {k["key"]: k for k in kpis_90}
+
+    for i, k in enumerate(kpis_30, start=2):
+        k90 = by_key_90.get(k["key"], {})
+        ws.cell(row=i, column=1, value=k["label"])
+        ws.cell(row=i, column=2, value=k["value"])
+        ws.cell(row=i, column=3, value=k["sub"])
+        ws.cell(row=i, column=4, value=k90.get("value", ""))
+        ws.cell(row=i, column=5, value=k90.get("sub", ""))
+
+    _autofilter(ws, len(header), len(kpis_30))
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -359,6 +396,7 @@ def build_register_workbook(db: sqlite3.Connection) -> Workbook:
     _sheet_massnahmen(wb, db)
     _sheet_pruefungen(wb, db)
     _sheet_nachweise(wb, db)
+    _sheet_kennzahlen(wb, db)
     return wb
 
 
