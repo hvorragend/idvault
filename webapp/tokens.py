@@ -26,9 +26,18 @@ def _serializer_self_service(secret_key: str):
     return URLSafeTimedSerializer(secret_key, salt=_SALT_SELF_SERVICE)
 
 
-def make_freigabe_token(secret_key: str, freigabe_id: int) -> str:
-    """Erstellt einen signierten Token für einen Freigabe-Schritt."""
-    return _serializer(secret_key).dumps({"f": freigabe_id})
+def make_freigabe_token(secret_key: str, freigabe_id: int,
+                        person_id: int | None = None) -> str:
+    """Erstellt einen signierten Token für einen Freigabe-Schritt.
+
+    ``person_id`` bindet den Token zusätzlich an eine bestimmte Person —
+    erforderlich für die anonyme Quick-Action-Seite (Issue #352). Bleibt das
+    Feld leer (Default), ist der Token nur als Login-Shortcut verwendbar.
+    """
+    payload: dict = {"f": int(freigabe_id)}
+    if person_id is not None:
+        payload["p"] = int(person_id)
+    return _serializer(secret_key).dumps(payload)
 
 
 def verify_freigabe_token(secret_key: str, token: str) -> dict | None:

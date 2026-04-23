@@ -465,7 +465,7 @@ _DEFAULTS["freigabe_pool_reminder_body"] = """\
   Diese Nachricht wurde automatisch von idvault gesendet.</p>
 </body></html>"""
 
-# ── 7b. Owner-Mail-Digest (Self-Service, Issue #315) ────────────────────
+# ── 7b. Sammelbenachrichtigung an Owner (Self-Service, Issue #315) ──────
 
 _DEFAULTS["owner_digest_subject"] = "[idvault] Offene Scanner-Funde in Ihrem Bereich ({anzahl})"
 _DEFAULTS["owner_digest_body"] = """\
@@ -542,7 +542,7 @@ EMAIL_TEMPLATES = {
         "placeholders": ["idv_id", "bezeichnung", "schritt", "pool_name", "wartet_seit_tage"],
     },
     "owner_digest": {
-        "label": "Owner-Digest: offene Scanner-Funde (Self-Service)",
+        "label": "Sammelbenachrichtigung an Owner: offene Scanner-Funde (Self-Service)",
         "placeholders": ["empfaenger", "anzahl", "link"],
     },
 }
@@ -930,12 +930,15 @@ def notify_freigabe_pool_reminder(db, idv_row, schritt: str, pool_name: str,
 
 def notify_owner_digest(db, recipient_email: str, recipient_name: str,
                         file_rows: list, magic_link: str,
-                        base_url: str = "") -> bool:
-    """Sendet den wöchentlichen Owner-Digest an einen Fachbereichs-Mitarbeiter.
+                        base_url: str = "",
+                        burst: bool = False) -> bool:
+    """Sendet die Sammelbenachrichtigung an einen Fachbereichs-Mitarbeiter.
 
     ``file_rows`` sind die offenen Scanner-Funde (``bearbeitungsstatus='Neu'``)
     des Empfängers. ``magic_link`` ist die vollständige, signierte URL auf
-    die Self-Service-Ansicht (Issue #315).
+    die Self-Service-Ansicht (Issue #315). ``burst`` = True markiert eine
+    vorgezogene Sammelbenachrichtigung ausserhalb des regulären Intervalls
+    (Issue #346); der Betreff wird dann mit ``[Sofort]`` gekennzeichnet.
 
     Gibt True zurück, wenn die E-Mail versendet wurde.
     """
@@ -956,6 +959,8 @@ def notify_owner_digest(db, recipient_email: str, recipient_name: str,
         _DEFAULTS["owner_digest_body"],
         placeholders,
     )
+    if burst:
+        subject = f"[Sofort] {subject}"
 
     # Datei-Tabelle einblenden (vor dem schließenden </body>). Die Tabelle
     # steht zusätzlich zum konfigurierbaren Body-Text, damit Admin-Anpassungen
