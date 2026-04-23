@@ -44,6 +44,10 @@ def similarity_settings():
             "noise_words":    noise_list,
             "max_candidates": _parse_int(request.form.get("max_candidates"), cfg["max_candidates"], lo=10, hi=10000),
             "max_results":    _parse_int(request.form.get("max_results"),    cfg["max_results"],    lo=1,  hi=500),
+            "auto_assign_threshold": _parse_int(
+                request.form.get("auto_assign_threshold"),
+                cfg["auto_assign_threshold"], hi=100,
+            ),
         }
 
         if request.form.get("reset") == "1":

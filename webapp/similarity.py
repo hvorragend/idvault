@@ -50,6 +50,12 @@ DEFAULT_CONFIG: dict = {
     "noise_words":     DEFAULT_NOISE_WORDS,
     "max_candidates":  500,
     "max_results":     20,
+    # Auto-Zuordnung: ab diesem Score wird ein Fund vom Batch-Endpoint
+    # direkt mit dem besten IDV-Kandidaten verknüpft (Admin-Trigger).
+    # Bewusst hoch gewählt (95), um false-positives auszuschließen.
+    # Zusätzlich verlangt der Batch einen Plausibilitätscheck
+    # (Owner-Match ODER Namensüberschneidung mit dem IDV-Bezeichner).
+    "auto_assign_threshold": 95,
 }
 
 _NAME_ALGORITHMS = ("token_set", "partial", "jaccard")
@@ -79,6 +85,7 @@ def get_config(db) -> dict:
     if cfg["name_algorithm"] not in _NAME_ALGORITHMS:
         cfg["name_algorithm"] = DEFAULT_CONFIG["name_algorithm"]
     cfg["threshold"]    = max(0, min(100, cfg["threshold"]))
+    cfg["auto_assign_threshold"] = max(cfg["threshold"], min(100, cfg["auto_assign_threshold"]))
     cfg["weight_type"]  = max(0, cfg["weight_type"])
     cfg["weight_owner"] = max(0, cfg["weight_owner"])
     cfg["weight_name"]  = max(0, cfg["weight_name"])
@@ -166,6 +173,35 @@ def score_pair(
         score += int(round(ratio * weight_name))
 
     return score
+
+
+def is_plausible_auto_match(
+    *,
+    fund_typ: str,
+    fund_owner: str,
+    idv_typ: str,
+    dev_ids_lower: Iterable[str],
+) -> bool:
+    """Plausibilitäts-Guard für die Auto-Zuordnung.
+
+    Ein hoher Score allein reicht nicht: Bei freier Gewichtungs-Konfiguration
+    könnte ein reiner Namenstreffer einen hohen Score ergeben, obwohl Typ
+    und Eigentümer nicht passen. Wir verlangen deshalb mindestens **einen**
+    harten Anker: Typ-Match (kein ``unklassifiziert``) oder Owner-Match gegen
+    die Entwickler/Fachverantwortlichen-Identifikatoren.
+    """
+    typ_match = bool(
+        fund_typ
+        and fund_typ == idv_typ
+        and fund_typ != "unklassifiziert"
+    )
+    owner_match = False
+    fo = (fund_owner or "").lower().strip()
+    if fo:
+        dev_set = {d.lower().strip() for d in dev_ids_lower if d}
+        dev_set.discard("")
+        owner_match = fo in dev_set
+    return typ_match or owner_match
 
 
 def collect_dev_ids(person_rows: Iterable[dict]) -> set[str]:

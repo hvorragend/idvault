@@ -1259,6 +1259,128 @@ def loeschen(file_id):
     return redirect(url_for("funde.list_funde"))
 
 
+@bp.route("/auto-zuordnen", methods=["POST"])
+@write_access_required
+def auto_zuordnen():
+    """Batch: ordnet neue Funde mit sehr hohem Score automatisch ihrem
+    besten IDV-Kandidaten zu.
+
+    Die Zuordnung greift nur, wenn:
+      - Score ≥ ``similarity_config.auto_assign_threshold``
+      - Plausibilität erfüllt (Typ-Match oder Owner-Match gegen Entwickler/FV)
+      - Fund bislang ``Neu`` und noch keinem IDV zugeordnet
+
+    Jede Zuordnung erhält einen History-Eintrag ``scan_auto_assigned`` und
+    lässt sich über die normale Fund-Detailansicht wieder lösen.
+    """
+    db = get_db()
+    person_id = session.get("person_id")
+    user_name = session.get("user_name", "") or None
+
+    cfg   = _sim.get_config(db)
+    noise = frozenset(cfg["noise_words"])
+    auto_threshold = cfg["auto_assign_threshold"]
+
+    neu_funde = db.execute(f"""
+        SELECT f.id, f.file_name, f.extension, f.file_owner, f.has_macros
+          FROM idv_files f
+         WHERE f.status='active' AND f.bearbeitungsstatus='Neu'
+           AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = f.id)
+           AND NOT EXISTS (SELECT 1 FROM idv_file_links l WHERE l.file_id = f.id)
+    """).fetchall()
+
+    if not neu_funde:
+        flash("Keine neuen Funde für die Auto-Zuordnung gefunden.", "info")
+        return redirect(url_for("funde.eingang_funde"))
+
+    idv_candidates = db.execute("""
+        SELECT r.id, r.idv_id, r.bezeichnung, r.idv_typ,
+               p_e.kuerzel AS dev_kuerzel, p_e.ad_name AS dev_ad, p_e.user_id AS dev_uid,
+               p_f.kuerzel AS fv_kuerzel, p_f.ad_name AS fv_ad
+          FROM idv_register r
+          LEFT JOIN persons p_e ON r.idv_entwickler_id      = p_e.id
+          LEFT JOIN persons p_f ON r.fachverantwortlicher_id = p_f.id
+         WHERE r.status NOT IN ('Außer Betrieb', 'Abgelöst')
+    """).fetchall()
+    if not idv_candidates:
+        flash("Keine Eigenentwicklungen für Auto-Zuordnung verfügbar.", "info")
+        return redirect(url_for("funde.eingang_funde"))
+
+    plan = []
+    for fund in neu_funde:
+        fund_typ   = _idv_typ_vorschlag(fund["extension"], fund["has_macros"])
+        fund_owner = fund["file_owner"] or ""
+        fund_name  = fund["file_name"] or ""
+        best_score, best_idv = 0, None
+        for idv in idv_candidates:
+            dev_ids = [
+                idv["dev_kuerzel"], idv["dev_ad"], idv["dev_uid"],
+                idv["fv_kuerzel"],  idv["fv_ad"],
+            ]
+            score = _sim.score_pair(
+                fund_typ=fund_typ, fund_owner=fund_owner, fund_name=fund_name,
+                idv_typ=idv["idv_typ"] or "", idv_name=idv["bezeichnung"] or "",
+                dev_ids_lower=[d for d in dev_ids if d],
+                config=cfg, noise=noise,
+            )
+            if score > best_score:
+                best_score, best_idv = score, idv
+        if best_idv and best_score >= auto_threshold:
+            dev_ids = [
+                best_idv["dev_kuerzel"], best_idv["dev_ad"], best_idv["dev_uid"],
+                best_idv["fv_kuerzel"],  best_idv["fv_ad"],
+            ]
+            if _sim.is_plausible_auto_match(
+                fund_typ=fund_typ, fund_owner=fund_owner,
+                idv_typ=best_idv["idv_typ"] or "",
+                dev_ids_lower=[d for d in dev_ids if d],
+            ):
+                plan.append({
+                    "file_id":   fund["id"],
+                    "file_name": fund_name,
+                    "idv_db_id": best_idv["id"],
+                    "idv_id":    best_idv["idv_id"],
+                    "score":     best_score,
+                })
+
+    if not plan:
+        flash(
+            f"Keine Funde erreichten die Auto-Schwelle von {auto_threshold} "
+            "mit erfüllter Plausibilität.",
+            "info",
+        )
+        return redirect(url_for("funde.eingang_funde"))
+
+    def _do(c):
+        with write_tx(c):
+            for entry in plan:
+                c.execute(
+                    "INSERT OR IGNORE INTO idv_file_links (idv_db_id, file_id) VALUES (?, ?)",
+                    (entry["idv_db_id"], entry["file_id"]),
+                )
+                c.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus='Registriert' WHERE id = ?",
+                    (entry["file_id"],),
+                )
+                c.execute(
+                    "INSERT INTO idv_history "
+                    "(idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) "
+                    "VALUES (?,?,?,?,?)",
+                    (entry["idv_db_id"], "scan_auto_assigned",
+                     f"Scanner-Fund '{entry['file_name']}' (file_id={entry['file_id']}) "
+                     f"automatisch zugeordnet (Score {entry['score']} ≥ {auto_threshold})",
+                     person_id, user_name),
+                )
+
+    get_writer().submit(_do, wait=True)
+    flash(
+        f"Auto-Zuordnung abgeschlossen: {len(plan)} Fund(e) verknüpft "
+        f"(Schwelle {auto_threshold}).",
+        "success",
+    )
+    return redirect(url_for("funde.eingang_funde"))
+
+
 @bp.route("/<int:file_id>/benachrichtigen", methods=["POST"])
 @write_access_required
 def notify_file(file_id):

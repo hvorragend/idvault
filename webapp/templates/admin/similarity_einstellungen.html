@@ -62,11 +62,26 @@
           </div>
         </div>
         <hr>
-        <div class="small text-muted">
-          Summe der Gewichte:
-          <strong>{{ cfg.weight_type + cfg.weight_owner + cfg.weight_name }}</strong>
-          – die Mindestpunktzahl wird gegen diese Summe verglichen (max. 100 ist
-          erreichbar, wenn alle Kriterien greifen).
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label fw-600">Auto-Zuordnungs-Schwelle</label>
+            <input type="number" name="auto_assign_threshold" min="0" max="100" step="1"
+                   value="{{ cfg.auto_assign_threshold }}" class="form-control">
+            <div class="form-text">
+              Default: {{ defaults.auto_assign_threshold }} – ab diesem Score
+              werden Funde per Batch-Aktion automatisch dem besten IDV zugeordnet.
+              Zusätzlich greift ein Plausibilitätscheck (Owner-Match ODER
+              Namens-Überschneidung).
+            </div>
+          </div>
+          <div class="col-md-8 small text-muted">
+            Summe der Gewichte:
+            <strong>{{ cfg.weight_type + cfg.weight_owner + cfg.weight_name }}</strong>
+            – die Mindestpunktzahl wird gegen diese Summe verglichen (max. 100
+            ist erreichbar, wenn alle Kriterien greifen). Die Auto-Schwelle
+            sollte deutlich höher liegen als die Mindestpunktzahl, damit nur
+            eindeutige Treffer automatisch verknüpft werden.
+          </div>
         </div>
       </div>
     </div>

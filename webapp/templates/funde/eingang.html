@@ -2,7 +2,18 @@
 {% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
 {% block title %}Scanner-Eingang{% endblock %}
 {% block page_title %}<i class="bi bi-arrow-down-circle me-2"></i>Scanner-Eingang{% endblock %}
-{% block topbar_actions %}{% include 'funde/_scan_button.html' %}{% endblock %}
+{% block topbar_actions %}
+{% if can_write and neu_gesamt > 0 %}
+<form method="post" action="{{ url_for('funde.auto_zuordnen') }}" class="d-inline"
+      data-confirm="Neue Funde mit sehr hohem Ähnlichkeitsscore automatisch einem IDV zuordnen? Jede Zuordnung erhält einen History-Eintrag und kann einzeln wieder gelöst werden.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-magic me-1"></i>Auto-Zuordnung
+  </button>
+</form>
+{% endif %}
+{% include 'funde/_scan_button.html' %}
+{% endblock %}
 
 {# Sortierung vor dem Rendern aus sessionStorage wiederherstellen. #}
 {% block extra_head %}
