@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}Testfall-Vorlagen{% endblock %}
+{% block page_title %}<i class="bi bi-clipboard2-data me-2"></i>Testfall-Vorlagen{% endblock %}
+
+{% block extra_head %}
+<link href="{{ url_for('static', filename='vendor/quill-1.3.7/quill.snow.css') }}" rel="stylesheet">
+<style>
+  .vorlage-quill { min-height: 90px; background: #fff; }
+  details.vorlage-edit > summary { cursor: pointer; }
+  details.vorlage-edit[open] > summary { font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+<p class="text-muted">
+  Testfall-Vorlagen beschleunigen die Erstellung fachlicher und technischer
+  Prüfungen. Beim Öffnen eines Testformulars können Prüfer eine passende
+  Vorlage auswählen und damit die Rich-Text-Felder (Beschreibung,
+  Parametrisierung, Testdaten, erwartetes Ergebnis) vorbelegen. Vorlagen mit
+  leerem IDV-Typ sind typ-unabhängig und erscheinen bei jedem Test; deaktivierte
+  Vorlagen bleiben für Historie sichtbar, erscheinen aber nicht im Dropdown.
+</p>
+
+<!-- ── Neue Vorlage anlegen ─────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-plus-circle me-1"></i>Neue Vorlage
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin.new_testfall_vorlage') }}"
+          class="row g-3" data-vorlage-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="col-md-6">
+        <label class="form-label fw-600">Titel <span class="required-star">*</span></label>
+        <input type="text" name="titel" class="form-control form-control-sm"
+               required maxlength="200"
+               placeholder="z.B. Excel-Makro: Kernprüfung">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-600">Art <span class="required-star">*</span></label>
+        <select name="art" class="form-select form-select-sm" required>
+          {% for a in arten %}
+          <option value="{{ a }}">{{ a|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-600">IDV-Typ</label>
+        <select name="idv_typ" class="form-select form-select-sm">
+          <option value="">— alle Typen (typ-unabhängig) —</option>
+          {% for t in idv_typen %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label fw-600">Beschreibung</label>
+        <div class="vorlage-quill" data-quill="beschreibung"></div>
+        <input type="hidden" name="beschreibung" id="beschreibung-hidden">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-600">Parametrisierung</label>
+        <div class="vorlage-quill" data-quill="parametrisierung"></div>
+        <input type="hidden" name="parametrisierung" id="parametrisierung-hidden">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-600">Testdaten</label>
+        <div class="vorlage-quill" data-quill="testdaten"></div>
+        <input type="hidden" name="testdaten" id="testdaten-hidden">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-600">Erwartetes Ergebnis</label>
+        <div class="vorlage-quill" data-quill="erwartetes_ergebnis"></div>
+        <input type="hidden" name="erwartetes_ergebnis" id="erwartetes_ergebnis-hidden">
+      </div>
+
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-save me-1"></i>Vorlage anlegen
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Vorhandene Vorlagen ──────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-list-ul me-1"></i>Vorhandene Vorlagen</span>
+    <span class="text-muted fs-8">{{ vorlagen|length }} Einträge</span>
+  </div>
+  <div class="card-body p-0">
+    {% if not vorlagen %}
+    <p class="text-muted px-3 py-3 mb-0">
+      Keine Vorlagen vorhanden.
+    </p>
+    {% else %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Titel</th>
+            <th>Art</th>
+            <th>IDV-Typ</th>
+            <th>Aktiv</th>
+            <th class="text-end">Aktion</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vorlagen %}
+          <tr>
+            <td class="fw-500">
+              <details class="vorlage-edit">
+                <summary>{{ v.titel }}</summary>
+                <form method="post"
+                      action="{{ url_for('admin.edit_testfall_vorlage', vorlage_id=v.id) }}"
+                      class="row g-2 mt-2 pb-3 border-bottom"
+                      data-vorlage-form>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                  <div class="col-md-6">
+                    <label class="form-label fw-600">Titel</label>
+                    <input type="text" name="titel"
+                           class="form-control form-control-sm"
+                           value="{{ v.titel }}" required maxlength="200">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label fw-600">Art</label>
+                    <select name="art" class="form-select form-select-sm" required>
+                      {% for a in arten %}
+                      <option value="{{ a }}" {% if v.art==a %}selected{% endif %}>{{ a|capitalize }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label fw-600">IDV-Typ</label>
+                    <select name="idv_typ" class="form-select form-select-sm">
+                      <option value="" {% if not v.idv_typ %}selected{% endif %}>— alle Typen —</option>
+                      {% for t in idv_typen %}
+                      <option value="{{ t }}" {% if v.idv_typ==t %}selected{% endif %}>{{ t }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label fw-600">Beschreibung</label>
+                    <div class="vorlage-quill" data-quill="beschreibung-{{ v.id }}"></div>
+                    <input type="hidden" name="beschreibung"
+                           id="beschreibung-{{ v.id }}-hidden"
+                           value="{{ v.beschreibung or '' }}">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-600">Parametrisierung</label>
+                    <div class="vorlage-quill" data-quill="parametrisierung-{{ v.id }}"></div>
+                    <input type="hidden" name="parametrisierung"
+                           id="parametrisierung-{{ v.id }}-hidden"
+                           value="{{ v.parametrisierung or '' }}">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-600">Testdaten</label>
+                    <div class="vorlage-quill" data-quill="testdaten-{{ v.id }}"></div>
+                    <input type="hidden" name="testdaten"
+                           id="testdaten-{{ v.id }}-hidden"
+                           value="{{ v.testdaten or '' }}">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-600">Erwartetes Ergebnis</label>
+                    <div class="vorlage-quill" data-quill="erwartetes_ergebnis-{{ v.id }}"></div>
+                    <input type="hidden" name="erwartetes_ergebnis"
+                           id="erwartetes_ergebnis-{{ v.id }}-hidden"
+                           value="{{ v.erwartetes_ergebnis or '' }}">
+                  </div>
+
+                  <div class="col-md-6 d-flex align-items-center gap-2">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox"
+                             name="aktiv" value="1"
+                             id="aktiv-{{ v.id }}"
+                             {% if v.aktiv %}checked{% endif %}>
+                      <label class="form-check-label" for="aktiv-{{ v.id }}">Aktiv</label>
+                    </div>
+                  </div>
+                  <div class="col-md-6 text-end d-flex gap-2 justify-content-end">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-save me-1"></i>Speichern
+                    </button>
+                </form>
+                <form method="post"
+                      action="{{ url_for('admin.delete_testfall_vorlage', vorlage_id=v.id) }}"
+                      class="d-inline"
+                      data-confirm="Vorlage '{{ v.titel }}' wirklich löschen?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash me-1"></i>Löschen
+                  </button>
+                </form>
+                  </div>
+              </details>
+            </td>
+            <td><span class="badge bg-light text-dark border">{{ v.art|capitalize }}</span></td>
+            <td>
+              {% if v.idv_typ %}{{ v.idv_typ }}
+              {% else %}<span class="text-muted">— alle —</span>{% endif %}
+            </td>
+            <td>
+              {% if v.aktiv %}<span class="badge bg-success">Aktiv</span>
+              {% else %}<span class="badge bg-secondary">Deaktiviert</span>{% endif %}
+            </td>
+            <td class="text-end text-muted fs-8">
+              {% if v.updated_at %}Zuletzt: {{ v.updated_at[:10] }}
+              {% elif v.created_at %}Angelegt: {{ v.created_at[:10] }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/quill-1.3.7/quill.min.js') }}"></script>
+<script>
+(function () {
+  // Jede data-vorlage-form-Gruppe bekommt eigene Quill-Instanzen; beim
+  // Submit werden die Editor-Inhalte in die zugehörigen Hidden-Inputs
+  // geschrieben. So landen sauber formatierte HTML-Strings in der Tabelle.
+  var TOOLBAR = [
+    ['bold', 'italic', 'underline'],
+    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+    ['clean']
+  ];
+
+  document.querySelectorAll('[data-vorlage-form]').forEach(function (form) {
+    var editors = [];
+    form.querySelectorAll('[data-quill]').forEach(function (wrapper) {
+      var key = wrapper.dataset.quill;
+      var hidden = form.querySelector('#' + CSS.escape(key) + '-hidden');
+      if (!hidden) return;
+      var q = new Quill(wrapper, { theme: 'snow', modules: { toolbar: TOOLBAR } });
+      if (hidden.value) q.clipboard.dangerouslyPasteHTML(0, hidden.value);
+      editors.push({ q: q, h: hidden });
+    });
+    form.addEventListener('submit', function () {
+      editors.forEach(function (e) { e.h.value = e.q.root.innerHTML; });
+    });
+  });
+})();
+</script>
+{% endblock %}
