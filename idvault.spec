@@ -23,15 +23,28 @@ werkzeug_d,     werkzeug_b,     werkzeug_h     = collect_all('werkzeug')
 openpyxl_d,     openpyxl_b,     openpyxl_h     = collect_all('openpyxl')
 cryptography_d, cryptography_b, cryptography_h = collect_all('cryptography')
 ldap3_d,        ldap3_b,        ldap3_h        = collect_all('ldap3')
+# Alembic + SQLAlchemy: Migrations-Framework. collect_all zieht die
+# Mako-Template-Datei (script.py.mako) und die SQLAlchemy-Dialekte mit ein
+# – beides wird zur Laufzeit dynamisch geladen und sonst von PyInstaller
+# übersehen.
+alembic_d,      alembic_b,      alembic_h      = collect_all('alembic')
+sqlalchemy_d,   sqlalchemy_b,   sqlalchemy_h   = collect_all('sqlalchemy')
 
 # ---------------------------------------------------------------------------
 # Datei-Ressourcen
 # ---------------------------------------------------------------------------
 datas = [
-    # Pflicht: Datenbankschema (wird von init_register_db() per executescript geladen)
+    # Pflicht: Datenbankschema (wird von Alembic-Revision 0001 geladen)
     ('schema.sql', '.'),
     # Versionsinformationen
     ('version.json', '.'),
+    # Pflicht: Alembic-Konfiguration + Migrationen. init_register_db()
+    # startet "alembic upgrade head" beim App-Start; ohne diese Dateien
+    # schlägt der erste Lauf fehl. Der Ordnername ``migrations/`` ist
+    # bewusst gewählt, damit er das installierte alembic-Package nicht
+    # überschattet (Kollision mit sys.path[0] bei ``python run.py``).
+    ('alembic.ini',       '.'),
+    ('migrations',        'migrations'),
     # Pflicht: alle Jinja2-Templates
     ('webapp/templates', 'webapp/templates'),
     # Pflicht: lokale Frontend-Assets (Bootstrap, Bootstrap Icons, QuillJS).
@@ -44,6 +57,8 @@ datas = [
     *openpyxl_d,
     *cryptography_d,
     *ldap3_d,
+    *alembic_d,
+    *sqlalchemy_d,
 ]
 
 # ---------------------------------------------------------------------------
@@ -110,6 +125,11 @@ hiddenimports = [
     *jinja2_h,
     *werkzeug_h,
     *openpyxl_h,
+    # Alembic + SQLAlchemy: Hidden-Imports (Dialekte, mako-Template-Loader
+    # und die Migration-Skripte unter alembic/versions/). Ohne diese Hints
+    # kompiliert PyInstaller die Dateien nicht als Python-Module mit.
+    *alembic_h,
+    *sqlalchemy_h,
     # Produktiver WSGI-Server (cheroot); Submodule werden dynamisch geladen
     # und ohne expliziten Hint nicht von PyInstaller erkannt.
     'cheroot',
@@ -127,7 +147,7 @@ hiddenimports = [
 a = Analysis(
     ['run.py'],
     pathex=['.', 'scanner'],  # scanner/ damit network_scanner.py gefunden wird
-    binaries=[*flask_b, *jinja2_b, *werkzeug_b, *openpyxl_b, *cryptography_b, *ldap3_b],
+    binaries=[*flask_b, *jinja2_b, *werkzeug_b, *openpyxl_b, *cryptography_b, *ldap3_b, *alembic_b, *sqlalchemy_b],
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

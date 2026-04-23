@@ -1,10 +1,12 @@
 """
 IDV-Register Datenbankschicht
 =============================
-Initialisierung und Basisfunktionen für das IDV-Register.
+Initialisierung, Migration und Basisfunktionen für das IDV-Register.
 Wird von Scanner und Web-Frontend gemeinsam genutzt.
 
-Das Schema wird direkt aus ``schema.sql`` eingespielt (idempotent).
+Schema-Änderungen werden über Alembic-Migrationen verwaltet
+(siehe ``alembic/versions/``); ``init_register_db()`` ruft beim Start
+``alembic upgrade head`` auf.
 """
 
 import sys
@@ -37,19 +39,43 @@ def get_connection(db_path: str, *, role: str = "reader") -> sqlite3.Connection:
     return conn
 
 
+def _alembic_config(db_path: str):
+    """Erzeugt eine Alembic-Config, die auf ``db_path`` zeigt.
+
+    Import lokal gehalten, damit Module, die ``db.get_connection`` nutzen
+    (Scanner-Subprozess, Writer-Thread), nicht unnötig alembic/sqlalchemy
+    laden müssen.
+    """
+    from alembic.config import Config
+
+    ini_path = _resource_path("alembic.ini")
+    if not ini_path.exists():
+        raise FileNotFoundError(f"alembic.ini nicht gefunden: {ini_path}")
+
+    cfg = Config(str(ini_path))
+    # script_location absolut setzen: PyInstaller legt migrations/ unter
+    # _MEIPASS/migrations ab, nicht am CWD. Der Ordnername ist bewusst
+    # nicht ``alembic/`` – der Projektroot steht beim direkten Start von
+    # run.py in sys.path[0], ein gleichnamiger lokaler Ordner würde das
+    # installierte alembic-Package überschatten.
+    cfg.set_main_option("script_location", str(_resource_path("migrations")))
+    # SQLite-URL für den aktuellen DB-Pfad – der alembic.ini-Default
+    # (instance/idvault.db) ist nur ein Platzhalter für Offline-Aufrufe.
+    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
+    return cfg
+
+
 def init_register_db(db_path: str) -> sqlite3.Connection:
-    """Initialisiert die Datenbank aus schema.sql und liefert eine Connection.
+    """Initialisiert die Datenbank über Alembic und liefert eine Connection.
 
     - Legt das Verzeichnis für die SQLite-Datei bei Bedarf an.
-    - Spielt schema.sql idempotent ein (CREATE TABLE/VIEW IF NOT EXISTS,
-      DROP VIEW IF EXISTS vor jedem CREATE VIEW).
+    - Fährt ``alembic upgrade head`` (idempotent).
     - Gibt eine Anwendungs-Connection (mit den Standard-PRAGMAs) zurück.
     """
+    from alembic import command
+
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    schema = _resource_path("schema.sql").read_text(encoding="utf-8")
-    conn = sqlite3.connect(db_path)
-    conn.executescript(schema)
-    conn.close()
+    command.upgrade(_alembic_config(db_path), "head")
     return get_connection(db_path)
 
 
