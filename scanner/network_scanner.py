@@ -99,11 +99,31 @@ DEFAULT_CONFIG = {
     ],
     "exclude_paths": [],
     "blacklist_paths": [
-        "~$",
-        ".tmp",
+        # Office-Lock-Dateien ("~$foo.xlsx") – $ als Regex-Meta escapen
+        r"~\$",
+        # Temp-/System-/Papierkorb-Pfade
+        r"\.tmp(\b|$)",
         r"\$RECYCLE\.BIN",
-        "System Volume Information",
-        "AppData",
+        r"System Volume Information",
+        r"[\\/]Papierkorb[\\/]",
+        r"[\\/]AppData[\\/]",
+        r"[\\/]Temp[\\/]",
+        # Entwickler-/VCS-Ordner (greifen bei .py/.sql/.r innerhalb von Repos)
+        r"[\\/]\.git[\\/]",
+        r"[\\/]__pycache__[\\/]",
+        r"[\\/]node_modules[\\/]",
+        r"[\\/]\.venv[\\/]",
+        r"[\\/]venv[\\/]",
+        # Windows-Explorer-Dubletten (" - Kopie", "Kopie von ", "Copy of ")
+        r" - Kopie[\s.(]",
+        r" - Copy[\s.(]",
+        r"[\\/]Kopie von ",
+        r"[\\/]Copy of ",
+        # Alt-/Backup-Suffixe am Dateinamen-Ende vor der Extension
+        r"_alt\.",
+        r"_backup\.",
+        r"_bak\.",
+        r"_old\.",
     ],
     "whitelist_paths": [],
     "path_mappings": [],
