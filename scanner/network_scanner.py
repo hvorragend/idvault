@@ -884,13 +884,32 @@ def _get_toplevel_dirs(scan_path: str, blacklist: list, whitelist: list) -> list
 _EXCEL_EXTENSIONS = {".xlsx", ".xlsm", ".xlsb", ".xls", ".xltm", ".xltx"}
 
 
-def _classify_by_filename(file_name: str) -> Optional[str]:
-    """Gibt bearbeitungsstatus anhand des Dateinamen-Tags zurück oder None.
+def _classify_by_filename(
+    file_name: str,
+    rules: Optional[list[dict]] = None,
+) -> Optional[str]:
+    """Gibt den ``bearbeitungsstatus`` anhand der konfigurierten Regeln zurück
+    oder ``None``.
 
-    Dateiname enthält '(IDV)' → 'Zur Registrierung' (wesentliche Eigenentwicklung)
-    Dateiname enthält '(AH)'  → 'Nicht wesentlich'  (unwesentliche Eigenentwicklung/Arbeitshilfe)
-    IDV hat Vorrang gegenüber AH.
+    ``rules`` ist die Liste aus ``auto_classify_rules`` (siehe
+    ``db.load_auto_classify_rules``). Wird sie nicht übergeben — z. B. in
+    Tests oder Legacy-Aufrufern — fällt die Funktion auf das hartkodierte
+    Default-Verhalten zurück (Dateinamen-Tag ``(IDV)`` / ``(AH)``), damit
+    ein Scanner auch ohne vollständig gefüllte Regel-Tabelle funktioniert.
+    Die OE-Bindung einzelner Regeln wird erst im Bulk-Apply aus
+    ``db.apply_scanner_update_status`` ausgewertet — der Single-File-Pfad
+    im Scanner hat (noch) kein file_oe_id aufgelöst.
     """
+    if rules:
+        try:
+            # Import lokal, damit der Scanner ohne db.py weiter lauffähig bleibt
+            # (z. B. in Unit-Tests dieser Datei).
+            from db import evaluate_classify_rules as _eval
+            hit = _eval(rules, file_name, None)
+            return hit["action"] if hit else None
+        except ImportError:
+            pass
+
     stem = Path(file_name).stem.upper()
     if "(IDV)" in stem:
         return "Zur Registrierung"
@@ -905,12 +924,15 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                    auto_ignore: bool = False,
                    discard_no_formula: bool = False,
                    auto_classify_filename: bool = True,
+                   classify_rules: Optional[list[dict]] = None,
                    progress_lock: Optional[threading.Lock] = None) -> None:
     """Verarbeitet alle Dateien eines Generators, prüft alle 10 Dateien die Signale.
 
     auto_ignore:            Neue Excel-Dateien ohne Formeln/Makros sofort als 'Ignoriert' markieren.
     discard_no_formula:     Neue Excel-Dateien ohne Formeln/Makros komplett überspringen (nicht in DB).
-    auto_classify_filename: Neue Dateien mit Tag '(AH)' oder '(IDV)' im Dateinamen automatisch klassifizieren.
+    auto_classify_filename: Neue Dateien über konfigurierbare Regeln klassifizieren (Issue #345).
+    classify_rules:         Geladene Regeln (``load_auto_classify_rules``). ``None`` fällt
+                            auf das Default-Verhalten (Tag '(IDV)'/'(AH)') zurück.
     progress_lock:          Optionaler Lock, der ``stats``-Mutationen serialisiert, wenn
                             mehrere Worker-Threads gleichzeitig Chunks verarbeiten.
     """
@@ -960,9 +982,12 @@ def _process_chunk(chunk_gen, conn: sqlite3.Connection, scan_run_id: int,
                     full_path=data["full_path"],
                 )
 
-            # ── Auto-Klassifizierung nach Dateiname ((AH) / (IDV)) ──
+            # ── Auto-Klassifizierung nach Dateiname (konfigurierbare Regeln) ──
             if auto_classify_filename and change in ("new", "restored"):
-                fn_status = _classify_by_filename(data.get("file_name", ""))
+                fn_status = _classify_by_filename(
+                    data.get("file_name", ""),
+                    rules=classify_rules,
+                )
                 if fn_status:
                     emit(
                         OP_UPDATE_STATUS,
@@ -1313,12 +1338,36 @@ def run_scan(config: dict, logger: logging.Logger,
     except Exception:
         runtime_classify_filename = False
 
+    # Regeln für die Auto-Klassifizierung einmalig laden (Issue #345).
+    # Ohne Regeln bleibt das hartkodierte Default-Verhalten (Tag
+    # „(IDV)" / „(AH)") in _classify_by_filename erhalten.
+    runtime_classify_rules = None
+    if runtime_classify_filename:
+        try:
+            from db import load_auto_classify_rules as _load_rules
+            runtime_classify_rules = _load_rules(conn, only_enabled=True)
+        except Exception as _exc:
+            logger.warning(
+                "Klassifizierungs-Regeln konnten nicht geladen werden "
+                "(%s); Fallback auf Default-Verhalten.", _exc,
+            )
+            runtime_classify_rules = None
+
     if runtime_auto_ignore:
         logger.info("Laufzeit-Auto-Ignore aktiv: neue Excel-Dateien ohne Formeln werden sofort ignoriert")
     if runtime_discard:
         logger.info("Verwerfen aktiv: neue Excel-Dateien ohne Formeln werden nicht in die DB aufgenommen")
     if runtime_classify_filename:
-        logger.info("Auto-Klassifizierung nach Dateiname aktiv: '(AH)' (Arbeitshilfe) → 'Nicht wesentlich', '(IDV)' → 'Zur Registrierung'")
+        if runtime_classify_rules:
+            logger.info(
+                "Auto-Klassifizierung nach Dateiname aktiv (%d Regeln aus "
+                "auto_classify_rules).", len(runtime_classify_rules),
+            )
+        else:
+            logger.info(
+                "Auto-Klassifizierung nach Dateiname aktiv (Default-Regeln "
+                "(IDV) -> Zur Registrierung, (AH) -> Nicht wesentlich)."
+            )
 
     # Startdatum-Filter auswerten
     scan_since    = config.get("scan_since") or None
@@ -1437,6 +1486,7 @@ def run_scan(config: dict, logger: logging.Logger,
                         auto_ignore=runtime_auto_ignore,
                         discard_no_formula=runtime_discard,
                         auto_classify_filename=runtime_classify_filename,
+                        classify_rules=runtime_classify_rules,
                         progress_lock=progress_lock,
                     )
                     with progress_lock:
@@ -1459,6 +1509,7 @@ def run_scan(config: dict, logger: logging.Logger,
                         auto_ignore=runtime_auto_ignore,
                         discard_no_formula=runtime_discard,
                         auto_classify_filename=runtime_classify_filename,
+                        classify_rules=runtime_classify_rules,
                         progress_lock=progress_lock,
                     )
                     with progress_lock:
@@ -1513,9 +1564,8 @@ def run_scan(config: dict, logger: logging.Logger,
         # ── Auto-Klassifizierung nach Dateiname am Scan-Ende ──────────────────
         # (deckt Dateien ab, die bereits vor diesem Scan existierten und noch 'Neu' sind)
         if runtime_classify_filename:
-            emit(OP_UPDATE_STATUS, kind="auto_classify_bulk_ah")
-            emit(OP_UPDATE_STATUS, kind="auto_classify_bulk_idv")
-            logger.info("  Auto-Klassifizierung (AH/IDV) emittiert")
+            emit(OP_UPDATE_STATUS, kind="auto_classify_rules_bulk")
+            logger.info("  Auto-Klassifizierung (Regelwerk) emittiert")
 
         if stats.get("discarded"):
             logger.info(f"  Verworfen       : {stats['discarded']} Excel-Dateien (kein Formel/Makro)")

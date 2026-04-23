@@ -13,6 +13,7 @@ import sys
 import sqlite3
 import json
 import calendar
+import re
 from datetime import datetime, timezone, date
 from pathlib import Path
 from typing import Optional
@@ -117,7 +118,117 @@ _RUNTIME_SCHEMA_DDL = (
     "CREATE INDEX IF NOT EXISTS idx_match_sugg_file ON idv_match_suggestions(file_id)",
     "CREATE INDEX IF NOT EXISTS idx_match_sugg_idv  ON idv_match_suggestions(idv_db_id)",
     "CREATE INDEX IF NOT EXISTS idx_match_sugg_open ON idv_match_suggestions(decision) WHERE decision IS NULL",
+    # Konfigurierbare Regeln für die Auto-Klassifizierung nach Dateiname
+    # (Issue #345). Vorher: hartkodierte AH/IDV-Bulks. Jetzt: Prefix/Suffix/
+    # Contains/Regex, optional pro OE, mit Reihenfolge (kleinste sort_order
+    # gewinnt).
+    """
+    CREATE TABLE IF NOT EXISTS auto_classify_rules (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        bezeichnung   TEXT NOT NULL,
+        pattern_type  TEXT NOT NULL CHECK (pattern_type IN ('prefix','suffix','contains','regex')),
+        pattern       TEXT NOT NULL,
+        action        TEXT NOT NULL CHECK (action IN ('Zur Registrierung','Nicht wesentlich','Ignoriert')),
+        oe_id         INTEGER REFERENCES org_units(id) ON DELETE SET NULL,
+        enabled       INTEGER NOT NULL DEFAULT 1,
+        sort_order    INTEGER NOT NULL DEFAULT 100,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now','utc'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_auto_classify_rules_enabled ON auto_classify_rules(enabled, sort_order)",
 )
+
+
+# Default-Regeln, die bei leerem ``auto_classify_rules``-Inhalt einmalig
+# eingespielt werden: deckt das bisherige hartkodierte Verhalten ab
+# (Dateinamen-Tags „(IDV)" / „(AH)"). Die Reihenfolge stellt sicher, dass
+# IDV Vorrang vor AH hat (kleinere sort_order = höhere Priorität).
+_DEFAULT_CLASSIFY_RULES = (
+    {
+        "bezeichnung": "Dateinamen-Tag „(IDV)“ → Zur Registrierung",
+        "pattern_type": "contains",
+        "pattern": "(IDV)",
+        "action": "Zur Registrierung",
+        "sort_order": 100,
+    },
+    {
+        "bezeichnung": "Dateinamen-Tag „(AH)“ → Nicht wesentlich",
+        "pattern_type": "contains",
+        "pattern": "(AH)",
+        "action": "Nicht wesentlich",
+        "sort_order": 110,
+    },
+)
+
+
+def load_auto_classify_rules(conn: sqlite3.Connection,
+                              only_enabled: bool = True) -> list[dict]:
+    """Lädt die Auto-Klassifizierungs-Regeln in Prioritäts-Reihenfolge."""
+    where = "WHERE enabled = 1" if only_enabled else ""
+    rows = conn.execute(f"""
+        SELECT id, bezeichnung, pattern_type, pattern, action, oe_id,
+               enabled, sort_order
+          FROM auto_classify_rules
+          {where}
+         ORDER BY sort_order, id
+    """).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _pattern_matches(file_name: str, pattern_type: str, pattern: str) -> bool:
+    """Einzel-Match gegen einen File-Stem (ohne Extension).
+
+    Tags wie ``(IDV)`` arbeiten case-insensitiv auf dem Stem — das entspricht
+    dem bisherigen Verhalten in ``scanner/network_scanner._classify_by_filename``.
+    Regex-Patterns werden unverändert auf den vollen Dateinamen angewandt,
+    damit Autoren explizite Anker (``^…$``) nutzen können.
+    """
+    if not pattern:
+        return False
+    stem = Path(file_name).stem
+    if pattern_type == "prefix":
+        return stem.upper().startswith(pattern.upper())
+    if pattern_type == "suffix":
+        return stem.upper().endswith(pattern.upper())
+    if pattern_type == "contains":
+        return pattern.upper() in stem.upper()
+    if pattern_type == "regex":
+        try:
+            return re.search(pattern, file_name) is not None
+        except re.error:
+            return False
+    return False
+
+
+def evaluate_classify_rules(rules: list[dict], file_name: str,
+                             file_oe_id: Optional[int] = None
+                             ) -> Optional[dict]:
+    """Liefert die **erste** passende Regel für ``file_name`` oder None.
+
+    ``rules`` wird vom Aufrufer einmal via ``load_auto_classify_rules`` geladen
+    und dann gegen viele Dateinamen ausgewertet — die Reihenfolge bestimmt die
+    Priorität. Regeln mit ``oe_id`` greifen nur, wenn ``file_oe_id`` passt;
+    Regeln ohne ``oe_id`` gelten global.
+    """
+    if not rules:
+        return None
+    for r in rules:
+        rule_oe = r.get("oe_id")
+        if rule_oe is not None and rule_oe != file_oe_id:
+            continue
+        if _pattern_matches(file_name, r["pattern_type"], r["pattern"]):
+            return r
+    return None
+
+
+def validate_regex_pattern(pattern: str) -> Optional[str]:
+    """Gibt None zurück, wenn ``pattern`` eine gültige Regex ist, sonst die
+    Fehlermeldung. Für das Admin-UI."""
+    try:
+        re.compile(pattern)
+        return None
+    except re.error as exc:
+        return str(exc)
 
 
 def _ensure_runtime_schema(conn: sqlite3.Connection) -> None:
@@ -130,6 +241,23 @@ def _ensure_runtime_schema(conn: sqlite3.Connection) -> None:
     """
     for stmt in _RUNTIME_SCHEMA_DDL:
         conn.execute(stmt)
+
+    # Default-Regeln für die Auto-Klassifizierung nachrüsten: nur wenn die
+    # Tabelle noch leer ist (echter Erstlauf); bestehende Installationen,
+    # die die Regeln bereits bearbeitet oder entfernt haben, bleiben unberührt.
+    count = conn.execute(
+        "SELECT COUNT(*) FROM auto_classify_rules"
+    ).fetchone()[0]
+    if count == 0:
+        for r in _DEFAULT_CLASSIFY_RULES:
+            conn.execute(
+                "INSERT INTO auto_classify_rules "
+                "(bezeichnung, pattern_type, pattern, action, sort_order) "
+                "VALUES (?,?,?,?,?)",
+                (r["bezeichnung"], r["pattern_type"], r["pattern"],
+                 r["action"], r["sort_order"]),
+            )
+
     conn.commit()
 
 
@@ -1671,42 +1799,70 @@ def apply_scanner_update_status(conn: sqlite3.Connection, payload: dict) -> None
                 f"  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)",
                 tuple(extensions),
             )
-        elif kind == "auto_classify_bulk_ah":
-            conn.execute(
-                "UPDATE idv_files "
-                "SET bearbeitungsstatus = 'Nicht wesentlich' "
-                "WHERE status = 'active' "
-                "  AND bearbeitungsstatus = 'Neu' "
-                "  AND ("
-                "      UPPER(SUBSTR(file_name, 1, 2)) = 'AH'"
-                "      OR UPPER(SUBSTR(file_name,"
-                "                     LENGTH(file_name) - LENGTH(extension) - 1,"
-                "                     2)) = 'AH'"
-                "  ) "
-                "  AND NOT ("
-                "      UPPER(SUBSTR(file_name, 1, 3)) = 'IDV'"
-                "      OR UPPER(SUBSTR(file_name,"
-                "                     LENGTH(file_name) - LENGTH(extension) - 2,"
-                "                     3)) = 'IDV'"
-                "  ) "
-                "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
-                "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)"
-            )
-        elif kind == "auto_classify_bulk_idv":
-            conn.execute(
-                "UPDATE idv_files "
-                "SET bearbeitungsstatus = 'Zur Registrierung' "
-                "WHERE status = 'active' "
-                "  AND bearbeitungsstatus = 'Neu' "
-                "  AND ("
-                "      UPPER(SUBSTR(file_name, 1, 3)) = 'IDV'"
-                "      OR UPPER(SUBSTR(file_name,"
-                "                     LENGTH(file_name) - LENGTH(extension) - 2,"
-                "                     3)) = 'IDV'"
-                "  ) "
-                "  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)"
-                "  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)"
-            )
+        elif kind in ("auto_classify_bulk_ah", "auto_classify_bulk_idv"):
+            # Pre-#345: hartkodierte AH/IDV-Bulks. Heute durch die konfigurierbaren
+            # Regeln in ``auto_classify_rules`` abgedeckt — die bulk-Variante
+            # (``auto_classify_rules_bulk``) läuft eine Ebene tiefer. Die alten
+            # Kinds bleiben als No-Op erhalten, damit ältere Scanner-Versionen
+            # kompatibel emittieren können.
+            return
+        elif kind == "auto_classify_rules_bulk":
+            # Wendet alle aktiven Regeln aus ``auto_classify_rules`` auf alle
+            # noch nicht bearbeiteten Funde an. Die erste passende Regel gewinnt
+            # pro Datei (Sortier-Reihenfolge). Audit-Einträge verweisen auf die
+            # Regel-ID, damit im Nachhinein nachvollziehbar bleibt, welche Regel
+            # welche Klassifizierung ausgelöst hat.
+            rules = load_auto_classify_rules(conn, only_enabled=True)
+            if not rules:
+                return
+
+            # Unbearbeitete Funde einmal laden (klein genug, ein Scanlauf
+            # generiert typischerweise < 100k Funde). Owner→OE wird joint.
+            rows = conn.execute("""
+                SELECT f.id, f.file_name, p.org_unit_id
+                  FROM idv_files f
+                  LEFT JOIN persons p
+                         ON LOWER(p.user_id) = LOWER(f.file_owner)
+                         OR LOWER(p.kuerzel) = LOWER(f.file_owner)
+                         OR LOWER(p.ad_name) = LOWER(f.file_owner)
+                 WHERE f.status = 'active'
+                   AND f.bearbeitungsstatus = 'Neu'
+                   AND NOT EXISTS (SELECT 1 FROM idv_register  r WHERE r.file_id = f.id)
+                   AND NOT EXISTS (SELECT 1 FROM idv_file_links l WHERE l.file_id = f.id)
+            """).fetchall()
+
+            # ``idv_file_history.scan_run_id`` ist NOT NULL (siehe schema.sql).
+            # Wir hängen die Audit-Einträge an den aktuell letzten Scan-Lauf —
+            # das entspricht dem Zeitpunkt, an dem der Scanner den Bulk-Apply
+            # emittiert hat. Ohne Scans gibt es noch keine Funde → Sentinel 0.
+            scan_run = conn.execute(
+                "SELECT COALESCE(MAX(id), 0) FROM scan_runs"
+            ).fetchone()[0]
+
+            for row in rows:
+                hit = evaluate_classify_rules(
+                    rules, row["file_name"] or "", row["org_unit_id"],
+                )
+                if hit is None:
+                    continue
+                conn.execute(
+                    "UPDATE idv_files SET bearbeitungsstatus = ? "
+                    "WHERE id = ? AND bearbeitungsstatus = 'Neu'",
+                    (hit["action"], row["id"]),
+                )
+                details = json.dumps({
+                    "rule_id":      hit["id"],
+                    "bezeichnung":  hit["bezeichnung"],
+                    "pattern_type": hit["pattern_type"],
+                    "pattern":      hit["pattern"],
+                    "action":       hit["action"],
+                }, ensure_ascii=False)
+                conn.execute(
+                    "INSERT INTO idv_file_history "
+                    "(file_id, scan_run_id, change_type, changed_at, details) "
+                    "VALUES (?, ?, 'auto_classified_rule', datetime('now','utc'), ?)",
+                    (row["id"], scan_run, details),
+                )
 
 
 def apply_scanner_save_delta_token(conn: sqlite3.Connection, payload: dict) -> None:
