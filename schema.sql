@@ -208,6 +208,11 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
     ('self_service_frequency_days',           '7'),
     ('self_service_last_digest_date',         ''),
     ('auto_ignore_no_formula', '0'),
+    -- Verschlankter Patch-Workflow (#320): JSON-Array mit den Schritten,
+    -- die bei einer als 'patch' eingestuften Version durchlaufen werden.
+    -- Default konservativ: Technischer Test + Fachliche Abnahme + Archivierung.
+    ('freigabe_patch_schritte',
+     '["Technischer Test","Fachliche Abnahme","Archivierung Originaldatei"]'),
     -- Keys, die seit 2026-04 aus der config.json in die DB gewandert sind:
     ('login_rate_limit',        '5 per minute;30 per hour'),
     ('upload_rate_limit',       '10 per minute;60 per hour'),
@@ -452,7 +457,13 @@ CREATE TABLE IF NOT EXISTS idv_register (
     vorgaenger_idv_id           INTEGER REFERENCES idv_register(id),
     -- Änderungsart bei neuer Version
     letzte_aenderungsart        TEXT,          -- 'wesentlich' | 'unwesentlich'
-    letzte_aenderungsbegruendung TEXT
+    letzte_aenderungsbegruendung TEXT,
+    -- Umfang des aktuellen Freigabeverfahrens (#320)
+    -- 'grundlegend' = voller 3-Phasen-Workflow (Default, Erstfreigabe)
+    -- 'patch'       = verkürzter Workflow gemäß app_settings.freigabe_patch_schritte
+    freigabe_aenderungskategorie  TEXT,
+    -- Pflichtfeld bei 'patch': warum reicht ein Patch-Verfahren?
+    freigabe_patch_begruendung    TEXT
 );
 
 -- Indizes IDV-Register

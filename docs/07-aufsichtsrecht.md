@@ -100,6 +100,30 @@ dora_kritisch_wichtig = 1 WENN
 Die Logik ist in `db.py` (Funktion zur DORA-Ableitung) umgesetzt und kann
 durch Administratoren per Override übersteuert werden, sofern begründet.
 
+### 4.2 Änderungskategorie und verschlankter Patch-Workflow
+
+Bei einer neuen Version einer bereits freigegebenen IDV wird die
+**Änderungskategorie** erfasst (`idv_register.freigabe_aenderungskategorie`):
+
+| Kategorie | Verfahrensumfang |
+|---|---|
+| `grundlegend` | Voller 3-Phasen-Workflow (Fachlicher Test + Technischer Test + Fachliche Abnahme + Technische Abnahme + Archivierung) |
+| `patch` | Verkürzter Workflow gemäß Admin-Konfiguration (`app_settings.freigabe_patch_schritte`), Default: `Technischer Test`, `Fachliche Abnahme`, `Archivierung Originaldatei` |
+
+Regeln:
+
+- Erstfreigaben sind zwingend `grundlegend` (kein Vorgänger vorhanden).
+- `patch` ist für IDVs mit GDA&nbsp;=&nbsp;4 oder DORA-kritisch/wichtig
+  **gesperrt**; der volle Workflow bleibt Pflicht (FA-045 in
+  [02 – Pflichtenheft](02-pflichtenheft.md)).
+- Die Einstufung als `patch` erfordert eine begründete Freitext-Angabe
+  (`idv_register.freigabe_patch_begruendung`), die zusammen mit der
+  Aktion `freigabe_gestartet_patch` bzw. `freigabe_gestartet` im
+  `idv_history`-Audit-Trail abgelegt wird.
+- Läuft ein Verfahren bereits, ändert eine spätere Konfig-Änderung am
+  Patch-Schrittekatalog den Umfang des laufenden Verfahrens nicht (die
+  Kategorie wird beim Start festgeschrieben).
+
 ## 5 Mapping ISO/IEC 27001:2022
 
 | ISO-Kontrolle | Umsetzung |

@@ -58,6 +58,96 @@ _PHASE_3 = ["Archivierung Originaldatei"]
 _SCHRITTE = _PHASE_1 + _PHASE_2 + _PHASE_3
 _MAX_ARCHIV_UPLOAD = 256 * 1024 * 1024  # 256 MB Obergrenze für Originaldateien
 
+# ---------------------------------------------------------------------------
+# Änderungskategorie (#320): grundlegend vs. patch
+# ---------------------------------------------------------------------------
+# 'grundlegend' = voller 3-Phasen-Workflow (heutiges Verhalten, Default,
+#                 immer bei Erstfreigabe).
+# 'patch'       = verschlankter Workflow; welche Schritte entfallen, liegt
+#                 in app_settings.freigabe_patch_schritte (JSON-Array).
+_KATEGORIEN = ("grundlegend", "patch")
+_DEFAULT_PATCH_SCHRITTE = ["Technischer Test", "Fachliche Abnahme",
+                           "Archivierung Originaldatei"]
+
+
+def _get_patch_schritte(db) -> list:
+    """Liefert die für Patch-Freigaben konfigurierten Schritte.
+
+    Fällt auf den konservativen Default zurück, wenn der Admin keinen
+    gültigen Wert hinterlegt hat. Ungültige Einträge werden verworfen,
+    damit ein vergurkter JSON-Wert den Patch-Workflow nicht öffnet.
+    """
+    from ..app_settings import get_json
+    raw = get_json(db, "freigabe_patch_schritte", None)
+    if not isinstance(raw, list) or not raw:
+        return list(_DEFAULT_PATCH_SCHRITTE)
+    clean = [s for s in raw if isinstance(s, str) and s in _SCHRITTE]
+    return clean or list(_DEFAULT_PATCH_SCHRITTE)
+
+
+def _ist_gda4_oder_dora_kritisch(db, idv_db_id: int) -> bool:
+    """True, wenn die IDV nicht Patch-fähig ist.
+
+    Sperrkriterien (FA-045 bleibt wirksam):
+      * verlinkter Geschäftsprozess ist DORA-kritisch/wichtig
+        (`geschaeftsprozesse.ist_kritisch = 1`), oder
+      * ein erfülltes Wesentlichkeitskriterium markiert die IDV als
+        GDA=4 (Abhängigkeitsgrad 4, kritische/wichtige Funktion).
+
+    Die Textsuche im Kriteriumsnamen toleriert Umbenennungen durch den
+    Admin, solange die typischen Schlüsselwörter erhalten bleiben.
+    """
+    row = db.execute("""
+        SELECT COALESCE(gp.ist_kritisch, 0) AS ist_kritisch
+          FROM idv_register r
+          LEFT JOIN geschaeftsprozesse gp ON gp.id = r.gp_id
+         WHERE r.id = ?
+    """, (idv_db_id,)).fetchone()
+    if row and row["ist_kritisch"]:
+        return True
+    row = db.execute("""
+        SELECT 1 FROM idv_wesentlichkeit iw
+          JOIN wesentlichkeitskriterien k ON k.id = iw.kriterium_id
+         WHERE iw.idv_db_id = ? AND iw.erfuellt = 1
+           AND (k.bezeichnung LIKE '%GDA%'
+                OR k.bezeichnung LIKE '%Abhängigkeitsgrad 4%'
+                OR k.bezeichnung LIKE '%Kritische oder wichtige%')
+         LIMIT 1
+    """, (idv_db_id,)).fetchone()
+    return row is not None
+
+
+def _get_kategorie(db, idv_db_id: int) -> str:
+    """Kategorie der aktuellen Version. Fehlend/leer → 'grundlegend'."""
+    row = db.execute(
+        "SELECT freigabe_aenderungskategorie FROM idv_register WHERE id=?",
+        (idv_db_id,)
+    ).fetchone()
+    if not row:
+        return "grundlegend"
+    k = row["freigabe_aenderungskategorie"]
+    return k if k in _KATEGORIEN else "grundlegend"
+
+
+def _active_phase_schritte(db, idv_db_id: int) -> tuple:
+    """Liefert (phase1, phase2, phase3) – je die Schritte, die für diese
+    IDV-Version tatsächlich vorgesehen sind.
+
+    Für ``grundlegend`` entspricht das dem vollen Katalog. Für ``patch``
+    wird jede Phase mit der Schnittmenge aus Admin-Konfiguration und dem
+    jeweiligen Phasen-Katalog befüllt; Phasen, für die gar kein Schritt
+    vorgesehen ist, sind leer und werden von den Abschluss-Helfern als
+    „komplett erledigt" behandelt.
+    """
+    if _get_kategorie(db, idv_db_id) != "patch":
+        return list(_PHASE_1), list(_PHASE_2), list(_PHASE_3)
+    patch = set(_get_patch_schritte(db))
+    p1 = [s for s in _PHASE_1 if s in patch]
+    p2 = [s for s in _PHASE_2 if s in patch]
+    p3 = [s for s in _PHASE_3 if s in patch]
+    return p1, p2, p3
+
+
 _WESENTLICH_SQL = """EXISTS(
     SELECT 1 FROM idv_wesentlichkeit iw
     WHERE iw.idv_db_id = r.id AND iw.erfuellt = 1
@@ -262,36 +352,56 @@ def _can_complete_schritt(db, freigabe, person_id: int) -> bool:
 
 
 def _phase1_komplett_erledigt(db, idv_db_id: int) -> bool:
-    """True wenn BEIDE Phase-1-Schritte als Erledigt abgeschlossen sind."""
-    ph, ph_params = in_clause(_PHASE_1)
+    """True wenn ALLE für diese IDV vorgesehenen Phase-1-Schritte erledigt sind.
+
+    Für die Patch-Kategorie (#320) kann die Menge kleiner sein (oder leer);
+    eine leere Menge gilt als bereits erledigt, damit der verkürzte
+    Workflow nicht hängenbleibt.
+    """
+    aktive, _, _ = _active_phase_schritte(db, idv_db_id)
+    if not aktive:
+        return True
+    ph, ph_params = in_clause(aktive)
     rows = db.execute(
         f"SELECT schritt FROM idv_freigaben WHERE idv_id=? AND schritt IN ({ph}) AND status='Erledigt'",
         [idv_db_id] + ph_params
     ).fetchall()
     done = {r["schritt"] for r in rows}
-    return set(_PHASE_1).issubset(done)
+    return set(aktive).issubset(done)
 
 
 def _phase2_komplett_erledigt(db, idv_db_id: int) -> bool:
-    """True wenn BEIDE Phase-2-Schritte als Erledigt abgeschlossen sind."""
-    ph, ph_params = in_clause(_PHASE_2)
+    """True wenn ALLE für diese IDV vorgesehenen Phase-2-Schritte erledigt sind.
+
+    Leere Phase-2-Menge (Patch ohne Abnahmen konfiguriert) gilt als
+    bereits erledigt.
+    """
+    _, aktive, _ = _active_phase_schritte(db, idv_db_id)
+    if not aktive:
+        return True
+    ph, ph_params = in_clause(aktive)
     rows = db.execute(
         f"SELECT schritt FROM idv_freigaben WHERE idv_id=? AND schritt IN ({ph}) AND status='Erledigt'",
         [idv_db_id] + ph_params
     ).fetchall()
     done = {r["schritt"] for r in rows}
-    return set(_PHASE_2).issubset(done)
+    return set(aktive).issubset(done)
 
 
 def _phase3_komplett_erledigt(db, idv_db_id: int) -> bool:
-    """True wenn der Archivierungs-Schritt (Phase 3) als Erledigt markiert ist."""
-    ph, ph_params = in_clause(_PHASE_3)
+    """True wenn der Archivierungs-Schritt als Erledigt markiert ist – oder
+    wenn die Archivierung für diese IDV (Patch-Konfig) gar nicht vorgesehen
+    ist und daher entfällt."""
+    _, _, aktive = _active_phase_schritte(db, idv_db_id)
+    if not aktive:
+        return True
+    ph, ph_params = in_clause(aktive)
     rows = db.execute(
         f"SELECT schritt FROM idv_freigaben WHERE idv_id=? AND schritt IN ({ph}) AND status='Erledigt'",
         [idv_db_id] + ph_params
     ).fetchall()
     done = {r["schritt"] for r in rows}
-    return set(_PHASE_3).issubset(done)
+    return set(aktive).issubset(done)
 
 
 def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int,
@@ -300,8 +410,12 @@ def _ensure_archiv_schritt(conn, idv_db_id: int, person_id: int,
     """Legt den Archivierungs-Schritt (Phase 3) an, sofern er noch nicht existiert.
 
     Idempotent und commit-frei: der Aufrufer muss bereits innerhalb einer
-    write_tx(conn)-Transaktion arbeiten.
+    write_tx(conn)-Transaktion arbeiten. Patch-Workflows ohne Archivierung
+    (#320) überspringen die Anlage und geben ``False`` zurück.
     """
+    _, _, aktive_p3 = _active_phase_schritte(conn, idv_db_id)
+    if _PHASE_3[0] not in aktive_p3:
+        return False
     existing = conn.execute(
         "SELECT id FROM idv_freigaben WHERE idv_id=? AND schritt=? LIMIT 1",
         (idv_db_id, _PHASE_3[0])
@@ -451,6 +565,13 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
             if schritt in _PHASE_2 and _phase2_komplett_erledigt(c, idv_db_id):
                 archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, bearbeiter_name=user_name)
                 freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
+            elif (schritt in _PHASE_1
+                  and _phase1_komplett_erledigt(c, idv_db_id)
+                  and _phase2_komplett_erledigt(c, idv_db_id)):
+                # Patch-Workflow (#320) ohne Phase-2-Schritte: direkt die
+                # Archivierung anstoßen, sobald Phase 1 abgeschlossen ist.
+                archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, bearbeiter_name=user_name)
+                freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
         return True, freigegeben, archiv_neu
 
     completed, freigegeben, archiv_neu = get_writer().submit(_do, wait=True)
@@ -468,7 +589,12 @@ def complete_freigabe_schritt(db, freigabe_id: int, person_id: int,
 @bp.route("/eigenentwicklung/<int:idv_db_id>/starten", methods=["POST"])
 @own_write_required
 def starten(idv_db_id):
-    """Startet Phase 1: Fachlicher Test + Technischer Test gleichzeitig."""
+    """Startet Phase 1. Legt die in der Workflow-Konfiguration dieser IDV
+    vorgesehenen Phase-1-Schritte an (grundlegend: beide Tests; patch: nur
+    die explizit konfigurierten). Auch die Einstufung ``grundlegend`` /
+    ``patch`` (#320) wird hier festgeschrieben – inklusive Begründung und
+    GDA/DORA-Guard.
+    """
     db        = get_db()
     ensure_can_write_idv(db, idv_db_id)
     person_id = current_person_id()
@@ -483,7 +609,9 @@ def starten(idv_db_id):
             flash("Freigabeverfahren nur für wesentliche Eigenentwicklungen erforderlich.", "warning")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
-    # Guard: Phase 1 darf noch nicht gestartet sein
+    # Guard: Phase 1 darf noch nicht gestartet sein. Prüft auf alle Phase-1-
+    # Schritte (auch wenn im Patch-Workflow nur einer angelegt wird), damit
+    # ein zweiter Start-Klick keine Duplikate erzeugt.
     existing = db.execute(
         "SELECT id FROM idv_freigaben WHERE idv_id=? AND schritt IN (?,?)",
         (idv_db_id, _PHASE_1[0], _PHASE_1[1])
@@ -492,18 +620,66 @@ def starten(idv_db_id):
         flash("Phase 1 (Tests) wurde bereits gestartet.", "warning")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
+    # Einstufung grundlegend / patch (#320)
+    kategorie = (request.form.get("aenderungskategorie") or "grundlegend").strip().lower()
+    if kategorie not in _KATEGORIEN:
+        kategorie = "grundlegend"
+    patch_begruendung = (request.form.get("patch_begruendung") or "").strip()
+
+    if kategorie == "patch":
+        # Erstfreigabe ist immer grundlegend – es gibt keinen Vorgänger,
+        # an dessen Unverändertheit sich der Patch orientieren könnte.
+        row_prev = db.execute(
+            "SELECT vorgaenger_idv_id FROM idv_register WHERE id=?", (idv_db_id,)
+        ).fetchone()
+        if not row_prev or not row_prev["vorgaenger_idv_id"]:
+            flash(
+                "Patch-Verfahren ist bei der Erstfreigabe nicht zulässig – "
+                "bitte 'grundlegend' wählen.",
+                "error",
+            )
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+        if not patch_begruendung:
+            flash(
+                "Für die Einstufung als Patch ist eine Begründung verpflichtend.",
+                "error",
+            )
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+        if _ist_gda4_oder_dora_kritisch(db, idv_db_id):
+            flash(
+                "Patch-Verfahren ist für GDA=4 / DORA-kritische IDVs gesperrt "
+                "(FA-045 verlangt den vollen Workflow).",
+                "error",
+            )
+            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+        patch_schritte = set(_get_patch_schritte(db))
+        phase1_schritte = [s for s in _PHASE_1 if s in patch_schritte]
+    else:
+        patch_begruendung = None
+        phase1_schritte = list(_PHASE_1)
+
     zugewiesen_fachlich,  pool_id_fachlich  = _parse_combined_assignment(
         request.form.get("zugewiesen_fachlicher_test"))
     zugewiesen_technisch, pool_id_technisch = _parse_combined_assignment(
         request.form.get("zugewiesen_technischer_test"))
+    zuweisungen = {
+        _PHASE_1[0]: (zugewiesen_fachlich,  pool_id_fachlich),
+        _PHASE_1[1]: (zugewiesen_technisch, pool_id_technisch),
+    }
     user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
-            for schritt, zugewiesen, pool_id in [
-                (_PHASE_1[0], zugewiesen_fachlich,  pool_id_fachlich),
-                (_PHASE_1[1], zugewiesen_technisch, pool_id_technisch),
-            ]:
+            # Kategorie + Begründung persistent pro IDV-Version speichern,
+            # damit nachgelagerte Phasen und die Anzeige dieselbe Konfig
+            # zu Gesicht bekommen.
+            c.execute(
+                "UPDATE idv_register SET freigabe_aenderungskategorie=?, "
+                "freigabe_patch_begruendung=?, aktualisiert_am=? WHERE id=?",
+                (kategorie, patch_begruendung, now, idv_db_id),
+            )
+            for schritt in phase1_schritte:
+                zugewiesen, pool_id = zuweisungen[schritt]
                 c.execute("""
                     INSERT INTO idv_freigaben
                         (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id, pool_id)
@@ -516,20 +692,49 @@ def starten(idv_db_id):
                 "UPDATE idv_register SET teststatus='Freigabe ausstehend', aktualisiert_am=? WHERE id=?",
                 (now, idv_db_id),
             )
+            if kategorie == "patch":
+                entfallen = [s for s in _SCHRITTE if s not in set(_get_patch_schritte(c))]
+                hist_kom = (
+                    "Freigabeverfahren gestartet – Einstufung: PATCH "
+                    f"(verkürzter Workflow). Aktive Schritte: {', '.join(_get_patch_schritte(c))}. "
+                    f"Entfallen: {', '.join(entfallen) or 'keine'}. "
+                    f"Begründung: {patch_begruendung}"
+                )
+                hist_aktion = "freigabe_gestartet_patch"
+            else:
+                hist_kom = ("Freigabeverfahren gestartet – Einstufung: GRUNDLEGEND "
+                            "(voller 3-Phasen-Workflow).")
+                hist_aktion = "freigabe_gestartet"
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
-                (idv_db_id, "freigabe_gestartet",
-                 "Freigabeverfahren gestartet – Phase 1: Fachlicher Test + Technischer Test (parallel)",
-                 person_id, user_name),
+                (idv_db_id, hist_aktion, hist_kom, person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
 
-    _notify_schritte(db, idv_db_id, _PHASE_1,
-                     {_PHASE_1[0]: zugewiesen_fachlich, _PHASE_1[1]: zugewiesen_technisch},
-                     {_PHASE_1[0]: pool_id_fachlich, _PHASE_1[1]: pool_id_technisch})
+    _notify_schritte(
+        db, idv_db_id, phase1_schritte,
+        {s: zuweisungen[s][0] for s in phase1_schritte},
+        {s: zuweisungen[s][1] for s in phase1_schritte},
+    )
 
-    flash("Phase 1 gestartet: Fachlicher Test und Technischer Test laufen parallel.", "success")
+    if kategorie == "patch":
+        if not phase1_schritte:
+            # Patch ohne Phase-1-Schritt: Phase 2 direkt freigeben (und ggf.
+            # die automatische Archivierung anstoßen), damit der Anwender
+            # ohne Umweg weiter kommt.
+            flash(
+                "Patch-Verfahren gestartet – Phase 1 entfällt laut Konfiguration. "
+                "Bitte Phase 2 (Abnahmen) starten.",
+                "success",
+            )
+        else:
+            flash(
+                f"Patch-Verfahren gestartet: {', '.join(phase1_schritte)}.",
+                "success",
+            )
+    else:
+        flash("Phase 1 gestartet: Fachlicher Test und Technischer Test laufen parallel.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
@@ -540,14 +745,16 @@ def starten(idv_db_id):
 @bp.route("/eigenentwicklung/<int:idv_db_id>/abnahme-starten", methods=["POST"])
 @own_write_required
 def abnahme_starten(idv_db_id):
-    """Startet Phase 2: Fachliche Abnahme + Technische Abnahme – erst nach vollständiger Phase 1."""
+    """Startet Phase 2. Legt die in der Workflow-Konfiguration dieser IDV
+    vorgesehenen Phase-2-Schritte an (grundlegend: beide Abnahmen; patch:
+    nur die konfigurierten)."""
     db        = get_db()
     ensure_can_write_idv(db, idv_db_id)
     person_id = current_person_id()
     now       = datetime.now(timezone.utc).isoformat()
 
     if not _phase1_komplett_erledigt(db, idv_db_id):
-        flash("Phase 2 kann erst gestartet werden, wenn beide Phase-1-Tests erledigt sind.", "warning")
+        flash("Phase 2 kann erst gestartet werden, wenn Phase 1 vollständig erledigt ist.", "warning")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     # Guard: Phase 2 darf noch nicht gestartet sein
@@ -559,18 +766,28 @@ def abnahme_starten(idv_db_id):
         flash("Phase 2 (Abnahmen) wurde bereits gestartet.", "warning")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
+    _, phase2_schritte, _ = _active_phase_schritte(db, idv_db_id)
+    if not phase2_schritte:
+        flash(
+            "Für diese IDV sind laut Patch-Konfiguration keine Abnahmen vorgesehen.",
+            "info",
+        )
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
     zugewiesen_fachlich,  pool_id_fachlich  = _parse_combined_assignment(
         request.form.get("zugewiesen_fachliche_abnahme"))
     zugewiesen_technisch, pool_id_technisch = _parse_combined_assignment(
         request.form.get("zugewiesen_technische_abnahme"))
+    zuweisungen = {
+        _PHASE_2[0]: (zugewiesen_fachlich,  pool_id_fachlich),
+        _PHASE_2[1]: (zugewiesen_technisch, pool_id_technisch),
+    }
     user_name = session.get("user_name", "") or None
 
     def _do(c):
         with write_tx(c):
-            for schritt, zugewiesen, pool_id in [
-                (_PHASE_2[0], zugewiesen_fachlich,  pool_id_fachlich),
-                (_PHASE_2[1], zugewiesen_technisch, pool_id_technisch),
-            ]:
+            for schritt in phase2_schritte:
+                zugewiesen, pool_id = zuweisungen[schritt]
                 c.execute("""
                     INSERT INTO idv_freigaben
                         (idv_id, schritt, status, beauftragt_von_id, beauftragt_am, zugewiesen_an_id, pool_id)
@@ -580,16 +797,19 @@ def abnahme_starten(idv_db_id):
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_phase2_gestartet",
-                 "Phase 2 gestartet: Fachliche Abnahme + Technische Abnahme (parallel)", person_id, user_name),
+                 f"Phase 2 gestartet: {', '.join(phase2_schritte)}",
+                 person_id, user_name),
             )
 
     get_writer().submit(_do, wait=True)
 
-    _notify_schritte(db, idv_db_id, _PHASE_2,
-                     {_PHASE_2[0]: zugewiesen_fachlich, _PHASE_2[1]: zugewiesen_technisch},
-                     {_PHASE_2[0]: pool_id_fachlich, _PHASE_2[1]: pool_id_technisch})
+    _notify_schritte(
+        db, idv_db_id, phase2_schritte,
+        {s: zuweisungen[s][0] for s in phase2_schritte},
+        {s: zuweisungen[s][1] for s in phase2_schritte},
+    )
 
-    flash("Phase 2 gestartet: Fachliche Abnahme und Technische Abnahme laufen parallel.", "success")
+    flash(f"Phase 2 gestartet: {', '.join(phase2_schritte)}.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 
@@ -790,6 +1010,12 @@ def abschliessen(freigabe_id):
                 freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
             elif schritt in _PHASE_1 and _phase1_komplett_erledigt(c, idv_db_id):
                 phase1_done = True
+                # Patch-Workflow ohne Phase-2-Schritte: Phase 1 geht direkt
+                # in die Archivierung über, damit kein toter Button im UI
+                # erscheint ("Phase 2 starten" mit leerem Inhalt).
+                if _phase2_komplett_erledigt(c, idv_db_id):
+                    archiv_neu  = _ensure_archiv_schritt(c, idv_db_id, person_id, bearbeiter_name=user_name)
+                    freigegeben = _finalisiere_freigabe_wenn_komplett(c, idv_db_id, person_id, bearbeiter_name=user_name)
         return phase2_done, phase1_done, freigegeben, archiv_neu
 
     phase2_done, phase1_done, freigegeben, archiv_neu = get_writer().submit(_do, wait=True)

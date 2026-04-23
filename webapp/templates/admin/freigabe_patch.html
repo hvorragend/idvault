@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Patch-Workflow{% endblock %}
+{% block page_title %}<i class="bi bi-diagram-3 me-2"></i>Freigabe &ndash; Patch-Workflow{% endblock %}
+
+{% block content %}
+{% include 'admin/_subnav.html' %}
+
+<p class="text-muted">
+  Bei einer als <strong>patch</strong> eingestuften neuen Version einer bereits
+  freigegebenen IDV wird nur der hier konfigurierte Teilumfang des
+  Freigabeverfahrens durchlaufen (MaRisk AT 7.2 risikobasiert, FA-045 bleibt
+  für GDA&nbsp;=&nbsp;4 / DORA-kritische IDVs erzwungen).
+</p>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <p class="fw-600 mb-2">Aktive Schritte für Patch-Freigaben</p>
+      <div class="vstack gap-2 mb-3">
+        {% for s in alle_schritte %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox"
+                 id="schritt-{{ loop.index }}"
+                 name="schritte" value="{{ s }}"
+                 {% if s in aktive %}checked{% endif %}>
+          <label class="form-check-label" for="schritt-{{ loop.index }}">
+            {{ s }}
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="alert alert-info py-2 small">
+        <i class="bi bi-info-circle me-1"></i>
+        Konservativer Default:
+        {% for s in default %}<code>{{ s }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+        Mindestens ein Schritt muss aktiv bleiben; andernfalls wird der Default
+        automatisch wiederhergestellt.
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-save me-1"></i>Speichern
+      </button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

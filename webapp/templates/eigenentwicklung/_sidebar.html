@@ -129,7 +129,14 @@
     {% set is_admin = session.get('user_role') == 'IDV-Administrator' %}
     <div class="card border-0 shadow-sm mb-4" id="freigabeverfahren">
       <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-shield-check me-2"></i>Test & Freigabe</span>
+        <span>
+          <i class="bi bi-shield-check me-2"></i>Test & Freigabe
+          {% if freigabe_kategorie == 'patch' and phase1_gestartet %}
+          <span class="badge bg-info text-dark ms-1" title="Verkürzter Freigabe-Workflow (#320). Begründung: {{ idv.freigabe_patch_begruendung or '—' }}">
+            <i class="bi bi-lightning-charge me-1"></i>Patch
+          </span>
+          {% endif %}
+        </span>
         {% if phase2_erledigt %}
         <span class="badge bg-success">Freigegeben</span>
         {% elif hat_offenen_schritt %}
@@ -458,6 +465,8 @@
     </div>
 
     <!-- Modal: Freigabeverfahren starten (Phase 1) -->
+    {% set _patch_schritte = freigabe_patch_schritte or [] %}
+    {% set _patch_moeglich = hat_vorgaenger and not freigabe_gda4_gesperrt %}
     <div class="modal fade" id="modal-starten" tabindex="-1">
       <div class="modal-dialog">
         <form method="post" action="{{ url_for('freigaben.starten', idv_db_id=idv.id) }}">
@@ -468,10 +477,43 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label fw-600 small">Änderungskategorie</label>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="aenderungskategorie"
+                         id="kat-grundlegend" value="grundlegend" checked>
+                  <label class="form-check-label small" for="kat-grundlegend">
+                    <strong>Grundlegend</strong> &ndash; voller 3-Phasen-Workflow (Default, z.B. Erstfreigabe).
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="aenderungskategorie"
+                         id="kat-patch" value="patch"
+                         {% if not _patch_moeglich %}disabled{% endif %}>
+                  <label class="form-check-label small" for="kat-patch">
+                    <strong>Patch</strong> &ndash; verkürztes Verfahren
+                    ({% for s in _patch_schritte %}{{ s }}{% if not loop.last %}, {% endif %}{% endfor %}).
+                    {% if not hat_vorgaenger %}
+                    <span class="text-muted">Bei Erstfreigabe nicht zulässig.</span>
+                    {% elif freigabe_gda4_gesperrt %}
+                    <span class="text-danger">Gesperrt: GDA=4 / DORA-kritisch &ndash; FA-045.</span>
+                    {% endif %}
+                  </label>
+                </div>
+              </div>
+
+              <div class="mb-3" id="patch-begruendung-wrap" style="display:none;">
+                <label class="form-label small">Begründung für die Einstufung als Patch
+                  <span class="text-danger">*</span></label>
+                <textarea name="patch_begruendung" class="form-control form-control-sm" rows="2"
+                          placeholder="z.B. nur Layout-Korrektur, keine fachliche Logikänderung"></textarea>
+              </div>
+
               <p class="text-muted mb-3 small">
                 <i class="bi bi-info-circle me-1"></i>
-                Fachlicher Test und Technischer Test werden <strong>gleichzeitig</strong> gestartet.
-                Bitte wählen Sie die verantwortlichen Personen aus.
+                Bei „grundlegend" werden Fachlicher und Technischer Test <strong>gleichzeitig</strong>
+                gestartet. Bei „patch" werden nur die in der Admin-Konfiguration hinterlegten
+                Schritte angelegt; Zuweisungen für nicht benötigte Schritte werden verworfen.
               </p>
               {% for schritt_key, schritt_label in [('fachlicher_test', 'Fachlicher Test'), ('technischer_test', 'Technischer Test')] %}
               <div class="mb-3">
@@ -506,6 +548,19 @@
         </form>
       </div>
     </div>
+    <script>
+      (function () {
+        var modal = document.getElementById('modal-starten');
+        if (!modal) return;
+        var wrap  = modal.querySelector('#patch-begruendung-wrap');
+        if (!wrap) return;
+        modal.querySelectorAll('input[name="aenderungskategorie"]').forEach(function (r) {
+          r.addEventListener('change', function () {
+            wrap.style.display = (r.value === 'patch' && r.checked) ? '' : 'none';
+          });
+        });
+      })();
+    </script>
 
     <!-- Modal: Phase 2 starten (Abnahmen) -->
     <div class="modal fade" id="modal-abnahme-starten" tabindex="-1">

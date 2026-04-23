@@ -36,6 +36,8 @@ DEFAULTS = {
     "scanner_config":         "{}",
     "teams_config":           "{}",
     "teams_client_secret_enc": "",
+    "freigabe_patch_schritte":
+        '["Technischer Test","Fachliche Abnahme","Archivierung Originaldatei"]',
 }
 
 
