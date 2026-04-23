@@ -660,12 +660,19 @@ def erledigt_seite(freigabe_id):
     # Verhindert, dass das Abschluss-Formular überhaupt sichtbar wird,
     # obwohl der POST ohnehin durch _funktionstrennung_ok / _can_complete_schritt
     # abgelehnt würde.
+    # Admins dürfen auch ohne persons-Eintrag (z.B. lokaler config.json-User
+    # ohne person_id) — die beiden Helfer haben intern Admin-Bypasses, aber der
+    # ``pid is not None``-Gate feuerte vorher zu früh.
+    from . import ROLE_ADMIN as _ROLE_ADMIN
     pid = current_person_id()
-    darf_abschliessen = (
-        pid is not None
-        and _funktionstrennung_ok(db, freigabe["idv_id"], pid)
-        and _can_complete_schritt(db, freigabe, pid)
-    )
+    if session.get("user_role") == _ROLE_ADMIN:
+        darf_abschliessen = True
+    else:
+        darf_abschliessen = (
+            pid is not None
+            and _funktionstrennung_ok(db, freigabe["idv_id"], pid)
+            and _can_complete_schritt(db, freigabe, pid)
+        )
 
     # Phase 3: Archivierungs-Schritt → spezialisierte Maske
     if freigabe["schritt"] in _PHASE_3:
@@ -1205,6 +1212,147 @@ def uebernehmen(freigabe_id):
     get_writer().submit(_do, wait=True)
     flash(f"'{freigabe['schritt']}' übernommen – die Aufgabe ist jetzt Ihnen zugewiesen.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=freigabe["idv_id"]))
+
+
+# ---------------------------------------------------------------------------
+# Soft-Claim auf Pool-Schritt (#321) — reversibel
+# ---------------------------------------------------------------------------
+
+
+@bp.route("/<int:freigabe_id>/claim", methods=["POST"])
+@login_required
+def claim(freigabe_id):
+    """Soft-Claim auf einen Pool-Schritt: markiert die Aufgabe als
+    „in Bearbeitung durch <Person>", ohne die Pool-Bindung aufzuheben.
+    Andere Pool-Mitglieder sehen den Claim-Inhaber und erhalten keine
+    Erinnerungen mehr. Der Claim kann über ``claim-loesen`` zurückgegeben
+    werden. Abschluss bleibt für alle Pool-Mitglieder möglich.
+    """
+    db        = get_db()
+    person_id = current_person_id()
+    now       = datetime.now(timezone.utc).isoformat()
+
+    freigabe = db.execute(
+        "SELECT * FROM idv_freigaben WHERE id = ?", (freigabe_id,)
+    ).fetchone()
+    if not freigabe or freigabe["status"] != "Ausstehend":
+        flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
+
+    pool_id = None
+    try:
+        pool_id = freigabe["pool_id"]
+    except (KeyError, IndexError):
+        pool_id = None
+    if not pool_id:
+        flash("Dieser Schritt ist keinem Pool zugewiesen.", "warning")
+        return redirect(url_for("eigenentwicklung.detail_idv",
+                                idv_db_id=freigabe["idv_id"]))
+
+    from . import ROLE_ADMIN
+    is_admin = session.get("user_role") == ROLE_ADMIN
+    if not is_admin and not _is_pool_member(db, pool_id, person_id):
+        flash("Sie sind kein Mitglied des zugewiesenen Pools.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv",
+                                idv_db_id=freigabe["idv_id"]))
+    if not person_id:
+        flash("Kein Personendatensatz für diesen Account.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv",
+                                idv_db_id=freigabe["idv_id"]))
+
+    # Ist bereits ein anderer Claim aktiv? Nur der Inhaber oder Admin darf
+    # ihn überschreiben. Reiner „Refresh-Klick" des Inhabers ist OK.
+    try:
+        current = freigabe["bearbeitet_von_id"]
+    except (KeyError, IndexError):
+        current = None
+    if current and current != person_id and not is_admin:
+        flash("Diese Aufgabe wird bereits bearbeitet. "
+              "Bitte mit dem aktuellen Bearbeiter abstimmen.", "info")
+        return redirect(url_for("eigenentwicklung.detail_idv",
+                                idv_db_id=freigabe["idv_id"]))
+
+    user_name = session.get("user_name", "") or None
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE idv_freigaben "
+                "SET bearbeitet_von_id=?, bearbeitet_am=? WHERE id=?",
+                (person_id, now, freigabe_id),
+            )
+            c.execute(
+                "INSERT INTO idv_history "
+                "(idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) "
+                "VALUES (?,?,?,?,?)",
+                (freigabe["idv_id"], "freigabe_claim",
+                 f"{freigabe['schritt']} zur Bearbeitung übernommen",
+                 person_id, user_name),
+            )
+
+    get_writer().submit(_do, wait=True)
+    flash(f"'{freigabe['schritt']}' zur Bearbeitung übernommen.", "success")
+    return redirect(url_for("eigenentwicklung.detail_idv",
+                            idv_db_id=freigabe["idv_id"]))
+
+
+@bp.route("/<int:freigabe_id>/claim-loesen", methods=["POST"])
+@login_required
+def claim_loesen(freigabe_id):
+    """Gibt einen Soft-Claim zurück — andere Pool-Mitglieder können die
+    Aufgabe dann wieder übernehmen. Nur der aktuelle Claim-Inhaber oder
+    ein Admin dürfen lösen.
+    """
+    db        = get_db()
+    person_id = current_person_id()
+
+    freigabe = db.execute(
+        "SELECT * FROM idv_freigaben WHERE id = ?", (freigabe_id,)
+    ).fetchone()
+    if not freigabe or freigabe["status"] != "Ausstehend":
+        flash("Freigabe-Schritt nicht gefunden oder bereits abgeschlossen.", "error")
+        return redirect(url_for("eigenentwicklung.list_idv"))
+
+    try:
+        current = freigabe["bearbeitet_von_id"]
+    except (KeyError, IndexError):
+        current = None
+    if not current:
+        flash("Auf diesen Schritt besteht kein Claim.", "info")
+        return redirect(url_for("eigenentwicklung.detail_idv",
+                                idv_db_id=freigabe["idv_id"]))
+
+    from . import ROLE_ADMIN
+    is_admin = session.get("user_role") == ROLE_ADMIN
+    if current != person_id and not is_admin:
+        flash("Nur der aktuelle Bearbeiter oder ein Admin darf den Claim lösen.",
+              "error")
+        return redirect(url_for("eigenentwicklung.detail_idv",
+                                idv_db_id=freigabe["idv_id"]))
+
+    user_name = session.get("user_name", "") or None
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "UPDATE idv_freigaben "
+                "SET bearbeitet_von_id=NULL, bearbeitet_am=NULL WHERE id=?",
+                (freigabe_id,),
+            )
+            c.execute(
+                "INSERT INTO idv_history "
+                "(idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) "
+                "VALUES (?,?,?,?,?)",
+                (freigabe["idv_id"], "freigabe_claim_geloest",
+                 f"{freigabe['schritt']} wieder freigegeben (Claim gelöst)",
+                 person_id, user_name),
+            )
+
+    get_writer().submit(_do, wait=True)
+    flash(f"'{freigabe['schritt']}' wieder freigegeben — Pool kann erneut übernehmen.",
+          "success")
+    return redirect(url_for("eigenentwicklung.detail_idv",
+                            idv_db_id=freigabe["idv_id"]))
 
 
 # ---------------------------------------------------------------------------
