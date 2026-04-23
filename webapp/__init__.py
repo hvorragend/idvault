@@ -444,6 +444,7 @@ def create_app(db_path: str = None) -> Flask:
     from .routes.cognos        import bp as cognos_bp
     from .routes.info          import bp as info_bp
     from .routes.quick_actions import bp as quick_actions_bp
+    from .routes.self_service  import bp as self_service_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
@@ -458,6 +459,7 @@ def create_app(db_path: str = None) -> Flask:
     app.register_blueprint(cognos_bp)
     app.register_blueprint(info_bp)
     app.register_blueprint(quick_actions_bp)
+    app.register_blueprint(self_service_bp)
 
     # -----------------------------------------------------------------------
     # /healthz: öffentlicher JSON-Health-Check für Load-Balancer / Monitoring.

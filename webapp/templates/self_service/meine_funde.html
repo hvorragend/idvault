@@ -1,0 +1,70 @@
+{% extends "self_service/_base.html" %}
+{% block title %}Meine Funde – idvault{% endblock %}
+{% block content %}
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-600 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-folder2-open me-2"></i>Meine offenen Scanner-Funde</span>
+    <span class="badge bg-primary">{{ funde|length }}</span>
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Guten Tag {{ person.vorname }} {{ person.nachname }},<br>
+      der idvault-Scanner hat folgende Dateien in Ihrem Zugriff entdeckt, die
+      noch keiner IDV zugeordnet sind. Bitte entscheiden Sie je Datei, wie
+      damit verfahren werden soll. Sie können jederzeit erneut den Link aus
+      Ihrer E-Mail öffnen.
+    </p>
+
+    {% if not funde %}
+    <div class="alert alert-success py-2 small mb-0">
+      <i class="bi bi-check-circle me-1"></i>Aktuell sind keine offenen Funde
+      in Ihrer Zuständigkeit. Vielen Dank!
+    </div>
+    {% else %}
+    {% for f in funde %}
+    <div class="ss-file-row">
+      <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+        <div class="me-2" style="min-width:0;flex:1;">
+          <div class="fw-600">
+            <i class="bi bi-file-earmark-text me-1 text-primary"></i>
+            {{ f.file_name }}
+            {% if f.has_macros %}
+            <span class="badge bg-warning text-dark ms-1">Makros</span>
+            {% endif %}
+            {% if f.formula_count and f.formula_count > 0 %}
+            <span class="badge bg-info text-dark ms-1">{{ f.formula_count }} Formeln</span>
+            {% endif %}
+          </div>
+          <div class="ss-path">{{ f.full_path }}</div>
+        </div>
+        <div class="d-flex gap-2">
+          <form method="post" action="{{ url_for('self_service.fund_aktion', file_id=f.id) }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="aktion" value="zur_registrierung">
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="bi bi-bookmark-plus me-1"></i>Zur Registrierung
+            </button>
+          </form>
+          <form method="post" action="{{ url_for('self_service.fund_aktion', file_id=f.id) }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="aktion" value="ignorieren">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Ignorieren
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+  <div class="card-footer bg-white text-end">
+    <form method="post" action="{{ url_for('self_service.abmelden') }}" class="d-inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-box-arrow-right me-1"></i>Fertig &amp; Link ungültig machen
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

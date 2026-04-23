@@ -465,6 +465,29 @@ _DEFAULTS["freigabe_pool_reminder_body"] = """\
   Diese Nachricht wurde automatisch von idvault gesendet.</p>
 </body></html>"""
 
+# ── 7b. Owner-Mail-Digest (Self-Service, Issue #315) ────────────────────
+
+_DEFAULTS["owner_digest_subject"] = "[idvault] Offene Scanner-Funde in Ihrem Bereich ({anzahl})"
+_DEFAULTS["owner_digest_body"] = """\
+<html><body style="font-family:Arial,sans-serif;font-size:14px;">
+<h2 style="color:#0d6efd;">idvault – Ihre offenen Scanner-Funde</h2>
+<p>Sehr geehrte/r {empfaenger},</p>
+<p>der idvault-Scanner hat <strong>{anzahl}</strong> Datei(en) in Ihrem Zugriff
+   entdeckt, die noch keiner IDV zugeordnet sind. Bitte entscheiden Sie je
+   Datei, ob sie für die Registrierung vorgemerkt oder ignoriert werden soll:</p>
+<p style="margin:20px 0;text-align:center;">
+  <a href="{link}" style="background:#0d6efd;color:#ffffff;padding:12px 32px;
+     border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;
+     display:inline-block;">Meine Funde öffnen →</a>
+</p>
+<p style="color:#6c757d;font-size:12px;">
+  Der Link ist <strong>7 Tage</strong> gültig und öffnet eine Minimalansicht
+  ohne Anmeldung. Die fachliche IDV-Einordnung übernimmt weiterhin der
+  IDV-Koordinator.</p>
+<p style="color:#6c757d;font-size:12px;margin-top:30px;">
+  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+</body></html>"""
+
 # ── 8. Überfällige Maßnahme ──────────────────────────────────────────────
 
 _DEFAULTS["massnahme_ueberfaellig_subject"] = "[idvault] Überfällige Maßnahme: {titel}"
@@ -517,6 +540,10 @@ EMAIL_TEMPLATES = {
     "freigabe_pool_reminder": {
         "label": "Pool-Freigabeschritt wartet auf Claim (täglicher Reminder)",
         "placeholders": ["idv_id", "bezeichnung", "schritt", "pool_name", "wartet_seit_tage"],
+    },
+    "owner_digest": {
+        "label": "Owner-Digest: offene Scanner-Funde (Self-Service)",
+        "placeholders": ["empfaenger", "anzahl", "link"],
     },
 }
 
@@ -899,6 +926,63 @@ def notify_freigabe_pool_reminder(db, idv_row, schritt: str, pool_name: str,
         text = _strip_html_tags(html)
 
     return send_mail(db, recipient_emails, subject, html, text)
+
+
+def notify_owner_digest(db, recipient_email: str, recipient_name: str,
+                        file_rows: list, magic_link: str,
+                        base_url: str = "") -> bool:
+    """Sendet den wöchentlichen Owner-Digest an einen Fachbereichs-Mitarbeiter.
+
+    ``file_rows`` sind die offenen Scanner-Funde (``bearbeitungsstatus='Neu'``)
+    des Empfängers. ``magic_link`` ist die vollständige, signierte URL auf
+    die Self-Service-Ansicht (Issue #315).
+
+    Gibt True zurück, wenn die E-Mail versendet wurde.
+    """
+    if not _is_notify_enabled(db, "owner_digest"):
+        return False
+    if not file_rows or not recipient_email or not magic_link:
+        return False
+
+    placeholders = {
+        "empfaenger": recipient_name or recipient_email,
+        "anzahl":     str(len(file_rows)),
+        "link":       magic_link,
+    }
+
+    subject, html, text = _load_template(
+        db, "owner_digest",
+        _DEFAULTS["owner_digest_subject"],
+        _DEFAULTS["owner_digest_body"],
+        placeholders,
+    )
+
+    # Datei-Tabelle einblenden (vor dem schließenden </body>). Die Tabelle
+    # steht zusätzlich zum konfigurierbaren Body-Text, damit Admin-Anpassungen
+    # am Vorwort möglich sind, die Funddaten aber immer aktuell bleiben.
+    rows_html = ""
+    for i, f in enumerate(file_rows):
+        bg = ' style="background:#f8f9fa"' if i % 2 == 0 else ""
+        fname = f["file_name"] if hasattr(f, "__getitem__") else str(f)
+        fpath = f["full_path"] if hasattr(f, "__getitem__") else ""
+        rows_html += (
+            f'<tr{bg}>'
+            f'<td style="padding:6px;font-weight:bold;vertical-align:top;">{_html.escape(str(fname))}</td>'
+            f'<td style="padding:6px;font-family:monospace;font-size:11px;vertical-align:top;">{_html.escape(str(fpath))}</td>'
+            f'</tr>'
+        )
+    table_html = (
+        '<table style="border-collapse:collapse;width:100%;border:1px solid #dee2e6;margin-top:12px;">'
+        '<thead><tr style="background:#e9ecef;">'
+        '<th style="padding:6px;text-align:left;">Dateiname</th>'
+        '<th style="padding:6px;text-align:left;">Pfad</th>'
+        '</tr></thead>'
+        f'<tbody>{rows_html}</tbody></table>'
+    )
+    html = html.replace("</body>", table_html + "</body>")
+    text = _strip_html_tags(html)
+
+    return send_mail(db, recipient_email, subject, html, text)
 
 
 def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:

@@ -35,11 +35,14 @@ _NOTIFY_DEFAULTS = {
     "notify_schedule_enabled":       "1",
     "notify_schedule_time":          "08:00",
     "notify_pool_reminder_max_days": "14",
+    "self_service_enabled":          "0",
+    "self_service_frequency_days":   "7",
 }
 
-_MEASURE_KIND      = "massnahme_ueberfaellig"
-_REVIEW_KIND       = "pruefung_faellig"
-_POOL_REMINDER_KIND = "freigabe_pool_reminder"
+_MEASURE_KIND       = "massnahme_ueberfaellig"
+_REVIEW_KIND        = "pruefung_faellig"
+_POOL_REMINDER_KIND  = "freigabe_pool_reminder"
+_OWNER_DIGEST_KIND   = "owner_digest"
 
 # Anti-Spam: gleiche (kind, ref_id) wird innerhalb dieses Fensters nicht
 # erneut gemailt – auch wenn die Fälligkeit weiter in der Vergangenheit liegt.
@@ -278,6 +281,169 @@ def _dispatch_pool_claim_reminders(db, today_iso: str) -> int:
     return sent
 
 
+def _self_service_master_enabled(db) -> bool:
+    """Self-Service greift nur, wenn sowohl der Bootstrap-Schalter in
+    ``config.json["IDV_SELF_SERVICE_ENABLED"]`` als auch die Admin-UI-
+    Einstellung ``self_service_enabled`` aktiviert sind (Defense-in-Depth,
+    siehe Issue #315).
+    """
+    from . import config_store
+    if not config_store.get_bool("IDV_SELF_SERVICE_ENABLED", False):
+        return False
+    try:
+        row = db.execute(
+            "SELECT value FROM app_settings WHERE key='self_service_enabled'"
+        ).fetchone()
+    except Exception:
+        return False
+    return bool(row and row["value"] == "1")
+
+
+def _dispatch_owner_digest(db, today_iso: str) -> int:
+    """Wöchentlicher Owner-Digest: gruppiert neue Scanner-Funde nach
+    Fachbereichs-Mitarbeiter (aus ``file_owner`` → ``persons`` resolved)
+    und sendet pro Empfänger **höchstens eine** Digest-Mail innerhalb des
+    konfigurierten Intervalls.
+
+    Greift nur, wenn ``_self_service_master_enabled`` True liefert.
+    """
+    if not _self_service_master_enabled(db):
+        return 0
+
+    from .email_service import notify_owner_digest, get_app_base_url
+    from .tokens import make_self_service_token
+    from flask import current_app
+    import secrets as _secrets
+
+    # Dedup-Fenster aus self_service_frequency_days (mind. 1 Tag).
+    try:
+        freq_row = db.execute(
+            "SELECT value FROM app_settings WHERE key='self_service_frequency_days'"
+        ).fetchone()
+        freq_days = max(1, int(freq_row["value"])) if freq_row else 7
+    except Exception:
+        freq_days = 7
+
+    # Offene Funde gruppieren: file_owner ↔ persons (user_id | kuerzel | ad_name)
+    rows = db.execute("""
+        SELECT f.id, f.file_name, f.full_path, f.file_owner,
+               p.id     AS person_id,
+               p.email  AS email,
+               TRIM(COALESCE(p.vorname,'') || ' ' || COALESCE(p.nachname,''))
+                       AS anzeigename
+          FROM idv_files f
+          JOIN persons p
+            ON p.aktiv = 1
+           AND p.email IS NOT NULL AND p.email <> ''
+           AND (
+                 LOWER(p.user_id) = LOWER(f.file_owner)
+              OR LOWER(p.kuerzel) = LOWER(f.file_owner)
+              OR LOWER(p.ad_name) = LOWER(f.file_owner)
+               )
+         WHERE f.status = 'active'
+           AND f.bearbeitungsstatus = 'Neu'
+           AND f.file_owner IS NOT NULL AND f.file_owner <> ''
+           AND NOT EXISTS (SELECT 1 FROM idv_register r   WHERE r.file_id = f.id)
+           AND NOT EXISTS (SELECT 1 FROM idv_file_links l WHERE l.file_id = f.id)
+    """).fetchall()
+
+    if not rows:
+        return 0
+
+    grouped: dict[int, dict] = {}
+    for r in rows:
+        g = grouped.setdefault(r["person_id"], {
+            "person_id":  r["person_id"],
+            "email":      r["email"],
+            "anzeigename": r["anzeigename"] or r["email"],
+            "files":      [],
+        })
+        g["files"].append(r)
+
+    secret_key = current_app.config.get("SECRET_KEY", "")
+    base_url   = get_app_base_url(db)
+    if not base_url or not secret_key:
+        log.warning(
+            "Owner-Digest übersprungen: app_base_url oder SECRET_KEY fehlt."
+        )
+        return 0
+
+    sent = 0
+    expires_at_iso = (
+        datetime.utcnow().replace(microsecond=0).isoformat(" ")
+    )  # Platzhalter – wird unten überschrieben
+    for person_id, group in grouped.items():
+        # Dedup pro Empfänger + Intervall
+        recent = db.execute(
+            "SELECT 1 FROM notification_log "
+            "WHERE kind=? AND ref_id=? AND sent_date >= date('now', ?)",
+            (_OWNER_DIGEST_KIND, person_id, f"-{freq_days} days"),
+        ).fetchone()
+        if recent:
+            continue
+
+        jti = _secrets.token_urlsafe(18)
+        try:
+            token = make_self_service_token(secret_key, person_id, jti)
+        except Exception:
+            log.exception("Token-Erzeugung fehlgeschlagen (person_id=%s)", person_id)
+            continue
+
+        # Token serverseitig registrieren (7 Tage gültig – siehe tokens.py).
+        # expires_at für Transparenz in der Tabelle, die Signatur ist autoritativ.
+        from datetime import timedelta as _td
+        expires_at = (datetime.utcnow() + _td(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+
+        def _register(c, _jti=jti, _pid=person_id, _exp=expires_at):
+            with write_tx(c):
+                c.execute(
+                    "INSERT INTO self_service_tokens "
+                    "(jti, person_id, expires_at) VALUES (?,?,?)",
+                    (_jti, _pid, _exp),
+                )
+        try:
+            get_writer().submit(_register, wait=True)
+        except Exception:
+            log.exception("Token-Registrierung in DB fehlgeschlagen (jti=%s)", jti)
+            continue
+
+        magic_link = f"{base_url}/selbst/meine-funde?token={token}"
+
+        try:
+            ok = notify_owner_digest(
+                db,
+                recipient_email=group["email"],
+                recipient_name=group["anzeigename"],
+                file_rows=group["files"],
+                magic_link=magic_link,
+                base_url=base_url,
+            )
+        except Exception:
+            log.exception("Fehler beim Versand Owner-Digest (person_id=%s)", person_id)
+            ok = False
+
+        if ok:
+            _record_sent(_OWNER_DIGEST_KIND, person_id, today_iso)
+            sent += 1
+        else:
+            # Versand nicht erfolgreich → Token direkt widerrufen,
+            # damit im Fehlerfall keine "Waisen-Tokens" stehen bleiben.
+            def _revoke(c, _jti=jti):
+                with write_tx(c):
+                    c.execute(
+                        "UPDATE self_service_tokens "
+                        "SET revoked_at = datetime('now','utc') "
+                        "WHERE jti = ?",
+                        (_jti,),
+                    )
+            try:
+                get_writer().submit(_revoke, wait=True)
+            except Exception:
+                pass
+
+    return sent
+
+
 def _run_daily_dispatch(app) -> None:
     """Einmaliger Durchlauf für den aktuellen Tag (idempotent dank Dedup)."""
     with app.app_context():
@@ -286,9 +452,11 @@ def _run_daily_dispatch(app) -> None:
         m_sent = _dispatch_overdue_measures(db, today)
         r_sent = _dispatch_due_reviews(db, today)
         p_sent = _dispatch_pool_claim_reminders(db, today)
+        o_sent = _dispatch_owner_digest(db, today)
         log.info(
-            "Notification-Dispatch abgeschlossen: %d Maßnahmen, %d Prüfungen, %d Pool-Reminder.",
-            m_sent, r_sent, p_sent,
+            "Notification-Dispatch abgeschlossen: %d Maßnahmen, %d Prüfungen, "
+            "%d Pool-Reminder, %d Owner-Digest.",
+            m_sent, r_sent, p_sent, o_sent,
         )
 
 
@@ -379,4 +547,5 @@ def trigger_now(app) -> dict:
             "massnahmen":    _dispatch_overdue_measures(db, today),
             "pruefungen":    _dispatch_due_reviews(db, today),
             "pool_reminder": _dispatch_pool_claim_reminders(db, today),
+            "owner_digest":  _dispatch_owner_digest(db, today),
         }
