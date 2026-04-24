@@ -24,7 +24,7 @@
   {% if _status %}<span class="badge bg-secondary">Status: {{ _status }}</span>{% endif %}
   {% if _filt_active %}<span class="badge bg-secondary">Filter: {{ filt }}</span>{% endif %}
   {% if share_root %}<span class="badge bg-secondary font-monospace"><i class="bi bi-folder me-1"></i>{{ share_root | map_path }}</span>{% endif %}
-  {% if entwicklungsart %}<span class="badge bg-secondary">Art: {{ entwicklungsart }}</span>{% endif %}
+  {% if entwicklungsart %}<span class="badge bg-secondary">Art: {{ entwicklungsart_label.get(entwicklungsart, entwicklungsart) }}</span>{% endif %}
   {% if oe_id %}<span class="badge bg-secondary">OE gesetzt</span>{% endif %}
   {% if fv_id %}<span class="badge bg-secondary">FV gesetzt</span>{% endif %}
   {% if owner_filt %}<span class="badge bg-secondary">Eigentümer: {{ owner_filt }}</span>{% endif %}

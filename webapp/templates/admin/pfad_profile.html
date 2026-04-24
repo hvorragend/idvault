@@ -67,8 +67,8 @@
         <label class="form-label fw-600">Entwicklungsart</label>
         <select name="entwicklungsart" class="form-select form-select-sm">
           <option value="">— optional —</option>
-          {% for art in entwicklungsarten %}
-          <option value="{{ art }}">{{ art }}</option>
+          {% for key, label in entwicklungsarten %}
+          <option value="{{ key }}">{{ label }}</option>
           {% endfor %}
         </select>
       </div>
@@ -152,8 +152,8 @@
               <td>
                 <select name="entwicklungsart" class="form-select form-select-sm">
                   <option value="">—</option>
-                  {% for art in entwicklungsarten %}
-                  <option value="{{ art }}" {% if p.entwicklungsart==art %}selected{% endif %}>{{ art }}</option>
+                  {% for key, label in entwicklungsarten %}
+                  <option value="{{ key }}" {% if p.entwicklungsart==key %}selected{% endif %}>{{ label }}</option>
                   {% endfor %}
                 </select>
               </td>

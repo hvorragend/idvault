@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from flask import render_template, request, redirect, url_for, flash
 
 from .. import admin_required, get_db, current_person_id
+from ..eigenentwicklung import ENTWICKLUNGSART_LABEL
 from ...db_writer import get_writer
 from db_write_tx import write_tx
 from . import bp
@@ -29,11 +30,15 @@ def _int_or_none(value) -> int | None:
         return None
 
 
-def _entwicklungsarten(db) -> list:
-    """Liefert die Liste der verfügbaren Entwicklungsarten aus der
-    Stammdaten-Klassifikation (``klassifikation.kategorie='entwicklungsart'``).
-    Fällt auf eine kleine, eingebaute Default-Liste zurück, falls die
-    Klassifikations-Tabelle leer ist.
+def _entwicklungsarten(db) -> list[tuple[str, str]]:
+    """Liefert die Liste der verfügbaren Entwicklungsarten als
+    ``(key, label)``-Tupel. Der Key entspricht dem in der DB gespeicherten
+    Wert; das Label wird aus :data:`ENTWICKLUNGSART_LABEL` gezogen
+    (MaRisk/DORA-konforme Schreibweise: "Arbeitshilfe", "IDV", …).
+
+    Datenquelle ist die Stammdaten-Klassifikation
+    (``klassifikation.kategorie='entwicklungsart'``); Fallback ist die
+    Default-Liste aus :mod:`webapp.routes.eigenentwicklung`.
     """
     try:
         rows = db.execute(
@@ -43,9 +48,9 @@ def _entwicklungsarten(db) -> list:
     except Exception:
         rows = []
     werte = [r["wert"] for r in rows if r["wert"]]
-    if werte:
-        return werte
-    return ["arbeitshilfe", "idv", "eigenprogrammierung", "auftragsprogrammierung"]
+    if not werte:
+        werte = list(ENTWICKLUNGSART_LABEL.keys())
+    return [(w, ENTWICKLUNGSART_LABEL.get(w, w)) for w in werte]
 
 
 @bp.route("/pfad-profile", methods=["GET"])
