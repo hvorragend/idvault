@@ -1198,7 +1198,12 @@
 
     <!-- Prüfung & Fristen -->
     <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white fw-600"><i class="bi bi-calendar-check me-2"></i>Prüffristen</div>
+      <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-calendar-check me-2"></i>Prüffristen</span>
+        {% if pruefungen %}
+        <span class="badge bg-light text-dark border">{{ pruefungen|length }}</span>
+        {% endif %}
+      </div>
       <ul class="list-group list-group-flush">
         <li class="list-group-item px-3 py-2">
           <div class="detail-label">Prüfintervall</div>
@@ -1218,6 +1223,49 @@
           </div>
         </li>
       </ul>
+      {% if pruefungen %}
+      <div class="card-header bg-white fw-600 fs-7 text-muted text-uppercase"
+           style="letter-spacing:.05em; border-top:1px solid var(--idv-border);">
+        Bereits angelegte Prüfungen
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for p in pruefungen[:5] %}
+        <li class="list-group-item px-3 py-2">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1 min-w-0">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="fw-500 small">{{ p.pruefungsdatum|datefmt }}</span>
+                {% if p.ergebnis == 'Ohne Befund' %}
+                <span class="idv-tag idv-tag-green fs-8"><i class="bi bi-check2"></i>{{ p.ergebnis }}</span>
+                {% elif p.ergebnis == 'Mit Befunden' %}
+                <span class="idv-tag idv-tag-amber fs-8"><i class="bi bi-exclamation-triangle"></i>{{ p.ergebnis }}</span>
+                {% elif p.ergebnis == 'Mit kritischen Befunden' %}
+                <span class="idv-tag idv-tag-red fs-8"><i class="bi bi-x-octagon"></i>{{ p.ergebnis }}</span>
+                {% else %}
+                <span class="idv-tag idv-tag-slate fs-8">{{ p.ergebnis or '–' }}</span>
+                {% endif %}
+              </div>
+              <div class="text-muted fs-8 mt-1">
+                {% if p.pruefungsart %}<i class="bi bi-clipboard-check me-1"></i>{{ p.pruefungsart }}{% endif %}
+                {% if p.pruefer %}&nbsp;·&nbsp;<i class="bi bi-person me-1"></i>{{ p.pruefer }}{% endif %}
+              </div>
+            </div>
+            {% if session.get('user_role') == 'IDV-Administrator' %}
+            <a href="{{ url_for('reviews.edit_review', p_id=p.id) }}"
+               class="btn btn-xs btn-outline-secondary flex-shrink-0" title="Prüfung öffnen/bearbeiten">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+        {% if pruefungen|length > 5 %}
+        <li class="list-group-item px-3 py-2 text-muted text-center fs-8">
+          … und {{ pruefungen|length - 5 }} weitere
+        </li>
+        {% endif %}
+      </ul>
+      {% endif %}
       <div class="card-footer bg-white">
         <a href="{{ url_for('reviews.new_review', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary w-100">
           <i class="bi bi-plus me-1"></i>Prüfung anlegen

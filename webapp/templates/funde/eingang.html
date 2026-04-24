@@ -44,6 +44,19 @@
 
 {% block content %}
 
+{# ── Typ→Farb-Mapping für Mini-Pill am Dateinamen ── #}
+{% set typ_pill_cls = {
+  'Excel-Makro':         'mini-pill-amber',
+  'Excel-Tabelle':       'mini-pill-green',
+  'Access-Datenbank':    'mini-pill-purple',
+  'Python-Skript':       'mini-pill-blue',
+  'SQL-Skript':          'mini-pill-blue',
+  'Power-BI-Bericht':    'mini-pill-amber',
+  'Cognos-Report':       'mini-pill-slate',
+  'Sonstige':            'mini-pill-slate',
+  'unklassifiziert':     'mini-pill-slate',
+} %}
+
 <!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
   <div class="col-sm-3">
@@ -373,7 +386,7 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
               {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="fw-500">{{ f.file_name }}</span>
-                <span class="mini-pill" title="Typ-Vorschlag">{{ typ }}</span>
+                <span class="mini-pill {{ typ_pill_cls.get(typ, 'mini-pill-slate') }}" title="Typ-Vorschlag">{{ typ }}</span>
               </div>
               {% if f.first_seen_at %}
               <span class="text-muted fs-8" title="Erst gesehen">

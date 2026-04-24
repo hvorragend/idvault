@@ -1092,11 +1092,31 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   white-space: nowrap;
   vertical-align: middle;
 }
-.mini-pill-neu      { background: var(--slate-50); color: var(--slate-600); border-color: var(--slate-200); }
+.mini-pill-neu      { background: var(--slate-50); color: var(--slate-700); border-color: var(--slate-200); }
 .mini-pill-zur-reg  { background: #eff6ff;       color: #1d4ed8;           border-color: #bfdbfe; }
 .mini-pill-reg      { background: #f0fdf4;       color: #15803d;           border-color: #bbf7d0; }
 .mini-pill-ignored  { background: var(--slate-100); color: var(--slate-500); border-color: var(--slate-200); }
 .mini-pill-archiv   { background: var(--slate-50); color: var(--slate-500); border-color: var(--slate-200); }
+
+/* Generische Farbvarianten für Mini-Pills (z. B. Typ-Vorschlag in /funde/) */
+.mini-pill-amber    { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-200); }
+.mini-pill-green    { background: #f0fdf4;       color: #15803d;           border-color: #bbf7d0; }
+.mini-pill-blue     { background: #eff6ff;       color: #1d4ed8;           border-color: #bfdbfe; }
+.mini-pill-purple   { background: #faf5ff;       color: #7e22ce;           border-color: #e9d5ff; }
+.mini-pill-slate    { background: var(--slate-50); color: var(--slate-600); border-color: var(--slate-200); }
+
+/* Grüner Pulse-Dot für "Neu"-Kennzeichnung */
+.mini-pill-neu::before {
+  content: "";
+  width: .4rem;
+  height: .4rem;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, .18);
+  display: inline-block;
+  margin-right: .1rem;
+  flex-shrink: 0;
+}
 
 /* 26. Page-Header (einheitlicher Seitenkopf) ──────────────────────────────── */
 /* Pattern für Detail-/Übersichtsseiten: Tags+Status links, Actions rechts. */
