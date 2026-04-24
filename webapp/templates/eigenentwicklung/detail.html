@@ -292,7 +292,7 @@
           </div>
           <div class="col-sm-4">
             <div class="detail-label">Zuletzt geändert</div>
-            <div>{{ file.modified_at|datefmt }}</div>
+            <div>{% if file.modified_at %}<span title="{{ file.modified_at|datetimefmt }}">{{ file.modified_at|datefmt }}</span>{% else %}–{% endif %}</div>
           </div>
           <div class="col-sm-4">
             <div class="detail-label">Makros</div>
@@ -347,7 +347,7 @@
           </div>
           <div class="col-sm-4">
             <div class="detail-label">Zuletzt geändert</div>
-            <div>{{ ef.modified_at|datefmt }}</div>
+            <div>{% if ef.modified_at %}<span title="{{ ef.modified_at|datetimefmt }}">{{ ef.modified_at|datefmt }}</span>{% else %}–{% endif %}</div>
           </div>
         </div>
       </div>

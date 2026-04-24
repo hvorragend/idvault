@@ -981,7 +981,7 @@ def new_idv():
                 return redirect(url_for("eigenentwicklung.new_idv"))
             if request.form.get("save_action") == "save_and_close":
                 return redirect(url_for("eigenentwicklung.list_idv"))
-            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=new_id))
+            return redirect(url_for("eigenentwicklung.edit_idv", idv_db_id=new_id))
         except Exception as e:
             flash(f"Fehler beim Speichern: {e}", "error")
 
@@ -1367,7 +1367,7 @@ def edit_idv(idv_db_id):
             flash("Eigenentwicklung gespeichert.", "success")
             if request.form.get("save_action") == "save_and_close":
                 return redirect(url_for("eigenentwicklung.list_idv"))
-            return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+            return redirect(url_for("eigenentwicklung.edit_idv", idv_db_id=idv_db_id))
         except Exception as e:
             flash(f"Fehler: {e}", "error")
 

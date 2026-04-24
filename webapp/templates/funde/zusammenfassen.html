@@ -50,7 +50,7 @@
                 </div>
               </td>
               <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes else '–' }}</td>
-              <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
+              <td class="text-nowrap">{% if f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>{% else %}–{% endif %}</td>
               <td class="text-center">
                 {% if f.has_macros %}<span class="badge bg-danger">VBA</span>
                 {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
