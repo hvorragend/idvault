@@ -183,6 +183,37 @@ als nativer Windows-Dienst (`idvault.exe install`).
 - **Nachweis-Upload** (Rich-Text + Dateianhang) für fachlichen
   und technischen Test, Path-Traversal- und Ownership-sicher
   ausgeliefert.
+- **Ablösungsplanung** pro IDV: „Ablösung geplant" mit Zieldatum
+  und Ablöse-Ziel (z. B. „OSPlus-Erweiterung", „neue
+  Eigenentwicklung"), auswertbar auf dem Koordinator-Dashboard.
+- **IDV-Historie** (`idv_history`) hält jede Statusänderung
+  und jedes geänderte Feld mit Benutzer, Zeitstempel und Kommentar fest.
+
+### Benachrichtigungen & Fristenüberwachung
+
+- **Notification-Scheduler** läuft als Daemon-Thread in der
+  Anwendung und verschickt einmal täglich zur konfigurierten Uhrzeit
+  (`notify_schedule_time`) die fälligen Benachrichtigungen.
+- **10 konfigurierbare E-Mail-Vorlagen** (Betreff + HTML-Body) mit
+  Platzhaltern, einzeln im Admin pro Template aktivierbar:
+  Neue Datei, Prüfung fällig, Freigabe-Schritt offen, Freigabe
+  abgeschlossen, Bewertungsanforderung an Datei-Ersteller,
+  überfällige Maßnahme, Pool-Reminder, Owner-Digest,
+  Self-Service-Eskalation, Reminder für unvollständige IDVs.
+- **Anti-Spam-Dedup**: gleiche `(kind, ref_id)`-Kombination wird
+  innerhalb eines 7-Tage-Fensters nur einmal verschickt
+  (`notification_log`).
+- **Sofort-Schwelle** für Owner-Digests:
+  `owner_digest_burst_threshold` (Default 25 Funde) löst die
+  Sammelbenachrichtigung auch außerhalb des Regelintervalls aus.
+- **Dreistufige Self-Service-Eskalation**: Reminder → OE-Leitung →
+  IDV-Koordinator, Schwellen (7 / 14 / 21 Tage) konfigurierbar.
+- **Reminder-Cap** (max. 4 Erinnerungen) für unvollständige
+  IDVs, um Mail-Flut zu vermeiden.
+- **Bewertungsanforderung** an den Datei-Ersteller (batched),
+  direkt aus der Funde-Liste auslösbar.
+- **SMTP-Versandlog** mit Empfängern, Betreff und Erfolgsstatus;
+  `logrotate.conf` für den Login-Log wird mitgeliefert.
 
 ### Stammdatenverwaltung
 
@@ -209,6 +240,16 @@ als nativer Windows-Dienst (`idvault.exe install`).
 - **Natives Windows-Dienst-Framework** (pywin32 ServiceFramework)
   mit automatischem Dienstneustart nach Update, EnumServicesStatusEx-
   basierter Dienst-Erkennung und erweiterten Start-Diagnosen.
+- **Prozess-Lock** (`idv.lock`) verhindert, dass zwei
+  App-Instanzen gleichzeitig auf dieselbe SQLite-Datenbank
+  schreiben und den Scheduler doppelt starten; tote PIDs
+  werden als Stale-Lock erkannt und überschrieben.
+- **Datenbank-Views** für die wichtigsten Auswertungen:
+  `v_idv_uebersicht`, `v_kritische_idvs`, `v_offene_massnahmen`,
+  `v_unvollstaendige_idvs`, `v_prueffaelligkeiten` — direkt
+  per SQLite-Client für Ad-hoc-Analysen nutzbar.
+- **Single-Writer-Thread** für SQLite, um `database is locked`-
+  Rennen zwischen Scanner, Web-Requests und Scheduler zu vermeiden.
 - **Update-Workflow** per signiertem Sidecar-ZIP mit
   **Rollback-Funktion** und Update-Log — in regulierten Umgebungen
   vollständig abschaltbar.
