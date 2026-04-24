@@ -493,6 +493,12 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+              <div class="alert alert-info py-2 mb-3 small">
+                <i class="bi bi-info-circle me-1"></i>
+                Diese Version wurde als <strong>wesentliche Änderung</strong> angelegt und
+                benötigt ein Freigabeverfahren. Legen Sie hier den <strong>Prüfumfang</strong>
+                fest &ndash; das ist etwas anderes als die Einstufung der Änderung selbst.
+              </div>
               <div class="mb-3">
                 <label class="form-label fw-600 small">Änderungskategorie</label>
                 <div class="form-check">
@@ -1071,7 +1077,8 @@
       <!-- Modal: Neue Version anlegen -->
       <div class="modal fade" id="modal-neue-version" tabindex="-1">
         <div class="modal-dialog">
-          <form method="post" action="{{ url_for('eigenentwicklung.neue_version', idv_db_id=idv.id) }}">
+          <form method="post" enctype="multipart/form-data"
+                action="{{ url_for('eigenentwicklung.neue_version', idv_db_id=idv.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-content">
               <div class="modal-header">
@@ -1096,10 +1103,28 @@
                     Begründung warum es sich um eine wesentliche bzw. unwesentliche Änderung handelt.
                   </div>
                 </div>
+                <div class="mb-2" id="archiv-upload-wrap" style="display:none;">
+                  <label class="form-label fw-500">
+                    Neue Dateiversion (optional)
+                  </label>
+                  <input type="file" name="archiv_datei" class="form-control form-control-sm">
+                  <div class="form-text">
+                    Wird revisionssicher archiviert (SHA-256, schreibgeschützt) und als Hauptdatei
+                    der neuen Version verknüpft. Max. 256&nbsp;MB.
+                  </div>
+                </div>
                 <div class="alert alert-info py-2 mb-0 mt-2 small">
                   <i class="bi bi-info-circle me-1"></i>
-                  Die aktuelle Eigenentwicklung wird als Vorgänger verknüpft. Eine <strong>wesentliche Änderung</strong>
-                  erfordert ein erneutes Test- und Freigabeverfahren.
+                  Die aktuelle Eigenentwicklung wird als Vorgänger verknüpft.
+                  <ul class="mb-0 mt-1 ps-3">
+                    <li><strong>Unwesentlich</strong> &ndash; kein Verfahren; die neue Version ist
+                      direkt „freigegeben". Eine optional hochgeladene Dateiversion wird
+                      revisionssicher archiviert.</li>
+                    <li><strong>Wesentlich</strong> &ndash; im Anschluss wird ein
+                      Freigabeverfahren gestartet. Ob <em>vollständig („grundlegend")</em>
+                      oder <em>verkürzt („Patch")</em>, wird beim Start des Verfahrens
+                      festgelegt.</li>
+                  </ul>
                 </div>
               </div>
               <div class="modal-footer">
@@ -1116,16 +1141,22 @@
         (function () {
           var sel = document.getElementById('aenderungsart-select');
           var hint = document.getElementById('aenderungsart-hinweis');
-          if (sel && hint) {
+          var upload = document.getElementById('archiv-upload-wrap');
+          if (sel) {
             sel.addEventListener('change', function () {
-              if (this.value === 'wesentlich') {
-                hint.textContent = '⚠ Erfordert erneutes Test- und Freigabeverfahren.';
-                hint.className = 'form-text text-warning fw-500';
-              } else if (this.value === 'unwesentlich') {
-                hint.textContent = '✓ Kein Testverfahren erforderlich.';
-                hint.className = 'form-text text-success';
-              } else {
-                hint.textContent = '';
+              if (hint) {
+                if (this.value === 'wesentlich') {
+                  hint.textContent = '⚠ Erfordert erneutes Test- und Freigabeverfahren.';
+                  hint.className = 'form-text text-warning fw-500';
+                } else if (this.value === 'unwesentlich') {
+                  hint.textContent = '✓ Kein Testverfahren erforderlich.';
+                  hint.className = 'form-text text-success';
+                } else {
+                  hint.textContent = '';
+                }
+              }
+              if (upload) {
+                upload.style.display = (this.value === 'unwesentlich') ? '' : 'none';
               }
             });
           }
