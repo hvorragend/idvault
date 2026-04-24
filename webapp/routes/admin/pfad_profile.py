@@ -1,4 +1,4 @@
-"""Admin-Sub-Modul: Pfad-Profile für Bulk-Registrierung (#314).
+r"""Admin-Sub-Modul: Pfad-Profile für Bulk-Registrierung (#314).
 
 Ein Pfad-Profil verknüpft einen Pfad-Präfix (z. B.
 ``\\srv\share\Abteilung_Kredit\``) mit Default-Kopfdaten (OE,
