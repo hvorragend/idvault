@@ -323,12 +323,12 @@ verloren geht. #}
                       filter=filt, share_root=share_root_filt,
                       dir_path=dir_path_filt, scan_run=scan_run_id_filt,
                       page=1, per_page=per_page) }}"
-    class="text-decoration-none text-white d-inline-flex align-items-center gap-1">
+    class="d-inline-flex align-items-center gap-1">
     {{ label }}
     {% if sort == col %}
     <i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>
     {% else %}
-    <i class="bi bi-arrow-down-up text-muted" style="opacity:.35;font-size:.7em"></i>
+    <i class="bi bi-arrow-down-up" style="opacity:.35;font-size:.7em"></i>
     {% endif %}
   </a>
 </th>
@@ -477,8 +477,6 @@ date_to} %}
             <th class="text-center">Makros</th>
             <th class="text-center">Formeln</th>
             <th class="text-center">Schutz</th>
-            <th>Status</th>
-            <th>Eigenentwicklung</th>
             {% if match_suggestions_active %}<th title="Automatisch berechneter Übereinstimmungs-Score mit vorhandenen IDVs">
               Vorschlag</th>{% endif %}
             <th></th>
@@ -500,7 +498,7 @@ date_to} %}
               {% endfor %}
               <input type="checkbox" class="form-check-input dup-master-cb" data-gid="{{ gid }}">
             </td>
-            <td colspan="12">
+            <td colspan="{{ 11 if match_suggestions_active else 10 }}">
               <span class="fw-600">
                 <i class="bi bi-copy me-1 text-danger"></i>
                 {{ grp | length }} identische Dateien
@@ -522,11 +520,23 @@ date_to} %}
             <td></td>
 
             <td>
-              <span class="fw-500 ms-3">
-                <i class="bi bi-file-earmark me-1 text-muted"></i>{{ f.file_name }}
-              </span>
+              <div class="d-flex align-items-center gap-2 flex-wrap ms-3">
+                <span class="fw-500">
+                  <i class="bi bi-file-earmark me-1 text-muted"></i>{{ f.file_name }}
+                </span>
+                {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
+                {% if bs == 'Registriert' %}
+                <span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Registriert</span>
+                {% elif bs == 'Zur Registrierung' %}
+                <span class="mini-pill mini-pill-zur-reg"><i class="bi bi-pencil-square"></i>Zur Registrierung</span>
+                {% elif bs == 'Ignoriert' %}
+                <span class="mini-pill mini-pill-ignored"><i class="bi bi-eye-slash"></i>Ignoriert</span>
+                {% else %}
+                <span class="mini-pill mini-pill-neu">Neu</span>
+                {% endif %}
+              </div>
               {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
-              <div class="ms-3">
+              <div class="ms-3 mt-1">
                 <span class="font-monospace text-muted fs-8" title="SHA-256: {{ f.file_hash }}">
                   <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
                 </span>
@@ -572,40 +582,37 @@ date_to} %}
               {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
             </td>
             <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
-            <td>
-              {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
-              {% if bs == 'Registriert' %}<span class="badge bg-success">Registriert</span>
-              {% elif bs == 'Zur Registrierung' %}<span class="badge bg-info text-dark">Zur Registrierung</span>
-              {% elif bs == 'Ignoriert' %}<span class="badge bg-secondary"><i
-                  class="bi bi-eye-slash me-1"></i>Ignoriert</span>
-              {% else %}<span class="badge bg-light text-dark border">Neu</span>{% endif %}
-            </td>
-            <td>
-              {% if f.reg_idv_id %}
-              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                class="badge bg-success text-decoration-none">{{ f.reg_idv_id }}</a>
-              {% else %}<span class="badge bg-warning text-dark">–</span>{% endif %}
-            </td>
             <td class="text-nowrap">
-              {% if not f.reg_idv_id %}
-              <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
-                class="btn btn-xs btn-primary text-nowrap">
-                <i class="bi bi-plus-lg me-1"></i>Registrieren
-              </a>
-              {% endif %}
-              {% if is_admin and not f.reg_idv_id %}
-              <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
-                data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
-                data-action="deleteScannerfund">
-                <i class="bi bi-trash"></i>
-              </button>
-              {% endif %}
+              <div class="d-inline-flex align-items-center gap-1 flex-wrap">
+                {% if f.reg_idv_id %}
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  class="btn btn-xs btn-outline-secondary" title="IDV öffnen">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  class="badge bg-success text-decoration-none" title="Verknüpft: {{ f.reg_idv_id }}">
+                  {{ f.reg_idv_id }}
+                </a>
+                {% else %}
+                <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
+                  class="btn btn-xs btn-primary text-nowrap">
+                  <i class="bi bi-plus-lg me-1"></i>Registrieren
+                </a>
+                {% if is_admin %}
+                <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
+                  data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
+                  data-action="deleteScannerfund">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+                {% endif %}
+              </div>
             </td>
           </tr>
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="14" class="text-center text-muted py-5">
+            <td colspan="{{ 13 if match_suggestions_active else 12 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
             </td>
           </tr>
@@ -625,14 +632,28 @@ date_to} %}
               {% endif %}
             </td>
 
-            <!-- Dateiname -->
+            <!-- Dateiname mit Status-Mini-Pill -->
             <td>
-              <span class="fw-500">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="fw-500">
+                  {% if f.status == 'archiviert' %}
+                  <i class="bi bi-archive me-1 text-secondary"></i>
+                  {% endif %}
+                  {{ f.file_name }}
+                </span>
+                {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
                 {% if f.status == 'archiviert' %}
-                <i class="bi bi-archive me-1 text-secondary"></i>
+                <span class="mini-pill mini-pill-archiv"><i class="bi bi-archive"></i>Archiviert</span>
+                {% elif bs == 'Registriert' %}
+                <span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Registriert</span>
+                {% elif bs == 'Zur Registrierung' %}
+                <span class="mini-pill mini-pill-zur-reg"><i class="bi bi-pencil-square"></i>Zur Registrierung</span>
+                {% elif bs == 'Ignoriert' %}
+                <span class="mini-pill mini-pill-ignored"><i class="bi bi-eye-slash"></i>Ignoriert</span>
+                {% else %}
+                <span class="mini-pill mini-pill-neu">Neu</span>
                 {% endif %}
-                {{ f.file_name }}
-              </span>
+              </div>
               {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
               <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
                 {% if f.file_hash in duplicate_hashes %}
@@ -754,32 +775,6 @@ date_to} %}
               {% endif %}
             </td>
 
-            <!-- Bearbeitungsstatus -->
-            <td>
-              {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
-              {% if bs == 'Registriert' %}
-              <span class="badge bg-success">Registriert</span>
-              {% elif bs == 'Zur Registrierung' %}
-              <span class="badge bg-info text-dark">Zur Registrierung</span>
-              {% elif bs == 'Ignoriert' %}
-              <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Ignoriert</span>
-              {% else %}
-              <span class="badge bg-light text-dark border">Neu</span>
-              {% endif %}
-            </td>
-
-            <!-- Eigenentwicklungs-Verknüpfung -->
-            <td>
-              {% if f.reg_idv_id %}
-              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                class="badge bg-success text-decoration-none">
-                {{ f.reg_idv_id }}
-              </a>
-              {% else %}
-              <span class="badge bg-warning text-dark">–</span>
-              {% endif %}
-            </td>
-
             {% if match_suggestions_active %}
             <!-- Matching-Vorschlag -->
             <td class="text-nowrap">
@@ -812,32 +807,36 @@ date_to} %}
             {% endif %}
 
             <td class="text-nowrap">
-              {% if filt != 'archiv' %}
-              {% if not f.reg_idv_id %}
-              <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
-                class="btn btn-xs btn-primary text-nowrap">
-                <i class="bi bi-plus-lg me-1"></i>Registrieren
-              </a>
-              {% else %}
-              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                class="btn btn-xs btn-outline-secondary">
-                <i class="bi bi-eye"></i>
-              </a>
-              {% endif %}
-              {% endif %}
-              {% if is_admin and not f.reg_idv_id %}
-              <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
-                data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
-                data-action="deleteScannerfund">
-                <i class="bi bi-trash"></i>
-              </button>
-              {% endif %}
+              <div class="d-inline-flex align-items-center gap-1 flex-wrap">
+                {% if filt != 'archiv' and not f.reg_idv_id %}
+                <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
+                  class="btn btn-xs btn-primary text-nowrap">
+                  <i class="bi bi-plus-lg me-1"></i>Registrieren
+                </a>
+                {% if is_admin %}
+                <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
+                  data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
+                  data-action="deleteScannerfund">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+                {% elif f.reg_idv_id %}
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  class="btn btn-xs btn-outline-secondary" title="IDV öffnen">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  class="badge bg-success text-decoration-none" title="Verknüpft: {{ f.reg_idv_id }}">
+                  {{ f.reg_idv_id }}
+                </a>
+                {% endif %}
+              </div>
             </td>
 
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 15 if match_suggestions_active else 14 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 13 if match_suggestions_active else 12 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Dateien gefunden.
             </td>
@@ -949,13 +948,28 @@ date_to} %}
         if (data.ok) {
           var row = btn.closest('tr');
           if (row) {
-            var idvCell = row.querySelector('td:nth-last-child(3)');
-            if (idvCell) {
-              idvCell.innerHTML = '<a href="' + detailUrl + '" class="badge bg-success text-decoration-none">' + data.idv_id + '</a>';
+            // Aktionen-Zelle (letzte td) auf "Lupe + IDV-Pill" umstellen
+            var actionCell = row.querySelector('td:last-child');
+            if (actionCell) {
+              actionCell.innerHTML =
+                '<div class="d-inline-flex align-items-center gap-1 flex-wrap">' +
+                  '<a href="' + detailUrl + '" class="btn btn-xs btn-outline-secondary" title="IDV öffnen"><i class="bi bi-eye"></i></a>' +
+                  '<a href="' + detailUrl + '" class="badge bg-success text-decoration-none" title="Verknüpft: ' + data.idv_id + '">' + data.idv_id + '</a>' +
+                '</div>';
             }
+            // Dateinamen-Zelle: Mini-Pill auf "Registriert" umstellen
+            var fileCell = row.querySelector('td:nth-child(2)');
+            if (fileCell) {
+              var pill = fileCell.querySelector('.mini-pill');
+              if (pill) {
+                pill.className = 'mini-pill mini-pill-reg';
+                pill.innerHTML = '<i class="bi bi-check2"></i>Registriert';
+              }
+            }
+            // Vorschlags-Zelle als "Zugeordnet" markieren
             var vorschlagCell = btn.closest('td');
             if (vorschlagCell) {
-              vorschlagCell.innerHTML = '<span class="badge bg-success"><i class="bi bi-check2 me-1"></i>Zugeordnet</span>';
+              vorschlagCell.innerHTML = '<span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Zugeordnet</span>';
             }
           }
         } else {
