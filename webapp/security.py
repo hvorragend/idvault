@@ -39,7 +39,7 @@ MAX_LENGTHS: dict[str, int] = {
     "name":               200,
     "email":              254,     # RFC 5321
     "telefon":             64,
-    "kuerzel":             16,
+    "user_id":             64,
     "new_owner":          128,
     "titel":              200,
     "abbruch_kommentar":  2_000,
@@ -49,7 +49,7 @@ MAX_LENGTHS: dict[str, int] = {
 # Feldnamen, die niemals Zeilenumbrüche enthalten dürfen (Log-Injection,
 # E-Mail-Header-Injection etc.).
 _SINGLE_LINE_FIELDS = {
-    "username", "email", "telefon", "kuerzel", "bezeichnung",
+    "username", "email", "telefon", "user_id", "bezeichnung",
     "new_owner", "q", "titel",
 }
 

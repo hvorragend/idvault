@@ -39,16 +39,16 @@
             </small>
           </label>
           <input type="text" id="member-filter" class="form-control form-control-sm mb-2"
-                 placeholder="Filter nach Name oder Kürzel …">
+                 placeholder="Filter nach Name oder User-ID …">
           <div class="border rounded p-2" style="max-height:400px;overflow-y:auto">
             {% for p in alle_personen %}
-            <div class="form-check member-row" data-search="{{ (p.nachname ~ ' ' ~ p.vorname ~ ' ' ~ (p.kuerzel or '')) | lower }}">
+            <div class="form-check member-row" data-search="{{ (p.nachname ~ ' ' ~ p.vorname ~ ' ' ~ (p.user_id or '')) | lower }}">
               <input type="checkbox" class="form-check-input member-cb" id="m{{ p.id }}"
                      name="member_ids" value="{{ p.id }}"
                      {% if p.id in member_ids %}checked{% endif %}>
               <label class="form-check-label" for="m{{ p.id }}">
                 {{ p.nachname }}, {{ p.vorname }}
-                {% if p.kuerzel %}<span class="text-muted">({{ p.kuerzel }})</span>{% endif %}
+                {% if p.user_id %}<span class="text-muted">({{ p.user_id }})</span>{% endif %}
               </label>
             </div>
             {% endfor %}

@@ -1041,12 +1041,12 @@ def new_idv():
                 ad_login = owner_hint.split("\\")[-1] if "\\" in owner_hint else owner_hint
                 dev_row = db.execute(
                     """SELECT id FROM persons WHERE aktiv=1 AND (
-                        kuerzel=? OR ad_name=? OR user_id=?
+                        user_id=? OR ad_name=?
                         OR (vorname || ' ' || nachname)=?
                         OR (nachname || ', ' || vorname)=?
                         OR (nachname || ' ' || vorname)=?
                     ) LIMIT 1""",
-                    (ad_login, ad_login, ad_login, owner_hint, owner_hint, owner_hint)
+                    (ad_login, ad_login, owner_hint, owner_hint, owner_hint)
                 ).fetchone()
                 if dev_row:
                     prefill["idv_entwickler_id"] = dev_row["id"]
@@ -1301,12 +1301,12 @@ def bulk_neu():
             ad_login = owner_hint.split("\\")[-1] if "\\" in owner_hint else owner_hint
             dev_row = db.execute(
                 """SELECT id FROM persons WHERE aktiv=1 AND (
-                    kuerzel=? OR ad_name=? OR user_id=?
+                    user_id=? OR ad_name=?
                     OR (vorname || ' ' || nachname)=?
                     OR (nachname || ', ' || vorname)=?
                     OR (nachname || ' ' || vorname)=?
                 ) LIMIT 1""",
-                (ad_login, ad_login, ad_login, owner_hint, owner_hint, owner_hint)
+                (ad_login, ad_login, owner_hint, owner_hint, owner_hint)
             ).fetchone()
             if dev_row:
                 dev_id = dev_row["id"]
@@ -1699,7 +1699,7 @@ def link_files(idv_db_id):
     dev_rows = []
     for pid in filter(None, [idv['idv_entwickler_id'], idv['fachverantwortlicher_id']]):
         p = db.execute(
-            "SELECT kuerzel, ad_name, user_id FROM persons WHERE id = ?", (pid,)
+            "SELECT user_id, ad_name FROM persons WHERE id = ?", (pid,)
         ).fetchone()
         if p:
             dev_rows.append(p)

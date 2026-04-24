@@ -283,7 +283,7 @@ def list_berichte():
     """).fetchone()
 
     persons = db.execute(
-        "SELECT kuerzel, vorname, nachname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+        "SELECT user_id, vorname, nachname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
 
     # Gemeinsamen Pfad-Präfix über ALLE Einträge der DB ermitteln (nicht nur aktuelle Seite)
@@ -308,23 +308,23 @@ def list_berichte():
         if len(parts) > 1:
             common_prefix = parts[0]
 
-    # Eigentuemer → Person-Lookup (kuerzel, ad_name, user_id, oder "vorname nachname")
+    # Eigentuemer → Person-Lookup (user_id, ad_name, oder "vorname nachname")
     eigentuemer_vals = {b["eigentuemer"] for b in berichte if b["eigentuemer"]}
     eigentuemer_map: dict[str, str] = {}
     for ev in eigentuemer_vals:
         ad_login = ev.split("\\")[-1] if "\\" in ev else ev
         row = db.execute(
-            """SELECT vorname, nachname, kuerzel FROM persons
+            """SELECT vorname, nachname, user_id FROM persons
                WHERE aktiv=1 AND (
-                   kuerzel=? OR ad_name=? OR user_id=?
+                   user_id=? OR ad_name=?
                    OR (vorname || ' ' || nachname)=?
                    OR (nachname || ', ' || vorname)=?
                    OR (nachname || ' ' || vorname)=?
                ) LIMIT 1""",
-            (ad_login, ad_login, ad_login, ev, ev, ev)
+            (ad_login, ad_login, ev, ev, ev)
         ).fetchone()
         if row:
-            eigentuemer_map[ev] = f"{row['nachname']}, {row['vorname']} ({row['kuerzel']})"
+            eigentuemer_map[ev] = f"{row['nachname']}, {row['vorname']} ({row['user_id']})"
 
     return render_template(
         "cognos/list.html",
@@ -506,12 +506,12 @@ def als_idv_registrieren(bericht_id: int):
         ad_login = eigentuemer.split("\\")[-1] if "\\" in eigentuemer else eigentuemer
         dev_row = db.execute(
             """SELECT id FROM persons WHERE aktiv=1 AND (
-                kuerzel=? OR ad_name=? OR user_id=?
+                user_id=? OR ad_name=?
                 OR (vorname || ' ' || nachname)=?
                 OR (nachname || ', ' || vorname)=?
                 OR (nachname || ' ' || vorname)=?
             ) LIMIT 1""",
-            (ad_login, ad_login, ad_login, eigentuemer, eigentuemer, eigentuemer)
+            (ad_login, ad_login, eigentuemer, eigentuemer, eigentuemer)
         ).fetchone()
         if dev_row:
             entwickler_id = dev_row["id"]
@@ -808,8 +808,8 @@ def bulk_aktion():
             if owner:
                 ad_login = owner.split("\\")[-1] if "\\" in owner else owner
                 person = db.execute(
-                    "SELECT email FROM persons WHERE (user_id=? OR kuerzel=? OR ad_name=?) AND aktiv=1 AND email IS NOT NULL",
-                    (ad_login, ad_login, ad_login)
+                    "SELECT email FROM persons WHERE (user_id=? OR ad_name=?) AND aktiv=1 AND email IS NOT NULL",
+                    (ad_login, ad_login)
                 ).fetchone()
                 if person:
                     email = person["email"]

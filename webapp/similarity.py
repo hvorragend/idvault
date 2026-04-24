@@ -165,7 +165,7 @@ def score_pair(
     """Berechnet den Score für ein Fund/IDV-Paar gemäß ``config``.
 
     ``dev_ids_lower`` enthält die bereits kleingeschriebenen Identifikatoren
-    (Kürzel, AD-Name, User-ID) des IDV-Entwicklers und Fachverantwortlichen.
+    (User-ID, AD-Name) des IDV-Entwicklers und Fachverantwortlichen.
     """
     if noise is None:
         noise = frozenset(config.get("noise_words") or DEFAULT_NOISE_WORDS)
@@ -230,12 +230,12 @@ def is_plausible_auto_match(
 
 
 def collect_dev_ids(person_rows: Iterable[dict]) -> set[str]:
-    """Hilfsfunktion: sammelt Kürzel/AD-Name/User-ID aus Personen-Zeilen."""
+    """Hilfsfunktion: sammelt User-ID/AD-Name aus Personen-Zeilen."""
     result: set[str] = set()
     for p in person_rows:
         if not p:
             continue
-        for key in ("kuerzel", "ad_name", "user_id"):
+        for key in ("user_id", "ad_name"):
             try:
                 val = p[key]
             except (KeyError, IndexError, TypeError):

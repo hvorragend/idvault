@@ -157,7 +157,7 @@
                   <option value="" disabled selected>— Person wählen —</option>
                   {% for p in persons_aktiv %}
                   <option value="{{ p.id }}">
-                    {{ p.nachname }}, {{ p.vorname }}{% if p.kuerzel %} ({{ p.kuerzel }}){% endif %}
+                    {{ p.nachname }}, {{ p.vorname }}{% if p.user_id %} ({{ p.user_id }}){% endif %}
                   </option>
                   {% endfor %}
                 </select>

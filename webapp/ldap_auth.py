@@ -157,14 +157,14 @@ def ldap_sync_person(db, person_data: dict) -> Optional[int]:
         return existing["id"]
 
     rolle = person_data.get("rolle") or None
+    user_id = person_data.get("user_id") or ad_name
     insert_params = (
-        ad_name,
+        user_id,
         person_data.get("nachname", ""),
         person_data.get("vorname", ""),
         person_data.get("email", ""),
         person_data.get("telefon", ""),
         rolle,
-        ad_name,
         ad_name,
     )
 
@@ -172,32 +172,12 @@ def ldap_sync_person(db, person_data: dict) -> Optional[int]:
         with write_tx(c):
             cur = c.execute(
                 """INSERT INTO persons
-                       (kuerzel, nachname, vorname, email, telefon, rolle, ad_name, user_id, aktiv)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+                       (user_id, nachname, vorname, email, telefon, rolle, ad_name, aktiv)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 1)""",
                 insert_params,
             )
             return cur.lastrowid
     return get_writer().submit(_apply_insert, wait=True)
-
-
-def _generate_kuerzel(db, person_data: dict) -> str:
-    """Generiert ein eindeutiges Kürzel aus Initialen."""
-    vn = (person_data.get("vorname") or "X")[:1].upper()
-    nn = (person_data.get("nachname") or "LDAP")[:3].upper()
-    base = f"{vn}{nn}"
-    existing = {
-        r["kuerzel"]
-        for r in db.execute(
-            "SELECT kuerzel FROM persons WHERE kuerzel LIKE ?", (f"{base}%",)
-        ).fetchall()
-    }
-    if base not in existing:
-        return base
-    for i in range(2, 1000):
-        candidate = f"{base}{i}"
-        if candidate not in existing:
-            return candidate
-    return f"AD{db.execute('SELECT COUNT(*) FROM persons').fetchone()[0]}"
 
 
 # ---------------------------------------------------------------------------

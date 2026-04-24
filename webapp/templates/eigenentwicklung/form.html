@@ -616,40 +616,44 @@
           {% endfor %}
         </select>
       </div>
+      {% set _fv_id = idv.fachverantwortlicher_id if idv else None %}
+      {% set _fv = (persons | selectattr('id', 'equalto', _fv_id) | first) if _fv_id else None %}
+      {% set _ent_id = (idv.idv_entwickler_id if idv else prefill.get('idv_entwickler_id')) %}
+      {% set _ent = (persons | selectattr('id', 'equalto', _ent_id) | first) if _ent_id else None %}
+
       <div class="col-md-6">
         <div class="d-flex align-items-center justify-content-between mb-1">
           <label class="form-label mb-0">Fachverantwortlicher <span class="required-star">*</span></label>
           <button type="button" class="btn btn-link btn-sm p-0 text-primary fs-7"
             data-bs-toggle="modal" data-bs-target="#modal-schnell-person"
-            data-target-select="fachverantwortlicher_id" title="Neue Person anlegen">
+            data-target-ac="ac-fachverantwortlicher" title="Neue Person anlegen">
             <i class="bi bi-plus-circle me-1"></i>Neu
           </button>
         </div>
-        <select name="fachverantwortlicher_id" id="select-fachverantwortlicher" class="form-select" required>
-          <option value="">– bitte wählen –</option>
-          {% for p in persons %}
-          <option value="{{ p.id }}" {{ 'selected' if idv and idv.fachverantwortlicher_id==p.id }}>{{ p.nachname }}, {{
-            p.vorname }}</option>
-          {% endfor %}
-        </select>
+        <div class="position-relative person-ac" id="ac-fachverantwortlicher" data-person-ac data-required>
+          <input type="hidden" name="fachverantwortlicher_id" value="{{ _fv_id or '' }}">
+          <input type="text" class="form-control person-ac-input"
+                 data-initial-label="{{ (_fv.nachname ~ ', ' ~ _fv.vorname ~ ' (' ~ _fv.user_id ~ ')') if _fv else '' }}"
+                 placeholder="Name oder User-ID …" autocomplete="off">
+          <div class="person-ac-menu dropdown-menu w-100"></div>
+        </div>
       </div>
       <div class="col-md-6">
         <div class="d-flex align-items-center justify-content-between mb-1">
           <label class="form-label mb-0">Entwickler / Ersteller</label>
           <button type="button" class="btn btn-link btn-sm p-0 text-primary fs-7"
             data-bs-toggle="modal" data-bs-target="#modal-schnell-person"
-            data-target-select="idv_entwickler_id" title="Neue Person anlegen">
+            data-target-ac="ac-entwickler" title="Neue Person anlegen">
             <i class="bi bi-plus-circle me-1"></i>Neu
           </button>
         </div>
-        <select name="idv_entwickler_id" id="select-entwickler" class="form-select">
-          <option value="">–</option>
-          {% for p in persons %}
-          <option value="{{ p.id }}" {{ 'selected' if (idv and idv.idv_entwickler_id==p.id) or (not idv and
-            prefill.get('idv_entwickler_id')==p.id) }}>{{ p.nachname }}, {{
-            p.vorname }}</option>
-          {% endfor %}
-        </select>
+        <div class="position-relative person-ac" id="ac-entwickler" data-person-ac>
+          <input type="hidden" name="idv_entwickler_id" value="{{ _ent_id or '' }}">
+          <input type="text" class="form-control person-ac-input"
+                 data-initial-label="{{ (_ent.nachname ~ ', ' ~ _ent.vorname ~ ' (' ~ _ent.user_id ~ ')') if _ent else '' }}"
+                 placeholder="Name oder User-ID …" autocomplete="off">
+          <div class="person-ac-menu dropdown-menu w-100"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -766,10 +770,15 @@
       </div>
       <form id="form-schnell-person">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" id="person-target-select" value="">
+        <input type="hidden" id="person-target-ac" value="">
         <div class="modal-body">
           <div id="err-schnell-person" class="alert alert-danger py-2 d-none" role="alert"></div>
           <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label fw-500">User-ID <span class="required-star">*</span></label>
+              <input type="text" name="user_id" class="form-control form-control-sm" required
+                placeholder="z.B. mmu">
+            </div>
             <div class="col-7">
               <label class="form-label fw-500">Nachname <span class="required-star">*</span></label>
               <input type="text" name="nachname" class="form-control form-control-sm" required>
@@ -893,16 +902,21 @@
     _addOption('select-org-unit', id, label);
   });
 
-  // Person (shared modal, target select set via data attribute)
+  // Person (shared modal, target autocomplete set via data attribute)
   var personModal = document.getElementById('modal-schnell-person');
   if (personModal) {
     personModal.addEventListener('show.bs.modal', function (e) {
-      var targetSelect = (e.relatedTarget && e.relatedTarget.dataset.targetSelect) || 'fachverantwortlicher_id';
-      document.getElementById('person-target-select').value = targetSelect;
+      var targetAc = (e.relatedTarget && e.relatedTarget.dataset.targetAc) || 'ac-fachverantwortlicher';
+      document.getElementById('person-target-ac').value = targetAc;
     });
     _quickSubmit('form-schnell-person', _apiPerson, 'btn-schnell-person', 'err-schnell-person', function (id, label) {
-      var targetSelect = document.getElementById('person-target-select').value || 'fachverantwortlicher_id';
-      _addOption(targetSelect === 'idv_entwickler_id' ? 'select-entwickler' : 'select-fachverantwortlicher', id, label);
+      var targetAc = document.getElementById('person-target-ac').value || 'ac-fachverantwortlicher';
+      var root   = document.getElementById(targetAc);
+      if (!root) return;
+      var hidden = root.querySelector('input[type="hidden"]');
+      var input  = root.querySelector('.person-ac-input');
+      if (hidden) hidden.value = id;
+      if (input)  { input.value = label; input.classList.remove('is-invalid'); }
     });
   }
 

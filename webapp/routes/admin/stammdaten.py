@@ -20,26 +20,32 @@ from db_write_tx import write_tx
 @bp.route("/person/neu", methods=["POST"])
 @login_required
 def new_person():
+    user_id = request.form.get("user_id", "").strip()
+    if not user_id:
+        flash("User-ID ist erforderlich.", "error")
+        return redirect(url_for("admin.index"))
     params = (
-        request.form.get("kuerzel", "").strip().upper(),
+        user_id,
         request.form.get("nachname", "").strip(),
         request.form.get("vorname", "").strip(),
         request.form.get("email") or None,
         request.form.get("rolle") or None,
         request.form.get("org_unit_id") or None,
-        request.form.get("user_id") or None,
         request.form.get("ad_name") or None,
         _now(),
     )
     def _do(c):
         with write_tx(c):
             c.execute("""
-                INSERT INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id,
-                                     user_id, ad_name, created_at)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                INSERT INTO persons (user_id, nachname, vorname, email, rolle, org_unit_id,
+                                     ad_name, created_at)
+                VALUES (?,?,?,?,?,?,?,?)
             """, params)
     try:
         get_writer().submit(_do, wait=True)
+    except sqlite3.IntegrityError:
+        flash(f"User-ID '{user_id}' ist bereits vergeben.", "error")
+        return redirect(url_for("admin.index"))
     except sqlite3.OperationalError as exc:
         current_app.logger.warning("new_person: Datenbank gesperrt: %s", exc)
         flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
@@ -74,14 +80,18 @@ def edit_person(pid):
             if not _re.match(r"^\d{4}-\d{2}-\d{2}$", abwesend_bis_raw):
                 abwesend_bis_raw = None
 
+        user_id_new = request.form.get("user_id", "").strip()
+        if not user_id_new:
+            flash("User-ID ist erforderlich.", "error")
+            return redirect(url_for("admin.edit_person", pid=pid))
+
         params = (
-            request.form.get("kuerzel", "").strip().upper(),
+            user_id_new,
             request.form.get("nachname", "").strip(),
             request.form.get("vorname", "").strip(),
             request.form.get("email") or None,
             request.form.get("rolle") or None,
             request.form.get("org_unit_id") or None,
-            request.form.get("user_id") or None,
             request.form.get("ad_name") or None,
             pw_hash,
             1 if request.form.get("aktiv") else 0,
@@ -93,13 +103,16 @@ def edit_person(pid):
             with write_tx(c):
                 c.execute("""
                     UPDATE persons SET
-                        kuerzel=?, nachname=?, vorname=?, email=?, rolle=?,
-                        org_unit_id=?, user_id=?, ad_name=?, password_hash=?, aktiv=?,
+                        user_id=?, nachname=?, vorname=?, email=?, rolle=?,
+                        org_unit_id=?, ad_name=?, password_hash=?, aktiv=?,
                         stellvertreter_id=?, abwesend_bis=?
                     WHERE id=?
                 """, params)
         try:
             get_writer().submit(_do, wait=True)
+        except sqlite3.IntegrityError:
+            flash(f"User-ID '{user_id_new}' ist bereits vergeben.", "error")
+            return redirect(url_for("admin.edit_person", pid=pid))
         except sqlite3.OperationalError as exc:
             current_app.logger.warning("edit_person (pid=%s): Datenbank gesperrt: %s", pid, exc)
             flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
@@ -458,7 +471,7 @@ def delete_plattform(plid):
 @limiter.limit(_upload_rate_limit, methods=["POST"])
 def import_persons():
     """CSV-Import: user_id, email (SMTP-Adresse), ad_name, oe_bezeichnung,
-       nachname, vorname, kuerzel, rolle  (Trennzeichen ; oder ,)"""
+       nachname, vorname, rolle  (Trennzeichen ; oder ,)"""
     f = request.files.get("csv_file")
     if not f or not f.filename:
         flash("Keine Datei ausgewählt.", "error")
@@ -488,10 +501,9 @@ def import_persons():
             oe_bezeichnung = r.get("oe_bezeichnung") or r.get("oe") or r.get("abteilung") or ""
             nachname      = r.get("nachname") or r.get("name") or ""
             vorname       = r.get("vorname") or ""
-            kuerzel       = (r.get("kuerzel") or user_id[:3]).upper()
             rolle         = r.get("rolle") or "Fachverantwortlicher"
 
-            if not (nachname or user_id):
+            if not user_id or not nachname:
                 errors += 1
                 continue
 
@@ -503,17 +515,13 @@ def import_persons():
                 if oe_row:
                     org_unit_id = oe_row["id"]
 
-            existing = None
-            if user_id:
-                existing = db.execute("SELECT id FROM persons WHERE user_id=?", (user_id,)).fetchone()
-            if not existing and kuerzel:
-                existing = db.execute("SELECT id FROM persons WHERE kuerzel=?", (kuerzel,)).fetchone()
+            existing = db.execute("SELECT id FROM persons WHERE user_id=?", (user_id,)).fetchone()
 
             if existing:
-                prepared.append(("update", (email, ad_name, org_unit_id, user_id, rolle, existing["id"])))
+                prepared.append(("update", (email, ad_name, org_unit_id, rolle, existing["id"])))
             else:
-                prepared.append(("insert", (kuerzel, nachname, vorname, email or None, rolle,
-                                            org_unit_id, user_id or None, ad_name or None, now)))
+                prepared.append(("insert", (user_id, nachname, vorname, email or None, rolle,
+                                            org_unit_id, ad_name or None, now)))
         except Exception:
             errors += 1
 
@@ -527,7 +535,6 @@ def import_persons():
                             email=COALESCE(NULLIF(?,''), email),
                             ad_name=COALESCE(NULLIF(?,''), ad_name),
                             org_unit_id=COALESCE(?,org_unit_id),
-                            user_id=COALESCE(NULLIF(?,''), user_id),
                             rolle=COALESCE(NULLIF(?,''), rolle)
                         WHERE id=?
                     """, params)
@@ -535,9 +542,9 @@ def import_persons():
                 else:
                     c.execute("""
                         INSERT INTO persons
-                            (kuerzel, nachname, vorname, email, rolle, org_unit_id,
-                             user_id, ad_name, created_at)
-                        VALUES (?,?,?,?,?,?,?,?,?)
+                            (user_id, nachname, vorname, email, rolle, org_unit_id,
+                             ad_name, created_at)
+                        VALUES (?,?,?,?,?,?,?,?)
                     """, params)
                     created += 1
         return created, updated
@@ -550,8 +557,8 @@ def import_persons():
 @login_required
 def import_template():
     """CSV-Vorlage herunterladen."""
-    content = "user_id;email;ad_name;oe_bezeichnung;nachname;vorname;kuerzel;rolle\n"
-    content += "mmu;max.mustermann@bank.de;DOMAIN\\mmu;Kreditabteilung;Mustermann;Max;MMU;Fachverantwortlicher\n"
+    content = "user_id;email;ad_name;oe_bezeichnung;nachname;vorname;rolle\n"
+    content += "mmu;max.mustermann@bank.de;DOMAIN\\mmu;Kreditabteilung;Mustermann;Max;Fachverantwortlicher\n"
     return Response(
         content,
         mimetype="text/csv",
@@ -1026,9 +1033,9 @@ def api_new_person():
     """Legt eine neue Person an und gibt id + label als JSON zurück."""
     nachname = request.form.get("nachname", "").strip()
     vorname  = request.form.get("vorname", "").strip()
-    if not nachname or not vorname:
-        return jsonify({"ok": False, "error": "Nachname und Vorname sind erforderlich."}), 400
-    kuerzel     = request.form.get("kuerzel", "").strip().upper() or ""
+    user_id  = request.form.get("user_id", "").strip()
+    if not nachname or not vorname or not user_id:
+        return jsonify({"ok": False, "error": "Nachname, Vorname und User-ID sind erforderlich."}), 400
     email       = request.form.get("email", "").strip() or None
     rolle       = request.form.get("rolle", "").strip() or None
     org_unit_id = request.form.get("org_unit_id") or None
@@ -1038,19 +1045,70 @@ def api_new_person():
     def _do(c):
         with write_tx(c):
             cur = c.execute("""
-                INSERT INTO persons (kuerzel, nachname, vorname, email, rolle, org_unit_id, created_at)
+                INSERT INTO persons (user_id, nachname, vorname, email, rolle, org_unit_id, created_at)
                 VALUES (?,?,?,?,?,?,?)
-            """, (kuerzel, nachname, vorname, email, rolle, org_unit_id, now))
+            """, (user_id, nachname, vorname, email, rolle, org_unit_id, now))
             return cur.lastrowid
 
     try:
         new_id = get_writer().submit(_do, wait=True)
+    except sqlite3.IntegrityError:
+        return jsonify({"ok": False, "error": f"User-ID '{user_id}' ist bereits vergeben."}), 400
     except Exception as exc:
         current_app.logger.warning("api_new_person: %s", exc)
         return jsonify({"ok": False, "error": "Datenbankfehler beim Anlegen der Person."}), 500
 
-    label = f"{nachname}, {vorname}"
-    return jsonify({"ok": True, "id": new_id, "label": label})
+    label = f"{nachname}, {vorname} ({user_id})"
+    return jsonify({"ok": True, "id": new_id, "label": label, "user_id": user_id})
+
+
+@bp.route("/api/persons/search")
+@login_required
+def api_persons_search():
+    """Live-Suche nach Personen fuer Autocomplete-Komponenten.
+
+    Query-Parameter:
+        q       Suchbegriff (Teilstring in user_id, nachname, vorname, email).
+        limit   Max. Trefferzahl (Default 15, hart gedeckelt auf 50).
+
+    Antwort: Liste von ``{id, user_id, name, email, label}``.
+    Sortierung: aktive vor inaktiven, dann user_id-Praefix-Treffer vor sonstigen.
+    """
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 1:
+        return jsonify([])
+    try:
+        limit = max(1, min(int(request.args.get("limit", "15")), 50))
+    except ValueError:
+        limit = 15
+
+    pat = f"%{q}%"
+    prefix = f"{q}%"
+    rows = get_db().execute("""
+        SELECT id, user_id, nachname, vorname, email, aktiv
+          FROM persons
+         WHERE user_id LIKE ?
+            OR nachname LIKE ?
+            OR vorname  LIKE ?
+            OR email    LIKE ?
+         ORDER BY aktiv DESC,
+                  (CASE WHEN user_id LIKE ? THEN 0 ELSE 1 END),
+                  nachname COLLATE NOCASE,
+                  vorname  COLLATE NOCASE
+         LIMIT ?
+    """, (pat, pat, pat, pat, prefix, limit)).fetchall()
+
+    return jsonify([
+        {
+            "id":      r["id"],
+            "user_id": r["user_id"],
+            "name":    f"{r['nachname']}, {r['vorname']}".strip(", "),
+            "email":   r["email"] or "",
+            "aktiv":   bool(r["aktiv"]),
+            "label":   f"{r['nachname']}, {r['vorname']} ({r['user_id']})",
+        }
+        for r in rows
+    ])
 
 
 @bp.route("/api/gp", methods=["POST"])
@@ -1166,7 +1224,7 @@ def edit_pool(pool_id):
         return redirect(url_for("admin.edit_pool", pool_id=pool_id))
 
     members = db.execute("""
-        SELECT p.id, p.kuerzel, p.nachname, p.vorname
+        SELECT p.id, p.user_id, p.nachname, p.vorname
         FROM persons p
         JOIN freigabe_pool_members m ON m.person_id = p.id
         WHERE m.pool_id = ?
@@ -1174,7 +1232,7 @@ def edit_pool(pool_id):
     """, (pool_id,)).fetchall()
     member_ids = {m["id"] for m in members}
     alle_personen = db.execute(
-        "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+        "SELECT id, user_id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
     return render_template("admin/pool_edit.html",
                            pool=pool, members=members, member_ids=member_ids,

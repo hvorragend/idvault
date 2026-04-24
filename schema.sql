@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS org_units (
 -- Personen / Benutzer (IDV-Verantwortliche, Prüfer, Genehmiger)
 CREATE TABLE IF NOT EXISTS persons (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    kuerzel         TEXT NOT NULL UNIQUE,            -- z.B. "MMA"
+    user_id         TEXT NOT NULL UNIQUE,            -- Login-Name (LDAP / Windows / lokal)
     nachname        TEXT NOT NULL,
     vorname         TEXT NOT NULL,
     email           TEXT,
@@ -127,7 +127,6 @@ CREATE TABLE IF NOT EXISTS persons (
     org_unit_id     INTEGER REFERENCES org_units(id),
     rolle           TEXT,                            -- "IDV-Koordinator" | "Fachverantwortlicher" | "IT-Sicherheit" | "Revision"
     aktiv           INTEGER NOT NULL DEFAULT 1,
-    user_id         TEXT,                            -- Login-Name (LDAP / Windows)
     ad_name         TEXT,                            -- AD-Distinguished-Name
     password_hash   TEXT,                            -- SHA-256 (Fallback-Login)
     stellvertreter_id INTEGER REFERENCES persons(id), -- allg. Stellvertreter (MaRisk AT 7.2)
@@ -137,9 +136,6 @@ CREATE TABLE IF NOT EXISTS persons (
     oe_leiter_id    INTEGER REFERENCES persons(id),
     created_at      TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_persons_user_id
-    ON persons(user_id) WHERE user_id IS NOT NULL;
 
 -- Geschäftsprozesse (GP-Katalog)
 CREATE TABLE IF NOT EXISTS geschaeftsprozesse (

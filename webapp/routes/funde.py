@@ -96,10 +96,9 @@ def _compute_match_scores(dateien, db):
 
     idv_candidates = db.execute("""
         SELECT r.id, r.idv_id, r.bezeichnung, r.idv_typ,
-               p_e.kuerzel  AS dev_kuerzel,
-               p_e.ad_name  AS dev_ad,
                p_e.user_id  AS dev_uid,
-               p_f.kuerzel  AS fv_kuerzel,
+               p_e.ad_name  AS dev_ad,
+               p_f.user_id  AS fv_uid,
                p_f.ad_name  AS fv_ad
         FROM idv_register r
         LEFT JOIN persons p_e ON r.idv_entwickler_id      = p_e.id
@@ -125,8 +124,8 @@ def _compute_match_scores(dateien, db):
 
         for idv in idv_candidates:
             dev_ids = (
-                idv["dev_kuerzel"], idv["dev_ad"], idv["dev_uid"],
-                idv["fv_kuerzel"],  idv["fv_ad"],
+                idv["dev_uid"], idv["dev_ad"],
+                idv["fv_uid"], idv["fv_ad"],
             )
             score = _sim.score_pair(
                 fund_typ=fund_typ,
@@ -439,7 +438,7 @@ def list_funde():
     is_admin = current_user_role() == ROLE_ADMIN
 
     persons = db.execute(
-        "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+        "SELECT id, user_id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
 
     gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
@@ -720,7 +719,7 @@ def eingang_funde():
     is_admin = current_user_role() == ROLE_ADMIN
 
     persons = db.execute(
-        "SELECT id, kuerzel, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
+        "SELECT id, user_id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
 
     owner_list = [
@@ -1206,8 +1205,8 @@ def bulk_aktion():
             email = None
             if owner:
                 person = db.execute(
-                    "SELECT email FROM persons WHERE (user_id = ? OR kuerzel = ? OR ad_name = ?) AND aktiv = 1 AND email IS NOT NULL",
-                    (owner, owner, owner)
+                    "SELECT email FROM persons WHERE (user_id = ? OR ad_name = ?) AND aktiv = 1 AND email IS NOT NULL",
+                    (owner, owner)
                 ).fetchone()
                 if person:
                     email = person["email"]
@@ -1431,8 +1430,8 @@ def auto_zuordnen():
 
     idv_candidates = db.execute("""
         SELECT r.id, r.idv_id, r.bezeichnung, r.idv_typ,
-               p_e.kuerzel AS dev_kuerzel, p_e.ad_name AS dev_ad, p_e.user_id AS dev_uid,
-               p_f.kuerzel AS fv_kuerzel, p_f.ad_name AS fv_ad
+               p_e.user_id AS dev_uid, p_e.ad_name AS dev_ad,
+               p_f.user_id AS fv_uid,  p_f.ad_name AS fv_ad
           FROM idv_register r
           LEFT JOIN persons p_e ON r.idv_entwickler_id      = p_e.id
           LEFT JOIN persons p_f ON r.fachverantwortlicher_id = p_f.id
@@ -1451,8 +1450,8 @@ def auto_zuordnen():
         best_score, best_idv = 0, None
         for idv in idv_candidates:
             dev_ids = [
-                idv["dev_kuerzel"], idv["dev_ad"], idv["dev_uid"],
-                idv["fv_kuerzel"],  idv["fv_ad"],
+                idv["dev_uid"], idv["dev_ad"],
+                idv["fv_uid"], idv["fv_ad"],
             ]
             score = _sim.score_pair(
                 fund_typ=fund_typ, fund_owner=fund_owner, fund_name=fund_name,
@@ -1465,8 +1464,8 @@ def auto_zuordnen():
         if not best_idv:
             continue
         dev_ids = [
-            best_idv["dev_kuerzel"], best_idv["dev_ad"], best_idv["dev_uid"],
-            best_idv["fv_kuerzel"],  best_idv["fv_ad"],
+            best_idv["dev_uid"], best_idv["dev_ad"],
+            best_idv["fv_uid"], best_idv["fv_ad"],
         ]
         plausible = _sim.is_plausible_auto_match(
             fund_typ=fund_typ, fund_owner=fund_owner,

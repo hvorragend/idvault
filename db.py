@@ -1109,7 +1109,7 @@ def get_self_service_escalation_stages(conn: sqlite3.Connection) -> dict:
     try:
         rows = conn.execute("""
             SELECT n.kind, n.ref_id, n.sent_date,
-                   p.user_id, p.kuerzel, p.ad_name,
+                   p.user_id, p.ad_name,
                    (SELECT MAX(a.created_at) FROM self_service_audit a
                      WHERE a.person_id = n.ref_id) AS last_action
               FROM notification_log n
@@ -1127,7 +1127,7 @@ def get_self_service_escalation_stages(conn: sqlite3.Connection) -> dict:
         stage = stage_for_kind.get(r["kind"])
         if not stage:
             continue
-        for col in ("user_id", "kuerzel", "ad_name"):
+        for col in ("user_id", "ad_name"):
             owner_value = r[col]
             if not owner_value:
                 continue
@@ -1357,17 +1357,17 @@ def insert_demo_data(conn: sqlite3.Connection):
     # -----------------------------------------------------------------------
     conn.executemany(
         "INSERT OR IGNORE INTO persons "
-        "(kuerzel, nachname, vorname, email, rolle, org_unit_id) "
+        "(user_id, nachname, vorname, email, rolle, org_unit_id) "
         "VALUES (?,?,?,?,?, (SELECT id FROM org_units WHERE bezeichnung=?))",
         [
-            ("IDV-KO",  "Mustermann", "Max",     "m.mustermann@volksbank.de", "IDV-Koordinator",     "IT & IT-Sicherheit"),
-            ("FV-BWK",  "Beispiel",   "Anna",    "a.beispiel@volksbank.de",   "Fachverantwortlicher","Betriebswirtschaft/Controlling"),
-            ("FV-KRE",  "Schmidt",    "Klaus",   "k.schmidt@volksbank.de",    "Fachverantwortlicher","Kreditabteilung"),
-            ("FV-MEL",  "Meier",      "Lisa",    "l.meier@volksbank.de",      "Fachverantwortlicher","Meldewesen"),
-            ("FV-RIS",  "Berger",     "Tobias",  "t.berger@volksbank.de",     "Fachverantwortlicher","Risikocontrolling"),
-            ("IT-SI",   "Winter",     "Sabine",  "s.winter@volksbank.de",     "IT-Sicherheit",       "IT & IT-Sicherheit"),
-            ("REV",     "Krüger",     "Hans",    "h.krueger@volksbank.de",    "Revision",            "Revision"),
-            ("IDV-ENT", "Keller",     "Julia",   "j.keller@volksbank.de",     "IDV-Entwickler",      "IT & IT-Sicherheit"),
+            ("idv-ko",  "Mustermann", "Max",     "m.mustermann@volksbank.de", "IDV-Koordinator",     "IT & IT-Sicherheit"),
+            ("fv-bwk",  "Beispiel",   "Anna",    "a.beispiel@volksbank.de",   "Fachverantwortlicher","Betriebswirtschaft/Controlling"),
+            ("fv-kre",  "Schmidt",    "Klaus",   "k.schmidt@volksbank.de",    "Fachverantwortlicher","Kreditabteilung"),
+            ("fv-mel",  "Meier",      "Lisa",    "l.meier@volksbank.de",      "Fachverantwortlicher","Meldewesen"),
+            ("fv-ris",  "Berger",     "Tobias",  "t.berger@volksbank.de",     "Fachverantwortlicher","Risikocontrolling"),
+            ("it-si",   "Winter",     "Sabine",  "s.winter@volksbank.de",     "IT-Sicherheit",       "IT & IT-Sicherheit"),
+            ("rev",     "Krüger",     "Hans",    "h.krueger@volksbank.de",    "Revision",            "Revision"),
+            ("idv-ent", "Keller",     "Julia",   "j.keller@volksbank.de",     "IDV-Entwickler",      "IT & IT-Sicherheit"),
         ],
     )
 
@@ -1400,7 +1400,7 @@ def insert_demo_data(conn: sqlite3.Connection):
     #   dokumentation_vorhanden, testkonzept_vorhanden,
     #   anwenderdokumentation, datenschutz_beachtet, zellschutz_formeln,
     #   datenschutz_kategorie,
-    #   gp_nummer, org_unit, fachv_kuerzel, entw_kuerzel, koord_kuerzel,
+    #   gp_nummer, org_unit, fachv_user, entw_user, koord_user,
     #   plattform_bezeichnung
     idv_rows = [
         ("IDV-2024-001", "GuV-Auswertung Excel-Makro",
@@ -1408,56 +1408,56 @@ def insert_demo_data(conn: sqlite3.Connection):
          "Excel-Makro", "idv", "Freigegeben", 12,
          "2025-10-15", "2026-10-15", "2022-03-01",
          "monatlich", 5, 1, 1, 0, 0, 0, "keine",
-         "GP-BWK-001", "Betriebswirtschaft/Controlling", "FV-BWK", "IDV-ENT", "IDV-KO",
+         "GP-BWK-001", "Betriebswirtschaft/Controlling", "fv-bwk", "idv-ent", "idv-ko",
          "Microsoft Excel"),
         ("IDV-2024-002", "Sicherheiten-Bewertung Access-DB",
          "Access-Datenbank zur Bewertung von Kreditsicherheiten.",
          "Access-Datenbank", "idv", "Freigegeben", 12,
          "2025-11-20", "2026-11-20", "2023-06-01",
          "wöchentlich", 8, 1, 1, 0, 0, 0, "allgemein",
-         "GP-KRE-002", "Kreditabteilung", "FV-KRE", "IDV-ENT", "IDV-KO",
+         "GP-KRE-002", "Kreditabteilung", "fv-kre", "idv-ent", "idv-ko",
          "Microsoft Access"),
         ("IDV-2024-003", "Reporting-Arbeitshilfe Vorstand",
          "Excel-Arbeitshilfe zur Aufbereitung der Monatsberichte für den Vorstand.",
          "Excel-Tabelle", "arbeitshilfe", "Entwurf", 24,
          None, "2027-04-01", "2024-02-01",
          "monatlich", 3, 0, 0, 0, 0, 0, "keine",
-         "GP-BWK-002", "Betriebswirtschaft/Controlling", "FV-BWK", "FV-BWK", "IDV-KO",
+         "GP-BWK-002", "Betriebswirtschaft/Controlling", "fv-bwk", "fv-bwk", "idv-ko",
          "Microsoft Excel"),
         ("IDV-2024-004", "EBA COREP Datenlieferung",
          "Python-Skript zur Aufbereitung der COREP-Meldedaten an die Bundesbank.",
          "Python-Skript", "idv", "Freigegeben", 6,
          "2025-12-05", "2026-06-05", "2024-01-15",
          "quartalsweise", 2, 1, 1, 0, 0, 0, "keine",
-         "GP-MEL-001", "Meldewesen", "FV-MEL", "IDV-ENT", "IDV-KO",
+         "GP-MEL-001", "Meldewesen", "fv-mel", "idv-ent", "idv-ko",
          "Python 3.11"),
         ("IDV-2025-001", "FINREP-Meldewesen",
          "Zentrales Python-Framework für FINREP-Meldungen, IT-Entwicklung.",
          "Python-Skript", "eigenprogrammierung", "In Prüfung", 12,
          None, "2026-07-01", "2025-02-10",
          "quartalsweise", 4, 1, 1, 0, 0, 0, "keine",
-         "GP-MEL-002", "Meldewesen", "FV-MEL", "IDV-ENT", "IDV-KO",
+         "GP-MEL-002", "Meldewesen", "fv-mel", "idv-ent", "idv-ko",
          "Python 3.11"),
         ("IDV-2025-002", "Zinsrisiko-Modell",
          "Excel-Modell zur Berechnung des Barwertrisikos (Zinsschock).",
          "Excel-Modell", "idv", "Freigegeben", 12,
          "2026-01-20", "2027-01-20", "2023-09-01",
          "monatlich", 3, 1, 1, 0, 0, 0, "keine",
-         "GP-RIS-001", "Risikocontrolling", "FV-RIS", "FV-RIS", "IDV-KO",
+         "GP-RIS-001", "Risikocontrolling", "fv-ris", "fv-ris", "idv-ko",
          "Microsoft Excel"),
         ("IDV-2025-003", "Stresstest-Szenarien",
          "Excel-Arbeitshilfe zur Zusammenstellung von Stresstest-Szenarien.",
          "Excel-Tabelle", "arbeitshilfe", "Entwurf", 24,
          None, "2027-05-01", "2025-05-20",
          "jährlich", 2, 0, 0, 0, 0, 0, "keine",
-         "GP-RIS-002", "Risikocontrolling", "FV-RIS", "FV-RIS", "IDV-KO",
+         "GP-RIS-002", "Risikocontrolling", "fv-ris", "fv-ris", "idv-ko",
          "Microsoft Excel"),
         ("IDV-2025-004", "Firmenkunden-Score",
          "SQL-basiertes Scoring für Firmenkundenkredite, zentrale IT-Entwicklung.",
          "SQL-Skript", "eigenprogrammierung", "In Prüfung", 12,
          None, "2026-08-15", "2025-08-01",
          "täglich", 12, 1, 0, 0, 0, 0, "allgemein",
-         "GP-KRE-001", "Kreditabteilung", "FV-KRE", "IDV-ENT", "IDV-KO",
+         "GP-KRE-001", "Kreditabteilung", "fv-kre", "idv-ent", "idv-ko",
          "Shell-Skripte"),
     ]
     conn.executemany(
@@ -1480,9 +1480,9 @@ def insert_demo_data(conn: sqlite3.Connection):
         " ?,"
         " (SELECT id FROM geschaeftsprozesse WHERE gp_nummer=?),"
         " (SELECT id FROM org_units WHERE bezeichnung=?),"
-        " (SELECT id FROM persons WHERE kuerzel=?),"
-        " (SELECT id FROM persons WHERE kuerzel=?),"
-        " (SELECT id FROM persons WHERE kuerzel=?),"
+        " (SELECT id FROM persons WHERE user_id=?),"
+        " (SELECT id FROM persons WHERE user_id=?),"
+        " (SELECT id FROM persons WHERE user_id=?),"
         " (SELECT id FROM plattformen WHERE bezeichnung=?)"
         ")",
         idv_rows,
@@ -1499,25 +1499,25 @@ def insert_demo_data(conn: sqlite3.Connection):
         ") VALUES ("
         " (SELECT id FROM idv_register WHERE idv_id=?),"
         " ?,?,"
-        " (SELECT id FROM persons WHERE kuerzel=?),"
+        " (SELECT id FROM persons WHERE user_id=?),"
         " ?,?,?,?,?,?,?,?)",
         [
-            ("IDV-2024-001", "Erstprüfung",  "2024-03-20", "IDV-KO",
+            ("IDV-2024-001", "Erstprüfung",  "2024-03-20", "idv-ko",
              "Mit Befund",
              "Dokumentation unvollständig, Vier-Augen-Prinzip fehlte.",
              1, "2024-06-30", 1, "2024-06-25", "2025-10-15",
              "Erstfreigabe nach Nachbesserung erteilt."),
-            ("IDV-2024-001", "Regelprüfung", "2025-10-15", "IDV-KO",
+            ("IDV-2024-001", "Regelprüfung", "2025-10-15", "idv-ko",
              "Ohne Befund",
              None,
              0, None, 1, "2025-10-15", "2026-10-15",
              "Jahresprüfung erfolgreich abgeschlossen."),
-            ("IDV-2024-002", "Erstprüfung",  "2024-07-10", "REV",
+            ("IDV-2024-002", "Erstprüfung",  "2024-07-10", "rev",
              "Mit Befund",
              "Zugriffsschutz der Access-DB nicht ausreichend dokumentiert.",
              1, "2024-09-30", 1, "2024-09-28", "2025-11-20",
              "Maßnahme zur Verbesserung des Zugriffsschutzes umgesetzt."),
-            ("IDV-2024-004", "Erstprüfung",  "2024-05-15", "IT-SI",
+            ("IDV-2024-004", "Erstprüfung",  "2024-05-15", "it-si",
              "Kritischer Befund",
              "Python-Skript ohne Versionskontrolle, Logging unzureichend.",
              1, "2024-08-31", 0, None, "2025-12-05",
@@ -1537,24 +1537,24 @@ def insert_demo_data(conn: sqlite3.Connection):
         " (SELECT id FROM idv_register WHERE idv_id=?),"
         " (SELECT id FROM pruefungen WHERE idv_id=(SELECT id FROM idv_register WHERE idv_id=?) AND pruefungsart=?),"
         " ?,?,?,?,"
-        " (SELECT id FROM persons WHERE kuerzel=?),"
+        " (SELECT id FROM persons WHERE user_id=?),"
         " ?,?,?,"
-        " (SELECT id FROM persons WHERE kuerzel=?))",
+        " (SELECT id FROM persons WHERE user_id=?))",
         [
             ("IDV-2024-001", "IDV-2024-001", "Erstprüfung",
              "Dokumentation ergänzen",
              "Fachkonzept und Betriebshandbuch vollständig erstellen.",
-             "Dokumentation", "Hoch", "FV-BWK",
-             "2024-06-30", "Erledigt", "2024-06-20", "FV-BWK"),
+             "Dokumentation", "Hoch", "fv-bwk",
+             "2024-06-30", "Erledigt", "2024-06-20", "fv-bwk"),
             ("IDV-2024-002", "IDV-2024-002", "Erstprüfung",
              "Zugriffsschutz Access-DB",
              "Berechtigungskonzept mit IT-Sicherheit abstimmen und dokumentieren.",
-             "Technisch", "Kritisch", "IT-SI",
-             "2024-09-30", "Erledigt", "2024-09-15", "IT-SI"),
+             "Technisch", "Kritisch", "it-si",
+             "2024-09-30", "Erledigt", "2024-09-15", "it-si"),
             ("IDV-2024-004", "IDV-2024-004", "Erstprüfung",
              "Git-Versionskontrolle einführen",
              "Python-Skript in zentrales Git-Repository migrieren.",
-             "Technisch", "Mittel", "IDV-ENT",
+             "Technisch", "Mittel", "idv-ent",
              "2024-08-31", "In Bearbeitung", None, None),
         ],
     )
@@ -1571,26 +1571,26 @@ def insert_demo_data(conn: sqlite3.Connection):
         ") VALUES ("
         " (SELECT id FROM idv_register WHERE idv_id=?),"
         " ?,"
-        " (SELECT id FROM persons WHERE kuerzel=?), ?,"
-        " (SELECT id FROM persons WHERE kuerzel=?), ?, ?, ?,"
-        " (SELECT id FROM persons WHERE kuerzel=?), ?, ?, ?,"
+        " (SELECT id FROM persons WHERE user_id=?), ?,"
+        " (SELECT id FROM persons WHERE user_id=?), ?, ?, ?,"
+        " (SELECT id FROM persons WHERE user_id=?), ?, ?, ?,"
         " ?, ?)",
         [
-            ("IDV-2024-001", "Erstfreigabe", "FV-BWK", "2024-03-10",
-             "IDV-KO", "2024-06-28", "Freigegeben", "Freigabe nach Nachbesserung.",
-             "IT-SI", "2024-06-28", "Freigegeben", "Keine sicherheitskritischen Funde.",
+            ("IDV-2024-001", "Erstfreigabe", "fv-bwk", "2024-03-10",
+             "idv-ko", "2024-06-28", "Freigegeben", "Freigabe nach Nachbesserung.",
+             "it-si", "2024-06-28", "Freigegeben", "Keine sicherheitskritischen Funde.",
              "Freigegeben", "2024-06-28"),
-            ("IDV-2024-002", "Erstfreigabe", "FV-KRE", "2024-07-01",
-             "IDV-KO", "2024-10-02", "Freigegeben", "Berechtigungskonzept umgesetzt.",
-             "IT-SI", "2024-10-02", "Freigegeben", "Zugriffsschutz geprüft.",
+            ("IDV-2024-002", "Erstfreigabe", "fv-kre", "2024-07-01",
+             "idv-ko", "2024-10-02", "Freigegeben", "Berechtigungskonzept umgesetzt.",
+             "it-si", "2024-10-02", "Freigegeben", "Zugriffsschutz geprüft.",
              "Freigegeben", "2024-10-02"),
-            ("IDV-2024-004", "Erstfreigabe", "FV-MEL", "2024-05-01",
-             "IDV-KO", "2024-06-15", "Freigegeben", "Freigabe mit Auflage (Git-Einführung).",
-             "IT-SI", "2024-06-15", "Freigegeben", "DORA-Anforderungen erfüllt.",
+            ("IDV-2024-004", "Erstfreigabe", "fv-mel", "2024-05-01",
+             "idv-ko", "2024-06-15", "Freigegeben", "Freigabe mit Auflage (Git-Einführung).",
+             "it-si", "2024-06-15", "Freigegeben", "DORA-Anforderungen erfüllt.",
              "Freigegeben", "2024-06-15"),
-            ("IDV-2025-002", "Erstfreigabe", "FV-RIS", "2025-11-15",
-             "IDV-KO", "2026-01-22", "Freigegeben", "Zinsrisiko-Modell validiert.",
-             "IT-SI", "2026-01-22", "Freigegeben", "Keine IT-sicherheitsrelevanten Befunde.",
+            ("IDV-2025-002", "Erstfreigabe", "fv-ris", "2025-11-15",
+             "idv-ko", "2026-01-22", "Freigegeben", "Zinsrisiko-Modell validiert.",
+             "it-si", "2026-01-22", "Freigegeben", "Keine IT-sicherheitsrelevanten Befunde.",
              "Freigegeben", "2026-01-22"),
         ],
     )
@@ -2629,7 +2629,6 @@ def apply_scanner_update_status(conn: sqlite3.Connection, payload: dict) -> None
                   FROM idv_files f
                   LEFT JOIN persons p
                          ON LOWER(p.user_id) = LOWER(f.file_owner)
-                         OR LOWER(p.kuerzel) = LOWER(f.file_owner)
                          OR LOWER(p.ad_name) = LOWER(f.file_owner)
                  WHERE f.status = 'active'
                    AND f.bearbeitungsstatus = 'Neu'
