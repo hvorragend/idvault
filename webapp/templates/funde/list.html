@@ -482,7 +482,6 @@ date_to} %}
             <th style="width:32px"></th>
             {{ sort_th('dateiname', 'Dateiname') }}
             {{ sort_th('dir_path', 'Verzeichnis / Pfad') }}
-            {{ sort_th('scan', 'Scan-Lauf') }}
             {{ sort_th('groesse', 'Größe') }}
             {{ sort_th('geaendert', 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert') }}
             {{ sort_th('eigentümer', 'Eigentümer') }}
@@ -510,7 +509,7 @@ date_to} %}
               {% endfor %}
               <input type="checkbox" class="form-check-input dup-master-cb" data-gid="{{ gid }}">
             </td>
-            <td colspan="{{ 10 if match_suggestions_active else 9 }}">
+            <td colspan="{{ 9 if match_suggestions_active else 8 }}">
               <span class="fw-600">
                 <i class="bi bi-copy me-1 text-danger"></i>
                 {{ grp | length }} identische Dateien
@@ -572,7 +571,6 @@ date_to} %}
               {% endif %}
             </td>
 
-            <td class="text-nowrap fs-7">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
             <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
             <td class="text-nowrap">{% if f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>{% else %}–{% endif %}</td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
@@ -621,7 +619,7 @@ date_to} %}
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 11 if match_suggestions_active else 10 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
             </td>
           </tr>
@@ -699,18 +697,6 @@ date_to} %}
               {% else %}
               {{ dir_fallback(f.dir_path) }}
               {% endif %}
-              {% endif %}
-            </td>
-
-            <!-- Scan-Lauf -->
-            <td class="text-nowrap fs-7">
-              {% if f.sr_id %}
-              <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id, filter=filt, sort=sort, order=order) }}"
-                class="text-decoration-none text-muted" title="#{{ f.sr_id }} – Nach diesem Scan-Lauf filtern">
-                {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
-              </a>
-              {% else %}
-              <span class="text-muted">–</span>
               {% endif %}
             </td>
 
@@ -841,7 +827,7 @@ date_to} %}
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 11 if match_suggestions_active else 10 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Dateien gefunden.
             </td>
