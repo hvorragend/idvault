@@ -673,6 +673,59 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-body">
               <div id="inline-abnahme-error" class="alert alert-danger py-2 d-none" role="alert"></div>
+
+              {% if ungeschuetzte_excel %}
+              <div id="inline-zellschutz-section" class="mb-3 d-none">
+                <div class="alert alert-warning small mb-2">
+                  <i class="bi bi-exclamation-triangle me-1"></i>
+                  <strong>Excel-Dateien ohne Zell-/Blattschutz.</strong>
+                  Als Fachverantwortliche:r müssen Sie bewusst bestätigen,
+                  dass die folgenden Dateien trotz fehlendem Schutz abgenommen
+                  werden (MaRisk AT 7.2 / DORA). Eine Begründung ist optional.
+                </div>
+                {% for datei in ungeschuetzte_excel %}
+                <div class="border rounded p-2 mb-2 {% if datei.akzeptiert_am %}bg-light{% endif %}">
+                  <div class="fw-500 small">
+                    <i class="bi bi-file-earmark-excel text-success me-1"></i>{{ datei.file_name }}
+                  </div>
+                  <div class="text-muted fs-7 font-monospace">{{ datei.full_path }}</div>
+                  {% if datei.akzeptiert_am %}
+                  <div class="alert alert-success py-1 px-2 mt-2 mb-0 small">
+                    <i class="bi bi-check-circle-fill me-1"></i>
+                    Bereits akzeptiert
+                    {% if datei.akzeptiert_von %}von <strong>{{ datei.akzeptiert_von }}</strong>{% endif %}
+                    am {{ datei.akzeptiert_am[:10]|datefmt }}.
+                    {% if datei.begruendung %}
+                    <div class="mt-1"><em>Begründung:</em> {{ datei.begruendung }}</div>
+                    {% endif %}
+                  </div>
+                  {% else %}
+                  <div class="form-check mt-2">
+                    <input type="checkbox" class="form-check-input inline-zellschutz-akz"
+                           id="inline_zellschutz_akz_{{ datei.id }}"
+                           name="zellschutz_akz_{{ datei.id }}" value="1">
+                    <label class="form-check-label small" for="inline_zellschutz_akz_{{ datei.id }}">
+                      Ich bestätige bewusst, dass diese Datei ohne Zell-/Blattschutz
+                      abgenommen wird. <span class="text-danger">*</span>
+                    </label>
+                  </div>
+                  <div class="mt-2">
+                    <label class="form-label small text-muted mb-1"
+                           for="inline_zellschutz_begr_{{ datei.id }}">
+                      Begründung <span class="fw-normal">(optional)</span>
+                    </label>
+                    <textarea class="form-control form-control-sm"
+                              id="inline_zellschutz_begr_{{ datei.id }}"
+                              name="zellschutz_begr_{{ datei.id }}"
+                              rows="2"
+                              placeholder="z. B. reine Leseansicht, Zugriff nur durch Fachbereich, …"></textarea>
+                  </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+
               <div class="mb-3">
                 <label class="form-label fw-500">Nachweise / Abnahmeprotokoll <span class="text-muted fw-normal">(optional)</span></label>
                 <textarea name="nachweise_text" class="form-control" rows="4"
@@ -1183,6 +1236,16 @@
     var btn = document.getElementById('inline-abnahme-submit');
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Als Erledigt markieren';
+
+    // Zellschutz-Akzeptanz nur bei Fachlicher Abnahme anzeigen und dann als Pflicht markieren.
+    var zs = document.getElementById('inline-zellschutz-section');
+    if (zs) {
+      var isFachlicheAbnahme = (schrittName === 'Fachliche Abnahme');
+      zs.classList.toggle('d-none', !isFachlicheAbnahme);
+      zs.querySelectorAll('.inline-zellschutz-akz').forEach(function (cb) {
+        cb.required = isFachlicheAbnahme;
+      });
+    }
   });
 
   document.getElementById('inline-abnahme-form').addEventListener('submit', function (e) {
