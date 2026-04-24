@@ -351,8 +351,8 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
             <th>Dateiname</th>
             <th>Typ</th>
             <th>Speicherort</th>
-            <th class="text-nowrap">Geändert</th>
             <th class="text-nowrap">Größe</th>
+            <th class="text-nowrap">Geändert am</th>
             <th>Eigentümer</th>
             <th class="text-center" title="Makros / Formeln / Blattschutz">Eigenschaften</th>
             <th></th>
@@ -406,13 +406,13 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
               {% endif %}
             </td>
 
-            <!-- Geändert (Dateisystem-Änderungsdatum) -->
+            <!-- Größe -->
+            <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes else '–' }}</td>
+
+            <!-- Geändert am (Dateisystem-Änderungsdatum) -->
             <td class="text-nowrap fs-7">
               {% if f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>{% else %}–{% endif %}
             </td>
-
-            <!-- Größe -->
-            <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes else '–' }}</td>
 
             <!-- Eigentümer -->
             <td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
