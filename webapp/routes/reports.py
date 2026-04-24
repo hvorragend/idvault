@@ -3,6 +3,7 @@ import json
 from datetime import date
 from flask import Blueprint, render_template, request
 from . import login_required, get_db
+from .eigenentwicklung import ENTWICKLUNGSART_LABEL
 
 bp = Blueprint("reports", __name__, url_prefix="/berichte")
 
@@ -231,6 +232,8 @@ def _build_chart_data(db) -> dict:
     }
 
     # ── Chart 4: entwicklungsart (regulatorisch) ─────────────────────────
+    # Die DB speichert Keys (klein: "arbeitshilfe", "idv", …). Für die Anzeige
+    # im Chart wird auf die MaRisk/DORA-konforme Schreibweise gemappt.
     rows = db.execute("""
         SELECT COALESCE(NULLIF(entwicklungsart, ''), 'unbekannt') AS art, COUNT(*) AS n
         FROM idv_register
@@ -239,7 +242,7 @@ def _build_chart_data(db) -> dict:
         ORDER BY n DESC
     """).fetchall()
     entwicklungsart_donut = {
-        "labels": [r["art"] for r in rows],
+        "labels": [ENTWICKLUNGSART_LABEL.get(r["art"], r["art"]) for r in rows],
         "values": [r["n"] for r in rows],
     }
 

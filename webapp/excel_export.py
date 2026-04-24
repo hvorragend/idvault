@@ -15,6 +15,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+from .routes.eigenentwicklung import ENTWICKLUNGSART_LABEL
+
 
 # ---------------------------------------------------------------------------
 # Formatierungs-Helfer
@@ -180,7 +182,8 @@ def _sheet_register(wb: Workbook, db: sqlite3.Connection) -> None:
         ws.cell(row=i, column=1,  value=r["idv_id"])
         ws.cell(row=i, column=2,  value=r["bezeichnung"])
         ws.cell(row=i, column=3,  value=r["status"])
-        ws.cell(row=i, column=4,  value=r["entwicklungsart"])
+        ws.cell(row=i, column=4,  value=ENTWICKLUNGSART_LABEL.get(
+            r["entwicklungsart"], r["entwicklungsart"]))
         ws.cell(row=i, column=5,  value=r["idv_typ"])
         ws.cell(row=i, column=6,  value="Ja" if r["wesentlich"] else "")
         ws.cell(row=i, column=7,  value=r["oe"])
