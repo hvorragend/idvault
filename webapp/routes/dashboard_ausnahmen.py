@@ -27,7 +27,7 @@ def _koordinator_required(f):
         if not session.get("user_id"):
             return redirect(url_for("auth.login"))
         if session.get("user_role") not in (ROLE_ADMIN, ROLE_KOORDINATOR):
-            flash("Das Ausnahmen-Dashboard ist nur fuer den IDV-Koordinator.",
+            flash("Die Triage-Ansicht ist nur für den IDV-Koordinator.",
                   "error")
             return redirect(url_for("dashboard.index"))
         return f(*args, **kwargs)
@@ -237,8 +237,8 @@ def index():
             "icon":  "bi-bullseye",
             "tone":  "primary",
             "label": "Mittlere Konfidenz-Treffer",
-            "hint":  "Auto-Match-Vorschlaege, die der Owner per Self-Service "
-                     "bestaetigen oder ablehnen muss.",
+            "hint":  "Auto-Match-Vorschläge, die der Owner per Self-Service "
+                     "bestätigen oder ablehnen muss.",
             "rows":  [dict(r) for r in _mittlere_konfidenz(db)],
         },
         {
@@ -247,7 +247,7 @@ def index():
             "tone":  "warning",
             "label": "Owner-Mapping fehlt",
             "hint":  "Scanner-Dateien mit ``file_owner``, der nicht in der "
-                     "Personen-Tabelle aufloesbar ist.",
+                     "Personen-Tabelle auflösbar ist.",
             "rows":  [dict(r) for r in _owner_mapping_fehlt(db)],
         },
         {
@@ -271,8 +271,8 @@ def index():
             "key":   "eskalierte_idvs",
             "icon":  "bi-fire",
             "tone":  "danger",
-            "label": "Eskalierte IDVs (≥ 4 Erinnerungen, < 100 % vollstaendig)",
-            "hint":  "Vollstaendigkeits-Score < 100 % nach 4 oder mehr "
+            "label": "Eskalierte IDVs (≥ 4 Erinnerungen, < 100 % vollständig)",
+            "hint":  "Vollständigkeits-Score < 100 % nach 4 oder mehr "
                      "Reminder-Mails (vgl. Issue #348).",
             "rows":  [dict(r) for r in _eskalierte_idvs(db)],
         },
@@ -281,7 +281,7 @@ def index():
             "icon":  "bi-people",
             "tone":  "warning",
             "label": "Pool-Reminder ausgelaufen",
-            "hint":  "Pool-Schritt offen laenger als "
+            "hint":  "Pool-Schritt offen länger als "
                      "``notify_pool_reminder_max_days`` (Default 14 Tage).",
             "rows":  [dict(r) for r in _pool_reminder_ausgelaufen(db)],
         },
@@ -330,13 +330,13 @@ def eigentuemer_zuordnen():
     person_id_raw = (request.form.get("person_id") or "").strip()
 
     if not file_owner or not person_id_raw:
-        flash("Zuordnung fehlgeschlagen: unvollstaendige Eingabe.", "error")
+        flash("Zuordnung fehlgeschlagen: unvollständige Eingabe.", "error")
         return redirect(url_for("dashboard_ausnahmen.index"))
 
     try:
         person_id = int(person_id_raw)
     except ValueError:
-        flash("Zuordnung fehlgeschlagen: ungueltige Person-ID.", "error")
+        flash("Zuordnung fehlgeschlagen: ungültige Person-ID.", "error")
         return redirect(url_for("dashboard_ausnahmen.index"))
 
     db = get_db()
