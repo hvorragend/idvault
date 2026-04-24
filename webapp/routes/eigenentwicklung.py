@@ -1836,7 +1836,24 @@ def link_files_search(idv_db_id):
 @bp.route("/<int:idv_db_id>/neue-version", methods=["POST"])
 @own_write_required
 def neue_version(idv_db_id):
-    """Erstellt eine neue Version einer Eigenentwicklung (Nachfolger-Dokument)."""
+    """Erstellt eine neue Version einer Eigenentwicklung (Nachfolger-Dokument).
+
+    Bei ``aenderungsart == 'unwesentlich'`` kann optional eine neue Dateiversion
+    hochgeladen werden. Diese wird – analog zu Phase 3 des Freigabeverfahrens –
+    revisionssicher im Archiv-Ordner abgelegt (SHA-256, schreibgeschützt) und
+    als Hauptdatei (``file_id``) der neuen Version verknüpft. Ohne diesen Pfad
+    würde bei unwesentlichen Änderungen überhaupt keine Dateifassung revisions-
+    sicher gesichert, weil das Freigabeverfahren (inkl. Phase 3) übersprungen
+    wird (vgl. ``freigaben._testverfahren_erforderlich``).
+    """
+    import hashlib
+    import tempfile
+    from datetime import datetime, timezone
+    from flask import current_app
+    from werkzeug.utils import secure_filename
+
+    _MAX_ARCHIV_UPLOAD = 256 * 1024 * 1024  # identisch zu freigaben._MAX_ARCHIV_UPLOAD
+
     db  = get_db()
     ensure_can_write_idv(db, idv_db_id)
     src = db.execute("SELECT * FROM idv_register WHERE id = ?", (idv_db_id,)).fetchone()
@@ -1857,6 +1874,69 @@ def neue_version(idv_db_id):
     # Änderungsart aus Formular
     aenderungsart      = request.form.get("aenderungsart", "").strip() or None
     aenderungsbegruendung = request.form.get("aenderungsbegruendung", "").strip() or None
+
+    # Optionaler Datei-Upload für unwesentliche Änderungen: streamen in eine
+    # Temp-Datei (damit die 256-MB-Grenze greift, bevor irgendetwas in der DB
+    # landet) und SHA-256 on-the-fly berechnen. Das endgültige Verschieben in
+    # den Archiv-Ordner passiert unten, sobald ``new_id`` bekannt ist.
+    archiv_meta = None
+    if aenderungsart == "unwesentlich":
+        upload_file = request.files.get("archiv_datei")
+        if upload_file and upload_file.filename:
+            original_name = upload_file.filename
+            try:
+                upload_file.stream.seek(0)
+            except Exception:
+                pass
+            tmp_fd, tmp_path = tempfile.mkstemp(prefix="idv_nv_", suffix=".bin")
+            h = hashlib.sha256()
+            total = 0
+            try:
+                with os.fdopen(tmp_fd, "wb") as out:
+                    while True:
+                        chunk = upload_file.stream.read(65536)
+                        if not chunk:
+                            break
+                        total += len(chunk)
+                        if total > _MAX_ARCHIV_UPLOAD:
+                            out.close()
+                            try: os.remove(tmp_path)
+                            except OSError: pass
+                            flash(
+                                "Archiv-Upload abgelehnt: Datei ist größer als "
+                                f"{_MAX_ARCHIV_UPLOAD // (1024 * 1024)} MB.",
+                                "error",
+                            )
+                            return redirect(
+                                url_for("eigenentwicklung.detail_idv",
+                                        idv_db_id=idv_db_id))
+                        out.write(chunk)
+                        h.update(chunk)
+            except OSError as exc:
+                try: os.remove(tmp_path)
+                except OSError: pass
+                current_app.logger.warning(
+                    "Archiv-Upload (Neue Version, IDV %s) fehlgeschlagen: %s",
+                    idv_db_id, exc,
+                )
+                flash("Archiv-Upload fehlgeschlagen (Dateisystem-Fehler).", "error")
+                return redirect(url_for("eigenentwicklung.detail_idv",
+                                        idv_db_id=idv_db_id))
+            safe_name = secure_filename(original_name) or "original.bin"
+            timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_")
+            ext = original_name.rsplit(".", 1)[1].lower() if "." in original_name else ""
+            archiv_meta = {
+                "tmp_path": tmp_path,
+                "save_name": timestamp_str + safe_name,
+                "name": original_name,
+                "sha256": h.hexdigest(),
+                "size": total,
+                "ext": ext,
+            }
+
+    # Archiv-Basisordner vorab auflösen – ``current_app.instance_path`` darf
+    # nur im Request-Thread angefasst werden, nicht aus dem Writer-Thread.
+    archiv_base_dir = os.path.join(current_app.instance_path, "uploads", "archiv")
 
     # Daten aus Quell-IDV kopieren
     data = dict(src)
@@ -1910,13 +1990,56 @@ def neue_version(idv_db_id):
                  f"Nachfolger {new_idv_row['idv_id']} (v{new_version}) angelegt{aenderung_info}",
                  person_id, user_name or None),
             )
+
+            if archiv_meta is not None:
+                archiv_folder = os.path.join(archiv_base_dir, str(new_id))
+                os.makedirs(archiv_folder, exist_ok=True)
+                archiv_dest = os.path.join(archiv_folder, archiv_meta["save_name"])
+                os.rename(archiv_meta["tmp_path"], archiv_dest)
+                try:
+                    os.chmod(archiv_dest, 0o444)
+                except OSError:
+                    pass
+                now_iso = datetime.now(timezone.utc).isoformat()
+                cur = c.execute(
+                    "INSERT INTO idv_files ("
+                    "  file_hash, full_path, file_name, extension, size_bytes, "
+                    "  source, status, bearbeitungsstatus, "
+                    "  first_seen_at, last_seen_at"
+                    ") VALUES (?, ?, ?, ?, ?, 'filesystem', 'active', 'Registriert', ?, ?)",
+                    (archiv_meta["sha256"], archiv_dest, archiv_meta["name"],
+                     archiv_meta["ext"], archiv_meta["size"], now_iso, now_iso),
+                )
+                new_file_id = cur.lastrowid
+                c.execute(
+                    "UPDATE idv_register SET file_id=? WHERE id=?",
+                    (new_file_id, new_id),
+                )
+                c.execute(
+                    "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
+                    (new_id, "archivierung_unwesentliche_aenderung",
+                     f"Dateiversion '{archiv_meta['name']}' revisionssicher "
+                     f"archiviert (SHA-256: {archiv_meta['sha256']})",
+                     person_id, user_name or None),
+                )
         return new_id
 
     try:
         new_id = get_writer().submit(_do, wait=True)
-        flash(f"Neue Version {new_version} angelegt.", "success")
+        if archiv_meta is not None:
+            flash(
+                f"Neue Version {new_version} angelegt; Dateiversion archiviert "
+                f"(SHA-256: {archiv_meta['sha256'][:12]}…).",
+                "success",
+            )
+        else:
+            flash(f"Neue Version {new_version} angelegt.", "success")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=new_id))
     except Exception as e:
+        # Temp-Datei aufräumen, falls _do vor dem rename fehlgeschlagen ist.
+        if archiv_meta is not None:
+            try: os.remove(archiv_meta["tmp_path"])
+            except OSError: pass
         flash(f"Fehler beim Anlegen der neuen Version: {e}", "error")
         return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
