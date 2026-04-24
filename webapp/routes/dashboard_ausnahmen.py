@@ -9,10 +9,13 @@ Sichtbar fuer ROLE_ADMIN und ROLE_KOORDINATOR. Per Helper
 """
 from __future__ import annotations
 
-from flask import Blueprint, render_template, redirect, url_for, flash, session
+from flask import Blueprint, render_template, redirect, request, url_for, flash, session
 from functools import wraps
 
 from . import login_required, get_db, ROLE_ADMIN, ROLE_KOORDINATOR
+from ..db_writer import get_writer
+
+from db_write_tx import write_tx
 
 
 bp = Blueprint("dashboard_ausnahmen", __name__, url_prefix="/dashboard")
@@ -284,5 +287,75 @@ def index():
         },
     ]
     total = sum(len(s["rows"]) for s in sections)
+
+    persons_aktiv = []
+    has_owner_fehlt = any(
+        s["key"] == "owner_fehlt" and s["rows"] for s in sections
+    )
+    if has_owner_fehlt:
+        persons_aktiv = [dict(r) for r in db.execute("""
+            SELECT id, nachname, vorname, kuerzel, ad_name, user_id
+              FROM persons
+             WHERE aktiv = 1
+             ORDER BY nachname, vorname
+        """).fetchall()]
+
     return render_template("dashboard_ausnahmen.html",
-                           sections=sections, total=total)
+                           sections=sections, total=total,
+                           persons_aktiv=persons_aktiv)
+
+
+_OWNER_FELD_MAP = {
+    "ad_name": "ad_name",
+    "user_id": "user_id",
+    "kuerzel": "kuerzel",
+}
+
+
+@bp.route("/ausnahmen/eigentuemer-zuordnen", methods=["POST"])
+@login_required
+@_koordinator_required
+def eigentuemer_zuordnen():
+    """Traegt den vom Scanner gemeldeten ``file_owner``-Wert in das
+    gewaehlte Feld einer bestehenden aktiven Person ein, damit der
+    Owner-Mapping-Fehlt-Eintrag beim naechsten Render verschwindet.
+    """
+    file_owner = (request.form.get("file_owner") or "").strip()
+    person_id_raw = (request.form.get("person_id") or "").strip()
+    feld = (request.form.get("feld") or "").strip()
+
+    if not file_owner or not person_id_raw or feld not in _OWNER_FELD_MAP:
+        flash("Zuordnung fehlgeschlagen: unvollstaendige Eingabe.", "error")
+        return redirect(url_for("dashboard_ausnahmen.index"))
+
+    try:
+        person_id = int(person_id_raw)
+    except ValueError:
+        flash("Zuordnung fehlgeschlagen: ungueltige Person-ID.", "error")
+        return redirect(url_for("dashboard_ausnahmen.index"))
+
+    db = get_db()
+    person = db.execute(
+        "SELECT id, nachname, vorname FROM persons WHERE id=? AND aktiv=1",
+        (person_id,),
+    ).fetchone()
+    if not person:
+        flash("Zuordnung fehlgeschlagen: Person nicht gefunden oder inaktiv.", "error")
+        return redirect(url_for("dashboard_ausnahmen.index"))
+
+    col = _OWNER_FELD_MAP[feld]
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                f"UPDATE persons SET {col}=? WHERE id=?",
+                (file_owner, person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
+    flash(
+        f"{person['nachname']}, {person['vorname']}: "
+        f"{col} = {file_owner} gesetzt.",
+        "success",
+    )
+    return redirect(url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt")

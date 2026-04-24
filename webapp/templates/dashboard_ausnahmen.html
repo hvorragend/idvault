@@ -59,10 +59,86 @@
             <td class="small text-muted text-truncate" style="max-width:280px" title="{{ r.full_path }}">{{ r.full_path }}</td>
             <td><code>{{ r.file_owner }}</code></td>
             <td class="text-end pe-3">
-              <a href="{{ url_for('admin.mitarbeiter') }}"
-                 class="btn btn-sm btn-outline-warning">Owner zuordnen</a>
+              <button type="button" class="btn btn-sm btn-outline-warning"
+                      data-bs-toggle="modal"
+                      data-bs-target="#ownerModal{{ r.file_id }}">Eigentümer zuordnen</button>
             </td>
           </tr>
+
+          <tr class="d-none"><td colspan="4" class="p-0">
+          <div class="modal fade" id="ownerModal{{ r.file_id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <form method="post"
+                      action="{{ url_for('dashboard_ausnahmen.eigentuemer_zuordnen') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="file_owner" value="{{ r.file_owner }}">
+                  <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-check me-2"></i>Eigentümer zuordnen</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Abbrechen"></button>
+                  </div>
+                  <div class="modal-body">
+                    <p class="small text-muted mb-3">
+                      Scanner meldet den Datei-Eigentümer
+                      <code>{{ r.file_owner }}</code>,
+                      der in den Stammdaten nicht aufgelöst werden kann. Wähle
+                      die passende Person und das Feld, in das dieser Wert
+                      eingetragen werden soll.
+                    </p>
+                    <div class="mb-3">
+                      <label class="form-label fw-600">Person</label>
+                      <select name="person_id" class="form-select" required>
+                        <option value="" disabled selected>— Person wählen —</option>
+                        {% for p in persons_aktiv %}
+                        <option value="{{ p.id }}">
+                          {{ p.nachname }}, {{ p.vorname }}{% if p.kuerzel %} ({{ p.kuerzel }}){% endif %}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="mb-1">
+                      <label class="form-label fw-600">Feld setzen</label>
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio"
+                               name="feld" value="ad_name"
+                               id="ownerFeldAd{{ r.file_id }}"
+                               {% if '\\' in r.file_owner %}checked{% endif %}>
+                        <label class="form-check-label" for="ownerFeldAd{{ r.file_id }}">
+                          <code>ad_name</code>
+                          <span class="small text-muted">— Windows-/AD-Konto (z. B. <code>DOMAIN\\user</code>)</span>
+                        </label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio"
+                               name="feld" value="user_id"
+                               id="ownerFeldUser{{ r.file_id }}"
+                               {% if '\\' not in r.file_owner and '@' in r.file_owner %}checked{% endif %}>
+                        <label class="form-check-label" for="ownerFeldUser{{ r.file_id }}">
+                          <code>user_id</code>
+                          <span class="small text-muted">— Login/UPN</span>
+                        </label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio"
+                               name="feld" value="kuerzel"
+                               id="ownerFeldKuerzel{{ r.file_id }}"
+                               {% if '\\' not in r.file_owner and '@' not in r.file_owner %}checked{% endif %}>
+                        <label class="form-check-label" for="ownerFeldKuerzel{{ r.file_id }}">
+                          <code>kuerzel</code>
+                          <span class="small text-muted">— Personalkürzel</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-warning">Zuordnen</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          </td></tr>
           {% endfor %}
 
         {% elif s.key == 'self_service_stumm' %}
