@@ -383,9 +383,13 @@ def list_funde():
         zur_registrierung = db.execute(
             "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Zur Registrierung'"
         ).fetchone()[0]
+        neu_gesamt = db.execute(
+            "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Neu'"
+        ).fetchone()[0]
     except Exception:
         ignoriert = 0
         zur_registrierung = 0
+        neu_gesamt = 0
 
     try:
         duplikate_anzahl = db.execute("""
@@ -470,6 +474,7 @@ def list_funde():
         ohne_idv=ohne_idv, mit_makro=mit_makro,
         mit_schutz=mit_schutz, ohne_schutz=ohne_schutz, archiviert=archiviert,
         ignoriert=ignoriert, zur_registrierung=zur_registrierung,
+        neu_gesamt=neu_gesamt,
         duplikate_anzahl=duplikate_anzahl,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         share_roots=share_roots,
