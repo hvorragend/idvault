@@ -20,7 +20,7 @@ aufsichtsrechtlich konformen Erfassung, Klassifizierung, Prüfung und
 
 - **Scanner** identifiziert Kandidaten für Eigenentwicklungen auf Netzlaufwerken und in Microsoft Teams
 - **Register der Eigenentwicklungen** dokumentiert Wesentlichkeit, Risiko, DORA-Kritikalität, Verantwortliche
-- **Workflow** bildet Entwurf → Prüfung → Genehmigung → Archiv ab (inklusive 4-Augen-Prinzip)
+- **Workflow** bildet Entwurf → Prüfung → Freigabe → Archiv ab (inklusive 4-Augen-Prinzip und Funktionstrennung)
 - **Prüfungen & Maßnahmen** verfolgen Regelprüfungen und deren Befunde
 - **Test-, Freigabe- und Archivierungsverfahren** mit 5 Schritten in 3 Phasen für wesentliche Eigenentwicklungen (inkl. revisionssicherer Archivierung der Originaldatei mit SHA-256-Prüfsumme; dokumentierte Nicht-Verfügbarkeit z.B. bei Cognos-Berichten)
 - **LDAP-Integration** gegen Active Directory mit Gruppen-Rollen-Mapping
@@ -30,6 +30,280 @@ aufsichtsrechtlich konformen Erfassung, Klassifizierung, Prüfung und
 Die Anwendung benötigt keine zusätzliche Serverinfrastruktur und kann als
 einzelne ausführbare Datei (`idvault.exe`) betrieben werden – direkt oder
 als nativer Windows-Dienst (`idvault.exe install`).
+
+## Feature-Überblick
+
+### Scanner für Eigenentwicklungen
+
+- **Netzlaufwerk- und Teams/SharePoint-Scanner** mit konfigurierbaren
+  Include-/Exclude-Pfaden, Whitelist/Blacklist für Ordner und Dateinamen
+  sowie erweiterten Standardmustern (Temp-Dateien, Backups, System-Ordner).
+- **Teams/SharePoint-Scanner** auf Basis von **Microsoft Graph** mit
+  **Delta-Token-basiertem Inkrementalscan** — nur geänderte Dateien werden
+  beim nächsten Lauf neu gelesen.
+- **OOXML-Tiefenanalyse** beim Scan: erkennt VBA-Makros, externe
+  Verknüpfungen und zählt Formelzellen pro Arbeitsmappe. Liefert damit
+  die Basis für die Priorisierung „Makros zuerst" und für den Report
+  Excel ohne Zell-/Blattschutz. Cognos-XML-Berichte werden strukturiert
+  ausgewertet.
+- **UNC-zu-Laufwerksbuchstaben-Mapping** — Findings werden mit dem im
+  Fachbereich üblichen Pfad angezeigt, nicht mit dem UNC-Pfad des
+  Service-Users.
+- **Scanner als technischer AD-Benutzer**, sodass auch Laufwerke
+  gescannt werden, auf die der Anwendungs-Service keinen Zugriff hat.
+  Anmeldung läuft über `WNetAddConnection2` (ohne EXE-Neubau sidecar-fähig).
+- **Lange Windows-Pfade (> MAX_PATH)** werden unterstützt.
+- **Robuste Scan-Läufe**: Pause / Fortsetzen / Abbrechen über Signal-
+  Dateien, **Checkpoint-basierter Resume** nach Absturz oder Neustart,
+  **Keep-Awake** verhindert Standby während langer Scans, dedizierte
+  Scan-Logs und Fehler-Diagnose bei nicht erreichbaren UNC-Pfaden.
+- **Geplante Scans** (Cron-ähnlicher Zeitplan), manueller Scan-Start
+  aus der Topbar, Live-Scan-Log im Admin-Bereich.
+- **Automatische Klassifizierung** gescannter Dateien nach
+  Dateinamen-Präfix/-Suffix oder Regex — konfigurierbar pro
+  Organisationseinheit (OE-Scope).
+- **Drei Auto-Link-Pfade für Funde**:
+  1. Konfidenz-Staffel über Ähnlichkeitsanalyse (konfigurierbar),
+  2. SHA-256-Hash-Dubletten als automatischer Zusatz-Link,
+  3. Versions-Serien-Fingerprint (z.B. „Meldung_2024Q1.xlsx" / „Meldung_2024Q2.xlsx").
+- **Match-Vorschläge** unterhalb der Schwelle werden dem Owner
+  vorgelegt und können einzeln bestätigt oder abgelehnt werden;
+  eine bestätigte Zuordnung zählt in die Auto-Match-Statistik.
+- **Funde-Filter**: „Ohne IDV", „Mit Makros", „Duplikate", „Ignoriert",
+  „Archiv", „Mit/Ohne Zellschutz" — kombinierbar mit Scan-Lauf
+  und Share-Root.
+- **Bulk-Operationen**: Mehrfach-Zuordnung, Bulk-Löschen für Admins,
+  Mehrfach-Ignorieren, sortierbare Prioritätsliste.
+- **Pfad-Profile** mit Admin-CRUD-UI bilden typische Ablagepfade
+  (z. B. `\\server\controlling\Risiko`) auf Verantwortliche und OE ab
+  und füllen Masken vor.
+
+### Self-Service für Fachbereiche
+
+- **Schlankere IDV-Anlage**: Pflichtfelder konzentriert im Entwurf,
+  **Vollständigkeits-Gauge** zeigt Fortschritt vor Einreichung.
+- **Self-Service-Bulk-Registrierung**: Mehrere Funde in einem Schritt
+  zu Eigenentwicklungen machen.
+- **Anonyme Quick-Action-Links (Magic-Link)** für alle Freigabe-Schritte
+  — keine Anmeldung nötig, wenn die Aufgabe an einen externen
+  Fachverantwortlichen gegeben wird.
+- **Dreistufige Eskalations-Automatik** bei Self-Service-Links
+  (Erinnerung → Eskalation an Vertreter → Eskalation an IDV-Koordinator).
+- **Owner-Mail-Digest**: Neue Scanner-Funde werden dem voraussichtlichen
+  Owner in einer Sammelmail zugestellt, mit Sofort-Schwelle für
+  risikorelevante Funde.
+- **Pool-Claim**: Mehrere Freigabe-Verantwortliche teilen sich einen
+  Pool, erhalten eine Benachrichtigung und einen täglichen Reminder.
+
+### IDV-Register
+
+- **Dynamische Wesentlichkeitskriterien** mit Detail-Checkboxen —
+  Kriterienkatalog konfigurierbar, nicht hart im Code verdrahtet.
+- **Konfigurierbare Klassifizierungs-Regeln** mit Prefix-, Suffix-
+  und Regex-Matching pro Organisationseinheit.
+- **Versionierung**: Jede Änderung erzeugt eine neue Version,
+  Freigabe-Einstufung wird nicht ungeprüft übernommen.
+- **IDV-Abhängigkeiten** (Vorgänger/Nachfolger, Quell-/Ziel-IDV)
+  dokumentieren, welche Eigenentwicklung auf welcher anderen aufbaut.
+- **Mehrere Datei-Verknüpfungen pro IDV** (1:n) — eine Eigenentwicklung
+  kann gleichzeitig mehrere physische Dateien umfassen, inkl. Suche
+  und Verknüpfungs-Workflow im Detail.
+- **Globale Schnellsuche** über die Topbar (`/api/quick-search`,
+  Live-Autocomplete nach Bezeichnung, IDV-ID oder OE).
+- **Autosave-Entwurf** (`idv_draft`): Formulareingaben werden
+  benutzerspezifisch laufend gespeichert und beim Wiedereinstieg
+  zurückgeholt.
+- **Smart-Default-Inferenz** (`/api/infer`): Bei Auswahl eines IDV-Typs
+  werden Entwicklungsart und Prüfintervall vorgeschlagen, ohne
+  bereits gesetzte Felder zu überschreiben.
+- **Datenschutz-Kategorisierung** auf IDV-Ebene (personenbezogene Daten,
+  Kategorien, Datenschutzbestimmungen eingehalten).
+- **Geschäftsprozess- und OE-Zuordnung** mit durchsuchbarer Combobox.
+- **Datei-Metadaten** (Hash, Änderungsdatum, Besitzer, Größe)
+  werden aus dem Scanner-Fund übernommen.
+
+### Test-, Freigabe- und Archivierungsverfahren (3 Phasen)
+
+- **Phase 1 – Fachliche Konzeption & Test**: Testfälle aus einer
+  konfigurierbaren **Testfall-Vorlagen-Bibliothek** (OE- und
+  klassifikationsbezogen), darunter regulatorisch konforme
+  Standard-Vorlagen für Excel und Cognos.
+- **Phase 2 – Technischer Test & Freigabe**: Technischer Tester
+  erhält Scanner-Metadaten als Prefill, **Prüfzeugnis der technischen
+  Abnahme** wird automatisch erzeugt. Bewusste Akzeptanz
+  „kein Zell-/Blattschutz" mit Begründung möglich, inkl. Report
+  für Excel-Dateien ohne Zell-/Blattschutz.
+- **Phase 3 – Ein-Klick-Archivierung**: Originaldatei wird
+  revisionssicher eingefroren, SHA-256-Abgleich gegen die getestete
+  Version verhindert nachträgliche Manipulation.
+- **Verschlankter Patch-Workflow** für kleinere Versionsänderungen.
+- **Stille Freigabe** für nicht-wesentliche Eigenentwicklungen
+  (automatischer Statuswechsel ohne separate Genehmigung).
+- **Funktionstrennung (SoD)**: Entwickler einer IDV ist von
+  Abschluss-/Ablehnungshandlungen im Freigabeverfahren ausgeschlossen,
+  Test-Formular-Pfad ist gegen SoD-Umgehung abgesichert.
+- **Stellvertreter-Workflow**: Pro Person sind allgemeiner
+  Stellvertreter und Abwesenheitszeitraum (`abwesend_bis`)
+  pflegbar. Während der Abwesenheit darf der Stellvertreter
+  automatisch alle Freigabe-Schritte der vertretenen Person
+  bearbeiten — zusätzlich zum festen IDV-Stellvertreter auf
+  Register-Ebene.
+- **Admin-Rekonstruktion**: Admins können bereits abgeschlossene
+  Freigabe-Schritte nachträglich wieder öffnen (z. B. für
+  Korrekturen nach externer Revision).
+
+### Ergonomie & Benutzererlebnis
+
+- **Tastatur-Shortcuts** in allen Formularen:
+  `Strg + S` speichert, `Strg + ⇧ + S` speichert und schließt
+  zurück zur Liste, `Strg + K` öffnet die globale Schnellsuche,
+  `ESC` verlässt das Formular.
+- **WYSIWYG-Rich-Text** (QuillJS) für Nachweis- und Langtextfelder
+  mit Bleach-Sanitizing beim Speichern und HTML/Text-Modus-Toggle
+  bei E-Mail-Vorlagen.
+- **Safe-URL-Helper**: Fehlt ein optionaler Blueprint
+  (z. B. Cognos, wenn die Bank ihn nicht aktiviert), werden die
+  zugehörigen Menüpunkte automatisch ausgeblendet, statt einen
+  BuildError zu werfen — erlaubt modulare Deployments.
+
+### Dashboard, Berichte & Reporting
+
+- **Prozesskennzahl-Kacheln** mit Sparklines und wählbarem
+  Zeitfenster (30 / 90 Tage):
+  - Durchlaufzeit Scan → Registrierung (Median + P95),
+  - Selbstbearbeitungsquote (Anteil Self-Service-Registrierungen),
+  - Pool-Claim ≤ 24 h,
+  - Auto-Match-Anteil,
+  - Quote stille Freigabe,
+  - Owner-Digest-Reaktionsrate.
+  Alle Werte sind via Excel-Export für das Aufsichts-Reporting verfügbar.
+- **Ausnahmen-Dashboard** für den IDV-Koordinator: zeigt abgelaufene
+  Freigaben, fehlende Prüfzeugnisse, nicht-zugeordnete Funde,
+  Eskalationen.
+- **Berichte & Auswertungen** mit ApexCharts-Visualisierung
+  (Donut- und Stacked-Bar-Diagramme für Statusverteilung, Entwicklung
+  über die letzten Monate) und Tab-Navigation nach
+  **Organisationseinheit**, **Fachverantwortlichem** und
+  **Scan-Verzeichnis / Teilscan**.
+- **Excel-Export** aller Register-, Prüfungs- und Auswertungsdaten.
+
+### Cognos / agree21Analysen-Integration
+
+- **Import der Berichtsübersicht** (TSV/CSV/XLSX) mit automatischem
+  Mapping der Spaltenköpfe (Umfeld, Bank-ID, Bericht, Ordner, …).
+- **„Als IDV registrieren"** direkt aus der Berichtsliste
+  (Einzel- oder Bulk-Aktion).
+- **Zusammenfassen** mehrerer Cognos-Berichte zu einer einzelnen
+  Eigenentwicklung.
+- **Ignorieren / Reaktivieren** irrelevanter Berichte.
+
+### Prüfungen & Maßnahmen
+
+- **Regelprüfungen** dokumentieren den Prüfzyklus einer IDV
+  (letzte Prüfung, nächste Prüfung, Prüfungsergebnis, Befunde).
+- **Maßnahmen** werden aus Befunden abgeleitet, Zuständigen
+  zugewiesen und bis zur Erledigung nachverfolgt.
+- **Nachweis-Upload** (Rich-Text + Dateianhang) für fachlichen
+  und technischen Test, Path-Traversal- und Ownership-sicher
+  ausgeliefert.
+- **IDV-Historie** (`idv_history`) hält jede Statusänderung
+  und jedes geänderte Feld mit Benutzer, Zeitstempel und Kommentar fest.
+
+### Benachrichtigungen & Fristenüberwachung
+
+- **Notification-Scheduler** läuft als Daemon-Thread in der
+  Anwendung und verschickt einmal täglich zur konfigurierten Uhrzeit
+  (`notify_schedule_time`) die fälligen Benachrichtigungen.
+- **10 konfigurierbare E-Mail-Vorlagen** (Betreff + HTML-Body) mit
+  Platzhaltern, einzeln im Admin pro Template aktivierbar:
+  Neue Datei, Prüfung fällig, Freigabe-Schritt offen, Freigabe
+  abgeschlossen, Bewertungsanforderung an Datei-Ersteller,
+  überfällige Maßnahme, Pool-Reminder, Owner-Digest,
+  Self-Service-Eskalation, Reminder für unvollständige IDVs.
+- **Anti-Spam-Dedup**: gleiche `(kind, ref_id)`-Kombination wird
+  innerhalb eines 7-Tage-Fensters nur einmal verschickt
+  (`notification_log`).
+- **Sofort-Schwelle** für Owner-Digests:
+  `owner_digest_burst_threshold` (Default 25 Funde) löst die
+  Sammelbenachrichtigung auch außerhalb des Regelintervalls aus.
+- **Dreistufige Self-Service-Eskalation**: Reminder → OE-Leitung →
+  IDV-Koordinator, Schwellen (7 / 14 / 21 Tage) konfigurierbar.
+- **Reminder-Cap** (max. 4 Erinnerungen) für unvollständige
+  IDVs, um Mail-Flut zu vermeiden.
+- **Bewertungsanforderung** an den Datei-Ersteller (batched),
+  direkt aus der Funde-Liste auslösbar.
+- **SMTP-Versandlog** mit Empfängern, Betreff und Erfolgsstatus;
+  `logrotate.conf` für den Login-Log wird mitgeliefert.
+
+### Stammdatenverwaltung
+
+- **CRUD-UIs** für Personen, Organisationseinheiten, Geschäftsprozesse,
+  Plattformen, Klassifizierungen, Wesentlichkeitskriterien,
+  Pfad-Profile, Testfall-Vorlagen, Freigabe-Pools.
+- **Schutzbedarf-Kategorien A/C/I/N** (Authentizität,
+  Vertraulichkeit, Integrität, Nicht-Abstreitbarkeit) pro
+  Geschäftsprozess pflegbar — fließt in die Risiko-Einschätzung
+  der zugeordneten Eigenentwicklungen ein.
+- **CSV-Import** für Mitarbeiter und Geschäftsprozesse inkl.
+  herunterladbarer Import-Vorlage.
+- **Bulk-Aktionen** für Personen und Geschäftsprozesse
+  (Aktivieren, Deaktivieren, Rolle setzen, Löschen).
+- **Konfigurierbares Glossar** mit Admin-UI: Abgrenzung
+  Anwendungsentwicklung / Eigenprogrammierung / Auftragsprogrammierung /
+  IDV / Arbeitshilfe, direkt in der Anwendung pflegbar.
+
+### Administration & Betrieb
+
+- **Lokale Benutzer in `config.json`** oder LDAP (Active Directory)
+  mit Gruppen-Rollen-Mapping inkl. LDAP-Testverbindung und
+  LDAP-Benutzer-Import. Lokaler Notfall-Admin bleibt auch bei
+  LDAP-Ausfall möglich.
+- **SMTP** mit drei Verbindungsmodi (STARTTLS / SSL / kein TLS),
+  Testversand aus der Admin-UI, vollständiges Versandlog,
+  Passwort Fernet-verschlüsselt in der DB.
+- **HTTPS** optional per `IDV_HTTPS=1`, mit automatisch
+  erzeugtem, selbstsigniertem Zertifikat beim ersten Start —
+  oder eigenes Zertifikat via `IDV_SSL_CERT` / `IDV_SSL_KEY`.
+  Produktiv empfohlen ist der Betrieb hinter einem Reverse-Proxy.
+- **Natives Windows-Dienst-Framework** (pywin32 ServiceFramework)
+  mit automatischem Dienstneustart nach Update, EnumServicesStatusEx-
+  basierter Dienst-Erkennung und erweiterten Start-Diagnosen.
+- **Prozess-Lock** (`idv.lock`) verhindert, dass zwei
+  App-Instanzen gleichzeitig auf dieselbe SQLite-Datenbank
+  schreiben und den Scheduler doppelt starten; tote PIDs
+  werden als Stale-Lock erkannt und überschrieben.
+- **Datenbank-Views** für die wichtigsten Auswertungen:
+  `v_idv_uebersicht`, `v_kritische_idvs`, `v_offene_massnahmen`,
+  `v_unvollstaendige_idvs`, `v_prueffaelligkeiten` — direkt
+  per SQLite-Client für Ad-hoc-Analysen nutzbar.
+- **Single-Writer-Thread** für SQLite, um `database is locked`-
+  Rennen zwischen Scanner, Web-Requests und Scheduler zu vermeiden.
+- **Update-Workflow** per signiertem Sidecar-ZIP mit
+  **Rollback-Funktion** und Update-Log — in regulierten Umgebungen
+  vollständig abschaltbar.
+- **Scanner-Steuerung** aus dem Admin-Bereich: Starten, Pausieren,
+  Fortsetzen, Abbrechen, Bereinigen; Live-Status und konfigurierbarer
+  Scan-User (Run-As mit Test-Verbindung).
+- **Log-Viewer** in der Web-UI: Anwendungslog, Scan-Log,
+  Crash-Log, Login-Log, Update-Log, Mail-Versandlog — mit Suche
+  und Filter.
+- **Rate-Limits** für Login, Upload und Scanner konfigurierbar
+  unter `/admin/rate-limits`.
+- **Steuerbare Standardanzeige** („Suche & Filter") und UI-
+  Einstellungen über die Admin-Oberfläche.
+- **Testinstallation** per `IDV_DEMO_DATA=true` (Stammdaten,
+  Beispiel-Personen, Beispiel-IDVs, Prüfungen und Maßnahmen).
+
+### UX / Frontend
+
+- Einheitliches Layout mit Breadcrumb-Topbar, Avatar-Chip,
+  Pill-Badges, KPI-Cards und KPI-Shadow für Scan-Seiten.
+- Tailwind-artige Utility-Klassen in einer zentralen `idvault.css`,
+  eckiger Look, dedizierte Druck- und Reduced-Motion-Stylesheets.
+- Kollabierbare Filter, Bulk-Action-Bar, sortierbare Tabellen,
+  Sidebar mit anklickbarem Logo.
+- **Vollständig Offline-fähig**: Bootstrap, Bootstrap Icons und
+  QuillJS werden lokal aus `webapp/static/vendor/` ausgeliefert.
 
 ## Schnellstart
 
