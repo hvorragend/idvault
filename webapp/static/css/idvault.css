@@ -1307,6 +1307,31 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   font-size: 1rem;
 }
 
+/* 36. Nav-Pills (Admin-Subnav etc.) an Slate-Palette angleichen ─────────── */
+/* Bootstrap-Default nutzt .bs-primary (Blau) für aktive Pills. Wir wollen
+   einheitlich Slate-900 wie bei btn-primary. */
+.nav-pills .nav-link {
+  color: var(--slate-700);
+  background: transparent;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.nav-pills .nav-link:hover {
+  color: var(--slate-900);
+  background: var(--slate-100);
+}
+
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link {
+  background-color: var(--slate-900);
+  color: #fff;
+}
+
+.nav-pills .nav-link.active i,
+.nav-pills .show > .nav-link i {
+  color: var(--amber-400);
+}
+
 /* 16. Druck-Stylesheet ────────────────────────────────────────────────────── */
 @media print {
   /* Seitenränder + Basis-Typo */
