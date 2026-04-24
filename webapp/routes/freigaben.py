@@ -209,11 +209,16 @@ _EXCEL_OOXML_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx")
 
 
 def _unprotected_excel_files_for_idv(db, idv_db_id: int) -> list:
-    """Excel-Dateien der IDV ohne Blatt-/Arbeitsmappenschutz inkl. Akzeptanz-Status.
+    """Excel-Dateien der IDV ohne Blattschutz inkl. Akzeptanz-Status.
 
     Grundlage für die bewusste Fachverantwortlichen-Entscheidung während der
     Fachlichen Abnahme (MaRisk AT 7.2 / DORA). Liefert pro Datei die bereits
     erfasste Akzeptanz (Person + Zeitstempel + Begründung) oder None.
+
+    Filter: Blattschutz fehlt (``has_sheet_protection = 0``). Ein reiner
+    Workbook-Schutz (``workbook_protected``) schützt nur die Mappenstruktur,
+    nicht die Zellen — solche Dateien müssen also ebenfalls bewusst
+    abgenommen werden und bleiben in der Liste.
     """
     placeholders = ",".join("?" * len(_EXCEL_OOXML_EXTS))
     rows = db.execute(f"""
@@ -229,7 +234,6 @@ def _unprotected_excel_files_for_idv(db, idv_db_id: int) -> list:
          WHERE f.status = 'active'
            AND LOWER(f.extension) IN ({placeholders})
            AND COALESCE(f.has_sheet_protection, 0) = 0
-           AND COALESCE(f.workbook_protected, 0) = 0
            AND (
                 f.id = (SELECT file_id FROM idv_register WHERE id = ?)
              OR f.id IN (SELECT file_id FROM idv_file_links WHERE idv_db_id = ?)
