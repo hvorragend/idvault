@@ -383,9 +383,13 @@ def list_funde():
         zur_registrierung = db.execute(
             "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Zur Registrierung'"
         ).fetchone()[0]
+        neu_gesamt = db.execute(
+            "SELECT COUNT(*) FROM idv_files WHERE status='active' AND bearbeitungsstatus='Neu'"
+        ).fetchone()[0]
     except Exception:
         ignoriert = 0
         zur_registrierung = 0
+        neu_gesamt = 0
 
     try:
         duplikate_anzahl = db.execute("""
@@ -443,8 +447,15 @@ def list_funde():
 
     gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
 
-    # Match-Score-Vorschläge nur berechnen wenn relevante Filter aktiv sind und Funktion aktiv
-    if filt not in ("archiv", "duplikate", "mit_idv") and _get_bool(db, "match_suggestions_enabled", True):
+    # Match-Score-Vorschläge nur berechnen wenn relevante Filter aktiv sind und Funktion aktiv.
+    # Die Spalte soll trotzdem dauerhaft sichtbar sein, solange das Feature aktiv ist und
+    # der Filter sie nicht explizit ausblendet – auch wenn für die aktuelle Seite kein
+    # Treffer berechnet wurde (sporadisches Ein-/Ausblenden der Vorschlagsspalte vermeiden).
+    match_suggestions_active = (
+        filt not in ("archiv", "duplikate", "mit_idv")
+        and _get_bool(db, "match_suggestions_enabled", True)
+    )
+    if match_suggestions_active:
         match_scores = _compute_match_scores(dateien, db)
     else:
         match_scores = {}
@@ -463,6 +474,7 @@ def list_funde():
         ohne_idv=ohne_idv, mit_makro=mit_makro,
         mit_schutz=mit_schutz, ohne_schutz=ohne_schutz, archiviert=archiviert,
         ignoriert=ignoriert, zur_registrierung=zur_registrierung,
+        neu_gesamt=neu_gesamt,
         duplikate_anzahl=duplikate_anzahl,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         share_roots=share_roots,
@@ -486,6 +498,7 @@ def list_funde():
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         match_scores=match_scores,
+        match_suggestions_active=match_suggestions_active,
         escalation_stages=escalation_stages,
         **_scan_btn_ctx(),
     )

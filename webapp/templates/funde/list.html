@@ -2,7 +2,18 @@
 {% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
 {% block title %}Scanner-Funde{% endblock %}
 {% block page_title %}<i class="bi bi-radar me-2"></i>Scanner-Funde{% endblock %}
-{% block topbar_actions %}{% include 'funde/_scan_button.html' %}{% endblock %}
+{% block topbar_actions %}
+{% if can_write and neu_gesamt and neu_gesamt > 0 %}
+<form method="post" action="{{ url_for('funde.auto_zuordnen') }}" class="d-inline"
+      data-confirm="Neue Funde mit sehr hohem Ähnlichkeitsscore automatisch einem IDV zuordnen? Jede Zuordnung erhält einen History-Eintrag und kann einzeln wieder gelöst werden.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-magic me-1"></i>Auto-Zuordnung
+  </button>
+</form>
+{% endif %}
+{% include 'funde/_scan_button.html' %}
+{% endblock %}
 
 {# Sortierung vor dem Rendern aus sessionStorage wiederherstellen – so
 bleibt die zuletzt aktive Sortierung auch nach Navigation über die
@@ -468,7 +479,7 @@ date_to} %}
             <th class="text-center">Schutz</th>
             <th>Status</th>
             <th>Eigenentwicklung</th>
-            {% if match_scores %}<th title="Automatisch berechneter Übereinstimmungs-Score mit vorhandenen IDVs">
+            {% if match_suggestions_active %}<th title="Automatisch berechneter Übereinstimmungs-Score mit vorhandenen IDVs">
               Vorschlag</th>{% endif %}
             <th></th>
           </tr>
@@ -769,10 +780,10 @@ date_to} %}
               {% endif %}
             </td>
 
-            {% if match_scores %}
+            {% if match_suggestions_active %}
             <!-- Matching-Vorschlag -->
             <td class="text-nowrap">
-              {% set ms = match_scores.get(f.id) %}
+              {% set ms = match_scores.get(f.id) if match_scores else None %}
               {% if ms and not f.reg_idv_id %}
               {% if ms.score >= 70 %}{% set badge_cls = 'bg-success' %}
               {% elif ms.score >= 40 %}{% set badge_cls = 'bg-warning text-dark' %}
@@ -826,7 +837,7 @@ date_to} %}
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 15 if match_scores else 14 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 15 if match_suggestions_active else 14 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Dateien gefunden.
             </td>
