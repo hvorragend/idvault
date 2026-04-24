@@ -183,9 +183,6 @@ als nativer Windows-Dienst (`idvault.exe install`).
 - **Nachweis-Upload** (Rich-Text + Dateianhang) für fachlichen
   und technischen Test, Path-Traversal- und Ownership-sicher
   ausgeliefert.
-- **Ablösungsplanung** pro IDV: „Ablösung geplant" mit Zieldatum
-  und Ablöse-Ziel (z. B. „OSPlus-Erweiterung", „neue
-  Eigenentwicklung"), auswertbar auf dem Koordinator-Dashboard.
 - **IDV-Historie** (`idv_history`) hält jede Statusänderung
   und jedes geänderte Feld mit Benutzer, Zeitstempel und Kommentar fest.
 
