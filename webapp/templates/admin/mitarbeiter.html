@@ -25,7 +25,7 @@
       <!-- Suche & Filter -->
       <div class="px-3 py-2 border-bottom d-flex flex-wrap gap-2 align-items-center">
         <input type="text" id="personSearch" class="form-control form-control-sm"
-               placeholder="Suche nach Name, Kürzel, User-ID, E-Mail …" style="max-width:280px">
+               placeholder="Suche nach Name, User-ID, E-Mail …" style="max-width:280px">
         <select id="personRolleFilter" class="form-select form-select-sm" style="max-width:200px">
           <option value="">– alle Rollen –</option>
           {% for r in ['IDV-Administrator','IDV-Koordinator','Fachverantwortlicher','IT-Sicherheit','Revision'] %}
@@ -63,12 +63,11 @@
                 <input type="checkbox" id="personSelectAll" class="form-check-input"
                        title="Alle sichtbaren auswählen">
               </th>
-              <th class="sort-col" data-col="1" style="cursor:pointer;user-select:none">Kürzel <i class="bi bi-arrow-down-up text-muted fs-9"></i></th>
+              <th class="sort-col" data-col="1" style="cursor:pointer;user-select:none">User-ID <i class="bi bi-arrow-down-up text-muted fs-9"></i></th>
               <th class="sort-col" data-col="2" style="cursor:pointer;user-select:none">Name <i class="bi bi-arrow-down-up text-muted fs-9"></i></th>
-              <th class="sort-col" data-col="3" style="cursor:pointer;user-select:none">User-ID <i class="bi bi-arrow-down-up text-muted fs-9"></i></th>
               <th>E-Mail</th><th>AD-Name</th>
-              <th class="sort-col" data-col="6" style="cursor:pointer;user-select:none">Rolle <i class="bi bi-arrow-down-up text-muted fs-9"></i></th>
-              <th class="sort-col" data-col="7" style="cursor:pointer;user-select:none">OE <i class="bi bi-arrow-down-up text-muted fs-9"></i></th>
+              <th class="sort-col" data-col="5" style="cursor:pointer;user-select:none">Rolle <i class="bi bi-arrow-down-up text-muted fs-9"></i></th>
+              <th class="sort-col" data-col="6" style="cursor:pointer;user-select:none">OE <i class="bi bi-arrow-down-up text-muted fs-9"></i></th>
               <th>Aktiv</th><th></th>
             </tr>
           </thead>
@@ -81,9 +80,8 @@
                 <input type="checkbox" name="person_ids" value="{{ p.id }}"
                        form="personBulkForm" class="form-check-input person-cb">
               </td>
-              <td><code>{{ p.kuerzel }}</code></td>
+              <td><code>{{ p.user_id }}</code></td>
               <td>{{ p.nachname }}, {{ p.vorname }}</td>
-              <td class="fs-7">{{ p.user_id or '–' }}</td>
               <td class="fs-7">
                 {% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% else %}–{% endif %}
               </td>
@@ -128,11 +126,10 @@
           </summary>
           <form method="post" action="{{ url_for('admin.new_person') }}" class="row g-2 mt-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="col-md-1"><input type="text" name="kuerzel" class="form-control form-control-sm" placeholder="Kürzel" required></div>
+            <div class="col-md-2"><input type="text" name="user_id" class="form-control form-control-sm" placeholder="User-ID (Login)" required></div>
             <div class="col-md-2"><input type="text" name="nachname" class="form-control form-control-sm" placeholder="Nachname" required></div>
             <div class="col-md-2"><input type="text" name="vorname" class="form-control form-control-sm" placeholder="Vorname" required></div>
             <div class="col-md-2"><input type="email" name="email" class="form-control form-control-sm" placeholder="E-Mail (SMTP)"></div>
-            <div class="col-md-2"><input type="text" name="user_id" class="form-control form-control-sm" placeholder="User-ID (Login)"></div>
             <div class="col-md-2"><input type="text" name="ad_name" class="form-control form-control-sm" placeholder="AD-Name (DOMAIN\\user)"></div>
             <div class="col-md-2">
               <select name="rolle" class="form-select form-select-sm">
@@ -161,7 +158,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-8">
               <input type="file" name="csv_file" accept=".csv,.txt" class="form-control form-control-sm" required>
-              <div class="form-text">Trennzeichen: Semikolon oder Komma. Spalten: user_id; email; ad_name; oe_bezeichnung; nachname; vorname; kuerzel; rolle</div>
+              <div class="form-text">Trennzeichen: Semikolon oder Komma. Spalten: user_id; email; ad_name; oe_bezeichnung; nachname; vorname; rolle</div>
             </div>
             <div class="col-md-4">
               <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-upload me-1"></i>Importieren</button>

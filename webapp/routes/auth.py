@@ -173,7 +173,6 @@ def login():
                             )
                             return render_template("auth/login.html", ldap_active=True)
                         person_id = ldap_sync_person(db, person_data)
-                        # User-ID aus DB verwenden (= Kürzel für neu importierte Personen)
                         db_person = db.execute(
                             "SELECT user_id FROM persons WHERE id = ?", (person_id,)
                         ).fetchone()

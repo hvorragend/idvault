@@ -206,7 +206,7 @@
         <select id="owner-modal-input" class="form-select form-select-sm">
           <option value="">– Person auswählen –</option>
           {% for p in persons %}
-          <option value="{{ p.kuerzel }}">{{ p.nachname }}, {{ p.vorname }} ({{ p.kuerzel }})</option>
+          <option value="{{ p.user_id }}">{{ p.nachname }}, {{ p.vorname }} ({{ p.user_id }})</option>
           {% endfor %}
         </select>
         <div class="form-text">Setzt den Eigentümer in der Datenbank (überschreibt bisherigen Wert).</div>

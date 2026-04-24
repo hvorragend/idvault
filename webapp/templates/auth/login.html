@@ -30,7 +30,7 @@
     {% if ldap_active %}
     <div class="alert alert-info py-2 mb-3 small">
       <i class="bi bi-diagram-3 me-1"></i>
-      <strong>Active Directory aktiv</strong> – AD-Anmeldename oder lokales Kürzel und Passwort eingeben.
+      <strong>Active Directory aktiv</strong> – User-ID (AD-Anmeldename) und Passwort eingeben.
     </div>
     {% endif %}
 
@@ -41,7 +41,7 @@
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-person"></i></span>
           <input type="text" name="username" class="form-control" autofocus
-                 placeholder="{{ 'AD-Anmeldename oder Kürzel' if ldap_active else 'Benutzername' }}"
+                 placeholder="User-ID"
                  autocomplete="username">
         </div>
       </div>

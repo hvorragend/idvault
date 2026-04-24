@@ -355,7 +355,7 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
     except Exception:
         burst_threshold = 0
 
-    # Offene Funde gruppieren: file_owner ↔ persons (user_id | kuerzel | ad_name)
+    # Offene Funde gruppieren: file_owner ↔ persons (user_id | ad_name)
     rows = db.execute("""
         SELECT f.id, f.file_name, f.full_path, f.file_owner,
                p.id     AS person_id,
@@ -368,7 +368,6 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
            AND p.email IS NOT NULL AND p.email <> ''
            AND (
                  LOWER(p.user_id) = LOWER(f.file_owner)
-              OR LOWER(p.kuerzel) = LOWER(f.file_owner)
               OR LOWER(p.ad_name) = LOWER(f.file_owner)
                )
          WHERE f.status = 'active'
@@ -586,8 +585,7 @@ def _has_open_funde(db, person_id: int) -> bool:
         row = db.execute("""
             SELECT 1 FROM idv_files f
               JOIN persons p ON p.aktiv = 1
-                 AND (p.user_id = f.file_owner OR p.kuerzel = f.file_owner
-                      OR p.ad_name = f.file_owner)
+                 AND (p.user_id = f.file_owner OR p.ad_name = f.file_owner)
              WHERE p.id = ?
                AND f.status='active'
                AND f.bearbeitungsstatus='Neu'

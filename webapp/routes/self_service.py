@@ -89,11 +89,11 @@ def _resolve_session(db) -> dict | None:
 def _owner_expressions(person: dict) -> tuple[str, list]:
     """Liefert das WHERE-Fragment und die Parameter für „Funde meines
     Fachbereichs-Mitarbeiters". Gleicht die persons-Zeile gegen
-    idv_files.file_owner (case-insensitive) über user_id/kuerzel/ad_name ab.
+    idv_files.file_owner (case-insensitive) über user_id/ad_name ab.
     """
     clauses = []
     params: list = []
-    for col in ("user_id", "kuerzel", "ad_name"):
+    for col in ("user_id", "ad_name"):
         val = person.get(col) or ""
         if val:
             clauses.append("LOWER(f.file_owner) = LOWER(?)")
@@ -106,7 +106,7 @@ def _owner_expressions(person: dict) -> tuple[str, list]:
 
 def _load_funde(db, person_id: int):
     person = db.execute(
-        "SELECT id, user_id, kuerzel, ad_name, email, vorname, nachname "
+        "SELECT id, user_id, ad_name, email, vorname, nachname "
         "FROM persons WHERE id = ?",
         (person_id,),
     ).fetchone()
@@ -274,7 +274,7 @@ def fund_aktion(file_id: int):
         return redirect(url_for("self_service.meine_funde"))
 
     person = db.execute(
-        "SELECT id, user_id, kuerzel, ad_name FROM persons WHERE id = ?",
+        "SELECT id, user_id, ad_name FROM persons WHERE id = ?",
         (ctx["person_id"],),
     ).fetchone()
     if person is None or not _file_belongs_to_person(db, file_id, dict(person)):
@@ -334,7 +334,7 @@ def vorschlag_entscheiden(suggestion_id: int):
         return redirect(url_for("self_service.meine_funde"))
 
     person = db.execute(
-        "SELECT id, user_id, kuerzel, ad_name FROM persons WHERE id = ?",
+        "SELECT id, user_id, ad_name FROM persons WHERE id = ?",
         (ctx["person_id"],),
     ).fetchone()
     if person is None:
@@ -505,7 +505,7 @@ def bulk_register():
         return redirect(url_for("self_service.meine_funde"))
 
     person_row = db.execute(
-        "SELECT id, user_id, kuerzel, ad_name, email, vorname, nachname "
+        "SELECT id, user_id, ad_name, email, vorname, nachname "
         "FROM persons WHERE id = ?",
         (ctx["person_id"],),
     ).fetchone()
@@ -626,7 +626,7 @@ def bulk_register():
 
     bearbeiter_name = (
         f"{person.get('vorname') or ''} {person.get('nachname') or ''}".strip()
-        or (person.get("ad_name") or person.get("kuerzel") or "")
+        or (person.get("user_id") or person.get("ad_name") or "")
     )
 
     def _do(c,

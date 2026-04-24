@@ -72,8 +72,7 @@ def _owner_mapping_fehlt(db):
            AND NOT EXISTS (
                SELECT 1 FROM persons p
                 WHERE p.aktiv = 1
-                  AND (p.user_id = f.file_owner OR p.kuerzel = f.file_owner
-                       OR p.ad_name = f.file_owner)
+                  AND (p.user_id = f.file_owner OR p.ad_name = f.file_owner)
            )
          ORDER BY f.modified_at DESC
          LIMIT 10
@@ -185,7 +184,7 @@ _CATEGORIES_FOR_COUNT = (
      "WHERE f.status='active' AND f.bearbeitungsstatus='Neu' "
      "AND f.file_owner IS NOT NULL AND TRIM(f.file_owner)!='' "
      "AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.aktiv=1 "
-     "AND (p.user_id=f.file_owner OR p.kuerzel=f.file_owner OR p.ad_name=f.file_owner))"),
+     "AND (p.user_id=f.file_owner OR p.ad_name=f.file_owner))"),
     ("self_service_stumm",
      "SELECT COUNT(*) FROM self_service_tokens t WHERE t.created_at <= datetime('now','-14 days') "
      "AND t.first_used_at IS NULL AND t.revoked_at IS NULL "
@@ -294,7 +293,7 @@ def index():
     )
     if has_owner_fehlt:
         persons_aktiv = [dict(r) for r in db.execute("""
-            SELECT id, nachname, vorname, kuerzel, ad_name, user_id
+            SELECT id, nachname, vorname, ad_name, user_id
               FROM persons
              WHERE aktiv = 1
              ORDER BY nachname, vorname
@@ -308,13 +307,11 @@ def index():
 def _feld_fuer_owner(file_owner: str) -> str:
     """Bestimmt anhand der Schreibweise, in welches Personen-Feld der
     Scanner-file_owner gehoert: ``DOMAIN\\user`` → ``ad_name``,
-    ``name@domain`` → ``user_id``, sonst ``kuerzel``.
+    sonst ``user_id`` (UPN, Login oder reines Personalkuerzel).
     """
     if "\\" in file_owner:
         return "ad_name"
-    if "@" in file_owner:
-        return "user_id"
-    return "kuerzel"
+    return "user_id"
 
 
 @bp.route("/ausnahmen/eigentuemer-zuordnen", methods=["POST"])

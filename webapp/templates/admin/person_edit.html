@@ -7,16 +7,17 @@
   <div class="col-lg-8">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-600">
-        {{ person.nachname }}, {{ person.vorname }} &nbsp;<code class="text-muted">{{ person.kuerzel }}</code>
+        {{ person.nachname }}, {{ person.vorname }} &nbsp;<code class="text-muted">{{ person.user_id }}</code>
       </div>
       <div class="card-body">
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="row g-3">
 
-            <div class="col-md-2">
-              <label class="form-label fw-600">Kürzel <span class="text-danger">*</span></label>
-              <input type="text" name="kuerzel" class="form-control" value="{{ person.kuerzel }}" required>
+            <div class="col-md-3">
+              <label class="form-label fw-600">User-ID <span class="text-danger">*</span></label>
+              <input type="text" name="user_id" class="form-control" value="{{ person.user_id or '' }}" placeholder="mmu" required>
+              <div class="form-text">Eindeutiger Login-Name (LDAP / lokal).</div>
             </div>
             <div class="col-md-3">
               <label class="form-label fw-600">Nachname <span class="text-danger">*</span></label>
@@ -26,21 +27,16 @@
               <label class="form-label fw-600">Vorname <span class="text-danger">*</span></label>
               <input type="text" name="vorname" class="form-control" value="{{ person.vorname }}" required>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label fw-600">E-Mail (SMTP-Adresse)</label>
               <input type="email" name="email" class="form-control" value="{{ person.email or '' }}" placeholder="max.mustermann@bank.de">
             </div>
 
-            <div class="col-md-3">
-              <label class="form-label fw-600">User-ID (Login)</label>
-              <input type="text" name="user_id" class="form-control" value="{{ person.user_id or '' }}" placeholder="mmu">
-              <div class="form-text">Wird für den idvault-Login verwendet.</div>
-            </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
               <label class="form-label fw-600">AD-Name</label>
               <input type="text" name="ad_name" class="form-control" value="{{ person.ad_name or '' }}" placeholder="DOMAIN\mmu">
             </div>
-            <div class="col-md-5">
+            <div class="col-md-6">
               <label class="form-label fw-600">Passwort setzen</label>
               <input type="password" name="password" class="form-control" placeholder="Leer lassen = unverändert">
               <div class="form-text">SHA-256-Hash wird gespeichert. Leer lassen für keine Änderung.</div>
