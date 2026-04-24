@@ -109,7 +109,7 @@ als nativer Windows-Dienst (`idvault.exe install`).
   Abschluss-/Ablehnungshandlungen im Freigabeverfahren ausgeschlossen,
   Test-Formular-Pfad ist gegen SoD-Umgehung abgesichert.
 
-### Dashboard & Reporting
+### Dashboard, Berichte & Reporting
 
 - **Prozesskennzahlen-Sektion** mit konfigurierbaren KPI-Kacheln
   (Durchlaufzeiten, Rückläufe, überfällige Maßnahmen) — Excel-Export
@@ -117,24 +117,71 @@ als nativer Windows-Dienst (`idvault.exe install`).
 - **Ausnahmen-Dashboard** für den IDV-Koordinator: zeigt abgelaufene
   Freigaben, fehlende Prüfzeugnisse, nicht-zugeordnete Funde,
   Eskalationen.
-- **Excel-Export** aller Register- und Prüfungsdaten.
+- **Berichte & Auswertungen** mit ApexCharts-Visualisierung
+  (Donut- und Stacked-Bar-Diagramme für Statusverteilung, Entwicklung
+  über die letzten Monate) und Tab-Navigation nach
+  **Organisationseinheit**, **Fachverantwortlichem** und
+  **Scan-Verzeichnis / Teilscan**.
+- **Excel-Export** aller Register-, Prüfungs- und Auswertungsdaten.
+
+### Cognos / agree21Analysen-Integration
+
+- **Import der Berichtsübersicht** (TSV/CSV/XLSX) mit automatischem
+  Mapping der Spaltenköpfe (Umfeld, Bank-ID, Bericht, Ordner, …).
+- **„Als IDV registrieren"** direkt aus der Berichtsliste
+  (Einzel- oder Bulk-Aktion).
+- **Zusammenfassen** mehrerer Cognos-Berichte zu einer einzelnen
+  Eigenentwicklung.
+- **Ignorieren / Reaktivieren** irrelevanter Berichte.
+
+### Prüfungen & Maßnahmen
+
+- **Regelprüfungen** dokumentieren den Prüfzyklus einer IDV
+  (letzte Prüfung, nächste Prüfung, Prüfungsergebnis, Befunde).
+- **Maßnahmen** werden aus Befunden abgeleitet, Zuständigen
+  zugewiesen und bis zur Erledigung nachverfolgt.
+- **Nachweis-Upload** (Rich-Text + Dateianhang) für fachlichen
+  und technischen Test, Path-Traversal- und Ownership-sicher
+  ausgeliefert.
+
+### Stammdatenverwaltung
+
+- **CRUD-UIs** für Personen, Organisationseinheiten, Geschäftsprozesse,
+  Plattformen, Klassifizierungen, Wesentlichkeitskriterien,
+  Pfad-Profile, Testfall-Vorlagen, Freigabe-Pools.
+- **CSV-Import** für Mitarbeiter und Geschäftsprozesse inkl.
+  herunterladbarer Import-Vorlage.
+- **Bulk-Aktionen** für Personen und Geschäftsprozesse
+  (Aktivieren, Deaktivieren, Rolle setzen, Löschen).
+- **Konfigurierbares Glossar** mit Admin-UI: Abgrenzung
+  Anwendungsentwicklung / Eigenprogrammierung / Auftragsprogrammierung /
+  IDV / Arbeitshilfe, direkt in der Anwendung pflegbar.
 
 ### Administration & Betrieb
 
 - **Lokale Benutzer in `config.json`** oder LDAP (Active Directory)
-  mit Gruppen-Rollen-Mapping, keine Demo-/Default-Credentials.
+  mit Gruppen-Rollen-Mapping inkl. LDAP-Testverbindung und
+  LDAP-Benutzer-Import. Lokaler Notfall-Admin bleibt auch bei
+  LDAP-Ausfall möglich.
 - **SMTP** mit drei Verbindungsmodi (STARTTLS / SSL / kein TLS),
   Testversand aus der Admin-UI, vollständiges Versandlog,
   Passwort Fernet-verschlüsselt in der DB.
 - **Natives Windows-Dienst-Framework** (pywin32 ServiceFramework)
-  mit automatischem Dienstneustart nach Update und erweiterten
-  Start-Diagnosen.
-- **Update-Workflow** per signiertem Sidecar-ZIP (in regulierten
-  Umgebungen abschaltbar).
+  mit automatischem Dienstneustart nach Update, EnumServicesStatusEx-
+  basierter Dienst-Erkennung und erweiterten Start-Diagnosen.
+- **Update-Workflow** per signiertem Sidecar-ZIP mit
+  **Rollback-Funktion** und Update-Log — in regulierten Umgebungen
+  vollständig abschaltbar.
+- **Scanner-Steuerung** aus dem Admin-Bereich: Starten, Pausieren,
+  Fortsetzen, Abbrechen, Bereinigen; Live-Status und konfigurierbarer
+  Scan-User (Run-As mit Test-Verbindung).
 - **Log-Viewer** in der Web-UI: Anwendungslog, Scan-Log,
-  Crash-Log, Login-Log — mit Suche und Filter.
+  Crash-Log, Login-Log, Update-Log, Mail-Versandlog — mit Suche
+  und Filter.
 - **Rate-Limits** für Login, Upload und Scanner konfigurierbar
   unter `/admin/rate-limits`.
+- **Steuerbare Standardanzeige** („Suche & Filter") und UI-
+  Einstellungen über die Admin-Oberfläche.
 - **Testinstallation** per `IDV_DEMO_DATA=true` (Stammdaten,
   Beispiel-Personen, Beispiel-IDVs, Prüfungen und Maßnahmen).
 
