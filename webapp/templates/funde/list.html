@@ -565,13 +565,13 @@ date_to} %}
               {{ f.file_owner or f.office_author or '–' }}
             </td>
             <td class="text-center">
-              {% if f.has_macros %}<span class="badge bg-danger">VBA</span>
+              {% if f.has_macros %}<span class="idv-tag idv-tag-red" title="VBA-Makros vorhanden">VBA</span>
               {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
             </td>
             <td class="text-center">
               {% if f.formula_count %}
-              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
-                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              <span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator"></i>{{ f.formula_count }}
               </span>
               {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
             </td>
@@ -707,7 +707,7 @@ date_to} %}
             <!-- Makros -->
             <td class="text-center">
               {% if f.has_macros %}
-              <span class="badge bg-danger">VBA</span>
+              <span class="idv-tag idv-tag-red" title="VBA-Makros vorhanden">VBA</span>
               {% else %}
               <i class="bi bi-dash text-muted"></i>
               {% endif %}
@@ -716,8 +716,8 @@ date_to} %}
             <!-- Formeln -->
             <td class="text-center">
               {% if f.formula_count %}
-              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
-                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              <span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator"></i>{{ f.formula_count }}
               </span>
               {% else %}
               <i class="bi bi-dash text-muted"></i>
@@ -728,20 +728,20 @@ date_to} %}
             <td class="text-center">
               {% if f.has_sheet_protection %}
               {% if f.workbook_protected %}
-              <span class="badge bg-warning text-dark"
+              <span class="idv-tag idv-tag-blue"
                 title="{{ f.protected_sheets_count }} Blatt geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %} + Arbeitsmappenschutz">
-                <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
+                <i class="bi bi-lock-fill"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
                 <i class="bi bi-journals ms-1"></i>
               </span>
               {% else %}
-              <span class="badge bg-warning text-dark"
+              <span class="idv-tag idv-tag-blue"
                 title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blätter geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %}">
-                <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
+                <i class="bi bi-lock-fill"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
                 {% if f.sheet_protection_has_pw %}<i class="bi bi-key-fill ms-1"></i>{% endif %}
               </span>
               {% endif %}
               {% elif f.workbook_protected %}
-              <span class="badge bg-secondary" title="Arbeitsmappenschutz">
+              <span class="idv-tag idv-tag-blue" title="Arbeitsmappenschutz">
                 <i class="bi bi-journals"></i>
               </span>
               {% else %}

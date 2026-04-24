@@ -188,14 +188,14 @@ owner_filt} %}
               </span>
               {% endif %}
               {% if r.file_has_macros %}
-              <span class="badge bg-danger ms-1" title="VBA-Makros vorhanden">VBA</span>
+              <span class="idv-tag idv-tag-red ms-1" title="VBA-Makros vorhanden">VBA</span>
               {% endif %}
               {% if r.file_has_sheet_protection %}
-              <span class="badge bg-warning text-dark ms-1" title="Blattschutz aktiv"><i
+              <span class="idv-tag idv-tag-blue ms-1" title="Blattschutz aktiv"><i
                   class="bi bi-lock-fill"></i></span>
               {% endif %}
               {% if r.file_formula_count %}
-              <span class="badge bg-light text-dark border ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{
+              <span class="idv-tag idv-tag-amber ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{
                 r.file_formula_count }}</span>
               {% endif %}
             </td>

@@ -423,17 +423,17 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
             <!-- Eigenschaften: Makros · Formeln · Blattschutz -->
             <td class="text-center text-nowrap">
               {% if f.has_macros %}
-              <span class="badge bg-danger" title="Enthält VBA-Makros">VBA</span>
+              <span class="idv-tag idv-tag-red" title="Enthält VBA-Makros">VBA</span>
               {% endif %}
               {% if f.formula_count %}
-              <span class="badge bg-warning text-dark" title="{{ f.formula_count }} Formelzellen">
-                <i class="bi bi-calculator"></i> {{ f.formula_count }}
+              <span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator"></i>{{ f.formula_count }}
               </span>
               {% endif %}
               {% if f.has_sheet_protection %}
-              <span class="badge bg-secondary"
+              <span class="idv-tag idv-tag-blue"
                 title="{{ f.protected_sheets_count }} Blatt/Blätter geschützt{% if f.sheet_protection_has_pw %} · mit Passwort{% endif %}">
-                <i class="bi bi-lock-fill"></i>{% if f.protected_sheets_count %} {{ f.protected_sheets_count }}{% endif %}
+                <i class="bi bi-lock-fill"></i>{% if f.protected_sheets_count %}{{ f.protected_sheets_count }}{% endif %}
               </span>
               {% endif %}
               {% if not f.has_macros and not f.formula_count and not f.has_sheet_protection %}
