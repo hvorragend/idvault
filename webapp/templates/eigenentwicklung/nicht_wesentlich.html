@@ -202,7 +202,7 @@ owner_filt} %}
             <td>
               <span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span>
             </td>
-            <td class="small">{{ r.fachverantwortlicher or '–' }}</td>
+            <td>{{ r.fachverantwortlicher or '–' }}</td>
             <td class="fs-7">{{ r.file_owner or '–' }}</td>
             <td class="text-nowrap fs-7">{% if r.aktualisiert_am %}<span title="{{ r.aktualisiert_am|datetimefmt }}">{{ r.aktualisiert_am|datefmt }}</span>{% else %}–{% endif %}
             </td>
