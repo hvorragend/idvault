@@ -203,9 +203,11 @@ def _verfuegbare_scanner_dateien(db, idv_db_id: int) -> list:
     return [dict(r) for r in rows]
 
 
-# Excel-OOXML-Formate, für die der Scanner Blatt-/Arbeitsmappenschutz prüfen kann.
-# Deckt sich bewusst mit webapp.routes.funde._EXCEL_PROTECTABLE_EXTS.
-_EXCEL_OOXML_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx")
+# Excel-Formate, die im Zellschutz-Gate der Fachlichen Abnahme auftauchen.
+# OOXML-Formate (.xlsx/.xlsm/…) kann der Scanner auf Blatt-/Arbeitsmappen-
+# schutz prüfen; Legacy .xls/.xlt kann er nicht zuverlässig prüfen — diese
+# landen deshalb immer im Gate und müssen bewusst akzeptiert werden.
+_EXCEL_OOXML_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx", ".xls", ".xlt")
 
 
 def _unprotected_excel_files_for_idv(db, idv_db_id: int) -> list:
