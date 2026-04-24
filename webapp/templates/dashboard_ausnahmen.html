@@ -59,7 +59,7 @@
             <td class="small text-muted text-truncate" style="max-width:280px" title="{{ r.full_path }}">{{ r.full_path }}</td>
             <td><code>{{ r.file_owner }}</code></td>
             <td class="text-end pe-3">
-              <a href="{{ url_for('admin.persons') if 'admin.persons' else '#' }}"
+              <a href="{{ url_for('admin.mitarbeiter') }}"
                  class="btn btn-sm btn-outline-warning">Owner zuordnen</a>
             </td>
           </tr>
