@@ -27,7 +27,18 @@
      id="section-{{ s.key }}">
   <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
     <span><i class="bi {{ s.icon }} me-2 text-{{ s.tone }}"></i>{{ s.label }}</span>
-    <span class="badge bg-{{ s.tone }}">{{ s.rows|length }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-{{ s.tone }}">{{ s.rows|length }}{% if s.rows|length == 10 %}+{% endif %}</span>
+      <form method="post" action="{{ url_for('dashboard_ausnahmen.alle_verwerfen') }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="kategorie" value="{{ s.key }}">
+        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                title="Alle Einträge dieser Kategorie verwerfen"
+                onclick="return confirm('Alle Einträge in dieser Kategorie verwerfen?')">
+          <i class="bi bi-x-circle me-1"></i>Alle verwerfen
+        </button>
+      </form>
+    </div>
   </div>
   <div class="card-body py-2 small text-muted">
     <i class="bi bi-info-circle me-1"></i>{{ s.hint }}

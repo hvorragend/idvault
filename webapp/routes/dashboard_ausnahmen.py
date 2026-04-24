@@ -327,7 +327,7 @@ def index():
             "rows":  [dict(r) for r in _pool_reminder_ausgelaufen(db)],
         },
     ]
-    total = sum(len(s["rows"]) for s in sections)
+    total = ausnahmen_count(db)
 
     persons_aktiv = []
     has_owner_fehlt = any(
@@ -414,6 +414,68 @@ _VALID_KATEGORIEN = frozenset({
     "pool_reminder_alt",
 })
 
+# INSERT…SELECT-Statements fuer Bulk-Verwerfen. Parameter: (verworfen_von_id,)
+_BULK_VERWERFEN_SQL = {
+    "mittlere_konfidenz": """
+        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        SELECT 'mittlere_konfidenz', CAST(s.id AS TEXT), ?
+          FROM idv_match_suggestions s
+          JOIN idv_files    f ON f.id = s.file_id
+          JOIN idv_register r ON r.id = s.idv_db_id
+         WHERE s.decision IS NULL AND f.status = 'active'
+           AND f.bearbeitungsstatus = 'Neu'
+           AND r.status NOT IN ('Archiviert')
+    """,
+    "owner_fehlt": """
+        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        SELECT 'owner_fehlt', CAST(f.id AS TEXT), ?
+          FROM idv_files f
+         WHERE f.status = 'active' AND f.bearbeitungsstatus = 'Neu'
+           AND f.file_owner IS NOT NULL AND TRIM(f.file_owner) != ''
+           AND NOT EXISTS (
+               SELECT 1 FROM persons p WHERE p.aktiv = 1
+                AND (p.user_id = f.file_owner OR p.ad_name = f.file_owner)
+           )
+    """,
+    "self_service_stumm": """
+        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        SELECT 'self_service_stumm', t.jti, ?
+          FROM self_service_tokens t
+         WHERE t.created_at <= datetime('now','-14 days')
+           AND t.first_used_at IS NULL AND t.revoked_at IS NULL
+           AND NOT EXISTS (
+               SELECT 1 FROM self_service_audit a
+                WHERE a.person_id = t.person_id AND a.created_at >= t.created_at
+           )
+    """,
+    "auto_classify_failed": """
+        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        SELECT 'auto_classify_failed', CAST(f.id AS TEXT), ?
+          FROM idv_files f
+         WHERE f.status = 'active'
+           AND f.bearbeitungsstatus = 'Auto-Klassifizierung fehlgeschlagen'
+    """,
+    "eskalierte_idvs": """
+        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        SELECT 'eskalierte_idvs', CAST(r.id AS TEXT), ?
+          FROM idv_register r
+          JOIN notification_log n
+            ON n.kind = 'idv_incomplete_reminder' AND n.ref_id = r.id
+          JOIN v_unvollstaendige_idvs v ON v.idv_id = r.idv_id
+         WHERE r.status NOT IN ('Archiviert','Abgekündigt')
+         GROUP BY r.id
+        HAVING COUNT(n.id) >= 4
+    """,
+    "pool_reminder_alt": """
+        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        SELECT 'pool_reminder_alt', CAST(f.id AS TEXT), ?
+          FROM idv_freigaben f
+         WHERE f.status = 'Ausstehend' AND f.pool_id IS NOT NULL
+           AND f.zugewiesen_an_id IS NULL AND f.beauftragt_am IS NOT NULL
+           AND f.beauftragt_am <= datetime('now','-14 days')
+    """,
+}
+
 
 @bp.route("/ausnahmen/verwerfen", methods=["POST"])
 @login_required
@@ -427,7 +489,7 @@ def eintrag_verwerfen():
         flash("Verwerfen fehlgeschlagen: ungültige Eingabe.", "error")
         return redirect(url_for("dashboard_ausnahmen.index"))
 
-    person_id = session.get("user_id")
+    person_id = session.get("person_id")
 
     def _do(c):
         with write_tx(c):
@@ -439,4 +501,27 @@ def eintrag_verwerfen():
 
     get_writer().submit(_do, wait=True)
     flash("Triage-Eintrag verworfen.", "success")
+    return redirect(url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}")
+
+
+@bp.route("/ausnahmen/alle-verwerfen", methods=["POST"])
+@login_required
+@_koordinator_required
+def alle_verwerfen():
+    """Verwirft alle aktuellen Eintraege einer Triage-Kategorie auf einmal."""
+    kategorie = (request.form.get("kategorie") or "").strip()
+
+    if not kategorie or kategorie not in _VALID_KATEGORIEN:
+        flash("Verwerfen fehlgeschlagen: ungültige Kategorie.", "error")
+        return redirect(url_for("dashboard_ausnahmen.index"))
+
+    sql = _BULK_VERWERFEN_SQL[kategorie]
+    person_id = session.get("person_id")
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(sql, (person_id,))
+
+    get_writer().submit(_do, wait=True)
+    flash(f'Alle Einträge in "{kategorie}" verworfen.', "success")
     return redirect(url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}")
