@@ -38,12 +38,25 @@ als nativer Windows-Dienst (`idvault.exe install`).
 - **Netzlaufwerk- und Teams/SharePoint-Scanner** mit konfigurierbaren
   Include-/Exclude-Pfaden, Whitelist/Blacklist für Ordner und Dateinamen
   sowie erweiterten Standardmustern (Temp-Dateien, Backups, System-Ordner).
+- **Teams/SharePoint-Scanner** auf Basis von **Microsoft Graph** mit
+  **Delta-Token-basiertem Inkrementalscan** — nur geänderte Dateien werden
+  beim nächsten Lauf neu gelesen.
+- **OOXML-Tiefenanalyse** beim Scan: erkennt VBA-Makros, externe
+  Verknüpfungen und zählt Formelzellen pro Arbeitsmappe. Liefert damit
+  die Basis für die Priorisierung „Makros zuerst" und für den Report
+  Excel ohne Zell-/Blattschutz. Cognos-XML-Berichte werden strukturiert
+  ausgewertet.
 - **UNC-zu-Laufwerksbuchstaben-Mapping** — Findings werden mit dem im
   Fachbereich üblichen Pfad angezeigt, nicht mit dem UNC-Pfad des
   Service-Users.
 - **Scanner als technischer AD-Benutzer**, sodass auch Laufwerke
   gescannt werden, auf die der Anwendungs-Service keinen Zugriff hat.
   Anmeldung läuft über `WNetAddConnection2` (ohne EXE-Neubau sidecar-fähig).
+- **Lange Windows-Pfade (> MAX_PATH)** werden unterstützt.
+- **Robuste Scan-Läufe**: Pause / Fortsetzen / Abbrechen über Signal-
+  Dateien, **Checkpoint-basierter Resume** nach Absturz oder Neustart,
+  **Keep-Awake** verhindert Standby während langer Scans, dedizierte
+  Scan-Logs und Fehler-Diagnose bei nicht erreichbaren UNC-Pfaden.
 - **Geplante Scans** (Cron-ähnlicher Zeitplan), manueller Scan-Start
   aus der Topbar, Live-Scan-Log im Admin-Bereich.
 - **Automatische Klassifizierung** gescannter Dateien nach
@@ -53,6 +66,12 @@ als nativer Windows-Dienst (`idvault.exe install`).
   1. Konfidenz-Staffel über Ähnlichkeitsanalyse (konfigurierbar),
   2. SHA-256-Hash-Dubletten als automatischer Zusatz-Link,
   3. Versions-Serien-Fingerprint (z.B. „Meldung_2024Q1.xlsx" / „Meldung_2024Q2.xlsx").
+- **Match-Vorschläge** unterhalb der Schwelle werden dem Owner
+  vorgelegt und können einzeln bestätigt oder abgelehnt werden;
+  eine bestätigte Zuordnung zählt in die Auto-Match-Statistik.
+- **Funde-Filter**: „Ohne IDV", „Mit Makros", „Duplikate", „Ignoriert",
+  „Archiv", „Mit/Ohne Zellschutz" — kombinierbar mit Scan-Lauf
+  und Share-Root.
 - **Bulk-Operationen**: Mehrfach-Zuordnung, Bulk-Löschen für Admins,
   Mehrfach-Ignorieren, sortierbare Prioritätsliste.
 - **Pfad-Profile** mit Admin-CRUD-UI bilden typische Ablagepfade
@@ -84,6 +103,21 @@ als nativer Windows-Dienst (`idvault.exe install`).
   und Regex-Matching pro Organisationseinheit.
 - **Versionierung**: Jede Änderung erzeugt eine neue Version,
   Freigabe-Einstufung wird nicht ungeprüft übernommen.
+- **IDV-Abhängigkeiten** (Vorgänger/Nachfolger, Quell-/Ziel-IDV)
+  dokumentieren, welche Eigenentwicklung auf welcher anderen aufbaut.
+- **Mehrere Datei-Verknüpfungen pro IDV** (1:n) — eine Eigenentwicklung
+  kann gleichzeitig mehrere physische Dateien umfassen, inkl. Suche
+  und Verknüpfungs-Workflow im Detail.
+- **Globale Schnellsuche** über die Topbar (`/api/quick-search`,
+  Live-Autocomplete nach Bezeichnung, IDV-ID oder OE).
+- **Autosave-Entwurf** (`idv_draft`): Formulareingaben werden
+  benutzerspezifisch laufend gespeichert und beim Wiedereinstieg
+  zurückgeholt.
+- **Smart-Default-Inferenz** (`/api/infer`): Bei Auswahl eines IDV-Typs
+  werden Entwicklungsart und Prüfintervall vorgeschlagen, ohne
+  bereits gesetzte Felder zu überschreiben.
+- **Datenschutz-Kategorisierung** auf IDV-Ebene (personenbezogene Daten,
+  Kategorien, Datenschutzbestimmungen eingehalten).
 - **Geschäftsprozess- und OE-Zuordnung** mit durchsuchbarer Combobox.
 - **Datei-Metadaten** (Hash, Änderungsdatum, Besitzer, Größe)
   werden aus dem Scanner-Fund übernommen.
@@ -111,9 +145,15 @@ als nativer Windows-Dienst (`idvault.exe install`).
 
 ### Dashboard, Berichte & Reporting
 
-- **Prozesskennzahlen-Sektion** mit konfigurierbaren KPI-Kacheln
-  (Durchlaufzeiten, Rückläufe, überfällige Maßnahmen) — Excel-Export
-  für Aufsichts-Reporting.
+- **Prozesskennzahl-Kacheln** mit Sparklines und wählbarem
+  Zeitfenster (30 / 90 Tage):
+  - Durchlaufzeit Scan → Registrierung (Median + P95),
+  - Selbstbearbeitungsquote (Anteil Self-Service-Registrierungen),
+  - Pool-Claim ≤ 24 h,
+  - Auto-Match-Anteil,
+  - Quote stille Freigabe,
+  - Owner-Digest-Reaktionsrate.
+  Alle Werte sind via Excel-Export für das Aufsichts-Reporting verfügbar.
 - **Ausnahmen-Dashboard** für den IDV-Koordinator: zeigt abgelaufene
   Freigaben, fehlende Prüfzeugnisse, nicht-zugeordnete Funde,
   Eskalationen.
