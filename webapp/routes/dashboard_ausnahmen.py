@@ -305,26 +305,31 @@ def index():
                            persons_aktiv=persons_aktiv)
 
 
-_OWNER_FELD_MAP = {
-    "ad_name": "ad_name",
-    "user_id": "user_id",
-    "kuerzel": "kuerzel",
-}
+def _feld_fuer_owner(file_owner: str) -> str:
+    """Bestimmt anhand der Schreibweise, in welches Personen-Feld der
+    Scanner-file_owner gehoert: ``DOMAIN\\user`` → ``ad_name``,
+    ``name@domain`` → ``user_id``, sonst ``kuerzel``.
+    """
+    if "\\" in file_owner:
+        return "ad_name"
+    if "@" in file_owner:
+        return "user_id"
+    return "kuerzel"
 
 
 @bp.route("/ausnahmen/eigentuemer-zuordnen", methods=["POST"])
 @login_required
 @_koordinator_required
 def eigentuemer_zuordnen():
-    """Traegt den vom Scanner gemeldeten ``file_owner``-Wert in das
-    gewaehlte Feld einer bestehenden aktiven Person ein, damit der
-    Owner-Mapping-Fehlt-Eintrag beim naechsten Render verschwindet.
+    """Traegt den vom Scanner gemeldeten ``file_owner``-Wert bei der
+    gewaehlten Person ein, damit der Owner-Mapping-Fehlt-Eintrag beim
+    naechsten Render verschwindet. Das Zielfeld wird automatisch aus der
+    Schreibweise abgeleitet.
     """
     file_owner = (request.form.get("file_owner") or "").strip()
     person_id_raw = (request.form.get("person_id") or "").strip()
-    feld = (request.form.get("feld") or "").strip()
 
-    if not file_owner or not person_id_raw or feld not in _OWNER_FELD_MAP:
+    if not file_owner or not person_id_raw:
         flash("Zuordnung fehlgeschlagen: unvollstaendige Eingabe.", "error")
         return redirect(url_for("dashboard_ausnahmen.index"))
 
@@ -343,7 +348,7 @@ def eigentuemer_zuordnen():
         flash("Zuordnung fehlgeschlagen: Person nicht gefunden oder inaktiv.", "error")
         return redirect(url_for("dashboard_ausnahmen.index"))
 
-    col = _OWNER_FELD_MAP[feld]
+    col = _feld_fuer_owner(file_owner)
 
     def _do(c):
         with write_tx(c):
@@ -355,7 +360,7 @@ def eigentuemer_zuordnen():
     get_writer().submit(_do, wait=True)
     flash(
         f"{person['nachname']}, {person['vorname']}: "
-        f"{col} = {file_owner} gesetzt.",
+        f"{file_owner} als Eigentümer hinterlegt.",
         "success",
     )
     return redirect(url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt")
