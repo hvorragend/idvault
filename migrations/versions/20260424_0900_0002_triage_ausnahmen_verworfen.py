@@ -17,8 +17,14 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
+    # DROP + recreate statt IF NOT EXISTS, damit eine ggf. bereits existierende
+    # Tabelle mit fehlerhaftem NOT NULL auf verworfen_von_id ersetzt wird.
+    # Datenverlust ist akzeptabel: wegen des NOT-NULL-Bugs konnten dort
+    # ohnehin nie Eintraege gespeichert werden.
+    bind.exec_driver_sql("DROP INDEX IF EXISTS idx_triage_ausnahmen_verworfen_kat")
+    bind.exec_driver_sql("DROP TABLE IF EXISTS triage_ausnahmen_verworfen")
     bind.exec_driver_sql("""
-        CREATE TABLE IF NOT EXISTS triage_ausnahmen_verworfen (
+        CREATE TABLE triage_ausnahmen_verworfen (
             id               INTEGER PRIMARY KEY AUTOINCREMENT,
             kategorie        TEXT    NOT NULL,
             ref_key          TEXT    NOT NULL,
@@ -28,7 +34,7 @@ def upgrade() -> None:
         )
     """)
     bind.exec_driver_sql("""
-        CREATE INDEX IF NOT EXISTS idx_triage_ausnahmen_verworfen_kat
+        CREATE INDEX idx_triage_ausnahmen_verworfen_kat
             ON triage_ausnahmen_verworfen(kategorie)
     """)
 
