@@ -1388,7 +1388,7 @@ CREATE TABLE IF NOT EXISTS triage_ausnahmen_verworfen (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     kategorie        TEXT    NOT NULL,
     ref_key          TEXT    NOT NULL,
-    verworfen_von_id INTEGER NOT NULL REFERENCES persons(id),
+    verworfen_von_id INTEGER REFERENCES persons(id),
     verworfen_at     TEXT    NOT NULL DEFAULT (datetime('now','utc')),
     UNIQUE(kategorie, ref_key)
 );
