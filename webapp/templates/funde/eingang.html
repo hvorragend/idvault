@@ -369,27 +369,19 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
                 data-bearbeitungsstatus="{{ f.bearbeitungsstatus or 'Neu' }}">
             </td>
 
-            <!-- Dateiname + Hash -->
+            <!-- Dateiname + Hash-Icon -->
             <td>
               <span class="fw-500">{{ f.file_name }}</span>
               {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
-              <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
-                {% if f.file_hash in duplicate_hashes %}
-                <span class="badge bg-warning text-dark"
-                  title="Dieser Hash kommt auf dieser Seite mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
-                  <i class="bi bi-copy me-1"></i>Duplikat
-                </span>
-                {% endif %}
-                <span class="font-monospace text-muted fs-8" title="SHA-256: {{ f.file_hash }}">
-                  <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
-                </span>
-              </div>
+              <i class="bi bi-fingerprint text-muted ms-1" title="SHA-256: {{ f.file_hash }}"></i>
+              {% if f.file_hash in duplicate_hashes %}
+              <span class="badge bg-warning text-dark ms-1"
+                title="Dieser Hash kommt auf dieser Seite mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
+                <i class="bi bi-copy me-1"></i>Duplikat
+              </span>
+              {% endif %}
               {% elif f.file_hash == 'HASH_ERROR' %}
-              <div class="mt-1">
-                <span class="text-danger fs-8" title="Hash konnte nicht berechnet werden">
-                  <i class="bi bi-exclamation-triangle me-1"></i>Hash-Fehler
-                </span>
-              </div>
+              <i class="bi bi-exclamation-triangle text-danger ms-1" title="Hash konnte nicht berechnet werden"></i>
               {% endif %}
             </td>
 
