@@ -395,7 +395,7 @@ def wesentliche_idvs():
     total_pages = max(1, (total + per_page - 1) // per_page)
     page = min(page, total_pages)
 
-    idvs = db.execute(f"""
+    idvs_raw = db.execute(f"""
         SELECT r.*, v.*,
           CASE WHEN {_WESENTLICH} THEN 1 ELSE 0 END AS wesentlich_flag,
           EXISTS(SELECT 1 FROM idv_register x WHERE x.vorgaenger_idv_id = r.id) AS hat_nachfolger,
@@ -412,6 +412,13 @@ def wesentliche_idvs():
         ORDER BY v.bezeichnung
         LIMIT ? OFFSET ?
     """, params + [per_page, (page - 1) * per_page]).fetchall()
+
+    # Vollständigkeits-Score pro Zeile anreichern (analog list_idv)
+    idvs = []
+    for row in idvs_raw:
+        d = dict(row)
+        d["completeness_score"] = idv_completeness_score(db, row["id"])["score"]
+        idvs.append(d)
 
     org_units = db.execute(
         "SELECT id, bezeichnung FROM org_units WHERE aktiv=1 ORDER BY bezeichnung"
@@ -840,6 +847,11 @@ def detail_idv(idv_db_id):
 
     completeness = idv_completeness_score(db, idv_db_id)
 
+    # Excel-Dateien ohne Zell-/Blattschutz für das Inline-Modal der
+    # Fachlichen Abnahme — muss dort bestätigt werden können.
+    from .freigaben import _unprotected_excel_files_for_idv
+    ungeschuetzte_excel = _unprotected_excel_files_for_idv(db, idv_db_id)
+
     # Issue #351: Stille Freigabe verfuegbar?
     silent_release_enabled = False
     try:
@@ -881,6 +893,7 @@ def detail_idv(idv_db_id):
         freigabe_patch_schritte=freigabe_patch_schritte,
         hat_vorgaenger=hat_vorgaenger,
         completeness=completeness,
+        ungeschuetzte_excel=ungeschuetzte_excel,
         silent_release_moeglich=silent_release_moeglich,
         can_create=can_create())
 
