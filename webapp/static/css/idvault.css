@@ -109,15 +109,12 @@
 
 /* 2. Basis-Typografie ──────────────────────────────────────────────────────── */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
-               "Inter", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif,
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, "Noto Sans", sans-serif,
                "Apple Color Emoji", "Segoe UI Emoji";
   font-size: .9rem;
   background: var(--idv-bg);
   color: var(--idv-text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
 }
 
 /* 3. Sidebar ──────────────────────────────────────────────────────────────── */
@@ -162,23 +159,16 @@ body {
   font-weight: 600;
 }
 
-#sidebar {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
 #sidebar .nav-link {
   color: var(--idv-sidebar-text);
   padding: .45rem 1rem;
+  border-radius: var(--radius-md);
   margin: 1px 8px;
   display: flex;
   align-items: center;
   gap: .55rem;
   border-left: 3px solid transparent;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  font-size: .85rem;
   font-weight: 500;
-  letter-spacing: .005em;
   transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
 
@@ -720,15 +710,15 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 }
 
 /* 17. Outline-Pill-Badges (Status + Risiko) ───────────────────────────────── */
-/* Sanfte Outline-Variante: heller Fond + farbiger Rand + farbige Schrift.
-   Rahmen sind bewusst kräftiger (≈ Pastell-300) damit sie auf weißem
-   Tabellenhintergrund klar sichtbar bleiben. */
+/* Sanfte Outline-Variante: heller Pastellfond + farbiger Rand + farbige
+   Schrift. Default-Border ist bewusst sichtbar (slate-200) damit nicht-
+   matchende Status-Pills auf weißem Hintergrund nicht randlos wirken. */
 .badge[class*="status-"] {
   font-size: .72rem;
   font-weight: 600;
   padding: .22rem .65rem;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--slate-300);
+  border: 1px solid var(--slate-200);
   background: var(--slate-50);
   color: var(--slate-700);
   letter-spacing: .01em;
@@ -737,45 +727,45 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 .status-Entwurf {
   background: var(--slate-50);
   color: var(--slate-700);
-  border-color: var(--slate-400);
+  border-color: var(--slate-300);
 }
 
 .status-In\ Prüfung,
 .status-In-Prüfung {
   background: #eff6ff;
   color: #1d4ed8;
-  border-color: #93c5fd;
+  border-color: #bfdbfe;
 }
 
 .status-Freigegeben {
   background: #f0fdf4;
   color: #15803d;
-  border-color: #86efac;
+  border-color: #bbf7d0;
 }
 
 .status-Freigegeben\ mit\ Auflagen,
 .status-Freigegeben-mit-Auflagen {
   background: var(--amber-50);
   color: var(--amber-700);
-  border-color: #fcd34d;
+  border-color: var(--amber-200);
 }
 
 .status-Abgelehnt {
   background: #fef2f2;
   color: #b91c1c;
-  border-color: #fca5a5;
+  border-color: #fecaca;
 }
 
 .status-Abgekündigt {
   background: #faf5ff;
   color: #7e22ce;
-  border-color: #d8b4fe;
+  border-color: #e9d5ff;
 }
 
 .status-Archiviert {
   background: var(--slate-50);
   color: var(--slate-600);
-  border-color: var(--slate-300);
+  border-color: var(--slate-200);
 }
 
 /* Risiko-Outline-Badge mit farbigem Dot-Präfix (". Hoch", ". Mittel", ". Niedrig") */
@@ -790,7 +780,7 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border: 1px solid;
   background: #fef2f2;
   color: #b91c1c;
-  border-color: #fca5a5;
+  border-color: #fecaca;
 }
 .risk-badge::before {
   content: "";
@@ -799,9 +789,9 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-radius: 50%;
   background: currentColor;
 }
-.risk-badge-high   { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
-.risk-badge-mid    { background: var(--amber-50); color: var(--amber-700); border-color: #fcd34d; }
-.risk-badge-low    { background: #f0fdf4; color: #15803d; border-color: #86efac; }
+.risk-badge-high   { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.risk-badge-mid    { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-200); }
+.risk-badge-low    { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
 
 /* 18. KPI-Cards mit Pastell-Icon-Badge ────────────────────────────────────── */
 /* Variante mit Icon in einem weichen, getönten Quadrat oben rechts. */
@@ -1048,42 +1038,42 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 .idv-tag-wesentlich {
   background: #fef2f2;
   color: #b91c1c;
-  border-color: #fca5a5;
+  border-color: #fecaca;
 }
 .idv-tag-nicht-wesentlich {
   background: var(--slate-50);
   color: var(--slate-500);
-  border-color: var(--slate-300);
+  border-color: var(--slate-200);
 }
 
 /* Entwicklungsart */
 .idv-tag-art-idv {
   background: var(--amber-50);
   color: var(--amber-700);
-  border-color: #fcd34d;
+  border-color: var(--amber-200);
 }
 .idv-tag-art-arbeitshilfe {
   background: #f0fdf4;
   color: #15803d;
-  border-color: #86efac;
+  border-color: #bbf7d0;
 }
 .idv-tag-art-eigenprogrammierung {
   background: #eff6ff;
   color: #1d4ed8;
-  border-color: #93c5fd;
+  border-color: #bfdbfe;
 }
 .idv-tag-art-auftragsprogrammierung {
   background: #ecfeff;
   color: #0e7490;
-  border-color: #67e8f9;
+  border-color: #a5f3fc;
 }
 
 /* Generic colour modifiers — reusable on any .idv-tag */
-.idv-tag-green  { background: #f0fdf4; color: #15803d; border-color: #86efac; }
-.idv-tag-amber  { background: var(--amber-50); color: var(--amber-700); border-color: #fcd34d; }
-.idv-tag-blue   { background: #eff6ff; color: #1d4ed8; border-color: #93c5fd; }
-.idv-tag-red    { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
-.idv-tag-slate  { background: var(--slate-50); color: var(--slate-500); border-color: var(--slate-300); }
+.idv-tag-green  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.idv-tag-amber  { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-200); }
+.idv-tag-blue   { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.idv-tag-red    { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.idv-tag-slate  { background: var(--slate-50); color: var(--slate-500); border-color: var(--slate-200); }
 
 /* Mini-Pill für Inline-Markierung (z. B. Funde-Status am Dateinamen) */
 .mini-pill {
@@ -1095,18 +1085,18 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   font-weight: 600;
   line-height: 1.25;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--slate-300);
+  border: 1px solid var(--slate-200);
   background: var(--slate-50);
   color: var(--slate-600);
   letter-spacing: .01em;
   white-space: nowrap;
   vertical-align: middle;
 }
-.mini-pill-neu      { background: var(--slate-50); color: var(--slate-600); border-color: var(--slate-300); }
-.mini-pill-zur-reg  { background: #eff6ff;       color: #1d4ed8;           border-color: #93c5fd; }
-.mini-pill-reg      { background: #f0fdf4;       color: #15803d;           border-color: #86efac; }
-.mini-pill-ignored  { background: var(--slate-100); color: var(--slate-500); border-color: var(--slate-300); }
-.mini-pill-archiv   { background: var(--slate-50); color: var(--slate-500); border-color: var(--slate-300); }
+.mini-pill-neu      { background: var(--slate-50); color: var(--slate-600); border-color: var(--slate-200); }
+.mini-pill-zur-reg  { background: #eff6ff;       color: #1d4ed8;           border-color: #bfdbfe; }
+.mini-pill-reg      { background: #f0fdf4;       color: #15803d;           border-color: #bbf7d0; }
+.mini-pill-ignored  { background: var(--slate-100); color: var(--slate-500); border-color: var(--slate-200); }
+.mini-pill-archiv   { background: var(--slate-50); color: var(--slate-500); border-color: var(--slate-200); }
 
 /* 26. Page-Header (einheitlicher Seitenkopf) ──────────────────────────────── */
 /* Pattern für Detail-/Übersichtsseiten: Tags+Status links, Actions rechts. */
