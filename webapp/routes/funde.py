@@ -443,8 +443,15 @@ def list_funde():
 
     gesamt = gesamt_inkl_ignoriert - ignoriert  # Aktive ohne Ignoriert
 
-    # Match-Score-Vorschläge nur berechnen wenn relevante Filter aktiv sind und Funktion aktiv
-    if filt not in ("archiv", "duplikate", "mit_idv") and _get_bool(db, "match_suggestions_enabled", True):
+    # Match-Score-Vorschläge nur berechnen wenn relevante Filter aktiv sind und Funktion aktiv.
+    # Die Spalte soll trotzdem dauerhaft sichtbar sein, solange das Feature aktiv ist und
+    # der Filter sie nicht explizit ausblendet – auch wenn für die aktuelle Seite kein
+    # Treffer berechnet wurde (sporadisches Ein-/Ausblenden der Vorschlagsspalte vermeiden).
+    match_suggestions_active = (
+        filt not in ("archiv", "duplikate", "mit_idv")
+        and _get_bool(db, "match_suggestions_enabled", True)
+    )
+    if match_suggestions_active:
         match_scores = _compute_match_scores(dateien, db)
     else:
         match_scores = {}
@@ -486,6 +493,7 @@ def list_funde():
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         match_scores=match_scores,
+        match_suggestions_active=match_suggestions_active,
         escalation_stages=escalation_stages,
         **_scan_btn_ctx(),
     )
