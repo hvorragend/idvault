@@ -584,8 +584,12 @@
           <div class="col-md-4">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="{{ fname }}" value="1" id="cb_{{ fname }}"
-                {{ 'checked' if idv and idv[fname] }}>
-              <label class="form-check-label" for="cb_{{ fname }}">{{ flabel }}</label>
+                {{ 'checked' if (idv and idv[fname]) or (not idv and prefill and prefill.get(fname)) }}>
+              <label class="form-check-label" for="cb_{{ fname }}">{{ flabel }}
+                {% if not idv and fname == 'zellschutz_formeln' and prefill and prefill.get('zellschutz_formeln') %}
+                <span class="badge bg-info-subtle text-info-emphasis ms-1" title="Aus Scannerdaten vorbelegt (Formeln + Blattschutz erkannt)">auto</span>
+                {% endif %}
+              </label>
             </div>
           </div>
           {% endfor %}
