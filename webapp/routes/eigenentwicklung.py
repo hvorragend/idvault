@@ -1048,6 +1048,10 @@ def new_idv():
                 "file_id":       file_id,
                 "extra_file_ids": extra_file_ids,
             }
+            # Rechenformeln durch Zellschutz gesichert → aus Scan vorbelegen,
+            # wenn die Datei Formeln enthält UND mind. ein Blattschutz aktiv ist.
+            if (fund["formula_count"] or 0) > 0 and fund["has_sheet_protection"]:
+                prefill["zellschutz_formeln"] = 1
             # Datei-Eigentümer als Entwickler vorbelegen
             owner_hint = fund["file_owner"] or fund["office_author"] or ""
             if owner_hint:

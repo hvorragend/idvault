@@ -302,7 +302,7 @@
             <div>{% if file.modified_at %}<span title="{{ file.modified_at|datetimefmt }}">{{ file.modified_at|datefmt }}</span>{% else %}–{% endif %}</div>
           </div>
           <div class="col-sm-4">
-            <div class="detail-label">Makros</div>
+            <div class="detail-label">Makros (VBA)</div>
             <div>{{ file.has_macros|yesno }}</div>
           </div>
           <div class="col-sm-4">
@@ -312,6 +312,23 @@
           <div class="col-sm-4">
             <div class="detail-label">Tabellenblätter</div>
             <div>{{ file.sheet_count or '–' }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Formeln</div>
+            <div>{{ file.formula_count if file.formula_count is not none else '–' }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Blattschutz</div>
+            <div>
+              {% if file.has_sheet_protection %}
+                Ja{% if file.protected_sheets_count and file.sheet_count %} ({{ file.protected_sheets_count }}/{{ file.sheet_count }}){% endif %}{% if file.sheet_protection_has_pw %}
+                <i class="bi bi-lock-fill ms-1" title="mit Passwort"></i>{% endif %}
+              {% else %}Nein{% endif %}
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Arbeitsmappenschutz</div>
+            <div>{{ file.workbook_protected|yesno }}</div>
           </div>
         </div>
       </div>
@@ -355,6 +372,35 @@
           <div class="col-sm-4">
             <div class="detail-label">Zuletzt geändert</div>
             <div>{% if ef.modified_at %}<span title="{{ ef.modified_at|datetimefmt }}">{{ ef.modified_at|datefmt }}</span>{% else %}–{% endif %}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Makros (VBA)</div>
+            <div>{{ ef.has_macros|yesno }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Ext. Links</div>
+            <div>{{ ef.has_external_links|yesno }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Tabellenblätter</div>
+            <div>{{ ef.sheet_count or '–' }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Formeln</div>
+            <div>{{ ef.formula_count if ef.formula_count is not none else '–' }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Blattschutz</div>
+            <div>
+              {% if ef.has_sheet_protection %}
+                Ja{% if ef.protected_sheets_count and ef.sheet_count %} ({{ ef.protected_sheets_count }}/{{ ef.sheet_count }}){% endif %}{% if ef.sheet_protection_has_pw %}
+                <i class="bi bi-lock-fill ms-1" title="mit Passwort"></i>{% endif %}
+              {% else %}Nein{% endif %}
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Arbeitsmappenschutz</div>
+            <div>{{ ef.workbook_protected|yesno }}</div>
           </div>
         </div>
       </div>
