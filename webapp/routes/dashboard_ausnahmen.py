@@ -52,6 +52,11 @@ def _mittlere_konfidenz(db):
                AND f.status = 'active'
                AND f.bearbeitungsstatus = 'Neu'
                AND r.status NOT IN ('Archiviert')
+               AND NOT EXISTS (
+                   SELECT 1 FROM triage_ausnahmen_verworfen v
+                    WHERE v.kategorie = 'mittlere_konfidenz'
+                      AND v.ref_key = CAST(s.id AS TEXT)
+               )
              ORDER BY s.score DESC, s.created_at
              LIMIT 10
         """).fetchall()
@@ -74,6 +79,11 @@ def _owner_mapping_fehlt(db):
                 WHERE p.aktiv = 1
                   AND (p.user_id = f.file_owner OR p.ad_name = f.file_owner)
            )
+           AND NOT EXISTS (
+               SELECT 1 FROM triage_ausnahmen_verworfen v
+                WHERE v.kategorie = 'owner_fehlt'
+                  AND v.ref_key = CAST(f.id AS TEXT)
+           )
          ORDER BY f.modified_at DESC
          LIMIT 10
     """).fetchall()
@@ -95,6 +105,11 @@ def _self_service_stumm(db):
                     WHERE a.person_id = t.person_id
                       AND a.created_at >= t.created_at
                )
+               AND NOT EXISTS (
+                   SELECT 1 FROM triage_ausnahmen_verworfen v
+                    WHERE v.kategorie = 'self_service_stumm'
+                      AND v.ref_key = t.jti
+               )
              ORDER BY t.created_at
              LIMIT 10
         """).fetchall()
@@ -112,6 +127,11 @@ def _auto_classify_fehlgeschlagen(db):
               FROM idv_files f
              WHERE f.status = 'active'
                AND f.bearbeitungsstatus = 'Auto-Klassifizierung fehlgeschlagen'
+               AND NOT EXISTS (
+                   SELECT 1 FROM triage_ausnahmen_verworfen v
+                    WHERE v.kategorie = 'auto_classify_failed'
+                      AND v.ref_key = CAST(f.id AS TEXT)
+               )
              ORDER BY f.modified_at DESC
              LIMIT 10
         """).fetchall()
@@ -131,6 +151,11 @@ def _eskalierte_idvs(db):
                AND n.ref_id = r.id
               JOIN v_unvollstaendige_idvs v ON v.idv_id = r.idv_id
              WHERE r.status NOT IN ('Archiviert','Abgekündigt')
+               AND NOT EXISTS (
+                   SELECT 1 FROM triage_ausnahmen_verworfen tv
+                    WHERE tv.kategorie = 'eskalierte_idvs'
+                      AND tv.ref_key = CAST(r.id AS TEXT)
+               )
              GROUP BY r.id, r.idv_id, r.bezeichnung
             HAVING reminder_count >= 4
              ORDER BY reminder_count DESC, r.idv_id
@@ -162,6 +187,11 @@ def _pool_reminder_ausgelaufen(db):
                AND f.zugewiesen_an_id IS NULL
                AND f.beauftragt_am IS NOT NULL
                AND f.beauftragt_am <= datetime('now','-{int(max_days)} days')
+               AND NOT EXISTS (
+                   SELECT 1 FROM triage_ausnahmen_verworfen v
+                    WHERE v.kategorie = 'pool_reminder_alt'
+                      AND v.ref_key = CAST(f.id AS TEXT)
+               )
              ORDER BY f.beauftragt_am
              LIMIT 10
         """).fetchall()
@@ -178,21 +208,29 @@ _CATEGORIES_FOR_COUNT = (
      "SELECT COUNT(*) FROM idv_match_suggestions s "
      "JOIN idv_files f ON f.id=s.file_id JOIN idv_register r ON r.id=s.idv_db_id "
      "WHERE s.decision IS NULL AND f.status='active' AND f.bearbeitungsstatus='Neu' "
-     "AND r.status NOT IN ('Archiviert')"),
+     "AND r.status NOT IN ('Archiviert') "
+     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "WHERE v.kategorie='mittlere_konfidenz' AND v.ref_key=CAST(s.id AS TEXT))"),
     ("owner_fehlt",
      "SELECT COUNT(*) FROM idv_files f "
      "WHERE f.status='active' AND f.bearbeitungsstatus='Neu' "
      "AND f.file_owner IS NOT NULL AND TRIM(f.file_owner)!='' "
      "AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.aktiv=1 "
-     "AND (p.user_id=f.file_owner OR p.ad_name=f.file_owner))"),
+     "AND (p.user_id=f.file_owner OR p.ad_name=f.file_owner)) "
+     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "WHERE v.kategorie='owner_fehlt' AND v.ref_key=CAST(f.id AS TEXT))"),
     ("self_service_stumm",
      "SELECT COUNT(*) FROM self_service_tokens t WHERE t.created_at <= datetime('now','-14 days') "
      "AND t.first_used_at IS NULL AND t.revoked_at IS NULL "
      "AND NOT EXISTS (SELECT 1 FROM self_service_audit a "
-     "WHERE a.person_id=t.person_id AND a.created_at >= t.created_at)"),
+     "WHERE a.person_id=t.person_id AND a.created_at >= t.created_at) "
+     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "WHERE v.kategorie='self_service_stumm' AND v.ref_key=t.jti)"),
     ("auto_classify_failed",
      "SELECT COUNT(*) FROM idv_files f WHERE f.status='active' "
-     "AND f.bearbeitungsstatus='Auto-Klassifizierung fehlgeschlagen'"),
+     "AND f.bearbeitungsstatus='Auto-Klassifizierung fehlgeschlagen' "
+     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "WHERE v.kategorie='auto_classify_failed' AND v.ref_key=CAST(f.id AS TEXT))"),
     ("eskalierte_idvs",
      "SELECT COUNT(*) FROM ("
      " SELECT 1 FROM notification_log n "
@@ -200,12 +238,16 @@ _CATEGORIES_FOR_COUNT = (
      " JOIN v_unvollstaendige_idvs v ON v.idv_id=r.idv_id "
      " WHERE n.kind='idv_incomplete_reminder' "
      " AND r.status NOT IN ('Archiviert','Abgekündigt') "
+     " AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen tv "
+     " WHERE tv.kategorie='eskalierte_idvs' AND tv.ref_key=CAST(r.id AS TEXT)) "
      " GROUP BY r.id HAVING COUNT(n.id) >= 4)"),
     ("pool_reminder_alt",
      "SELECT COUNT(*) FROM idv_freigaben f WHERE f.status='Ausstehend' "
      "AND f.pool_id IS NOT NULL AND f.zugewiesen_an_id IS NULL "
      "AND f.beauftragt_am IS NOT NULL "
-     "AND f.beauftragt_am <= datetime('now','-14 days')"),
+     "AND f.beauftragt_am <= datetime('now','-14 days') "
+     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "WHERE v.kategorie='pool_reminder_alt' AND v.ref_key=CAST(f.id AS TEXT))"),
 )
 
 
@@ -361,3 +403,40 @@ def eigentuemer_zuordnen():
         "success",
     )
     return redirect(url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt")
+
+
+_VALID_KATEGORIEN = frozenset({
+    "mittlere_konfidenz",
+    "owner_fehlt",
+    "self_service_stumm",
+    "auto_classify_failed",
+    "eskalierte_idvs",
+    "pool_reminder_alt",
+})
+
+
+@bp.route("/ausnahmen/verwerfen", methods=["POST"])
+@login_required
+@_koordinator_required
+def eintrag_verwerfen():
+    """Entfernt einen Triage-Eintrag dauerhaft aus der Triage-Ansicht."""
+    kategorie = (request.form.get("kategorie") or "").strip()
+    ref_key = (request.form.get("ref_key") or "").strip()
+
+    if not kategorie or not ref_key or kategorie not in _VALID_KATEGORIEN:
+        flash("Verwerfen fehlgeschlagen: ungültige Eingabe.", "error")
+        return redirect(url_for("dashboard_ausnahmen.index"))
+
+    person_id = session.get("user_id")
+
+    def _do(c):
+        with write_tx(c):
+            c.execute(
+                "INSERT OR IGNORE INTO triage_ausnahmen_verworfen "
+                "(kategorie, ref_key, verworfen_von_id) VALUES (?, ?, ?)",
+                (kategorie, ref_key, person_id),
+            )
+
+    get_writer().submit(_do, wait=True)
+    flash("Triage-Eintrag verworfen.", "success")
+    return redirect(url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}")
