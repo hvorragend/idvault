@@ -108,13 +108,44 @@
 }
 
 /* 2. Basis-Typografie ──────────────────────────────────────────────────────── */
+/* Inter – testweise als Primaer-UI-Font (self-hosted, TTF aus Google Fonts). */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/inter/Inter-400.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/static/fonts/inter/Inter-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/static/fonts/inter/Inter-600.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/static/fonts/inter/Inter-700.ttf") format("truetype");
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                "Helvetica Neue", Arial, "Noto Sans", sans-serif,
                "Apple Color Emoji", "Segoe UI Emoji";
   font-size: .9rem;
   background: var(--idv-bg);
   color: var(--idv-text);
+  font-feature-settings: "cv11", "ss01";   /* Inter: tabellarische Ziffern + klare Buchstabenformen */
 }
 
 /* 3. Sidebar ──────────────────────────────────────────────────────────────── */
@@ -1025,17 +1056,31 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 .idv-tag {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: .3rem;
-  padding: .22rem .6rem;
-  font-size: .78rem;
+  padding: .2rem .55rem;
+  font-size: .75rem;
   font-weight: 500;
   border-radius: var(--radius-md);    /* 6px – kein Pill */
   border: 1px solid var(--slate-200);
   background: var(--slate-50);
   color: var(--slate-700);
-  line-height: 1.35;
+  line-height: 1;
+  height: 1.4rem;                    /* feste Hoehe – unabhaengig vom Inhalt */
   white-space: nowrap;
   letter-spacing: .01em;
+  vertical-align: middle;
+}
+
+/* Bootstrap-Icons innerhalb eines .idv-tag auf dieselbe Text-Metrik pinnen,
+   damit ein Pill mit Icon nicht groesser wird als ein reiner Text-Pill. */
+.idv-tag .bi,
+.idv-tag i[class^="bi-"],
+.idv-tag i[class*=" bi-"] {
+  font-size: .8rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Wesentlichkeit */
