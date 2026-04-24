@@ -544,7 +544,7 @@ date_to} %}
 
             <td class="text-nowrap fs-7">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
             <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
-            <td class="text-nowrap">{{ f.modified_at|datefmt if f.modified_at else '–' }}</td>
+            <td class="text-nowrap">{% if f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>{% else %}–{% endif %}</td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} (Office-Autor: {{ f.office_author }}){% endif %}">
               {{ f.file_owner or f.office_author or '–' }}
@@ -679,8 +679,11 @@ date_to} %}
 
             <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
             <td class="text-nowrap">
-              {{ f.last_seen_at|datefmt if (filt == 'archiv' and f.last_seen_at) else (f.modified_at|datefmt if
-              f.modified_at else '–') }}
+              {% if filt == 'archiv' and f.last_seen_at %}
+                <span title="{{ f.last_seen_at|datetimefmt }}">{{ f.last_seen_at|datefmt }}</span>
+              {% elif f.modified_at %}
+                <span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>
+              {% else %}–{% endif %}
             </td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">

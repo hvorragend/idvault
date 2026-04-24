@@ -629,6 +629,8 @@ def create_idv(conn: sqlite3.Connection, data: dict,
         # Neue Felder
         "erstellt_fuer":                 data.get("erstellt_fuer"),
         "schnittstellen_beschr":         data.get("schnittstellen_beschr"),
+        "datenquellen":                  data.get("datenquellen"),
+        "datenempfaenger":               data.get("datenempfaenger"),
         "teststatus":                    data.get("teststatus", "Wertung ausstehend"),
         "vorgaenger_idv_id":             data.get("vorgaenger_idv_id"),
         "letzte_aenderungsart":          data.get("letzte_aenderungsart"),
@@ -728,6 +730,7 @@ def update_idv(conn: sqlite3.Connection, idv_db_id: int,
         "abloesung_geplant", "abloesung_zieldatum", "abloesung_durch",
         "pruefintervall_monate", "naechste_pruefung", "interne_notizen", "tags",
         "erstellt_fuer", "schnittstellen_beschr",
+        "datenquellen", "datenempfaenger",
         "teststatus",
         "letzte_aenderungsart", "letzte_aenderungsbegruendung",
     ]}
@@ -1237,7 +1240,7 @@ def idv_completeness_score(conn: sqlite3.Connection, idv_db_id: int) -> dict:
         "org_unit_id":                 row["org_unit_id"] is not None,
         "plattform_id":                row["plattform_id"] is not None,
         "nutzungsfrequenz":            bool(row["nutzungsfrequenz"]),
-        "datenschutz_kategorie":       bool(row["datenschutz_kategorie"]) and row["datenschutz_kategorie"] != "keine",
+        "datenschutz_kategorie":       bool(row["datenschutz_kategorie"]),
         "naechste_pruefung":           bool(row["naechste_pruefung"]),
     }
     labels = {

@@ -133,7 +133,7 @@
             {% endif %}
           </td>
           <td class="text-nowrap fs-7">
-            {{ f.modified_at|datefmt if f.modified_at else '–' }}
+            {% if f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>{% else %}–{% endif %}
           </td>
           <td class="text-nowrap fs-7">
             {% if f.sr_id %}

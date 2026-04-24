@@ -204,7 +204,7 @@ owner_filt} %}
             </td>
             <td class="small">{{ r.fachverantwortlicher or '–' }}</td>
             <td class="fs-7">{{ r.file_owner or '–' }}</td>
-            <td class="text-nowrap fs-7">{{ r.aktualisiert_am|datefmt if r.aktualisiert_am else '–' }}
+            <td class="text-nowrap fs-7">{% if r.aktualisiert_am %}<span title="{{ r.aktualisiert_am|datetimefmt }}">{{ r.aktualisiert_am|datefmt }}</span>{% else %}–{% endif %}
             </td>
             <td>
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-secondary"

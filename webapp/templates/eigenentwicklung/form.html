@@ -561,6 +561,17 @@
         <div class="form-text">Für wen oder für welchen Zweck wird die Datei erstellt?</div>
       </div>
 
+      <div class="col-md-6">
+        <label class="form-label">Datenschutz-Kategorie</label>
+        {% set _dsk = (idv.datenschutz_kategorie if idv else '') or 'keine' %}
+        <select name="datenschutz_kategorie" class="form-select">
+          <option value="keine" {{ 'selected' if _dsk=='keine' }}>keine (keine personenbezogenen Daten)</option>
+          <option value="allgemein" {{ 'selected' if _dsk=='allgemein' }}>allgemein (personenbezogene Daten nach DSGVO Art. 4)</option>
+          <option value="besonders sensibel" {{ 'selected' if _dsk=='besonders sensibel' }}>besonders sensibel (Art. 9 DSGVO, z. B. Gesundheit, Religion, Biometrie)</option>
+        </select>
+        <div class="form-text">Welche Art personenbezogener Daten verarbeitet die Anwendung?</div>
+      </div>
+
       <!-- Checkliste -->
       <div class="col-12">
         <div class="fw-semibold text-muted mb-1 small">Checkliste</div>
