@@ -1307,6 +1307,45 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   font-size: 1rem;
 }
 
+/* 36b. Nav-Tabs (Bootstrap) – gleiches Underline-Skin wie .idv-tabs ────── */
+/* Bootstrap JS hängt an `.nav-tabs` – Klasse muss bleiben, aber Optik auf
+   idvault-Stil: flacher, eine Unterstreichung in Amber für den aktiven Tab. */
+.nav.nav-tabs {
+  border-bottom: 1px solid var(--idv-border);
+  gap: .25rem;
+}
+
+.nav.nav-tabs .nav-link {
+  color: var(--slate-600);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: .55rem .95rem;
+  font-weight: 500;
+  font-size: .88rem;
+  background: transparent;
+  margin-bottom: -1px;
+  transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+}
+
+.nav.nav-tabs .nav-link:hover,
+.nav.nav-tabs .nav-link:focus-visible {
+  color: var(--slate-900);
+  background: var(--slate-50);
+  border-bottom-color: transparent;
+}
+
+.nav.nav-tabs .nav-link.active,
+.nav.nav-tabs .nav-item.show .nav-link {
+  color: var(--slate-900);
+  background: transparent;
+  border-color: transparent;
+  border-bottom-color: var(--amber-500);
+  font-weight: 600;
+}
+
+.nav.nav-tabs .nav-link i { font-size: .95rem; }
+
 /* 36. Nav-Pills (Admin-Subnav etc.) an Slate-Palette angleichen ─────────── */
 /* Bootstrap-Default nutzt .bs-primary (Blau) für aktive Pills. Wir wollen
    einheitlich Slate-900 wie bei btn-primary. */
