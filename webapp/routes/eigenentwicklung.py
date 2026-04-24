@@ -1512,6 +1512,9 @@ def edit_idv(idv_db_id):
     fachlich_vorhanden   = bool(fachliche_testfaelle)
     technisch_vorhanden  = technischer_test is not None
 
+    from .freigaben import _unprotected_excel_files_for_idv
+    ungeschuetzte_excel = _unprotected_excel_files_for_idv(db, idv_db_id)
+
     return render_template("eigenentwicklung/form.html",
         idv=idv, fund=None, prefill={},
         wesentlichkeit_antworten=wesentlichkeit_antworten,
@@ -1532,6 +1535,7 @@ def edit_idv(idv_db_id):
         fachlich_vorhanden=fachlich_vorhanden,
         technisch_vorhanden=technisch_vorhanden,
         entwicklungsart_label=ENTWICKLUNGSART_LABEL,
+        ungeschuetzte_excel=ungeschuetzte_excel,
         **_form_lookups(db))
 
 
