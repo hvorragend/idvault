@@ -32,9 +32,16 @@
     <span class="badge status-{{ idv.status|replace(' ', '-') }}">{{ idv.status }}</span>
   </div>
   <div class="d-flex gap-2">
+    {% if idv.status != 'Freigegeben' or session.get('user_role') == 'IDV-Administrator' %}
     <a href="{{ url_for('eigenentwicklung.edit_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-pencil me-1"></i>Bearbeiten
     </a>
+    {% else %}
+    <span class="btn btn-sm btn-outline-secondary disabled"
+          title="Freigegebene IDVs sind schreibgeschützt – bitte zuerst ein neues Freigabeverfahren starten.">
+      <i class="bi bi-lock me-1"></i>Bearbeiten
+    </span>
+    {% endif %}
     <!-- Status-Workflow -->
     <div class="dropdown">
       <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">

@@ -275,7 +275,7 @@
                   title="Detail">
                   <i class="bi bi-eye"></i>
                 </a>
-                {% if can_write %}
+                {% if can_write and (r.status != 'Freigegeben' or session.get('user_role') == 'IDV-Administrator') %}
                 <a href="{{ url_for('eigenentwicklung.edit_idv', idv_db_id=r.id) }}" class="btn btn-xs btn-outline-primary"
                   title="Bearbeiten">
                   <i class="bi bi-pencil"></i>

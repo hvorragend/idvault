@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify, abort, g
 from . import (login_required, write_access_required, own_write_required, admin_required,
-               get_db, can_write, can_create, can_read_all, current_person_id)
+               get_db, can_write, can_create, can_read_all, current_person_id,
+               ROLE_ADMIN)
 import sys, os, io, json, re
 from datetime import datetime as _dt, timezone as _tz
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -1361,6 +1362,15 @@ def edit_idv(idv_db_id):
     if not idv:
         flash("Eigenentwicklung nicht gefunden.", "error")
         return redirect(url_for("eigenentwicklung.list_idv"))
+
+    # Freigegebene IDVs sind schreibgeschützt – nur Admin darf editieren.
+    # Alle anderen Rollen müssen zuerst ein neues Freigabeverfahren
+    # (Wiederfreigabe / Wesentliche Änderung / Patch) starten.
+    if idv["status"] == "Freigegeben" and session.get("user_role") != ROLE_ADMIN:
+        flash("Dieses IDV ist freigegeben. Änderungen sind erst nach Start eines "
+              "neuen Freigabeverfahrens (Wiederfreigabe / Wesentliche Änderung / "
+              "Patch) möglich.", "error")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
     if request.method == "POST":
         data = _form_to_dict(request.form)
