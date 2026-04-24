@@ -46,7 +46,11 @@
             <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Score {{ r.score }}</span></td>
             <td class="text-end pe-3">
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.idv_db_id) }}"
-                 class="btn btn-sm btn-outline-primary">Vorschlag prüfen</a>
+                 class="btn btn-sm btn-outline-primary me-1">Vorschlag prüfen</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-mittlere_konfidenz-{{ r.suggestion_id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
             </td>
           </tr>
           {% endfor %}
@@ -58,9 +62,13 @@
             <td class="small text-muted text-truncate" style="max-width:280px" title="{{ r.full_path }}">{{ r.full_path }}</td>
             <td><code>{{ r.file_owner }}</code></td>
             <td class="text-end pe-3">
-              <button type="button" class="btn btn-sm btn-outline-warning"
+              <button type="button" class="btn btn-sm btn-outline-warning me-1"
                       data-bs-toggle="modal"
                       data-bs-target="#ownerModal{{ r.file_id }}">Eigentümer zuordnen</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-owner_fehlt-{{ r.file_id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
             </td>
           </tr>
           {% endfor %}
@@ -72,7 +80,11 @@
             <td class="small text-muted">{{ r.email or '–' }}</td>
             <td class="small text-muted">Versendet {{ r.created_at[:10] }}</td>
             <td class="text-end pe-3">
-              <span class="text-muted small">Eskalation siehe #355</span>
+              <span class="text-muted small me-2">Eskalation siehe #355</span>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-self_service_stumm-{{ r.jti }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
             </td>
           </tr>
           {% endfor %}
@@ -85,7 +97,11 @@
             <td class="small text-muted">{{ r.modified_at[:10] if r.modified_at else '–' }}</td>
             <td class="text-end pe-3">
               <a href="{{ url_for('funde.list_funde') }}"
-                 class="btn btn-sm btn-outline-danger">Zur Triage</a>
+                 class="btn btn-sm btn-outline-danger me-1">Zur Triage</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-auto_classify_failed-{{ r.file_id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
             </td>
           </tr>
           {% endfor %}
@@ -101,7 +117,11 @@
             <td><span class="badge bg-danger">{{ r.reminder_count }} Reminder</span></td>
             <td class="text-end pe-3">
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
-                 class="btn btn-sm btn-outline-danger">Eskalieren</a>
+                 class="btn btn-sm btn-outline-danger me-1">Eskalieren</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-eskalierte_idvs-{{ r.id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
             </td>
           </tr>
           {% endfor %}
@@ -119,7 +139,11 @@
             <td class="small text-muted">Beauftragt {{ r.beauftragt_am[:10] }}</td>
             <td class="text-end pe-3">
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.idv_db_id) }}"
-                 class="btn btn-sm btn-outline-warning">Pool zuweisen</a>
+                 class="btn btn-sm btn-outline-warning me-1">Pool zuweisen</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-pool_reminder_alt-{{ r.freigabe_id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
             </td>
           </tr>
           {% endfor %}
@@ -173,5 +197,63 @@
     </div>
     {% endfor %}
   {% endif %}
+{% endfor %}
+
+{# Verwerfen-Modals fuer alle Kategorien #}
+{% for s in sections %}
+  {% for r in s.rows %}
+    {% if s.key == 'mittlere_konfidenz' %}
+      {% set modal_id = 'verwerfenModal-mittlere_konfidenz-' ~ r.suggestion_id %}
+      {% set ref_key = r.suggestion_id | string %}
+      {% set label = r.idv_id ~ ' – ' ~ r.file_name %}
+    {% elif s.key == 'owner_fehlt' %}
+      {% set modal_id = 'verwerfenModal-owner_fehlt-' ~ r.file_id %}
+      {% set ref_key = r.file_id | string %}
+      {% set label = r.file_name %}
+    {% elif s.key == 'self_service_stumm' %}
+      {% set modal_id = 'verwerfenModal-self_service_stumm-' ~ r.jti %}
+      {% set ref_key = r.jti %}
+      {% set label = r.nachname ~ ', ' ~ r.vorname %}
+    {% elif s.key == 'auto_classify_failed' %}
+      {% set modal_id = 'verwerfenModal-auto_classify_failed-' ~ r.file_id %}
+      {% set ref_key = r.file_id | string %}
+      {% set label = r.file_name %}
+    {% elif s.key == 'eskalierte_idvs' %}
+      {% set modal_id = 'verwerfenModal-eskalierte_idvs-' ~ r.id %}
+      {% set ref_key = r.id | string %}
+      {% set label = r.idv_id ~ ' – ' ~ r.bezeichnung %}
+    {% elif s.key == 'pool_reminder_alt' %}
+      {% set modal_id = 'verwerfenModal-pool_reminder_alt-' ~ r.freigabe_id %}
+      {% set ref_key = r.freigabe_id | string %}
+      {% set label = r.idv_id ~ ' – ' ~ r.bezeichnung %}
+    {% else %}
+      {% set modal_id = '' %}
+    {% endif %}
+    {% if modal_id %}
+    <div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+          <form method="post" action="{{ url_for('dashboard_ausnahmen.eintrag_verwerfen') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="kategorie" value="{{ s.key }}">
+            <input type="hidden" name="ref_key" value="{{ ref_key }}">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="bi bi-x-circle me-2 text-secondary"></i>Eintrag verwerfen</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Abbrechen"></button>
+            </div>
+            <div class="modal-body">
+              <p class="mb-1">Diesen Eintrag aus der Triage-Ansicht entfernen?</p>
+              <p class="small text-muted mb-0">{{ label }}</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+              <button type="submit" class="btn btn-outline-secondary btn-sm">Verwerfen</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
 {% endfor %}
 {% endblock %}
