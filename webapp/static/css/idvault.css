@@ -43,6 +43,11 @@
   --amber-600: #d97706;
   --amber-700: #b45309;
 
+  /* Navy-Skala (Sidebar-Basis – gesättigter als Slate, bank­fähig) */
+  --navy-800: #1b2a4e;
+  --navy-900: #152342;
+  --navy-950: #0f1b34;
+
   /* Semantische Aliase */
   --idv-bg:          var(--slate-50);
   --idv-surface:     #ffffff;
@@ -51,10 +56,15 @@
 
   /* Backwards-Compat: bestehende var(--idv-*)-Referenzen in Templates/JS
      bleiben funktional. Werte vorsichtig modernisiert. */
-  --idv-primary: var(--slate-900);
-  --idv-accent:  var(--amber-500);
-  --idv-sidebar: var(--slate-900);
-  --idv-border:  var(--slate-200);
+  --idv-primary:         var(--slate-900);
+  --idv-accent:          var(--amber-500);
+  --idv-accent-soft-bg:  rgba(245, 158, 11, .12);
+  --idv-sidebar:         var(--navy-900);
+  --idv-sidebar-label:   rgba(226, 232, 240, .42);
+  --idv-sidebar-text:    #dbe4f0;
+  --idv-sidebar-divider: rgba(255, 255, 255, .09);
+  --idv-border:          var(--slate-200);
+  --idv-border-strong:   var(--slate-300);
 
   /* Spacing */
   --space-1: .25rem;
@@ -111,8 +121,9 @@ body {
 #sidebar {
   width: var(--sidebar-width);
   min-height: 100vh;
-  background: var(--slate-900);
-  color: var(--slate-300);
+  background: var(--idv-sidebar);
+  background-image: linear-gradient(180deg, var(--navy-800) 0%, var(--navy-950) 100%);
+  color: var(--idv-sidebar-text);
   flex-shrink: 0;
   position: fixed;
   top: 0;
@@ -120,6 +131,7 @@ body {
   bottom: 0;
   overflow-y: auto;
   z-index: 100;
+  border-right: 1px solid rgba(0, 0, 0, .35);
 }
 
 #sidebar .brand {
@@ -139,15 +151,16 @@ body {
 #sidebar .brand span { color: var(--amber-500); }
 
 #sidebar .nav-label {
-  padding: .75rem 1rem .25rem;
+  padding: .9rem 1rem .3rem;
   font-size: .65rem;
   text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--slate-500);
+  letter-spacing: .1em;
+  color: var(--idv-sidebar-label);
+  font-weight: 600;
 }
 
 #sidebar .nav-link {
-  color: var(--slate-300);
+  color: var(--idv-sidebar-text);
   padding: .45rem 1rem;
   border-radius: var(--radius-md);
   margin: 1px 8px;
@@ -155,16 +168,17 @@ body {
   align-items: center;
   gap: .55rem;
   border-left: 3px solid transparent;
+  font-weight: 500;
   transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
 
 #sidebar .nav-link:hover {
-  background: rgba(255, 255, 255, .06);
+  background: rgba(255, 255, 255, .07);
   color: #fff;
 }
 
 #sidebar .nav-link.active {
-  background: rgba(245, 158, 11, .12);
+  background: var(--idv-accent-soft-bg);
   color: #fff;
   border-left-color: var(--amber-500);
 }
@@ -172,11 +186,17 @@ body {
 #sidebar .nav-link i {
   font-size: 1rem;
   width: 18px;
+  color: rgba(255, 255, 255, .72);
+}
+
+#sidebar .nav-link:hover i,
+#sidebar .nav-link.active i {
+  color: var(--amber-400);
 }
 
 .sidebar-divider {
   border: 0;
-  border-top: 1px solid rgba(255, 255, 255, .12);
+  border-top: 1px solid var(--idv-sidebar-divider);
   margin: .75rem 1rem .5rem;
 }
 
@@ -1043,6 +1063,249 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 .idv-tag-blue   { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .idv-tag-red    { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 .idv-tag-slate  { background: var(--slate-50); color: var(--slate-500); border-color: var(--slate-200); }
+
+/* 26. Page-Header (einheitlicher Seitenkopf) ──────────────────────────────── */
+/* Pattern für Detail-/Übersichtsseiten: Tags+Status links, Actions rechts. */
+.idv-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-bottom: .85rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--idv-border);
+}
+
+.idv-page-header .iph-left,
+.idv-page-header .iph-right {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.idv-page-header .iph-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  margin-right: .3rem;
+}
+
+.idv-page-header .iph-meta {
+  font-size: .78rem;
+  color: var(--slate-500);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* 27. Tabs (ersetzt Bootstrap .nav-tabs im idvault-Stil) ──────────────────── */
+/* Flache Unterstreichungs-Tabs, aktiver Tab in Amber mit 2px-Underline. */
+.idv-tabs {
+  display: flex;
+  gap: .25rem;
+  border-bottom: 1px solid var(--idv-border);
+  margin-bottom: 1.1rem;
+  padding-left: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.idv-tabs .idv-tab,
+.idv-tabs > li > a,
+.idv-tabs > li > button {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .55rem .95rem;
+  color: var(--slate-600);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: .88rem;
+  border: 0;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+}
+
+.idv-tabs .idv-tab:hover,
+.idv-tabs > li > a:hover,
+.idv-tabs > li > button:hover {
+  color: var(--slate-900);
+  background: var(--slate-50);
+}
+
+.idv-tabs .idv-tab.active,
+.idv-tabs .idv-tab[aria-selected="true"],
+.idv-tabs > li.active > a,
+.idv-tabs > li > a.active {
+  color: var(--slate-900);
+  border-bottom-color: var(--amber-500);
+  background: transparent;
+}
+
+.idv-tabs .idv-tab:disabled,
+.idv-tabs .idv-tab.disabled {
+  color: var(--slate-400);
+  cursor: not-allowed;
+  opacity: .7;
+}
+
+.idv-tabs .idv-tab i { font-size: .95rem; }
+
+/* 28. Accent-Cards (linke farbige Kante statt bootstrap .border-start .border-4) */
+/* Gleicher Effekt wie `border-start border-4 border-warning`, aber semantisch
+   benannt und über Design-Tokens gesteuert. */
+.idv-card-accent {
+  border-left: 4px solid var(--slate-300);
+}
+.idv-card-accent-primary { border-left-color: var(--amber-500); }
+.idv-card-accent-info    { border-left-color: #1d4ed8; }
+.idv-card-accent-warn    { border-left-color: var(--amber-500); }
+.idv-card-accent-danger  { border-left-color: #b91c1c; }
+.idv-card-accent-success { border-left-color: #15803d; }
+
+/* 29. Card-Header Konsistenz ─────────────────────────────────────────────── */
+/* Viele Templates nutzen `class="card-header bg-white"` – damit die Karten
+   einheitlich wirken, bekommen *alle* Card-Header eine saubere Bottom-Linie
+   und ruhige Typografie. */
+.card > .card-header {
+  background: var(--idv-surface);
+  border-bottom: 1px solid var(--idv-border);
+  padding: .75rem 1rem;
+  font-weight: 600;
+  color: var(--slate-800);
+}
+
+.card > .card-header.bg-light {
+  background: var(--slate-50) !important;
+}
+
+/* Karten mit `.border-0 .shadow-sm` (die häufigste Kombination): dezenter
+   Rand statt nur Schatten – wirkt weniger wie „floating", mehr „seriös". */
+.card.border-0.shadow-sm {
+  border: 1px solid var(--idv-border) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* 30. Progress-Bars schärfen ─────────────────────────────────────────────── */
+/* Niedrigere, klarere Progress-Bars – passen zur eckigen Ästhetik. */
+.progress {
+  background: var(--slate-100);
+  border-radius: 0;
+  overflow: hidden;
+}
+.progress-bar { border-radius: 0; }
+
+/* 31. Outline-Button-Schliff ────────────────────────────────────────────── */
+/* Bootstrap-Defaults sind sehr grau. Outline-Buttons bekommen dezent-aktiven
+   Hover-Look in Akzentfarbe. */
+.btn-outline-primary {
+  --bs-btn-color:            var(--slate-700);
+  --bs-btn-border-color:     var(--slate-300);
+  --bs-btn-hover-color:      #fff;
+  --bs-btn-hover-bg:         var(--slate-900);
+  --bs-btn-hover-border-color: var(--slate-900);
+  --bs-btn-active-bg:        var(--slate-900);
+  --bs-btn-active-border-color: var(--slate-900);
+}
+
+.btn-outline-secondary {
+  --bs-btn-color:            var(--slate-600);
+  --bs-btn-border-color:     var(--slate-300);
+  --bs-btn-hover-color:      var(--slate-900);
+  --bs-btn-hover-bg:         var(--slate-100);
+  --bs-btn-hover-border-color: var(--slate-400);
+}
+
+/* 32. Tabellen-Feinschliff ─────────────────────────────────────────────── */
+/* Etwas mehr vertikales Padding in Tabellen – ruhigere Lesbarkeit. */
+.table > :not(caption) > * > * {
+  padding: .6rem .55rem;
+}
+
+.table-hover > tbody > tr:hover > * {
+  background: var(--slate-50);
+}
+
+.table thead th {
+  background: var(--slate-50);
+  color: var(--slate-600);
+  font-weight: 600;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  border-bottom: 1px solid var(--idv-border);
+}
+
+/* Zebra-Zeilen in .table-idv ausschalten, wenn .table-hover aktiv ist:
+   visuelles Rauschen, der Hover-Effekt reicht. */
+.table-idv.table-hover tbody tr:nth-child(even) {
+  background: transparent;
+}
+
+/* 33. Badge-Konsistenz (bg-light text-dark border) ──────────────────────── */
+/* In vielen Templates taucht `badge bg-light text-dark border` auf.
+   Einheitliches, ruhiges Erscheinungsbild. */
+.badge.bg-light.text-dark {
+  background: var(--slate-50) !important;
+  color: var(--slate-700) !important;
+  border: 1px solid var(--idv-border) !important;
+  font-weight: 500;
+  padding: .25rem .55rem;
+  font-size: .72rem;
+  letter-spacing: .01em;
+}
+
+/* 34. Alert-Feinschliff ───────────────────────────────────────────────── */
+/* Bootstrap-Alerts: entfernen der standardmäßigen Light-Tönung, bevorzugen
+   Outline-Look mit klarer linker Akzentkante. */
+.alert {
+  border-width: 1px;
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  padding: .75rem 1rem;
+}
+
+.alert-warning {
+  background: var(--amber-50);
+  border-color: var(--amber-200);
+  border-left-color: var(--amber-500);
+  color: var(--amber-700);
+}
+
+.alert-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  border-left-color: #b91c1c;
+  color: #991b1b;
+}
+
+.alert-success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  border-left-color: #15803d;
+  color: #166534;
+}
+
+.alert-info,
+.alert-primary {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  border-left-color: #1d4ed8;
+  color: #1e40af;
+}
+
+/* 35. Topbar-Feinschliff ─────────────────────────────────────────────── */
+/* Topbar etwas prominenter: leichte Bottom-Schattierung beim Scrollen. */
+#topbar {
+  backdrop-filter: saturate(1.1);
+}
+
+.idv-breadcrumb .crumb.current {
+  font-size: 1rem;
+}
 
 /* 16. Druck-Stylesheet ────────────────────────────────────────────────────── */
 @media print {

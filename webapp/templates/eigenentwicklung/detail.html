@@ -13,8 +13,8 @@
 {% block content %}
 
 <!-- ── Header-Leiste ──────────────────────────────────────────────── -->
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div class="d-flex align-items-center gap-2 flex-wrap">
+<div class="idv-page-header">
+  <div class="iph-left">
     {% if ist_wesentlich %}
     <span class="idv-tag idv-tag-wesentlich">
       <i class="bi bi-exclamation-triangle-fill"></i>Wesentlich
@@ -31,7 +31,7 @@
     </span>
     <span class="badge status-{{ idv.status|replace(' ', '-') }}">{{ idv.status }}</span>
   </div>
-  <div class="d-flex gap-2">
+  <div class="iph-right">
     {% if idv.status != 'Freigegeben' or session.get('user_role') == 'IDV-Administrator' %}
     <a href="{{ url_for('eigenentwicklung.edit_idv', idv_db_id=idv.id) }}" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-pencil me-1"></i>Bearbeiten
