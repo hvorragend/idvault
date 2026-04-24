@@ -28,7 +28,7 @@
   <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
     <span><i class="bi {{ s.icon }} me-2 text-{{ s.tone }}"></i>{{ s.label }}</span>
     <div class="d-flex align-items-center gap-2">
-      <span class="badge bg-{{ s.tone }}">{{ s.rows|length }}{% if s.rows|length == 10 %}+{% endif %}</span>
+      <span class="badge bg-{{ s.tone }}">{{ s.rows|length }}</span>
       <form method="post" action="{{ url_for('dashboard_ausnahmen.alle_verwerfen') }}" class="d-inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="kategorie" value="{{ s.key }}">
@@ -158,6 +158,14 @@
             </td>
           </tr>
           {% endfor %}
+        {% endif %}
+        {% if s.rows|length == 10 %}
+        <tr>
+          <td colspan="99" class="text-center text-muted small py-2 fst-italic">
+            <i class="bi bi-three-dots me-1"></i>Zeigt die ersten 10 Einträge — weitere sind vorhanden.
+            Einträge verwerfen, um die nächsten zu sehen.
+          </td>
+        </tr>
         {% endif %}
       </tbody>
     </table>
