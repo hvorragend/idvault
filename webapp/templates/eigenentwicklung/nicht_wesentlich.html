@@ -195,8 +195,9 @@ owner_filt} %}
                   class="bi bi-lock-fill"></i></span>
               {% endif %}
               {% if r.file_formula_count %}
-              <span class="idv-tag idv-tag-amber ms-1" title="{{ r.file_formula_count }} Formelzellen">ƒ {{
-                r.file_formula_count }}</span>
+              <span class="idv-tag idv-tag-amber ms-1" title="{{ r.file_formula_count }} Formelzellen">
+                <i class="bi bi-calculator"></i>{{ r.file_formula_count }}
+              </span>
               {% endif %}
             </td>
             <td>
