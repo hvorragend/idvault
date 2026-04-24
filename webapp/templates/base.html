@@ -31,7 +31,7 @@
     {% if _is_admin or _is_koord %}
     <a href="{{ url_for('dashboard_ausnahmen.index') }}"
       class="nav-link {% if request.endpoint == 'dashboard_ausnahmen.index' %}active{% endif %}">
-      <i class="bi bi-cone-striped"></i> Ausnahmen
+      <i class="bi bi-cone-striped"></i> Triage
       {% if ausnahmen_badge and ausnahmen_badge > 0 %}
       <span class="badge bg-danger ms-auto fs-9">{{ ausnahmen_badge }}</span>
       {% endif %}
