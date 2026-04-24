@@ -44,19 +44,6 @@
 
 {% block content %}
 
-{# ── Typ→Farb-Mapping für Mini-Pill am Dateinamen ── #}
-{% set typ_pill_cls = {
-  'Excel-Makro':         'mini-pill-amber',
-  'Excel-Tabelle':       'mini-pill-green',
-  'Access-Datenbank':    'mini-pill-purple',
-  'Python-Skript':       'mini-pill-blue',
-  'SQL-Skript':          'mini-pill-blue',
-  'Power-BI-Bericht':    'mini-pill-amber',
-  'Cognos-Report':       'mini-pill-slate',
-  'Sonstige':            'mini-pill-slate',
-  'unklassifiziert':     'mini-pill-slate',
-} %}
-
 <!-- ── Kennzahlen ──────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
   <div class="col-sm-3">
@@ -362,6 +349,7 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
           <tr>
             <th style="width:32px"></th>
             <th>Dateiname</th>
+            <th>Typ</th>
             <th>Speicherort</th>
             <th class="text-nowrap">Geändert</th>
             <th class="text-nowrap">Größe</th>
@@ -381,18 +369,9 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
                 data-bearbeitungsstatus="{{ f.bearbeitungsstatus or 'Neu' }}">
             </td>
 
-            <!-- Dateiname + Typ-Pill + Hash -->
+            <!-- Dateiname + Hash -->
             <td>
-              {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
-              <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="fw-500">{{ f.file_name }}</span>
-                <span class="mini-pill {{ typ_pill_cls.get(typ, 'mini-pill-slate') }}" title="Typ-Vorschlag">{{ typ }}</span>
-              </div>
-              {% if f.first_seen_at %}
-              <span class="text-muted fs-8" title="Erst gesehen">
-                <i class="bi bi-calendar-plus me-1"></i>{{ f.first_seen_at|datefmt }}
-              </span>
-              {% endif %}
+              <span class="fw-500">{{ f.file_name }}</span>
               {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
               <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
                 {% if f.file_hash in duplicate_hashes %}
@@ -412,6 +391,12 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
                 </span>
               </div>
               {% endif %}
+            </td>
+
+            <!-- Typ-Vorschlag -->
+            <td>
+              {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+              <span class="badge bg-light text-dark border">{{ typ }}</span>
             </td>
 
             <!-- Speicherort als klickbare Breadcrumbs -->
@@ -482,7 +467,7 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="8" class="text-center text-muted py-5">
+            <td colspan="9" class="text-center text-muted py-5">
               {% if share_root_filt %}
               <i class="bi bi-funnel fs-3 d-block mb-2"></i>
               Keine neuen Dateien in <strong>{{ share_root_filt }}</strong>.

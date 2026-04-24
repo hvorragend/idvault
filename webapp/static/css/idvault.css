@@ -724,45 +724,49 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   letter-spacing: .01em;
 }
 
-.status-Entwurf {
+/* Spezifität 0,2,0 notwendig, damit die spezifischen Status-Klassen
+   die Basis-Regel .badge[class*="status-"] (0,1,1) überschreiben. */
+.badge.status-Entwurf {
   background: var(--slate-50);
   color: var(--slate-700);
   border-color: var(--slate-300);
 }
 
-.status-In\ Prüfung,
-.status-In-Prüfung {
+.badge.status-In\ Prüfung,
+.badge.status-In-Prüfung,
+.badge.status-In-Pr\fc fung {
   background: #eff6ff;
   color: #1d4ed8;
   border-color: #bfdbfe;
 }
 
-.status-Freigegeben {
+.badge.status-Freigegeben {
   background: #f0fdf4;
   color: #15803d;
   border-color: #bbf7d0;
 }
 
-.status-Freigegeben\ mit\ Auflagen,
-.status-Freigegeben-mit-Auflagen {
+.badge.status-Freigegeben\ mit\ Auflagen,
+.badge.status-Freigegeben-mit-Auflagen {
   background: var(--amber-50);
   color: var(--amber-700);
   border-color: var(--amber-200);
 }
 
-.status-Abgelehnt {
+.badge.status-Abgelehnt {
   background: #fef2f2;
   color: #b91c1c;
   border-color: #fecaca;
 }
 
-.status-Abgekündigt {
+.badge.status-Abgekündigt,
+.badge.status-Abgek\fc ndigt {
   background: #faf5ff;
   color: #7e22ce;
   border-color: #e9d5ff;
 }
 
-.status-Archiviert {
+.badge.status-Archiviert {
   background: var(--slate-50);
   color: var(--slate-600);
   border-color: var(--slate-200);

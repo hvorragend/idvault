@@ -315,19 +315,6 @@ verloren geht. #}
 </div>
 {% endif %}
 
-{# ── Typ→Farb-Mapping für Mini-Pill am Dateinamen ── #}
-{% set typ_pill_cls = {
-  'Excel-Makro':         'mini-pill-amber',
-  'Excel-Tabelle':       'mini-pill-green',
-  'Access-Datenbank':    'mini-pill-purple',
-  'Python-Skript':       'mini-pill-blue',
-  'SQL-Skript':          'mini-pill-blue',
-  'Power-BI-Bericht':    'mini-pill-amber',
-  'Cognos-Report':       'mini-pill-slate',
-  'Sonstige':            'mini-pill-slate',
-  'unklassifiziert':     'mini-pill-slate',
-} %}
-
 {# ── Sortierspalten-Makro ── #}
 {% macro sort_th(col, label, classes='') %}
 {% set new_ord = 'desc' if (sort == col and order == 'asc') else 'asc' %}
@@ -481,6 +468,7 @@ date_to} %}
           <tr>
             <th style="width:32px"></th>
             {{ sort_th('dateiname', 'Dateiname') }}
+            <th>Typ</th>
             {{ sort_th('dir_path', 'Verzeichnis / Pfad') }}
             {{ sort_th('groesse', 'Größe') }}
             {{ sort_th('geaendert', 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert') }}
@@ -509,7 +497,7 @@ date_to} %}
               {% endfor %}
               <input type="checkbox" class="form-check-input dup-master-cb" data-gid="{{ gid }}">
             </td>
-            <td colspan="{{ 9 if match_suggestions_active else 8 }}">
+            <td colspan="{{ 10 if match_suggestions_active else 9 }}">
               <span class="fw-600">
                 <i class="bi bi-copy me-1 text-danger"></i>
                 {{ grp | length }} identische Dateien
@@ -531,12 +519,10 @@ date_to} %}
             <td></td>
 
             <td>
-              {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
               <div class="d-flex align-items-center gap-2 flex-wrap ms-3">
                 <span class="fw-500">
                   <i class="bi bi-file-earmark me-1 text-muted"></i>{{ f.file_name }}
                 </span>
-                <span class="mini-pill {{ typ_pill_cls.get(typ, 'mini-pill-slate') }}" title="Typ-Vorschlag">{{ typ }}</span>
                 {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
                 {% if bs == 'Registriert' %}
                 <span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Registriert</span>
@@ -555,6 +541,11 @@ date_to} %}
                 </span>
               </div>
               {% endif %}
+            </td>
+
+            <td>
+              {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+              <span class="badge bg-light text-dark border">{{ typ }}</span>
             </td>
 
             <td style="min-width:180px;max-width:280px" title="{{ f.dir_path or '' }}">
@@ -590,7 +581,7 @@ date_to} %}
             </td>
             <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
             <td class="text-nowrap">
-              <div class="d-inline-flex align-items-center gap-1 flex-wrap">
+              <div class="d-inline-flex align-items-center gap-1 text-nowrap">
                 {% if f.reg_idv_id %}
                 <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
                   class="btn btn-xs btn-outline-secondary" title="IDV öffnen">
@@ -619,7 +610,7 @@ date_to} %}
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="{{ 11 if match_suggestions_active else 10 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
             </td>
           </tr>
@@ -639,9 +630,8 @@ date_to} %}
               {% endif %}
             </td>
 
-            <!-- Dateiname mit Typ- und Status-Mini-Pill -->
+            <!-- Dateiname mit Status-Mini-Pill -->
             <td>
-              {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="fw-500">
                   {% if f.status == 'archiviert' %}
@@ -649,7 +639,6 @@ date_to} %}
                   {% endif %}
                   {{ f.file_name }}
                 </span>
-                <span class="mini-pill {{ typ_pill_cls.get(typ, 'mini-pill-slate') }}" title="Typ-Vorschlag">{{ typ }}</span>
                 {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
                 {% if f.status == 'archiviert' %}
                 <span class="mini-pill mini-pill-archiv"><i class="bi bi-archive"></i>Archiviert</span>
@@ -683,6 +672,12 @@ date_to} %}
                 </span>
               </div>
               {% endif %}
+            </td>
+
+            <!-- Typ-Vorschlag -->
+            <td>
+              {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
+              <span class="badge bg-light text-dark border">{{ typ }}</span>
             </td>
 
             <!-- Verzeichnis / Pfad als klickbare Breadcrumbs -->
@@ -798,7 +793,7 @@ date_to} %}
             {% endif %}
 
             <td class="text-nowrap">
-              <div class="d-inline-flex align-items-center gap-1 flex-wrap">
+              <div class="d-inline-flex align-items-center gap-1 text-nowrap">
                 {% if filt != 'archiv' and not f.reg_idv_id %}
                 <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
                   class="btn btn-xs btn-primary text-nowrap">
@@ -827,7 +822,7 @@ date_to} %}
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 11 if match_suggestions_active else 10 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Dateien gefunden.
             </td>

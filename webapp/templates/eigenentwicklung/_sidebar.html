@@ -1250,10 +1250,16 @@
                 {% if p.pruefer %}&nbsp;·&nbsp;<i class="bi bi-person me-1"></i>{{ p.pruefer }}{% endif %}
               </div>
             </div>
-            {% if session.get('user_role') == 'IDV-Administrator' %}
+            {% set _role = session.get('user_role') %}
+            {% if _role == 'IDV-Administrator' %}
             <a href="{{ url_for('reviews.edit_review', p_id=p.id) }}"
-               class="btn btn-xs btn-outline-secondary flex-shrink-0" title="Prüfung öffnen/bearbeiten">
+               class="btn btn-xs btn-outline-secondary flex-shrink-0" title="Prüfung bearbeiten">
               <i class="bi bi-pencil"></i>
+            </a>
+            {% else %}
+            <a href="{{ url_for('reviews.edit_review', p_id=p.id) }}"
+               class="btn btn-xs btn-outline-secondary flex-shrink-0" title="Prüfung ansehen">
+              <i class="bi bi-eye"></i>
             </a>
             {% endif %}
           </div>
