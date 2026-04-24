@@ -142,6 +142,29 @@ als nativer Windows-Dienst (`idvault.exe install`).
 - **Funktionstrennung (SoD)**: Entwickler einer IDV ist von
   Abschluss-/Ablehnungshandlungen im Freigabeverfahren ausgeschlossen,
   Test-Formular-Pfad ist gegen SoD-Umgehung abgesichert.
+- **Stellvertreter-Workflow**: Pro Person sind allgemeiner
+  Stellvertreter und Abwesenheitszeitraum (`abwesend_bis`)
+  pflegbar. Während der Abwesenheit darf der Stellvertreter
+  automatisch alle Freigabe-Schritte der vertretenen Person
+  bearbeiten — zusätzlich zum festen IDV-Stellvertreter auf
+  Register-Ebene.
+- **Admin-Rekonstruktion**: Admins können bereits abgeschlossene
+  Freigabe-Schritte nachträglich wieder öffnen (z. B. für
+  Korrekturen nach externer Revision).
+
+### Ergonomie & Benutzererlebnis
+
+- **Tastatur-Shortcuts** in allen Formularen:
+  `Strg + S` speichert, `Strg + ⇧ + S` speichert und schließt
+  zurück zur Liste, `Strg + K` öffnet die globale Schnellsuche,
+  `ESC` verlässt das Formular.
+- **WYSIWYG-Rich-Text** (QuillJS) für Nachweis- und Langtextfelder
+  mit Bleach-Sanitizing beim Speichern und HTML/Text-Modus-Toggle
+  bei E-Mail-Vorlagen.
+- **Safe-URL-Helper**: Fehlt ein optionaler Blueprint
+  (z. B. Cognos, wenn die Bank ihn nicht aktiviert), werden die
+  zugehörigen Menüpunkte automatisch ausgeblendet, statt einen
+  BuildError zu werfen — erlaubt modulare Deployments.
 
 ### Dashboard, Berichte & Reporting
 
@@ -217,6 +240,10 @@ als nativer Windows-Dienst (`idvault.exe install`).
 - **CRUD-UIs** für Personen, Organisationseinheiten, Geschäftsprozesse,
   Plattformen, Klassifizierungen, Wesentlichkeitskriterien,
   Pfad-Profile, Testfall-Vorlagen, Freigabe-Pools.
+- **Schutzbedarf-Kategorien A/C/I/N** (Authentizität,
+  Vertraulichkeit, Integrität, Nicht-Abstreitbarkeit) pro
+  Geschäftsprozess pflegbar — fließt in die Risiko-Einschätzung
+  der zugeordneten Eigenentwicklungen ein.
 - **CSV-Import** für Mitarbeiter und Geschäftsprozesse inkl.
   herunterladbarer Import-Vorlage.
 - **Bulk-Aktionen** für Personen und Geschäftsprozesse
@@ -234,6 +261,10 @@ als nativer Windows-Dienst (`idvault.exe install`).
 - **SMTP** mit drei Verbindungsmodi (STARTTLS / SSL / kein TLS),
   Testversand aus der Admin-UI, vollständiges Versandlog,
   Passwort Fernet-verschlüsselt in der DB.
+- **HTTPS** optional per `IDV_HTTPS=1`, mit automatisch
+  erzeugtem, selbstsigniertem Zertifikat beim ersten Start —
+  oder eigenes Zertifikat via `IDV_SSL_CERT` / `IDV_SSL_KEY`.
+  Produktiv empfohlen ist der Betrieb hinter einem Reverse-Proxy.
 - **Natives Windows-Dienst-Framework** (pywin32 ServiceFramework)
   mit automatischem Dienstneustart nach Update, EnumServicesStatusEx-
   basierter Dienst-Erkennung und erweiterten Start-Diagnosen.
