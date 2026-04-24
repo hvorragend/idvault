@@ -358,7 +358,7 @@ Beim Start einer neuen Version wählt der Verantwortliche die
 
 | Kategorie | Verfahren | Zulässig |
 |---|---|---|
-| `grundlegend` | Voller 3-Phasen-Workflow (Default) | Immer, Pflicht bei Erstfreigabe |
+| `grundlegend` | Vollständiges Verfahren: Tests und Abnahmen plus obligatorische Archivierung der Originaldatei (Default) | Immer, Pflicht bei Erstfreigabe |
 | `patch` | Nur die vom Admin konfigurierten Schritte (z.B. Technischer Test + Fachliche Abnahme + Archivierung) | Nur bei neuer Version einer bereits freigegebenen IDV **und** keiner GDA=4 / DORA-kritischen Einstufung |
 
 Bei `patch` ist eine **Begründung** verpflichtend (Freitext), die im

@@ -62,8 +62,9 @@ _MAX_ARCHIV_UPLOAD = 256 * 1024 * 1024  # 256 MB Obergrenze für Originaldateien
 # ---------------------------------------------------------------------------
 # Änderungskategorie (#320): grundlegend vs. patch
 # ---------------------------------------------------------------------------
-# 'grundlegend' = voller 3-Phasen-Workflow (heutiges Verhalten, Default,
-#                 immer bei Erstfreigabe).
+# 'grundlegend' = vollständiges Verfahren: Tests und Abnahmen plus
+#                 obligatorische Archivierung der Originaldatei
+#                 (heutiges Verhalten, Default, immer bei Erstfreigabe).
 # 'patch'       = verschlankter Workflow; welche Schritte entfallen, liegt
 #                 in app_settings.freigabe_patch_schritte (JSON-Array).
 _KATEGORIEN = ("grundlegend", "patch")
@@ -772,7 +773,8 @@ def starten(idv_db_id):
                 hist_aktion = "freigabe_gestartet_patch"
             else:
                 hist_kom = ("Freigabeverfahren gestartet – Einstufung: GRUNDLEGEND "
-                            "(voller 3-Phasen-Workflow).")
+                            "(vollständiges Verfahren mit obligatorischer "
+                            "Archivierung der Originaldatei).")
                 hist_aktion = "freigabe_gestartet"
             c.execute(
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
@@ -1398,7 +1400,15 @@ def schritt_anlegen(idv_db_id):
 @bp.route("/<int:freigabe_id>/loeschen", methods=["POST"])
 @admin_required
 def loeschen(freigabe_id):
-    """Admin löscht einen einzelnen Freigabe-Schritt."""
+    """Admin löscht einen einzelnen Freigabe-Schritt.
+
+    Ist das IDV bereits freigegeben (``status='Freigegeben'`` oder
+    ``teststatus='Freigegeben'``), wird eine explizite Bestätigung per
+    ``confirm_rollback=1`` verlangt; in diesem Fall werden ``status`` auf
+    ``'In Prüfung'`` und ``teststatus`` auf ``'In Bearbeitung'``
+    zurückgestuft, da durch den Wegfall eines Schritts ein tragender
+    Bestandteil des Verfahrens entfällt.
+    """
     db        = get_db()
     person_id = current_person_id()
     freigabe  = db.execute("SELECT * FROM idv_freigaben WHERE id=?", (freigabe_id,)).fetchone()
@@ -1409,6 +1419,19 @@ def loeschen(freigabe_id):
     schritt   = freigabe["schritt"]
     user_name = session.get("user_name", "") or None
 
+    idv = db.execute(
+        "SELECT status, teststatus FROM idv_register WHERE id=?", (idv_db_id,)
+    ).fetchone()
+    released = bool(idv and (idv["status"] == "Freigegeben"
+                             or idv["teststatus"] == "Freigegeben"))
+
+    if released and request.form.get("confirm_rollback") != "1":
+        flash("Das IDV ist bereits freigegeben. Das Löschen eines "
+              "Verfahrensschritts setzt den Freigabe-Status zurück "
+              "(Status → 'In Prüfung', Teststatus → 'In Bearbeitung'). "
+              "Bitte die Löschung explizit bestätigen.", "warning")
+        return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
+
     def _do(c):
         with write_tx(c):
             c.execute("DELETE FROM idv_freigaben WHERE id=?", (freigabe_id,))
@@ -1416,9 +1439,25 @@ def loeschen(freigabe_id):
                 "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) VALUES (?,?,?,?,?)",
                 (idv_db_id, "freigabe_schritt_geloescht", f"{schritt} gelöscht", person_id, user_name),
             )
+            if released:
+                c.execute(
+                    "UPDATE idv_register SET status='In Prüfung', "
+                    "teststatus='In Bearbeitung' WHERE id=?",
+                    (idv_db_id,),
+                )
+                c.execute(
+                    "INSERT INTO idv_history (idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) "
+                    "VALUES (?, 'status_zurueckgesetzt', ?, ?, ?)",
+                    (idv_db_id,
+                     f"Freigabe-Status zurückgesetzt (Schritt '{schritt}' gelöscht)",
+                     person_id, user_name),
+                )
 
     get_writer().submit(_do, wait=True)
-    flash(f"'{schritt}' wurde gelöscht.", "success")
+    if released:
+        flash(f"'{schritt}' wurde gelöscht und die Freigabe zurückgestuft.", "success")
+    else:
+        flash(f"'{schritt}' wurde gelöscht.", "success")
     return redirect(url_for("eigenentwicklung.detail_idv", idv_db_id=idv_db_id))
 
 

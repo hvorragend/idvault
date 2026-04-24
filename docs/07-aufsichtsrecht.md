@@ -135,7 +135,7 @@ Bei einer neuen Version einer bereits freigegebenen IDV wird die
 
 | Kategorie | Verfahrensumfang |
 |---|---|
-| `grundlegend` | Voller 3-Phasen-Workflow (Fachlicher Test + Technischer Test + Fachliche Abnahme + Technische Abnahme + Archivierung) |
+| `grundlegend` | Vollständiges Verfahren: Tests (Fachlicher Test + Technischer Test) und Abnahmen (Fachliche Abnahme + Technische Abnahme) plus obligatorische Archivierung der Originaldatei |
 | `patch` | Verkürzter Workflow gemäß Admin-Konfiguration (`app_settings.freigabe_patch_schritte`), Default: `Technischer Test`, `Fachliche Abnahme`, `Archivierung Originaldatei` |
 
 Regeln:

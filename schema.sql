@@ -466,13 +466,15 @@ CREATE TABLE IF NOT EXISTS idv_register (
     letzte_aenderungsart        TEXT,          -- 'wesentlich' | 'unwesentlich'
     letzte_aenderungsbegruendung TEXT,
     -- Umfang des aktuellen Freigabeverfahrens (#320)
-    -- 'grundlegend' = voller 3-Phasen-Workflow (Default, Erstfreigabe)
+    -- 'grundlegend' = vollständiges Verfahren: Tests und Abnahmen plus
+    --                 obligatorische Archivierung der Originaldatei
+    --                 (Default, Erstfreigabe)
     -- 'patch'       = verkürzter Workflow gemäß app_settings.freigabe_patch_schritte
     freigabe_aenderungskategorie  TEXT,
     -- Pflichtfeld bei 'patch': warum reicht ein Patch-Verfahren?
     freigabe_patch_begruendung    TEXT,
     -- Welches Freigabeverfahren wurde fuer die letzte Freigabe genutzt?
-    -- 'Standard'         = regulaeres 3-Phasen-Verfahren
+    -- 'Standard'         = regulaeres Verfahren (Tests + Abnahmen + obligatorische Archivierung)
     -- 'Stille Freigabe'  = verkuerztes Verfahren (Issue #351, nur fuer
     --                      nicht-wesentliche IDVs, Opt-In via App-Setting)
     freigabe_verfahren            TEXT NOT NULL DEFAULT 'Standard'
