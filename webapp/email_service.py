@@ -718,6 +718,53 @@ def notify_silent_release_supervisor(db, idv_db_id: int, magic_link: str,
     return send_mail(db, row["email"], subject, html, text)
 
 
+def notify_self_service_escalation(db, recipient_email: str, recipient_name: str,
+                                   stage: str, days: int,
+                                   owner_name: str = "",
+                                   owner_email: str = "") -> bool:
+    """Eskalations-Mail fuer ungenutzte Self-Service-Links (Issue #355).
+
+    ``stage='reminder'`` (Stufe 1) -> persoenlicher Reminder an den Owner
+    ``stage='oe_lead'``  (Stufe 2) -> Mail an den OE-Leiter mit Sammelhinweis
+
+    Bewusst minimalistisch (kein eigenes Template-Setting) — Inhalt
+    spiegelt Zweck und Frist (``days``).
+    """
+    if not recipient_email:
+        return False
+    if stage == "reminder":
+        subject = "[idvault] Reminder: Sie haben offene Scanner-Funde im Self-Service"
+        html = (
+            f"<p>Hallo {recipient_name},</p>"
+            f"<p>seit <strong>{days} Tagen</strong> haben Sie auf den letzten "
+            f"Self-Service-Magic-Link nicht reagiert. Es liegen noch offene "
+            f"Scanner-Funde zur Bewertung in Ihrem Bereich.</p>"
+            f"<p>Bitte klicken Sie den Link aus der letzten Sammelbenachrichtigung, "
+            f"um die Funde anzunehmen, abzulehnen oder zur Registrierung zu "
+            f"vormerken.</p>"
+            f"<p style=\"font-size:12px;color:#777;\">Naechste Eskalations-Stufe: "
+            f"Mail an Ihren OE-Leiter (sofern hinterlegt).</p>"
+        )
+    elif stage == "oe_lead":
+        subject = (f"[idvault] Eskalation: {owner_name} hat seit {days} Tagen "
+                   f"offene Scanner-Funde nicht bearbeitet")
+        html = (
+            f"<p>Hallo {recipient_name},</p>"
+            f"<p>als OE-Leiter werden Sie informiert, weil "
+            f"<strong>{owner_name}</strong> ({owner_email}) seit "
+            f"<strong>{days} Tagen</strong> nicht auf die Self-Service-"
+            f"Sammelbenachrichtigung reagiert hat.</p>"
+            f"<p>Bitte stossen Sie die Bearbeitung in Ihrer OE an oder "
+            f"benennen Sie eine Vertretung. Andernfalls erfolgt nach weiteren "
+            f"7 Tagen ein Eintrag im Ausnahmen-Dashboard des "
+            f"IDV-Koordinators.</p>"
+        )
+    else:
+        return False
+    text = _strip_html_tags(html)
+    return send_mail(db, recipient_email, subject, html, text)
+
+
 def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
     """Benachrichtigung wenn alle 4 Freigabe-Schritte erledigt wurden."""
     if not _is_notify_enabled(db, "freigabe_abgeschlossen"):

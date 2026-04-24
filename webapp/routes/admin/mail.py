@@ -25,7 +25,10 @@ def mail():
                 "self_service_enabled", "self_service_frequency_days",
                 "owner_digest_burst_threshold",
                 "quick_action_freigabe_enabled",
-                "silent_release_enabled"]
+                "silent_release_enabled",
+                "escalation_reminder_days",
+                "escalation_to_lead_days",
+                "escalation_to_coordinator_days"]
         for tpl_key in EMAIL_TEMPLATES:
             keys.append(f"notify_enabled_{tpl_key}")
             keys.append(f"email_tpl_{tpl_key}_subject")

@@ -1088,6 +1088,56 @@ def get_dashboard_kpis(conn: sqlite3.Connection, days: int = 30) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Self-Service-Eskalation (Issue #355): aktuelle Stufe pro Owner
+# ---------------------------------------------------------------------------
+
+def get_self_service_escalation_stages(conn: sqlite3.Connection) -> dict:
+    """Liefert pro ``file_owner``-String die hoechste aktuell aktive
+    Eskalations-Stufe (``reminder`` / ``oe_lead`` / ``coordinator``).
+
+    Quelle: ``notification_log`` mit den drei Eskalations-Kinds aus
+    Issue #355 in den letzten 30 Tagen. Eine juengere Owner-Aktion in
+    ``self_service_audit`` setzt die Stufe wieder zurueck.
+    """
+    stage_for_kind = {
+        "self_service_remind_owner":         "reminder",
+        "self_service_escalate_oe_lead":     "oe_lead",
+        "self_service_escalate_coordinator": "coordinator",
+    }
+    stage_rank = {"reminder": 1, "oe_lead": 2, "coordinator": 3}
+    out: dict[str, str] = {}
+    try:
+        rows = conn.execute("""
+            SELECT n.kind, n.ref_id, n.sent_date,
+                   p.user_id, p.kuerzel, p.ad_name,
+                   (SELECT MAX(a.created_at) FROM self_service_audit a
+                     WHERE a.person_id = n.ref_id) AS last_action
+              FROM notification_log n
+              JOIN persons p ON p.id = n.ref_id
+             WHERE n.kind IN ('self_service_remind_owner',
+                              'self_service_escalate_oe_lead',
+                              'self_service_escalate_coordinator')
+               AND n.sent_date >= date('now','-30 days')
+        """).fetchall()
+    except Exception:
+        return out
+    for r in rows:
+        if r["last_action"] and str(r["last_action"])[:10] >= str(r["sent_date"])[:10]:
+            continue
+        stage = stage_for_kind.get(r["kind"])
+        if not stage:
+            continue
+        for col in ("user_id", "kuerzel", "ad_name"):
+            owner_value = r[col]
+            if not owner_value:
+                continue
+            current = out.get(owner_value)
+            if not current or stage_rank[stage] > stage_rank[current]:
+                out[owner_value] = stage
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Vollständigkeits-Score (Issue #348)
 # ---------------------------------------------------------------------------
 #

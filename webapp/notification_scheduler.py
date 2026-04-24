@@ -43,6 +43,10 @@ _NOTIFY_DEFAULTS = {
     # Intervall noch nicht erreicht ist. ``0`` deaktiviert den Sofort-Versand
     # (altes Verhalten).
     "owner_digest_burst_threshold":  "25",
+    # Issue #355: dreistufige Eskalations-Automatik
+    "escalation_reminder_days":        "7",
+    "escalation_to_lead_days":         "14",
+    "escalation_to_coordinator_days":  "21",
 }
 
 _MEASURE_KIND       = "massnahme_ueberfaellig"
@@ -50,6 +54,10 @@ _REVIEW_KIND        = "pruefung_faellig"
 _POOL_REMINDER_KIND  = "freigabe_pool_reminder"
 _OWNER_DIGEST_KIND   = "owner_digest"
 _IDV_INCOMPLETE_KIND = "idv_incomplete_reminder"
+# Issue #355: Eskalations-Kinds (eine Kind je Stufe + Owner)
+_ESC_REMIND_OWNER     = "self_service_remind_owner"
+_ESC_TO_OE_LEAD       = "self_service_escalate_oe_lead"
+_ESC_TO_COORDINATOR   = "self_service_escalate_coordinator"
 
 # Anti-Spam: gleiche (kind, ref_id) wird innerhalb dieses Fensters nicht
 # erneut gemailt – auch wenn die Fälligkeit weiter in der Vergangenheit liegt.
@@ -556,6 +564,146 @@ def _dispatch_idv_incomplete_reminders(db, today_iso: str) -> int:
     return sent
 
 
+def _last_owner_action_date(db, person_id: int):
+    """Liefert das ISO-Datum (YYYY-MM-DD) der juengsten Self-Service-Aktion
+    des Empfaengers — oder None, wenn nie reagiert wurde."""
+    try:
+        row = db.execute(
+            "SELECT MAX(created_at) AS m FROM self_service_audit "
+            "WHERE person_id = ?",
+            (person_id,),
+        ).fetchone()
+        if row and row["m"]:
+            return str(row["m"])[:10]
+    except Exception:
+        pass
+    return None
+
+
+def _has_open_funde(db, person_id: int) -> bool:
+    """True, wenn fuer den Empfaenger noch offene Self-Service-Funde existieren."""
+    try:
+        row = db.execute("""
+            SELECT 1 FROM idv_files f
+              JOIN persons p ON p.aktiv = 1
+                 AND (p.user_id = f.file_owner OR p.kuerzel = f.file_owner
+                      OR p.ad_name = f.file_owner)
+             WHERE p.id = ?
+               AND f.status='active'
+               AND f.bearbeitungsstatus='Neu'
+             LIMIT 1
+        """, (person_id,)).fetchone()
+        return row is not None
+    except Exception:
+        return False
+
+
+def _dispatch_self_service_escalations(db, today_iso: str) -> int:
+    """Dreistufige Eskalation fuer ungenutzte Self-Service-Links (Issue #355).
+
+    Stufe 1 (Default 7 Tage):  Reminder an den Owner persoenlich
+    Stufe 2 (Default 14 Tage): Mail an OE-Leiter (``persons.oe_leiter_id``)
+    Stufe 3 (Default 21 Tage): Eintrag im Ausnahmen-Dashboard des Koordinators
+
+    „Reaktion" = beliebige Self-Service-Aktion in ``self_service_audit``
+    nach Versand des Magic-Links. Bei Owner-Aktion innerhalb der Frist
+    wird die Eskalations-Kette implizit zurueckgesetzt: weitere Tokens
+    starten ihre Frist-Zaehlung erneut.
+    """
+    cfg = _load_notification_settings(db)
+    try:
+        d_remind  = int(cfg.get("escalation_reminder_days", "7") or "7")
+        d_lead    = int(cfg.get("escalation_to_lead_days", "14") or "14")
+        d_coord   = int(cfg.get("escalation_to_coordinator_days", "21") or "21")
+    except (TypeError, ValueError):
+        d_remind, d_lead, d_coord = 7, 14, 21
+
+    rows = db.execute("""
+        SELECT t.person_id, MIN(t.created_at) AS first_token,
+               p.email, (p.vorname || ' ' || p.nachname) AS name,
+               p.oe_leiter_id,
+               (lp.vorname || ' ' || lp.nachname) AS lead_name,
+               lp.email AS lead_email
+          FROM self_service_tokens t
+          JOIN persons p  ON p.id  = t.person_id  AND p.aktiv = 1
+          LEFT JOIN persons lp ON lp.id = p.oe_leiter_id AND lp.aktiv = 1
+         WHERE t.first_used_at IS NULL
+           AND t.revoked_at    IS NULL
+         GROUP BY t.person_id
+    """).fetchall()
+
+    sent = 0
+    from datetime import date as _date_, datetime as _dt_
+
+    def _days_since(iso_str: str) -> int:
+        try:
+            d = _dt_.fromisoformat(iso_str.replace(" ", "T")).date()
+        except Exception:
+            try:
+                d = _date_.fromisoformat(iso_str[:10])
+            except Exception:
+                return -1
+        return (_date_.today() - d).days
+
+    for r in rows:
+        if not _has_open_funde(db, int(r["person_id"])):
+            continue
+        # Reset-Logik: wenn der Owner nach Token-Versand reagiert hat, gilt
+        # die Eskalations-Kette als abgebrochen.
+        last_action = _last_owner_action_date(db, int(r["person_id"]))
+        if last_action and last_action >= str(r["first_token"])[:10]:
+            continue
+
+        days = _days_since(str(r["first_token"]))
+        if days < d_remind:
+            continue
+
+        # Stufe 1
+        if d_remind <= days < d_lead:
+            if not _recent_sent(db, _ESC_REMIND_OWNER, int(r["person_id"])):
+                ok = False
+                try:
+                    from .email_service import notify_self_service_escalation
+                    ok = notify_self_service_escalation(
+                        db, recipient_email=r["email"], recipient_name=r["name"],
+                        stage="reminder", days=days,
+                    )
+                except Exception:
+                    log.exception("Eskalation Stufe 1 fehlgeschlagen (person_id=%s)",
+                                  r["person_id"])
+                if ok:
+                    _record_sent(_ESC_REMIND_OWNER, int(r["person_id"]), today_iso)
+                    sent += 1
+        # Stufe 2
+        elif d_lead <= days < d_coord:
+            if r["lead_email"] and not _recent_sent(
+                    db, _ESC_TO_OE_LEAD, int(r["person_id"])):
+                ok = False
+                try:
+                    from .email_service import notify_self_service_escalation
+                    ok = notify_self_service_escalation(
+                        db, recipient_email=r["lead_email"],
+                        recipient_name=r["lead_name"] or "OE-Leitung",
+                        stage="oe_lead", days=days,
+                        owner_name=r["name"], owner_email=r["email"],
+                    )
+                except Exception:
+                    log.exception("Eskalation Stufe 2 fehlgeschlagen (person_id=%s)",
+                                  r["person_id"])
+                if ok:
+                    _record_sent(_ESC_TO_OE_LEAD, int(r["person_id"]), today_iso)
+                    sent += 1
+        # Stufe 3
+        elif days >= d_coord:
+            if not _recent_sent(db, _ESC_TO_COORDINATOR, int(r["person_id"])):
+                # Stufe 3 wird nicht als Mail versandt, sondern via
+                # Audit-Eintrag fuer das Ausnahmen-Dashboard markiert
+                # (vgl. Issue #353).
+                _record_sent(_ESC_TO_COORDINATOR, int(r["person_id"]), today_iso)
+                sent += 1
+    return sent
+
+
 def _run_daily_dispatch(app) -> None:
     """Einmaliger Durchlauf für den aktuellen Tag (idempotent dank Dedup)."""
     with app.app_context():
@@ -566,11 +714,12 @@ def _run_daily_dispatch(app) -> None:
         p_sent = _dispatch_pool_claim_reminders(db, today)
         o_sent = _dispatch_owner_digest(db, today)
         i_sent = _dispatch_idv_incomplete_reminders(db, today)
+        e_sent = _dispatch_self_service_escalations(db, today)
         log.info(
             "Notification-Dispatch abgeschlossen: %d Maßnahmen, %d Prüfungen, "
             "%d Pool-Reminder, %d Sammelbenachrichtigung(en) an Owner, "
-            "%d IDV-Nachpflege-Erinnerung(en).",
-            m_sent, r_sent, p_sent, o_sent, i_sent,
+            "%d IDV-Nachpflege-Erinnerung(en), %d Self-Service-Eskalation(en).",
+            m_sent, r_sent, p_sent, o_sent, i_sent, e_sent,
         )
 
 
@@ -663,4 +812,5 @@ def trigger_now(app) -> dict:
             "pool_reminder":          _dispatch_pool_claim_reminders(db, today),
             "owner_digest":           _dispatch_owner_digest(db, today),
             "idv_incomplete_reminder": _dispatch_idv_incomplete_reminders(db, today),
+            "self_service_escalations": _dispatch_self_service_escalations(db, today),
         }

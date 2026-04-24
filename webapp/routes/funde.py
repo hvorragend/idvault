@@ -450,6 +450,13 @@ def list_funde():
     else:
         match_scores = {}
 
+    # Issue #355: Eskalations-Stufe pro Owner (None / 'reminder' / 'oe_lead' / 'coordinator')
+    try:
+        from db import get_self_service_escalation_stages
+        escalation_stages = get_self_service_escalation_stages(db)
+    except Exception:
+        escalation_stages = {}
+
     return render_template("funde/list.html",
         dateien=dateien, filt=filt,
         total=total, total_pages=total_pages, page=page, per_page=per_page,
@@ -480,6 +487,7 @@ def list_funde():
         webapp_db_path=current_app.config['DATABASE'],
         valid_per_page=_VALID_PER_PAGE,
         match_scores=match_scores,
+        escalation_stages=escalation_stages,
         **_scan_btn_ctx(),
     )
 
