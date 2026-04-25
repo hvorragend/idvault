@@ -1743,6 +1743,17 @@ html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-height) + 
   overflow-y: auto;
 }
 
+/* Kompakter Tabellen-Modifier (#418): kleinere Zeilen-Padding fuer
+   Dashboard-Mini-Listen, damit z. B. die „Wesentliche IDVs"-Tabelle
+   nicht in Zeilenumbrueche geraet. Mit .fs-7 / .fs-8 kombinierbar. */
+.table.table-compact > :not(caption) > * > * {
+  padding: .35rem .5rem;
+}
+.table.table-compact thead th {
+  padding: .4rem .5rem;
+  font-size: .68rem;
+}
+
 /* Tastatur-Navigations-Zeile (j/k aus keyboard-shortcuts.js, #413).
    Hebt die aktuell mit Pfeilen/JK markierte Zeile dezent hervor. */
 .table-idv tbody tr.idv-row-active,
