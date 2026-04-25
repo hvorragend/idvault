@@ -1516,6 +1516,31 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   transform: rotate(90deg);
 }
 
+/* 40. Accessibility (#414) ──────────────────────────────────────────────── */
+/* Skip-Link – sichtbar nur bei Tastatur-Fokus.
+   Erlaubt Screenreader-/Tastatur-Nutzern, die Sidebar zu uebergehen. */
+.idv-skip-link {
+  position: absolute;
+  top: -3rem;
+  left: 0;
+  background: var(--slate-900);
+  color: #fff;
+  padding: .55rem 1rem;
+  z-index: 9999;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top var(--t-fast);
+}
+.idv-skip-link:focus {
+  top: 0;
+  color: #fff;
+  outline: 3px solid var(--amber-400);
+  outline-offset: 2px;
+}
+
+/* Bootstrap-aequivalent .visually-hidden ist bereits in Bootstrap 5
+   enthalten; keine Eigenregel noetig. */
+
 /* 39. Empty-State (#412) ────────────────────────────────────────────────── */
 /* Konsistente Leer-Zustaende fuer Listen, Reviews, Massnahmen etc.
    Genutzt via {% include "_empty_state.html" %}. */
