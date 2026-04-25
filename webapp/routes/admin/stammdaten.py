@@ -7,7 +7,11 @@ import sqlite3
 from flask import render_template, request, redirect, url_for, flash, Response, current_app, jsonify
 
 from . import bp, _upload_rate_limit, _hash_pw, _now, _KLASSIFIZIERUNGS_BEREICHE
-from .. import login_required, admin_required, get_db
+from .. import (
+    login_required, admin_required, get_db,
+    ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC,
+    ROLE_FACHVERW, ROLE_ENTWICKLER,
+)
 from ...security import in_clause
 from ...db_writer import get_writer
 from ... import limiter
@@ -15,21 +19,49 @@ from ... import limiter
 from db_write_tx import write_tx
 
 
+# Allowlist für ``persons.rolle`` – verhindert, dass via Formularmanipulation
+# beliebige Rollen-Strings (z. B. zukünftige Sonderrollen oder Tippfehler)
+# in die DB gelangen. Leerer Wert ist zulässig (Person ohne Anmelderolle).
+_ALLOWED_PERSON_ROLES = frozenset({
+    ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC,
+    ROLE_FACHVERW, ROLE_ENTWICKLER,
+})
+
+
+def _normalize_rolle(raw: str | None) -> str | None:
+    """Validiert die übergebene Rolle gegen die Allowlist.
+
+    Returns ``None`` für leere Werte (Person ohne Rolle). Wirft
+    ``ValueError`` bei unbekannten Werten – die aufrufende Route fängt das
+    ab und meldet es als Validierungsfehler an den Benutzer."""
+    val = (raw or "").strip()
+    if not val:
+        return None
+    if val not in _ALLOWED_PERSON_ROLES:
+        raise ValueError(f"Ungültige Rolle: {val!r}")
+    return val
+
+
 # ── Personen ───────────────────────────────────────────────────────────────
 
 @bp.route("/person/neu", methods=["POST"])
-@login_required
+@admin_required
 def new_person():
     user_id = request.form.get("user_id", "").strip()
     if not user_id:
         flash("User-ID ist erforderlich.", "error")
+        return redirect(url_for("admin.index"))
+    try:
+        rolle = _normalize_rolle(request.form.get("rolle"))
+    except ValueError as exc:
+        flash(str(exc), "error")
         return redirect(url_for("admin.index"))
     params = (
         user_id,
         request.form.get("nachname", "").strip(),
         request.form.get("vorname", "").strip(),
         request.form.get("email") or None,
-        request.form.get("rolle") or None,
+        rolle,
         request.form.get("org_unit_id") or None,
         request.form.get("ad_name") or None,
         _now(),
@@ -55,7 +87,7 @@ def new_person():
 
 
 @bp.route("/person/<int:pid>/bearbeiten", methods=["GET", "POST"])
-@login_required
+@admin_required
 def edit_person(pid):
     db = get_db()
     person = db.execute("SELECT * FROM persons WHERE id = ?", (pid,)).fetchone()
@@ -85,12 +117,18 @@ def edit_person(pid):
             flash("User-ID ist erforderlich.", "error")
             return redirect(url_for("admin.edit_person", pid=pid))
 
+        try:
+            rolle = _normalize_rolle(request.form.get("rolle"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("admin.edit_person", pid=pid))
+
         params = (
             user_id_new,
             request.form.get("nachname", "").strip(),
             request.form.get("vorname", "").strip(),
             request.form.get("email") or None,
-            request.form.get("rolle") or None,
+            rolle,
             request.form.get("org_unit_id") or None,
             request.form.get("ad_name") or None,
             pw_hash,
@@ -204,7 +242,7 @@ def bulk_persons():
 # ── Organisationseinheiten ─────────────────────────────────────────────────
 
 @bp.route("/oe/neu", methods=["POST"])
-@login_required
+@admin_required
 def new_oe():
     params = (
         request.form.get("bezeichnung", "").strip(),
@@ -223,7 +261,7 @@ def new_oe():
 
 
 @bp.route("/oe/<int:oid>/bearbeiten", methods=["GET", "POST"])
-@login_required
+@admin_required
 def edit_oe(oid):
     db = get_db()
     oe = db.execute("SELECT * FROM org_units WHERE id=?", (oid,)).fetchone()
@@ -266,7 +304,7 @@ def delete_oe(oid):
 # ── Geschäftsprozesse ──────────────────────────────────────────────────────
 
 @bp.route("/gp/neu", methods=["POST"])
-@login_required
+@admin_required
 def new_gp():
     now = _now()
     params = (
@@ -290,7 +328,7 @@ def new_gp():
 
 
 @bp.route("/gp/<int:gid>/bearbeiten", methods=["GET", "POST"])
-@login_required
+@admin_required
 def edit_gp(gid):
     db = get_db()
     gp = db.execute("SELECT * FROM geschaeftsprozesse WHERE id=?", (gid,)).fetchone()
@@ -406,7 +444,7 @@ def bulk_gps():
 # ── Plattformen ────────────────────────────────────────────────────────────
 
 @bp.route("/plattform/neu", methods=["POST"])
-@login_required
+@admin_required
 def new_plattform():
     params = (
         request.form.get("bezeichnung", "").strip(),
@@ -425,7 +463,7 @@ def new_plattform():
 
 
 @bp.route("/plattform/<int:plid>/bearbeiten", methods=["GET", "POST"])
-@login_required
+@admin_required
 def edit_plattform(plid):
     db = get_db()
     pl = db.execute("SELECT * FROM plattformen WHERE id=?", (plid,)).fetchone()
@@ -567,7 +605,7 @@ def import_template():
 # ── Klassifizierungen ──────────────────────────────────────────────────────
 
 @bp.route("/klassifizierungen/<bereich>/neu", methods=["POST"])
-@login_required
+@admin_required
 def new_klassifizierung(bereich):
     db  = get_db()
     wert = request.form.get("wert", "").strip()
@@ -602,7 +640,7 @@ def new_klassifizierung(bereich):
 
 
 @bp.route("/klassifizierungen/<int:kid>/bearbeiten", methods=["GET", "POST"])
-@login_required
+@admin_required
 def edit_klassifizierung(kid):
     db  = get_db()
     row = db.execute("SELECT * FROM klassifizierungen WHERE id=?", (kid,)).fetchone()
@@ -1037,7 +1075,10 @@ def api_new_person():
     if not nachname or not vorname or not user_id:
         return jsonify({"ok": False, "error": "Nachname, Vorname und User-ID sind erforderlich."}), 400
     email       = request.form.get("email", "").strip() or None
-    rolle       = request.form.get("rolle", "").strip() or None
+    try:
+        rolle = _normalize_rolle(request.form.get("rolle"))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     org_unit_id = request.form.get("org_unit_id") or None
     now = _now()
     new_id = None

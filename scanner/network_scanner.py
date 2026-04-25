@@ -26,7 +26,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple
-from xml.etree import ElementTree as ET
+# #399: defusedxml schützt vor Billion-Laughs / Quadratic-Blowup-DoS in
+# manipulierten XLSX/Cognos-Dateien. Fallback auf die Stdlib bleibt für
+# minimale Build-Umgebungen erhalten – die Ersetzung ist API-kompatibel
+# (defusedxml.ElementTree spiegelt die gebräuchlichen Funktionen).
+try:
+    from defusedxml import ElementTree as ET
+except ImportError:  # pragma: no cover
+    from xml.etree import ElementTree as ET
 
 # Windows-spezifische Imports (optional, graceful fallback)
 try:

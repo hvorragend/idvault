@@ -327,26 +327,38 @@ def _run_server(service_mode: bool = False):
     debug = config_store.get_bool("DEBUG", False)
 
     # ── Sicherheits-Startup-Checks (VULN-004 / VULN-005) ─────────────────────
+    # #397: SECRET_KEY-Fallback wird auch im DEBUG-Modus abgebrochen. Der
+    # Default-Key steht im öffentlichen Repo; im DEBUG-Modus zu tolerieren
+    # erlaubte einer Produktivinstallation mit versehentlich aktiviertem
+    # DEBUG-Flag den kompletten Auth-Bypass (siehe Ticket #397). Wer einen
+    # echten Dev-Run ohne eigenen Key braucht, setzt explizit
+    # ``IDV_INSECURE_DEV=1`` als OS-Env-Var.
     if app.config.get("SECRET_KEY_IS_DEFAULT"):
-        msg = (
-            "SICHERHEITS-ABBRUCH: SECRET_KEY ist nicht gesetzt. In der Produktion "
-            "muss ein zufälliger Wert (≥ 32 Zeichen) in der config.json neben "
-            "run.py bzw. der EXE hinterlegt werden.\n"
-            "Beispiel (config.json): {\"SECRET_KEY\": \"<32+ zufällige Zeichen>\", ...}\n"
-            "Zum lokalen Entwickeln \"DEBUG\": 1 in die config.json eintragen, "
-            "um diesen Check zu umgehen."
-        )
-        if not debug:
+        insecure_dev = os.environ.get("IDV_INSECURE_DEV") == "1"
+        if not insecure_dev:
+            msg = (
+                "SICHERHEITS-ABBRUCH: SECRET_KEY ist nicht gesetzt. In der Produktion "
+                "muss ein zufälliger Wert (≥ 32 Zeichen) in der config.json neben "
+                "run.py bzw. der EXE hinterlegt werden.\n"
+                "Beispiel (config.json): {\"SECRET_KEY\": \"<32+ zufällige Zeichen>\", ...}\n"
+                "Für lokale Entwicklung kann der Check mit der OS-Env-Var "
+                "IDV_INSECURE_DEV=1 (statt DEBUG) übersprungen werden."
+            )
             if not service_mode:
                 print("\n" + "!" * 70)
                 print(msg)
                 print("!" * 70)
             os._exit(2)
-        elif not service_mode:
+        if not service_mode:
             print("\n" + "!" * 70)
-            print("  WARNUNG: SECRET_KEY nicht gesetzt – Dev-Fallback aktiv.")
+            print("  WARNUNG: SECRET_KEY nicht gesetzt – Dev-Fallback aktiv (IDV_INSECURE_DEV=1).")
             print("  Dieser Start ist NUR für die lokale Entwicklung zulässig.")
             print("!" * 70 + "\n")
+        else:
+            app.logger.warning(
+                "[startup] SECRET_KEY-Default aktiv (IDV_INSECURE_DEV=1) – "
+                "nur für Entwicklung zulässig."
+            )
 
     if debug and not service_mode:
         print("\n" + "!" * 70)
