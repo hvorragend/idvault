@@ -1516,6 +1516,99 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   transform: rotate(90deg);
 }
 
+/* 42. Toasts (#416) ──────────────────────────────────────────────────── */
+/* Bootstrap-Toast-Container wird von static/js/utils.js angelegt.
+   Eigene Variante: linke Akzentkante in Tone der Kategorie. */
+.idv-toast {
+  border-left: 4px solid var(--slate-400);
+  border-radius: var(--radius-md);
+  background: var(--idv-surface);
+  color: var(--idv-text);
+  box-shadow: var(--shadow-md);
+  min-width: 280px;
+  max-width: 380px;
+}
+.idv-toast .toast-body i { font-size: 1.05rem; }
+.idv-toast-success { border-left-color: #15803d; }
+.idv-toast-success .toast-body i { color: #15803d; }
+.idv-toast-info    { border-left-color: #1d4ed8; }
+.idv-toast-info    .toast-body i { color: #1d4ed8; }
+.idv-toast-warning { border-left-color: var(--amber-500); }
+.idv-toast-warning .toast-body i { color: var(--amber-700); }
+.idv-toast-danger  { border-left-color: #b91c1c; }
+.idv-toast-danger  .toast-body i { color: #b91c1c; }
+
+/* 43. Mobile-Card-Layout fuer Tabellen (#416) ────────────────────────── */
+/* Anstatt horizontalen Scrolls werden Tabellen mit der Klasse
+   .table-cards-sm unter <768px zu Karten umformatiert. Vorausgesetzt:
+   jede <td> hat ein data-label="Spaltenname"-Attribut. */
+@media (max-width: 767.98px) {
+  .table-cards-sm,
+  .table-cards-sm thead,
+  .table-cards-sm tbody,
+  .table-cards-sm tr,
+  .table-cards-sm td {
+    display: block;
+    width: 100%;
+  }
+  .table-cards-sm thead { display: none; }
+  .table-cards-sm tbody tr {
+    border: 1px solid var(--idv-border);
+    margin-bottom: var(--space-3);
+    background: var(--idv-surface);
+    box-shadow: var(--shadow-sm);
+    padding: .5rem .25rem;
+  }
+  .table-cards-sm tbody td {
+    border: none;
+    padding: .35rem .8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: .8rem;
+  }
+  .table-cards-sm tbody td::before {
+    content: attr(data-label);
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--slate-500);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .table-cards-sm tbody td:empty { display: none; }
+  /* Sticky-Header-Regel von Sektion 38 fuer Card-Layout deaktivieren. */
+  .table-cards-sm thead th { position: static; }
+}
+
+/* 44. Dark-Mode-Vorbereitung (#416) ──────────────────────────────────── */
+/* Opt-in via <html data-bs-theme="dark">. Gesteuert durch
+   static/js/theme-toggle.js (localStorage["idv:theme"] +
+   prefers-color-scheme als Fallback). Light-Mode bleibt Default
+   und unveraendert. */
+:root[data-bs-theme="dark"] {
+  --idv-bg:          #0b1220;
+  --idv-surface:     #111a2e;
+  --idv-text:        #e2e8f0;
+  --idv-text-subtle: #94a3b8;
+  --idv-border:        #1f2a44;
+  --idv-border-strong: #2a3654;
+  --slate-50:  #1a2336;
+  --slate-100: #1f2a44;
+  --slate-200: #2a3654;
+  --shadow-sm: 0 1px 3px  rgba(0, 0, 0, .35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, .45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .55);
+}
+:root[data-bs-theme="dark"] body { background: var(--idv-bg); color: var(--idv-text); }
+:root[data-bs-theme="dark"] .stat-card-v2,
+:root[data-bs-theme="dark"] .stat-card,
+:root[data-bs-theme="dark"] .idv-card,
+:root[data-bs-theme="dark"] .form-section,
+:root[data-bs-theme="dark"] .card { background: var(--idv-surface); color: var(--idv-text); }
+:root[data-bs-theme="dark"] .table-idv tbody tr:nth-child(even) { background: rgba(255,255,255,.025); }
+:root[data-bs-theme="dark"] .table-idv tbody tr:hover { background: rgba(245, 158, 11, .08); }
+
 /* 41. Form-Section-Navigation (#415) ──────────────────────────────────── */
 /* Sticky Tab-Bar oberhalb langer Formulare. Anchor-Links springen zur
    jeweiligen .form-section; aktiver Tab wird per IntersectionObserver

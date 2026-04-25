@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta name="color-scheme" content="light dark">
   <title>{% block title %}idvault{% endblock %} – idvault</title>
   <!-- Bootstrap 5.3 (lokal, offline-fähig) -->
   <link href="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.min.css') }}" rel="stylesheet">
@@ -13,6 +14,9 @@
     rel="stylesheet">
   <!-- idvault eigene Styles (Tokens, Layout, Utilities) -->
   <link href="{{ url_for('static', filename='css/idvault.css') }}" rel="stylesheet">
+  {# E7 (#416): Theme-Toggle so frueh wie moeglich anwenden, vor dem
+     ersten Paint, sonst flackert der Wechsel beim Reload. #}
+  <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
   {% block extra_head %}{% endblock %}
 </head>
 
@@ -183,6 +187,10 @@
           <span class="d-none d-lg-inline">Shortcuts</span>
           <kbd class="kbd-soft d-none d-lg-inline" aria-hidden="true">?</kbd>
         </button>
+        <button id="theme-toggle-btn" class="topbar-action" data-action="toggleTheme"
+                title="Dunkles Theme aktivieren" aria-label="Dunkles Theme aktivieren">
+          <i class="bi bi-moon-stars" aria-hidden="true"></i>
+        </button>
         {% endif %}
         {% if session.user_name %}
         {% set _initials = (session.user_name.split()|map('first')|join)[:2]|upper %}
@@ -194,17 +202,24 @@
     </div>
 
     <!-- Flash Messages -->
+    {# E7 (#416): „success" und „info" werden als nicht-blockierende
+       Toasts (oben rechts) gerendert; Fehler und Phasenuebergaenge
+       bleiben Banner, weil sie aktiv gelesen werden sollen. #}
     <div class="px-4 pt-3">
       {% with messages = get_flashed_messages(with_categories=true) %}
       {% for cat, msg in messages %}
-      {% set alert_class = 'danger' if cat == 'error'
-                           else ('phase-transition' if cat == 'phase_transition'
-                           else cat) %}
-      <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center" role="alert">
-        {% if cat == 'phase_transition' %}<i class="bi bi-arrow-right-circle-fill me-2 fs-5"></i>{% endif %}
-        <div class="flex-grow-1">{{ msg }}</div>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      </div>
+        {% if cat in ('success', 'info') %}
+          <template data-toast="{{ cat }}">{{ msg }}</template>
+        {% else %}
+          {% set alert_class = 'danger' if cat == 'error'
+                               else ('phase-transition' if cat == 'phase_transition'
+                               else cat) %}
+          <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center" role="alert">
+            {% if cat == 'phase_transition' %}<i class="bi bi-arrow-right-circle-fill me-2 fs-5" aria-hidden="true"></i>{% endif %}
+            <div class="flex-grow-1">{{ msg }}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schließen"></button>
+          </div>
+        {% endif %}
       {% endfor %}
       {% endwith %}
     </div>
@@ -226,6 +241,8 @@
   </div>
 
   <script src="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.bundle.min.js') }}"></script>
+  {# E7 (#416): zentrale Helper (toast, escapeHTML, debounce). #}
+  <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/person_autocomplete.js') }}" defer></script>
   {# E4 (#413): Power-User-Shortcuts (j/k, o, /, x, g d/e/f/r/m).
      Erweitert die in diesem Template definierten Basis-Shortcuts. #}
