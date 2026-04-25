@@ -230,6 +230,8 @@
   {# E4 (#413): Power-User-Shortcuts (j/k, o, /, x, g d/e/f/r/m).
      Erweitert die in diesem Template definierten Basis-Shortcuts. #}
   <script src="{{ url_for('static', filename='js/keyboard-shortcuts.js') }}" defer></script>
+  {# E6 (#415): Section-Navigation in langen Formularen (no-op ohne .idv-form-nav). #}
+  <script src="{{ url_for('static', filename='js/form-section-nav.js') }}" defer></script>
   <script>
     // ── Tabellen-Sortierer ──────────────────────────────────────────────────
     (function () {

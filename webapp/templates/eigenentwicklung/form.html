@@ -132,20 +132,21 @@
   </div>
   {% endif %}
 
-  <!-- ── Schritt-Anzeige ──────────────────────────────────────── -->
-  <div class="d-flex gap-2 mb-4 flex-wrap">
-    {% for label in ['Stammdaten','Wesentlichkeit','Technik & Betrieb','Verantwortliche'] %}
-    <div class="badge rounded-pill px-3 py-2" style="background:{% if loop.index == 1 %}var(--idv-primary){% else %}#e2e8f0{% endif %};
-                color:{% if loop.index == 1 %}#fff{% else %}#475569{% endif %}">
-      {{ loop.index }}. {{ label }}
-    </div>
-    {% endfor %}
-  </div>
+  {# ── Sektions-Navigation (#415) ──────────────────────────────
+     Sticky-Tab-Bar mit Sprung-Links zu den Form-Sektionen. Aktiver
+     Tab wird ueber den Intersection-Observer in
+     /static/js/form-section-nav.js automatisch gesetzt. #}
+  <nav class="idv-form-nav mb-4" aria-label="Formular-Sektionen">
+    <a href="#section-stammdaten"     class="idv-form-nav-tab" data-tab-target>1. Stammdaten</a>
+    <a href="#section-wesentlichkeit" class="idv-form-nav-tab" data-tab-target>2. Wesentlichkeit</a>
+    <a href="#section-technik"        class="idv-form-nav-tab" data-tab-target>3. Technik &amp; Betrieb</a>
+    <a href="#section-verantwortliche" class="idv-form-nav-tab" data-tab-target>4. Verantwortliche</a>
+  </nav>
 
   <!-- ═══════════════════════════════════════════════════════════ -->
   <!-- 1. STAMMDATEN                                              -->
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <div class="form-section">
+  <div class="form-section" id="section-stammdaten">
     <div class="form-section-title">1. Stammdaten</div>
     <div class="row g-3">
 
@@ -213,7 +214,7 @@
   <!-- ═══════════════════════════════════════════════════════════ -->
   <!-- 2. WESENTLICHKEITSBEURTEILUNG                              -->
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <div class="form-section">
+  <div class="form-section" id="section-wesentlichkeit">
     <div class="form-section-title">2. Wesentlichkeitsbeurteilung (MaRisk AT 7.2 / DORA)</div>
 
     <!-- Geschäftsprozess -->
@@ -517,7 +518,7 @@
   <!-- ═══════════════════════════════════════════════════════════ -->
   <!-- 3. BETRIEBSDOKUMENTATION                                -->
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <div class="form-section">
+  <div class="form-section" id="section-technik">
     <div class="form-section-title">3. Betriebsdokumentation</div>
     <div class="row g-3">
       <div class="col-md-4">
@@ -612,7 +613,7 @@
   <!-- ═══════════════════════════════════════════════════════════ -->
   <!-- 4. VERANTWORTLICHE                                         -->
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <div class="form-section">
+  <div class="form-section" id="section-verantwortliche">
     <div class="form-section-title">4. Verantwortliche</div>
     <div class="row g-3">
       <div class="col-md-6">
