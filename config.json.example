@@ -14,9 +14,6 @@
   "IDV_BEHIND_HTTPS_PROXY": 0,
   "_kommentar_proxy": "1 = Die App läuft hinter einem TLS-terminierenden Reverse-Proxy (nginx/HAProxy/IIS). Aktiviert ProxyFix (vertraut X-Forwarded-Proto/Host/For genau eines vorgelagerten Hops), setzt das Session-Cookie als Secure und sendet HSTS, auch wenn IDV_HTTPS=0 ist. Wenn die App direkt TLS terminiert, bei 0 belassen. Niemals beides ohne Proxy aktivieren – dann würden gefälschte X-Forwarded-Header den Browser auf 'unsicher' verleiten.",
 
-  "IDV_LDAP_INSECURE_TLS": 0,
-  "_kommentar_ldap_tls": "1 = LDAPS-Zertifikatsprüfung deaktivieren (CERT_NONE). Nur für Pilotbetriebe mit Self-signed-CA. Im Produktivbetrieb auf 0 belassen, sonst sind Bind-Credentials per Man-in-the-Middle abgreifbar. Der Wert ist bewusst NICHT über die Admin-UI änderbar – damit ein UI-Phisher die Prüfung nicht heimlich abschalten kann.",
-
 
   "IDV_DB_PATH": "instance/idvault.db",
   "IDV_INSTANCE_PATH": "instance",

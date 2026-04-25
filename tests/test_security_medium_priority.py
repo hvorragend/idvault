@@ -3,8 +3,11 @@
 #400 – ProxyFix + SESSION_COOKIE_SECURE/HSTS hinter TLS-terminierendem Proxy.
 #401 – Silent-Release-Token mit serverseitigem jti (One-Time-Magic-Link).
 #402 – ``scanner_db_importieren`` Pfad-Containment.
-#403 – LDAPS ``ssl_verify`` nur noch via config.json-Override deaktivierbar.
 #405 – Zip-Bomb-Schutz im Scanner und beim Cognos-Upload.
+
+(#403 wurde bewusst zurueckgenommen: LDAP muss auch ohne TLS-Verifikation
+funktionieren, damit Pilotinstallationen mit Self-signed-CA per Admin-UI
+ein- und ausschaltbar bleiben.)
 """
 from __future__ import annotations
 
@@ -120,55 +123,6 @@ class ScannerDbImportPathTests(unittest.TestCase):
     def test_empty_rejected(self):
         _, err = self._validate("")
         self.assertIsNotNone(err)
-
-
-# ---------------------------------------------------------------------------
-# #403: LDAPS ssl_verify – effektiver Wert kommt aus config_store
-# ---------------------------------------------------------------------------
-
-class LdapSslVerifyEffectiveTests(unittest.TestCase):
-    def setUp(self):
-        from webapp import config_store
-        # config_store cached den config.json-Inhalt einmalig; wir patchen
-        # die get_bool-Funktion direkt, das ist robust genug fuer den Test.
-        self._orig_get_bool = config_store.get_bool
-        self._cs = config_store
-
-    def tearDown(self):
-        self._cs.get_bool = self._orig_get_bool
-
-    def _patch(self, value: bool):
-        def _stub(key, default=False):
-            if key == "IDV_LDAP_INSECURE_TLS":
-                return value
-            return self._orig_get_bool(key, default)
-        self._cs.get_bool = _stub
-
-    def test_default_is_strict(self):
-        self._patch(False)
-        from webapp.ldap_auth import ldap_ssl_verify_effective
-        self.assertTrue(ldap_ssl_verify_effective())
-
-    def test_override_disables_check(self):
-        self._patch(True)
-        from webapp.ldap_auth import ldap_ssl_verify_effective
-        self.assertFalse(ldap_ssl_verify_effective())
-
-    def test_admin_form_does_not_lower_ssl_verify(self):
-        # POST-Handler darf ssl_verify nicht mehr stillschweigend auf 0 senken.
-        with open(
-            os.path.join(os.path.dirname(__file__), "..", "webapp", "routes",
-                         "admin", "ldap.py"),
-            encoding="utf-8",
-        ) as f:
-            src = f.read()
-        # Genau eine Zuweisung 'ssl_verify = 1' soll uebrig bleiben (Konstante).
-        self.assertIn("ssl_verify = 1", src)
-        # Alte UI-Logik (Form-Toggle) ist entfernt.
-        self.assertNotIn(
-            'ssl_verify = 1 if request.form.get("ssl_verify") else 0',
-            src,
-        )
 
 
 # ---------------------------------------------------------------------------
