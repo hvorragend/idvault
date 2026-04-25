@@ -93,57 +93,8 @@
    Sidebar-Badges an „Pruefungen" und „Massnahmen" und sind damit
    auf jeder Seite praesent statt nur auf dem Dashboard. #}
 
-<!-- ── Scanner-Status ──────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-body py-2 px-3">
-    <div class="d-flex flex-wrap align-items-center gap-3">
-      <div class="d-flex align-items-center gap-2">
-        <i class="bi bi-search text-primary fs-5"></i>
-        <span class="fw-600">Letzter Scan</span>
-      </div>
-
-      {% if letzter_scan %}
-        <span class="text-muted small">
-          {{ (letzter_scan.finished_at or letzter_scan.started_at)|datetimefmt }}
-        </span>
-        <span class="badge
-          {%- if letzter_scan.scan_status == 'completed' %} bg-success
-          {%- elif letzter_scan.scan_status == 'running' %} bg-primary
-          {%- elif letzter_scan.scan_status == 'cancelled' %} bg-secondary
-          {%- else %} bg-warning text-dark{%- endif %}">
-          {{ letzter_scan.scan_status|capitalize }}
-        </span>
-        <div class="d-flex gap-3 ms-2 small" style="color:#555">
-          <span><i class="bi bi-files me-1 text-muted"></i>{{ letzter_scan.total_files or 0 }} Dateien</span>
-          <span><i class="bi bi-plus-circle me-1 text-success"></i>{{ letzter_scan.new_files or 0 }} Neu</span>
-          <span><i class="bi bi-arrow-repeat me-1 text-warning"></i>{{ letzter_scan.changed_files or 0 }} Geändert</span>
-          {% if unverknuepfte_funde > 0 %}
-          <a href="{{ url_for('funde.list_funde') }}" class="status-line status-line-warn text-decoration-none"
-             title="Scanner-Funde ohne Zuordnung zu einer Eigenentwicklung">
-            <i class="bi bi-exclamation-circle"></i>{{ unverknuepfte_funde }} zu prüfen
-          </a>
-          {% else %}
-          <span class="status-line status-line-done"><i class="bi bi-check-circle"></i>Alle zugeordnet</span>
-          {% endif %}
-          {% if offene_vorschlaege and offene_vorschlaege > 0 %}
-          <span class="status-line text-info"
-                title="Offene Zuordnungs-Vorschläge (mittlere Konfidenz) – liegen beim Fachbereich">
-            <i class="bi bi-lightbulb"></i>{{ offene_vorschlaege }} Vorschlag/Vorschläge offen
-          </span>
-          {% endif %}
-        </div>
-      {% else %}
-        <span class="text-muted small">Noch kein Scan durchgeführt.</span>
-      {% endif %}
-
-      <div class="ms-auto">
-        <a href="{{ url_for('admin.scanner_einstellungen') }}" class="btn btn-xs btn-outline-secondary">
-          <i class="bi bi-gear-wide-connected me-1"></i>Scanner
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
+{# Scanner-Status ist nach #421 ans Ende des Dashboards gewandert,
+   weil er kein Tagesgeschaeft ist – siehe weiter unten. #}
 
 <!-- ── Unvollständige Eigenentwicklungen (Issue #348) ────────────────── -->
 {% if unvollstaendig_pro_verantwortlicher %}
@@ -384,6 +335,58 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ── Scanner-Status (ans Ende verschoben, #421) ──────────────────── -->
+<div class="card border-0 shadow-sm mt-4">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-search text-primary fs-5"></i>
+        <span class="fw-600">Letzter Scan</span>
+      </div>
+
+      {% if letzter_scan %}
+        <span class="text-muted small">
+          {{ (letzter_scan.finished_at or letzter_scan.started_at)|datetimefmt }}
+        </span>
+        <span class="badge
+          {%- if letzter_scan.scan_status == 'completed' %} bg-success
+          {%- elif letzter_scan.scan_status == 'running' %} bg-primary
+          {%- elif letzter_scan.scan_status == 'cancelled' %} bg-secondary
+          {%- else %} bg-warning text-dark{%- endif %}">
+          {{ letzter_scan.scan_status|capitalize }}
+        </span>
+        <div class="d-flex gap-3 ms-2 small text-muted">
+          <span><i class="bi bi-files me-1"></i>{{ letzter_scan.total_files or 0 }} Dateien</span>
+          <span><i class="bi bi-plus-circle me-1 text-success"></i>{{ letzter_scan.new_files or 0 }} Neu</span>
+          <span><i class="bi bi-arrow-repeat me-1 text-warning"></i>{{ letzter_scan.changed_files or 0 }} Geändert</span>
+          {% if unverknuepfte_funde > 0 %}
+          <a href="{{ url_for('funde.list_funde') }}" class="status-line status-line-warn text-decoration-none"
+             title="Scanner-Funde ohne Zuordnung zu einer Eigenentwicklung">
+            <i class="bi bi-exclamation-circle"></i>{{ unverknuepfte_funde }} zu prüfen
+          </a>
+          {% else %}
+          <span class="status-line status-line-done"><i class="bi bi-check-circle"></i>Alle zugeordnet</span>
+          {% endif %}
+          {% if offene_vorschlaege and offene_vorschlaege > 0 %}
+          <span class="status-line text-info"
+                title="Offene Zuordnungs-Vorschläge (mittlere Konfidenz) – liegen beim Fachbereich">
+            <i class="bi bi-lightbulb"></i>{{ offene_vorschlaege }} Vorschlag/Vorschläge offen
+          </span>
+          {% endif %}
+        </div>
+      {% else %}
+        <span class="text-muted small">Noch kein Scan durchgeführt.</span>
+      {% endif %}
+
+      <div class="ms-auto">
+        <a href="{{ url_for('admin.scanner_einstellungen') }}" class="btn btn-xs btn-outline-secondary">
+          <i class="bi bi-gear-wide-connected me-1"></i>Scanner
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
