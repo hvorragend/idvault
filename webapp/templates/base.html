@@ -29,7 +29,8 @@
 
     <div class="nav-label">Übersicht</div>
     <a href="{{ url_for('dashboard.index', classic=1) if (_is_admin or _is_koord) else url_for('dashboard.index') }}"
-      class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+      class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}"
+      data-shortcut-goto="d">
       <i class="bi bi-speedometer2"></i> Dashboard
     </a>
     {% if _is_admin or _is_koord %}
@@ -50,7 +51,8 @@
 
     <div class="nav-label">Eigenentwicklungen</div>
     <a href="{{ url_for('eigenentwicklung.list_idv') }}"
-      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' %}active{% endif %}">
+      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' %}active{% endif %}"
+      data-shortcut-goto="e">
       <i class="bi bi-list-ul"></i> Alle
     </a>
     <a href="{{ url_for('eigenentwicklung.wesentliche_idvs') }}"
@@ -77,7 +79,8 @@
           {% endif %}
     </a>
     <a href="{{ url_for('funde.list_funde') }}"
-      class="nav-link {% if request.endpoint == 'funde.list_funde' %}active{% endif %}">
+      class="nav-link {% if request.endpoint == 'funde.list_funde' %}active{% endif %}"
+      data-shortcut-goto="f">
       <i class="bi bi-radar"></i> Alle Funde
     </a>
     <a href="{{ url_for('funde.ignorierte_dateien') }}"
@@ -100,11 +103,13 @@
 
     <div class="nav-label">Workflow</div>
     <a href="{{ url_for('reviews.list_reviews') }}"
-      class="nav-link {% if request.blueprint == 'reviews' %}active{% endif %}">
+      class="nav-link {% if request.blueprint == 'reviews' %}active{% endif %}"
+      data-shortcut-goto="r">
       <i class="bi bi-clipboard2-check"></i> Prüfungen
     </a>
     <a href="{{ url_for('measures.list_measures') }}"
-      class="nav-link {% if request.blueprint == 'measures' %}active{% endif %}">
+      class="nav-link {% if request.blueprint == 'measures' %}active{% endif %}"
+      data-shortcut-goto="m">
       <i class="bi bi-exclamation-triangle"></i> Maßnahmen
     </a>
 
@@ -216,6 +221,9 @@
 
   <script src="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.bundle.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/person_autocomplete.js') }}" defer></script>
+  {# E4 (#413): Power-User-Shortcuts (j/k, o, /, x, g d/e/f/r/m).
+     Erweitert die in diesem Template definierten Basis-Shortcuts. #}
+  <script src="{{ url_for('static', filename='js/keyboard-shortcuts.js') }}" defer></script>
   <script>
     // ── Tabellen-Sortierer ──────────────────────────────────────────────────
     (function () {

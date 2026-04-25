@@ -1572,6 +1572,15 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   overflow-y: auto;
 }
 
+/* Tastatur-Navigations-Zeile (j/k aus keyboard-shortcuts.js, #413).
+   Hebt die aktuell mit Pfeilen/JK markierte Zeile dezent hervor. */
+.table-idv tbody tr.idv-row-active,
+.table-idv tbody tr.idv-row-active:hover {
+  background: var(--amber-50);
+  outline: 2px solid var(--amber-300);
+  outline-offset: -2px;
+}
+
 /* 16. Druck-Stylesheet ────────────────────────────────────────────────────── */
 @media print {
   /* Seitenränder + Basis-Typo */
