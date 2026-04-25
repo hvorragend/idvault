@@ -19,6 +19,11 @@ flask-limiter>=3.5.0
 # HTML-Sanitizing für Rich-Text-Felder (VULN-C)
 bleach[css]>=6.1.0
 
+# Schutz vor Billion-Laughs / Quadratic-Blowup-DoS beim XML-Parsing in
+# scanner/network_scanner.py (#399). Drop-in-Replacement für
+# xml.etree.ElementTree.
+defusedxml>=0.7.1
+
 # Excel-Export
 openpyxl>=3.1.0
 

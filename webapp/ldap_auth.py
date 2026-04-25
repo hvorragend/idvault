@@ -86,6 +86,27 @@ def ldap_is_enabled(db) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# #403: TLS-Zertifikatspruefung ist nicht mehr ueber die DB/Admin-UI
+# ---------------------------------------------------------------------------
+# deaktivierbar. Wer eine Pilotumgebung mit Self-signed-CA betreibt, kann den
+# Override ``IDV_LDAP_INSECURE_TLS=1`` in ``config.json`` setzen – das ist
+# bewusst nur ueber das Bootstrap-File moeglich, damit ein UI-Phisher den
+# Wert nicht via gestohlener Admin-Session umlegen kann.
+
+def ldap_ssl_verify_effective() -> bool:
+    """Liefert ``True``, wenn die LDAPS-Zertifikatspruefung aktiv ist.
+
+    Default: ``True``. Wird nur ``False``, wenn ``config.json`` den Override
+    ``"IDV_LDAP_INSECURE_TLS": 1`` setzt. Der DB-Wert ``ldap_config.ssl_verify``
+    spielt fuer die effektive Pruefung keine Rolle mehr (#403)."""
+    try:
+        from . import config_store
+        return not config_store.get_bool("IDV_LDAP_INSECURE_TLS", False)
+    except Exception:
+        return True
+
+
+# ---------------------------------------------------------------------------
 # Gruppen → Rolle
 # ---------------------------------------------------------------------------
 
@@ -219,19 +240,24 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
         _llog(username, "Passwort-Entschlüsselung", msg, "error")
         return None
 
+    ssl_verify_effective = ldap_ssl_verify_effective()
     _llog(username, "Konfiguration",
-          f"Server={cfg['server_url']}:{cfg['port']}  SSL-Verify={cfg['ssl_verify']}  "
+          f"Server={cfg['server_url']}:{cfg['port']}  "
+          f"SSL-Verify={ssl_verify_effective}  "
           f"BindDN={cfg['bind_dn']}  BaseDN={cfg['base_dn']}")
 
-    # VULN-012: Laufzeit-Warnung bei deaktivierter Zertifikatsprüfung
-    if not cfg.get("ssl_verify"):
+    # #403: Audit-Log pro Anmeldeversuch (nicht nur einmalig beim Speichern),
+    # solange der config.json-Override ``IDV_LDAP_INSECURE_TLS=1`` aktiv ist.
+    # Das macht den Risiko-Zustand in Produktion sichtbar und auditierbar.
+    if not ssl_verify_effective:
         logger.warning(
-            "LDAP-Login: Zertifikatsprüfung ist deaktiviert (ssl_verify=0). "
-            "LDAPS ist damit anfällig für Man-in-the-Middle-Angriffe. "
-            "Bitte ssl_verify aktivieren und internes CA-Zertifikat hinterlegen."
+            "LDAP-Login fuer '%s': TLS-Zertifikatspruefung ist via "
+            "IDV_LDAP_INSECURE_TLS=1 (config.json) deaktiviert – LDAPS-Bind "
+            "anfaellig fuer Man-in-the-Middle-Angriffe.",
+            username,
         )
         _llog(username, "Konfiguration",
-              "WARNUNG: ssl_verify=0 – TLS-Zertifikatsprüfung deaktiviert",
+              "WARNUNG: IDV_LDAP_INSECURE_TLS=1 – TLS-Zertifikatspruefung deaktiviert",
               "warning")
 
     try:
@@ -241,7 +267,7 @@ def ldap_authenticate(db, username: str, password: str, secret_key: str) -> Opti
 
     # ── Schritt 1: TLS + Server ──────────────────────────────────────────────
     try:
-        if cfg["ssl_verify"]:
+        if ssl_verify_effective:
             tls = Tls(validate=_ssl.CERT_REQUIRED)
         else:
             tls = Tls(validate=_ssl.CERT_NONE)
@@ -450,7 +476,7 @@ def ldap_list_users(db, secret_key: str, extra_filter: str = "") -> tuple[bool, 
 
     try:
         import ssl as _ssl
-        tls = Tls(validate=_ssl.CERT_NONE if not cfg.get("ssl_verify", 1) else _ssl.CERT_REQUIRED)
+        tls = Tls(validate=_ssl.CERT_REQUIRED if ldap_ssl_verify_effective() else _ssl.CERT_NONE)
         server = Server(
             cfg["server_url"], port=cfg["port"],
             use_ssl=True, tls=tls, get_info=ALL, connect_timeout=10,
@@ -528,7 +554,7 @@ def ldap_test_connection(cfg: dict, secret_key: str) -> tuple[bool, str]:
         return False, "Service-Account-Passwort konnte nicht entschlüsselt werden."
 
     try:
-        tls = Tls(validate=_ssl.CERT_NONE if not cfg.get("ssl_verify", True) else _ssl.CERT_REQUIRED)
+        tls = Tls(validate=_ssl.CERT_REQUIRED if ldap_ssl_verify_effective() else _ssl.CERT_NONE)
         server = Server(
             cfg["server_url"], port=cfg["port"],
             use_ssl=True, tls=tls, get_info=ALL, connect_timeout=10

@@ -37,6 +37,67 @@ from ..helpers import _int_or_none
 bp = Blueprint("freigaben", __name__, url_prefix="/freigaben")
 
 
+def _configured_scan_roots() -> list[str]:
+    """Liefert normalisierte Scan-Roots aus ``scanner_config['scan_paths']``
+    plus den ``pfad_praefix`` aktiver Pfad-Profile (``fund_pfad_profile``).
+
+    Wird von :func:`_path_within_scan_roots` für die Pfad-Whitelist beim
+    Nachweis-Download genutzt (#398). Leere Liste = keine konfigurierten
+    Roots → kein scanner-referenzierter Download zulässig.
+    """
+    from .. import app_settings as _aps
+    db = get_db()
+    cfg = _aps.get_scanner_config(db)
+    raw = cfg.get("scan_paths") or []
+    roots: list[str] = []
+    for p in raw:
+        if not p:
+            continue
+        try:
+            roots.append(os.path.normpath(str(p)))
+        except (TypeError, ValueError):
+            continue
+    try:
+        rows = db.execute(
+            "SELECT pfad_praefix FROM fund_pfad_profile WHERE aktiv=1"
+        ).fetchall()
+        for r in rows:
+            pfx = (r["pfad_praefix"] or "").strip()
+            if pfx:
+                roots.append(os.path.normpath(pfx))
+    except Exception:
+        pass
+    return roots
+
+
+def _path_within_scan_roots(target: str, roots: list[str]) -> bool:
+    """True, wenn ``target`` innerhalb eines konfigurierten Scan-Roots liegt.
+
+    Vergleicht plattform-neutral und Case-insensitive auf Windows. Ohne
+    Roots oder bei nicht-absolutem Zielpfad: False (Defense-in-Depth gegen
+    Symlink-Folge / vergiftete Merge-DBs; siehe Ticket #398)."""
+    if not target or not roots:
+        return False
+    try:
+        norm_target = os.path.normpath(target)
+    except (TypeError, ValueError):
+        return False
+    if not os.path.isabs(norm_target):
+        return False
+    sep = os.sep
+    cmp_target = norm_target.lower() if os.name == "nt" else norm_target
+    for root in roots:
+        if not root:
+            continue
+        cmp_root = root.lower() if os.name == "nt" else root
+        # exakte Übereinstimmung oder echtes Unterverzeichnis – nicht nur Präfix-String
+        if cmp_target == cmp_root:
+            return True
+        if cmp_target.startswith(cmp_root.rstrip(sep) + sep):
+            return True
+    return False
+
+
 def _parse_combined_assignment(value):
     """Parses a combined person/pool dropdown value (e.g. '42' or 'pool_3').
     Returns (person_id, pool_id) with exactly one being non-None, or (None, None).
@@ -2236,6 +2297,20 @@ def nachweis_download(freigabe_id):
         ).fetchone()
         if not sf or not sf["full_path"]:
             abort(404)
+        # #398: ``full_path`` aus ``idv_files`` darf nicht ungeprüft an den
+        # Browser ausgeliefert werden. Symlink-Folge, UNC-Rewriting oder
+        # vergiftete Merge-DBs (siehe #402: scanner_db_importieren) könnten
+        # sonst beliebige Dateien des App-Servers exfiltrieren. Wir
+        # verlangen, dass ``full_path`` innerhalb der konfigurierten
+        # Scan-Roots liegt.
+        roots = _configured_scan_roots()
+        if not _path_within_scan_roots(sf["full_path"], roots):
+            current_app.logger.warning(
+                "nachweis_download: full_path außerhalb der Scan-Roots blockiert "
+                "(freigabe_id=%s, idv_file_id=%s)",
+                freigabe_id, sf_id,
+            )
+            abort(403)
         return send_file(
             sf["full_path"],
             as_attachment=True,

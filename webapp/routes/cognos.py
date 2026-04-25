@@ -138,6 +138,41 @@ def _rows_from_table(header_row, data_rows, offset: int = 2) -> tuple:
     return rows, fehler
 
 
+_COGNOS_UPLOAD_MAX_UNCOMPRESSED = 200 * 1024 * 1024  # #405: 200 MB
+_COGNOS_UPLOAD_MAX_RATIO = 200                       # #405: kompressionsverhaeltnis-cap
+
+
+def _xlsx_zip_bomb_suspect(file_bytes: bytes) -> str | None:
+    """#405: Prueft den XLSX-Upload auf typische Zip-Bomb-Indikatoren.
+
+    Liefert eine Begruendung, falls die Datei abgelehnt werden sollte
+    (Summe der unkomprimierten Eintraege ueber Limit oder
+    Kompressionsverhaeltnis ueber Cap). MAX_CONTENT_LENGTH=32 MB deckt
+    den Compressed-Pfad bereits ab; openpyxl kann aber bei vielen
+    Shared-Strings/Sheets ueberproportional Speicher allokieren –
+    deshalb der explizite Aggregat-Check.
+    """
+    import zipfile as _zip
+    try:
+        with _zip.ZipFile(io.BytesIO(file_bytes)) as zf:
+            total_uncompressed = sum(int(i.file_size or 0) for i in zf.infolist())
+    except _zip.BadZipFile:
+        return None  # Format-Fehler bemerken openpyxl/das Parsing
+    if total_uncompressed > _COGNOS_UPLOAD_MAX_UNCOMPRESSED:
+        return (
+            f"unkomprimierte Gesamtgroesse {total_uncompressed / 1_048_576:.1f} MB "
+            f"> Limit {_COGNOS_UPLOAD_MAX_UNCOMPRESSED / 1_048_576:.0f} MB"
+        )
+    compressed = max(1, len(file_bytes))
+    ratio = total_uncompressed / compressed
+    if ratio > _COGNOS_UPLOAD_MAX_RATIO:
+        return (
+            f"Kompressionsverhaeltnis {ratio:.0f}:1 > Cap "
+            f"{_COGNOS_UPLOAD_MAX_RATIO}:1"
+        )
+    return None
+
+
 def _parse_file(file_bytes: bytes, filename: str) -> tuple:
     """Parst die Excel-Berichtsübersicht (.xlsx / .xlsm).
 
@@ -150,6 +185,17 @@ def _parse_file(file_bytes: bytes, filename: str) -> tuple:
         import openpyxl
     except ImportError:
         return [], ["openpyxl ist nicht verfügbar."]
+
+    bomb_reason = _xlsx_zip_bomb_suspect(file_bytes)
+    if bomb_reason:
+        current_app.logger.warning(
+            "Cognos-Upload abgelehnt (zip-bomb-Verdacht, %s): %s",
+            bomb_reason, filename,
+        )
+        return [], [
+            f"Datei abgelehnt – Zip-Bomb-Verdacht ({bomb_reason}). "
+            "Bitte die Originaldatei pruefen."
+        ]
 
     try:
         wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)

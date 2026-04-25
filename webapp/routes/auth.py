@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+from urllib.parse import urlparse
 from flask import Blueprint, render_template, request, session, redirect, url_for, flash, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from . import get_db
@@ -8,6 +9,27 @@ from ..login_logger import log_attempt
 from .. import limiter
 
 bp = Blueprint("auth", __name__)
+
+
+def _safe_next(value: str | None) -> str | None:
+    """#406-1: Validiert ein gespeichertes ``next``-Ziel fuer den Post-Login-
+    Redirect.
+
+    Akzeptiert nur Same-Origin-Pfade ohne Scheme/Netloc und ohne
+    Protocol-Relative-Praefix (``//evil.example/...``). Letzteres wuerde
+    der bisherige ``startswith('/')``-Check faelschlich passieren lassen.
+    Stand heute kommt der Wert ausschliesslich aus url_for(), aber sobald
+    eine externe Quelle (z. B. ?next=…) angeschlossen wird, schuetzt der
+    Filter zuverlaessig vor Open-Redirect-Phishing."""
+    if not value or not isinstance(value, str):
+        return None
+    # Schon hier kuerzen, um '//evil/...' nicht als netloc-frei einzustufen.
+    if not value.startswith("/") or value.startswith("//"):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return value
 
 # Standard-Algorithmus für Passwort-Hashes: pbkdf2:sha256 mit Salt und
 # 600.000 Iterationen (werkzeug-Default seit 2.3).
@@ -185,8 +207,8 @@ def login():
                         session["ldap_auth"] = True
                         log_attempt(username, ip, "LDAP", True,
                                     f"Rolle: {person_data['rolle']}  User-ID: {uid}")
-                        _next = session.pop("_quick_next", None)
-                        return redirect(_next if _next and _next.startswith("/") else url_for("dashboard.index"))
+                        _next = _safe_next(session.pop("_quick_next", None))
+                        return redirect(_next or url_for("dashboard.index"))
                     # LDAP aktiv, aber Credentials passen nicht → lokalen Login versuchen
                     log_attempt(username, ip, "LDAP", False,
                                 "Credentials abgelehnt (falsches Passwort oder Benutzer nicht gefunden)")
@@ -198,11 +220,11 @@ def login():
         # ── 2. Lokaler Login (DB-Person oder config.json-Fallback) ───────────
         result = _do_local_login(db, username, password)
         if result:
-            _next = session.pop("_quick_next", None)
+            _next = _safe_next(session.pop("_quick_next", None))
             session.clear()
             session.update(result)
             log_attempt(username, ip, "lokal", True, f"Rolle: {result.get('user_role', '–')}")
-            return redirect(_next if _next and _next.startswith("/") else url_for("dashboard.index"))
+            return redirect(_next or url_for("dashboard.index"))
 
         log_attempt(username, ip, "lokal", False, "Benutzername oder Passwort falsch")
         flash("Benutzername oder Passwort falsch.", "error")

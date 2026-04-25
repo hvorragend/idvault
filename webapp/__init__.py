@@ -89,6 +89,60 @@ _INLINE_STYLE_TAG = re.compile(
 )
 
 
+def _warn_world_writable_updates(app, updates_root: str) -> None:
+    """#404: Beim Start prueft die App, ob ``updates/`` und seine
+    ``.py``-Module fuer Group/Other schreibbar sind. Treffer werden mit
+    WARNING geloggt – der Admin sieht den Eintrag in
+    ``instance/logs/idvault.log`` und kann die Berechtigungen
+    nachziehen (Installer setzt typischerweise ``chmod 0700`` / ACL).
+
+    Auf Windows liefert ``stat().st_mode & 0o022`` keine sinnvollen Werte
+    (POSIX-Bits werden simuliert) – dort ist der Check ein No-Op. Auf
+    POSIX-Systemen reicht der Mode-Bit-Check zur Erkennung der haeufigsten
+    Fehlkonfiguration.
+    """
+    if not os.path.isdir(updates_root):
+        return
+    if os.name == "nt":
+        # POSIX-Mode-Bits sind unter Windows nicht aussagekraeftig.
+        return
+    try:
+        import stat as _stat
+        try:
+            mode = os.stat(updates_root).st_mode
+        except OSError:
+            return
+        if mode & (_stat.S_IWGRP | _stat.S_IWOTH):
+            app.logger.warning(
+                "[startup] updates/-Verzeichnis ist Group/Other schreibbar "
+                "(mode=%o, Pfad=%s). Sidecar-Module werden beim Start "
+                "ausgefuehrt – bitte Berechtigungen verschaerfen "
+                "(chmod 0700 bzw. NTFS-ACL nur fuer Installer-Konto).",
+                mode & 0o777, updates_root,
+            )
+        # Einzelne .py-Module pruefen (db_migrate.py + Sidecar-Routen).
+        for _root, _dirs, _files in os.walk(updates_root):
+            for _name in _files:
+                if not _name.endswith(".py"):
+                    continue
+                _p = os.path.join(_root, _name)
+                try:
+                    _m = os.stat(_p).st_mode
+                except OSError:
+                    continue
+                if _m & (_stat.S_IWGRP | _stat.S_IWOTH):
+                    app.logger.warning(
+                        "[startup] Sidecar-Modul ist Group/Other schreibbar "
+                        "(mode=%o, Pfad=%s). Wer dort Schreibrechte hat, "
+                        "erreicht Code-Execution beim naechsten Neustart.",
+                        _m & 0o777, _p,
+                    )
+    except Exception as exc:
+        app.logger.warning(
+            "[startup] Berechtigungs-Check fuer updates/ fehlgeschlagen: %s", exc
+        )
+
+
 def _load_local_users_from_config() -> dict:
     """Liest lokale Benutzer direkt aus ``config.json["IDV_LOCAL_USERS"]``.
 
@@ -182,7 +236,27 @@ def _inject_nonces(body: bytes, nonce: str) -> bytes:
     return body
 
 
+def _ensure_bleach_available() -> None:
+    """#406-3: ``bleach`` (inkl. ``bleach.css_sanitizer``) ist Pflicht-
+    abhaengigkeit fuer den HTML-Sanitizer. Frueher fiel ``sanitize_html``
+    bei fehlendem Paket still auf ``html.escape`` zurueck – kein
+    XSS-Risiko, aber das UI zeigte Tags als Klartext. requirements.txt
+    listet ``bleach[css]`` ohnehin; ein ImportError am App-Start ist
+    deshalb die richtige Reaktion (Deployment-Fehler statt silent-degrade).
+    """
+    try:
+        import bleach  # type: ignore  # noqa: F401
+        from bleach.css_sanitizer import CSSSanitizer  # type: ignore  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pflichtabhaengigkeit 'bleach[css]' fehlt – siehe "
+            "requirements.txt. HTML-Sanitizing waere sonst nicht "
+            f"vollstaendig verfuegbar (ImportError: {exc})."
+        ) from exc
+
+
 def create_app(db_path: str = None) -> Flask:
+    _ensure_bleach_available()
     from . import config_store
 
     # Absoluter Projektpfad – von run.py gesetzt, bevor irgendein Modul
@@ -269,6 +343,13 @@ def create_app(db_path: str = None) -> Flask:
         _db_path = os.path.join(_instance_path, "idvault.db")
 
     _https_enabled = config_store.get_bool("IDV_HTTPS", False)
+    # #400: Wenn die App hinter einem TLS-terminierenden Reverse-Proxy
+    # (nginx/HAProxy/IIS) läuft, ist ``IDV_HTTPS`` typischerweise 0,
+    # obwohl der Browser ausschließlich HTTPS spricht. Mit
+    # ``IDV_BEHIND_HTTPS_PROXY=1`` aktivieren wir ProxyFix (X-Forwarded-Proto
+    # auswerten) und behandeln Cookies/HSTS so, als wäre TLS aktiv.
+    _behind_https_proxy = config_store.get_bool("IDV_BEHIND_HTTPS_PROXY", False)
+    _effective_https = _https_enabled or _behind_https_proxy
 
     app.config.update(
         SECRET_KEY=_secret_key,
@@ -283,11 +364,16 @@ def create_app(db_path: str = None) -> Flask:
         # Prefix, nur Seitentitel.
         IDV_INSTITUTION_NAME=config_store.get_str("IDV_INSTITUTION_NAME", ""),
         IDV_HTTPS=_https_enabled,
+        IDV_BEHIND_HTTPS_PROXY=_behind_https_proxy,
+        IDV_EFFECTIVE_HTTPS=_effective_https,
         BUNDLED_VERSION=os.environ.get('BUNDLED_VERSION', '0.1.0'),
         APP_VERSION=os.environ.get('IDV_ACTIVE_VERSION') or os.environ.get('BUNDLED_VERSION', '0.1.0'),
         # VULN-A: CSRFProtect
         WTF_CSRF_TIME_LIMIT=None,          # Token für gesamte Session gültig
-        WTF_CSRF_SSL_STRICT=False,          # Referer-Check würde bei HTTP-Proxy scheitern
+        # #400: Referer-Check wieder aktiv – ProxyFix unten setzt request.scheme
+        # korrekt auf 'https', sodass der Strict-Check kein False-Positive mehr
+        # erzeugt. Im Direct-HTTP-Dev-Modus ist der Check inaktiv (Same-Origin).
+        WTF_CSRF_SSL_STRICT=_effective_https,
         # VULN-F: Lokale Benutzer werden ausschließlich aus config.json gelesen.
         IDV_LOCAL_USERS=_load_local_users_from_config(),
     )
@@ -300,8 +386,20 @@ def create_app(db_path: str = None) -> Flask:
         PERMANENT_SESSION_LIFETIME=timedelta(hours=4),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=_https_enabled,
+        SESSION_COOKIE_SECURE=_effective_https,
     )
+
+    # #400: ProxyFix – wenn IDV_BEHIND_HTTPS_PROXY=1 ist, vertrauen wir
+    # X-Forwarded-{For,Proto,Host} des direkt vorgelagerten Reverse-Proxys
+    # (genau ein Hop). Damit bekommt request.scheme den korrekten Wert
+    # 'https', der CSRF-Referer-Check funktioniert hinter dem Proxy und
+    # SESSION_COOKIE_SECURE wird ohne weitere Sondermechanik konsistent
+    # gesetzt.
+    if _behind_https_proxy:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+        )
 
     os.makedirs(_instance_path, exist_ok=True)
     os.makedirs(upload_folder, exist_ok=True)
@@ -416,12 +514,20 @@ def create_app(db_path: str = None) -> Flask:
         app.logger.warning("path_mappings konnten nicht geladen werden: %s", _pm_err)
         app.config["PATH_MAPPINGS"] = []
 
+    # #404: Sidecar-Updates fuehren beim Start beliebigen Python-Code aus
+    # ``updates/`` aus. Wer dort Schreibzugriff hat, erreicht Code-Execution
+    # im App-Prozess. Vor dem Laden checken wir die Verzeichnis- und
+    # Datei-Berechtigungen und loggen weltweit/gruppenweit schreibbare
+    # Eintraege als Warnung.
+    _updates_root = os.path.join(_project_root, 'updates')
+    _warn_world_writable_updates(app, _updates_root)
+
     # Sidecar DB-Migration: updates/db_migrate.py wird einmalig beim Start
     # ausgeführt, wenn die Datei vorhanden ist. ZIP-Updates können damit
     # Schemaänderungen (ALTER TABLE, neue Tabellen) mitliefern, ohne dass
     # die EXE ausgetauscht werden muss. Konvention: die Datei muss eine
     # Funktion run(db_path: str) exportieren.
-    _migrate_script = os.path.join(_project_root, 'updates', 'db_migrate.py')
+    _migrate_script = os.path.join(_updates_root, 'db_migrate.py')
     if os.path.isfile(_migrate_script):
         try:
             import importlib.util as _ilu
@@ -569,8 +675,10 @@ def create_app(db_path: str = None) -> Flask:
                     pass
 
         # HSTS nur senden, wenn HTTPS aktiv ist – sonst sperren wir HTTP
-        # unbeabsichtigt aus.
-        if app.config.get("IDV_HTTPS"):
+        # unbeabsichtigt aus. #400: bei TLS-terminierendem Proxy
+        # (IDV_BEHIND_HTTPS_PROXY=1) ist HTTPS effektiv aktiv, auch wenn
+        # Cheroot direkt nur HTTP spricht.
+        if app.config.get("IDV_EFFECTIVE_HTTPS") or app.config.get("IDV_HTTPS"):
             response.headers.setdefault(
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",

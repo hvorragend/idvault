@@ -280,6 +280,27 @@ System → Software-Update → ZIP-Datei auswählen → „ZIP hochladen & einsp
 Alternativ: ZIP-Inhalt manuell in den `updates/`-Ordner neben der EXE entpacken
 und die Anwendung neu starten.
 
+### Sicherheits-Hinweis: Berechtigungen für `updates/` (#404)
+
+Der Inhalt von `updates/` wird beim Start als Python-Code geladen
+(`db_migrate.py`, Blueprint-Module unter `updates/webapp/routes/*.py`).
+Wer dort Schreibrechte hat, erreicht beim nächsten Neustart
+Code-Execution im App-Prozess. Deshalb:
+
+- **Windows**: NTFS-ACL so setzen, dass nur das Installer-Konto und
+  `SYSTEM` schreiben dürfen. Beispiel:
+  `icacls updates /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F"`.
+- **Linux/POSIX**: `chown root:root updates && chmod 0700 updates` (bzw.
+  das Konto, das den Service installiert/aktualisiert).
+- **Docker**: Bind-Mount auf `updates/` nur dann, wenn die Quelle aus
+  einem vertrauenswürdigen, signierten Build-Prozess stammt – sonst
+  ist es ein Supply-Chain-Risiko.
+
+Beim Start prüft die App die POSIX-Mode-Bits und schreibt eine WARNING
+nach `instance/logs/idvault.log`, sobald `updates/` (oder eine `.py`-
+Datei darin) für Group oder Other schreibbar ist
+(`mode & 0o022 != 0`).
+
 ### GitHub-Repository-ZIP direkt verwenden (empfohlen)
 
 Statt eines manuell erstellten Pakets kann der direkte GitHub-Download-Link

@@ -136,6 +136,22 @@ _RUNTIME_SCHEMA_DDL = (
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_auto_classify_rules_enabled ON auto_classify_rules(enabled, sort_order)",
+    # #401: Einmalige Magic-Links für die Stille Freigabe (Sicht-Freigabe an
+    # den Fachverantwortlichen). Analog zu ``self_service_tokens``: wir
+    # speichern nur den jti, der Token selbst bleibt nur in der gesendeten
+    # E-Mail. Nach Einlösung wird ``revoked_at`` gesetzt – ein zweiter
+    # Aufruf desselben Magic-Links schlägt damit fehl.
+    """
+    CREATE TABLE IF NOT EXISTS silent_release_tokens (
+        jti           TEXT PRIMARY KEY,
+        idv_db_id     INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+        person_id     INTEGER NOT NULL REFERENCES persons(id),
+        created_at    TEXT NOT NULL DEFAULT (datetime('now','utc')),
+        first_used_at TEXT,
+        revoked_at    TEXT
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_silent_release_tokens_idv ON silent_release_tokens(idv_db_id)",
 )
 
 

@@ -1452,19 +1452,127 @@ def scanner_bereinigen():
     return redirect(url_for("admin.scanner_einstellungen") + "#bereinigung")
 
 
+def _configured_scan_roots_for_import() -> list[str]:
+    """#402: Konfigurierte Scan-Roots aus ``scanner_config`` + Pfad-Profilen.
+
+    Wird für die Whitelist-Prüfung importierter ``full_path``-Werte beim
+    DB-Merge genutzt. Bei leerer Liste erlaubt ``_full_path_in_scan_roots``
+    nichts – der Import bleibt damit fail-safe."""
+    cfg = _load_scanner_config()
+    raw = cfg.get("scan_paths") or []
+    roots: list[str] = []
+    for p in raw:
+        if not p:
+            continue
+        try:
+            roots.append(os.path.normpath(str(p)))
+        except (TypeError, ValueError):
+            continue
+    try:
+        rows = get_db().execute(
+            "SELECT pfad_praefix FROM fund_pfad_profile WHERE aktiv=1"
+        ).fetchall()
+        for r in rows:
+            pfx = (r["pfad_praefix"] or "").strip()
+            if pfx:
+                roots.append(os.path.normpath(pfx))
+    except Exception:
+        pass
+    return roots
+
+
+def _full_path_in_scan_roots(target: str, roots: list[str]) -> bool:
+    """True, wenn ``target`` innerhalb eines konfigurierten Scan-Roots liegt
+    (#402, Spiegel von ``freigaben._path_within_scan_roots``)."""
+    if not target or not roots:
+        return False
+    try:
+        norm_target = os.path.normpath(target)
+    except (TypeError, ValueError):
+        return False
+    if not os.path.isabs(norm_target):
+        return False
+    sep = os.sep
+    cmp_target = norm_target.lower() if os.name == "nt" else norm_target
+    for root in roots:
+        if not root:
+            continue
+        cmp_root = root.lower() if os.name == "nt" else root
+        if cmp_target == cmp_root:
+            return True
+        if cmp_target.startswith(cmp_root.rstrip(sep) + sep):
+            return True
+    return False
+
+
+def _scanner_imports_dir() -> str:
+    """#402: Erlaubtes Stammverzeichnis für ``scanner_db_importieren``.
+
+    Liegt unter ``instance/scanner_imports/``; wird beim ersten Aufruf
+    angelegt. Nur Dateien innerhalb dieses Verzeichnisses dürfen als
+    Scanner-Quelldatenbank gemerged werden – damit fallen Pfade wie
+    ``/etc/shadow``, ``C:\\Windows\\repair\\SAM`` oder UNC-Pfade
+    (``\\\\evil.example\\share\\x.db``) als Arbitrary-Read-Vektor weg.
+    """
+    base = os.path.normpath(os.path.join(current_app.instance_path, "scanner_imports"))
+    try:
+        os.makedirs(base, exist_ok=True)
+    except OSError:
+        pass
+    return base
+
+
+def _validate_scanner_db_src_path(src_path: str) -> tuple[str | None, str | None]:
+    """Validiert den vom Admin angegebenen Quellpfad (#402).
+
+    Liefert ``(absolute_path, None)`` bei Erfolg, sonst ``(None, error_msg)``.
+    Akzeptiert nur Pfade unterhalb von :func:`_scanner_imports_dir`. UNC-
+    Präfixe und andere Drive-Letter werden hart abgelehnt.
+    """
+    if not src_path:
+        return None, "Bitte einen Datenbankpfad angeben."
+
+    # UNC-Präfixe (\\\\server\\share oder //server/share) hart ablehnen –
+    # SMB-Relay-Vektor laut Ticket #402.
+    normalized_for_check = src_path.replace("\\", "/")
+    if normalized_for_check.startswith("//"):
+        return None, "UNC-/Netzwerkpfade sind nicht zulässig."
+
+    base = _scanner_imports_dir()
+    candidate = src_path if os.path.isabs(src_path) else os.path.join(base, src_path)
+    candidate = os.path.normpath(candidate)
+    # ``os.path.realpath`` würde Symlinks auflösen – aber hier wollen wir
+    # genau das vermeiden (Symlink-Folge auf /etc/passwd). ``commonpath``
+    # auf den Roh-Normalpfad reicht.
+    try:
+        common = os.path.commonpath([candidate, base])
+    except ValueError:
+        return None, "Pfad liegt nicht im erlaubten Import-Verzeichnis."
+    if common != base:
+        return None, (
+            f"Pfad muss innerhalb von '{base}' liegen "
+            "(z. B. instance/scanner_imports/standort_b.db)."
+        )
+    if os.path.islink(candidate):
+        return None, "Symlinks im Import-Verzeichnis sind nicht zulässig."
+    if not os.path.isfile(candidate):
+        return None, f"Datei nicht gefunden: {candidate}"
+    return candidate, None
+
+
 @bp.route("/scanner/db-importieren", methods=["POST"])
 @admin_required
 def scanner_db_importieren():
     """Importiert Scanner-Ergebnisse aus einer externen SQLite-Datei (Multi-Scanner-Merge)."""
     import sqlite3 as _sqlite3
 
-    src_path = request.form.get("src_db_path", "").strip()
-    if not src_path:
-        flash("Bitte einen Datenbankpfad angeben.", "error")
-        return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
-
-    if not os.path.isfile(src_path):
-        flash(f"Datei nicht gefunden: {src_path}", "error")
+    raw_src = request.form.get("src_db_path", "").strip()
+    src_path, err = _validate_scanner_db_src_path(raw_src)
+    if err:
+        current_app.logger.warning(
+            "scanner_db_importieren: Pfad abgelehnt (%s): %s", err, raw_src
+        )
+        flash(err, "error")
         return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
 
     try:
@@ -1473,6 +1581,13 @@ def scanner_db_importieren():
     except Exception as exc:
         flash(f"Quelldatenbank kann nicht geöffnet werden: {exc}", "error")
         return redirect(url_for("admin.scanner_einstellungen") + "#db-import")
+
+    # #402: Konfigurierte Scan-Roots fuer die Validierung der importierten
+    # ``full_path``-Werte. Liegt ein Eintrag ausserhalb, wird er verworfen
+    # statt blind in die produktive DB uebernommen – sonst koennte ein
+    # praeparierter Scanner-DB-Dump auf /etc/shadow oder beliebige andere
+    # Server-Dateien zeigen (verkettet mit dem nachweis_download-Finding).
+    _import_scan_roots = _configured_scan_roots_for_import()
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -1488,7 +1603,8 @@ def scanner_db_importieren():
         src.close()
 
     def _do(c):
-        stats = {"runs": 0, "files_new": 0, "files_updated": 0, "history": 0}
+        stats = {"runs": 0, "files_new": 0, "files_updated": 0,
+                 "history": 0, "files_skipped": 0}
         run_id_map = {}
         file_id_map = {}
         with write_tx(c):
@@ -1510,6 +1626,22 @@ def scanner_db_importieren():
                 stats["runs"] += 1
 
             for f in src_files:
+                # #402: Importierte full_path-Werte muessen innerhalb der
+                # konfigurierten Scan-Roots liegen. Sonst koennte ein
+                # praeparierter Quell-DB-Dump auf beliebige Server-Dateien
+                # verweisen und in Verbindung mit dem nachweis_download
+                # eine Arbitrary-Read-Kette erzeugen. Verworfene Eintraege
+                # werden geloggt, aber stoppen den Import nicht.
+                if not _full_path_in_scan_roots(
+                    f.get("full_path") or "", _import_scan_roots
+                ):
+                    current_app.logger.warning(
+                        "scanner_db_importieren: full_path außerhalb der "
+                        "Scan-Roots verworfen: %r",
+                        f.get("full_path"),
+                    )
+                    stats["files_skipped"] += 1
+                    continue
                 existing = c.execute(
                     "SELECT id, last_seen_at FROM idv_files WHERE full_path = ?",
                     (f["full_path"],)
@@ -1618,13 +1750,19 @@ def scanner_db_importieren():
 
     try:
         stats = get_writer().submit(_do, wait=True)
-        flash(
+        msg = (
             f"Import abgeschlossen: {stats['runs']} Scan-Läufe, "
             f"{stats['files_new']} neue Dateien, "
             f"{stats['files_updated']} aktualisiert, "
-            f"{stats['history']} History-Einträge.",
-            "success"
+            f"{stats['history']} History-Einträge."
         )
+        skipped = stats.get("files_skipped", 0)
+        if skipped:
+            msg += (
+                f" {skipped} Datei(en) verworfen (full_path ausserhalb der "
+                "konfigurierten Scan-Roots) – siehe idvault.log."
+            )
+        flash(msg, "success" if not skipped else "warning")
     except Exception as exc:
         flash(f"Fehler beim Import: {exc}", "error")
 

@@ -79,22 +79,22 @@ def _serializer_silent_release(secret_key: str):
 
 
 def make_silent_release_token(secret_key: str, idv_db_id: int,
-                              person_id: int) -> str:
+                              person_id: int, jti: str) -> str:
     """Magic-Link fuer den Fachverantwortlichen zur Sicht-Freigabe (Issue #351).
 
-    Payload: ``{"i": idv_db_id, "p": person_id}``. Anders als beim
-    Owner-Digest wird hier kein serverseitiger jti gefuehrt — der Magic-Link
-    bleibt 7 Tage gueltig und ist mehrfach abrufbar (idempotente
-    POST-Handler), bis die IDV den Status ``Freigegeben (Stille Freigabe)``
-    erreicht.
+    Payload: ``{"i": idv_db_id, "p": person_id, "j": jti}``. Der jti wird
+    serverseitig in ``silent_release_tokens`` getrackt (#401) und nach der
+    ersten erfolgreichen Einlösung als ``revoked_at`` markiert – damit
+    läuft kein zweiter POST mehr durch, auch wenn der Link über einen
+    Referer-Leak in fremde Hände gelangt.
     """
     return _serializer_silent_release(secret_key).dumps(
-        {"i": int(idv_db_id), "p": int(person_id)}
+        {"i": int(idv_db_id), "p": int(person_id), "j": str(jti)}
     )
 
 
 def verify_silent_release_token(secret_key: str, token: str) -> dict | None:
-    """Verifiziert den Sicht-Freigabe-Token (Issue #351)."""
+    """Verifiziert den Sicht-Freigabe-Token (Issue #351 + #401)."""
     try:
         return _serializer_silent_release(secret_key).loads(
             token, max_age=MAX_AGE_SECONDS
