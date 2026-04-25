@@ -155,5 +155,24 @@ def build_ssl_context(instance_path: str) -> Optional[ssl.SSLContext]:
     cert_path, key_path = paths
 
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    # #406-2: Cipher-/Protokoll-Hardening. Auf aelteren Windows-Builds kann
+    # PROTOCOL_TLS_SERVER ohne expliziten Cipher-Filter schwache Suiten
+    # einbinden (RC4, 3DES, CBC-only). Wir erzwingen TLS >= 1.2 und einen
+    # konservativen ECDHE/AES-GCM/CHACHA20-Filter; das deckt alle modernen
+    # Browser und reduziert die Angriffsoberflaeche.
+    try:
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    except (AttributeError, ValueError):
+        # Aeltere Python-Versionen (< 3.7) – kein Showstopper, der
+        # PROTOCOL_TLS_SERVER selbst schliesst SSLv2/3 bereits aus.
+        pass
+    try:
+        ctx.set_ciphers(
+            "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:!aNULL:!MD5:!DSS"
+        )
+    except ssl.SSLError:
+        # Wenn die Plattform die Liste nicht parsen kann (uralte OpenSSL),
+        # bleiben wir bei den Defaults statt mit RuntimeError abzubrechen.
+        pass
     ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
     return ctx

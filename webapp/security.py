@@ -112,9 +112,11 @@ _ALLOWED_PROTOCOLS = {"http", "https", "mailto", "tel"}
 def sanitize_html(raw: Optional[str]) -> Optional[str]:
     """Säubert HTML-Eingaben (z. B. aus Quill-Editor) gegen Stored XSS.
 
-    Nutzt ``bleach`` wenn verfügbar; andernfalls wird *alles* HTML entfernt
-    (strikter Fallback), damit selbst ohne installierte Abhängigkeit keine
-    Script-Tags oder Event-Handler in die Datenbank gelangen.
+    #406-3: ``bleach`` ist nun harte Voraussetzung; die Pakete werden in
+    ``webapp/__init__.py`` beim App-Start gegen einen ``ImportError``
+    gehaerteten Check importiert. Wir verlassen uns hier deshalb auf ihre
+    Verfuegbarkeit – kein silent-fallback auf reinem HTML-Escape, der das
+    UI Tags als Klartext anzeigen wuerde.
     """
     if raw is None:
         return None
@@ -122,24 +124,19 @@ def sanitize_html(raw: Optional[str]) -> Optional[str]:
     if not text:
         return None
 
-    try:
-        import bleach  # type: ignore
-        from bleach.css_sanitizer import CSSSanitizer  # type: ignore
-        css_san = CSSSanitizer(allowed_css_properties=sorted(_ALLOWED_STYLES))
-        cleaned = bleach.clean(
-            text,
-            tags=sorted(_ALLOWED_TAGS),
-            attributes=_ALLOWED_ATTR,
-            protocols=sorted(_ALLOWED_PROTOCOLS),
-            strip=True,
-            css_sanitizer=css_san,
-        )
-        cleaned = bleach.linkify(cleaned, skip_tags=["pre", "code"])
-        return cleaned
-    except Exception:
-        # Fallback: komplett escapen – kein HTML wird gerendert. Sicher, aber hässlich.
-        # Besser als ungefiltert speichern.
-        return html.escape(text)
+    import bleach  # noqa: WPS433 – Import oben in __init__.py bereits erzwungen
+    from bleach.css_sanitizer import CSSSanitizer  # noqa: WPS433
+    css_san = CSSSanitizer(allowed_css_properties=sorted(_ALLOWED_STYLES))
+    cleaned = bleach.clean(
+        text,
+        tags=sorted(_ALLOWED_TAGS),
+        attributes=_ALLOWED_ATTR,
+        protocols=sorted(_ALLOWED_PROTOCOLS),
+        strip=True,
+        css_sanitizer=css_san,
+    )
+    cleaned = bleach.linkify(cleaned, skip_tags=["pre", "code"])
+    return cleaned
 
 
 # ---------------------------------------------------------------------------

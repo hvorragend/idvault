@@ -236,7 +236,27 @@ def _inject_nonces(body: bytes, nonce: str) -> bytes:
     return body
 
 
+def _ensure_bleach_available() -> None:
+    """#406-3: ``bleach`` (inkl. ``bleach.css_sanitizer``) ist Pflicht-
+    abhaengigkeit fuer den HTML-Sanitizer. Frueher fiel ``sanitize_html``
+    bei fehlendem Paket still auf ``html.escape`` zurueck – kein
+    XSS-Risiko, aber das UI zeigte Tags als Klartext. requirements.txt
+    listet ``bleach[css]`` ohnehin; ein ImportError am App-Start ist
+    deshalb die richtige Reaktion (Deployment-Fehler statt silent-degrade).
+    """
+    try:
+        import bleach  # type: ignore  # noqa: F401
+        from bleach.css_sanitizer import CSSSanitizer  # type: ignore  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pflichtabhaengigkeit 'bleach[css]' fehlt – siehe "
+            "requirements.txt. HTML-Sanitizing waere sonst nicht "
+            f"vollstaendig verfuegbar (ImportError: {exc})."
+        ) from exc
+
+
 def create_app(db_path: str = None) -> Flask:
+    _ensure_bleach_available()
     from . import config_store
 
     # Absoluter Projektpfad – von run.py gesetzt, bevor irgendein Modul
