@@ -7,7 +7,6 @@ from db_write_tx import write_tx
 
 from .. import admin_required, get_db
 from ...db_writer import get_writer
-from ...ldap_auth import ldap_ssl_verify_effective
 from . import bp
 
 
@@ -39,14 +38,7 @@ def ldap_config():
         base_dn = request.form.get("base_dn", "").strip()
         bind_dn = request.form.get("bind_dn", "").strip()
         user_attr = request.form.get("user_attr", "sAMAccountName")
-        # #403: ``ssl_verify`` ist nicht mehr ueber die UI deaktivierbar.
-        # Der Wert in der DB-Zeile wird zwar weiterhin gepflegt (Bestand),
-        # die effektive Pruefung beim Bind kommt aus
-        # ``ldap_ssl_verify_effective`` und kann nur ueber den
-        # config.json-Override ``IDV_LDAP_INSECURE_TLS=1`` deaktiviert
-        # werden. Die UI darf den Wert deshalb nicht mehr stillschweigend
-        # auf 0 senken.
-        ssl_verify = 1
+        ssl_verify = 1 if request.form.get("ssl_verify") else 0
 
         bind_password_plain = request.form.get("bind_password", "").strip()
         if bind_password_plain:
@@ -78,33 +70,25 @@ def ldap_config():
                 """, params)
         get_writer().submit(_do, wait=True)
         flash("LDAP-Konfiguration gespeichert.", "success")
-        # #403: Wenn der config.json-Override ``IDV_LDAP_INSECURE_TLS=1``
-        # die TLS-Pruefung deaktiviert, weisen wir den Admin nach jeder
-        # Speicherung erneut darauf hin – das ist nur fuer Pilotbetriebe
-        # mit Self-signed-CA gedacht und sollte sichtbar bleiben.
-        if enabled and not ldap_ssl_verify_effective():
+        # VULN-012: TLS-Zertifikatsprüfung abgeschaltet → Audit-Warnung
+        if enabled and not ssl_verify:
             import logging as _logging
             _logging.getLogger(__name__).warning(
-                "LDAP-Konfiguration gespeichert; TLS-Zertifikatspruefung "
-                "ist via config.json-Override (IDV_LDAP_INSECURE_TLS=1) "
-                "deaktiviert – Man-in-the-Middle-Angriffe auf LDAPS moeglich."
+                "LDAP-Konfiguration gespeichert MIT DEAKTIVIERTER "
+                "Zertifikatsprüfung (ssl_verify=0) – Man-in-the-Middle-Angriffe "
+                "auf LDAPS möglich."
             )
             flash(
-                "Hinweis: TLS-Zertifikatspruefung ist via "
-                "config.json-Override IDV_LDAP_INSECURE_TLS=1 deaktiviert. "
-                "Im Produktivbetrieb bitte deaktivieren (Eintrag entfernen "
-                "oder auf 0 setzen) und das Server-Zertifikat aus der "
-                "internen CA als vertrauenswuerdig hinterlegen.",
+                "Hinweis: Die Zertifikatsprüfung (ssl_verify) ist deaktiviert. "
+                "Das macht LDAPS anfällig für Man-in-the-Middle-Angriffe. "
+                "Für den Produktivbetrieb bitte aktivieren und das Server-"
+                "Zertifikat aus der internen CA als vertrauenswürdig hinterlegen.",
                 "warning",
             )
         return redirect(url_for("admin.ldap_config"))
 
     cfg = get_ldap_config(db)
-    return render_template(
-        "admin/ldap_config.html",
-        cfg=cfg,
-        ssl_verify_effective=ldap_ssl_verify_effective(),
-    )
+    return render_template("admin/ldap_config.html", cfg=cfg)
 
 
 @bp.route("/ldap-test", methods=["POST"])

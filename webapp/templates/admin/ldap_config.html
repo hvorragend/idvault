@@ -114,28 +114,15 @@
 
           <div class="col-md-6">
             <label class="form-label fw-600">TLS-Zertifikat</label>
-            {# #403: ssl_verify ist nicht mehr UI-deaktivierbar. Status nur lesend anzeigen. #}
-            {% if ssl_verify_effective %}
-              <div class="alert alert-success py-2 mb-0">
-                <i class="bi bi-shield-check me-1"></i>
-                LDAPS-Zertifikat wird verifiziert (CERT_REQUIRED).
-              </div>
-            {% else %}
-              <div class="alert alert-danger py-2 mb-0">
-                <i class="bi bi-shield-exclamation me-1"></i>
-                <strong>TLS-Pruefung deaktiviert</strong> via
-                <code>config.json</code> &rarr;
-                <code>"IDV_LDAP_INSECURE_TLS": 1</code>.
-                LDAPS ist damit anfaellig fuer Man-in-the-Middle-Angriffe;
-                nur fuer Pilotbetriebe mit Self-signed-CA gedacht.
-              </div>
-            {% endif %}
-            <div class="form-text">
-              Aenderbar nur ueber die <code>config.json</code> neben der EXE
-              bzw. <code>run.py</code>; ein Eintrag in der UI ist
-              ausgeschlossen, damit ein UI-Phisher den Wert nicht verstecken
-              kann.
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" name="ssl_verify"
+                     id="ssl_verify" value="1"
+                     {{ 'checked' if not cfg or cfg.ssl_verify else '' }}>
+              <label class="form-check-label" for="ssl_verify">
+                Zertifikat verifizieren (empfohlen)
+              </label>
             </div>
+            <div class="form-text">Deaktivieren nur bei selbstsignierten Zertifikaten im Test</div>
           </div>
 
         </div>
