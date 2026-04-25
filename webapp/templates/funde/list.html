@@ -323,12 +323,12 @@ verloren geht. #}
                       filter=filt, share_root=share_root_filt,
                       dir_path=dir_path_filt, scan_run=scan_run_id_filt,
                       page=1, per_page=per_page) }}"
-    class="text-decoration-none text-white d-inline-flex align-items-center gap-1">
+    class="d-inline-flex align-items-center gap-1">
     {{ label }}
     {% if sort == col %}
     <i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>
     {% else %}
-    <i class="bi bi-arrow-down-up text-muted" style="opacity:.35;font-size:.7em"></i>
+    <i class="bi bi-arrow-down-up" style="opacity:.35;font-size:.7em"></i>
     {% endif %}
   </a>
 </th>
@@ -469,16 +469,13 @@ date_to} %}
             <th style="width:32px"></th>
             {{ sort_th('dateiname', 'Dateiname') }}
             <th>Typ</th>
-            {{ sort_th('dir_path', 'Verzeichnis / Pfad') }}
-            {{ sort_th('scan', 'Scan-Lauf') }}
+            {{ sort_th('dir_path', 'Speicherort') }}
             {{ sort_th('groesse', 'Größe') }}
-            {{ sort_th('geaendert', 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert') }}
+            {{ sort_th('geaendert', 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert am') }}
             {{ sort_th('eigentümer', 'Eigentümer') }}
             <th class="text-center">Makros</th>
             <th class="text-center">Formeln</th>
             <th class="text-center">Schutz</th>
-            <th>Status</th>
-            <th>Eigenentwicklung</th>
             {% if match_suggestions_active %}<th title="Automatisch berechneter Übereinstimmungs-Score mit vorhandenen IDVs">
               Vorschlag</th>{% endif %}
             <th></th>
@@ -500,7 +497,7 @@ date_to} %}
               {% endfor %}
               <input type="checkbox" class="form-check-input dup-master-cb" data-gid="{{ gid }}">
             </td>
-            <td colspan="12">
+            <td colspan="{{ 10 if match_suggestions_active else 9 }}">
               <span class="fw-600">
                 <i class="bi bi-copy me-1 text-danger"></i>
                 {{ grp | length }} identische Dateien
@@ -522,16 +519,24 @@ date_to} %}
             <td></td>
 
             <td>
-              <span class="fw-500 ms-3">
-                <i class="bi bi-file-earmark me-1 text-muted"></i>{{ f.file_name }}
-              </span>
-              {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
-              <div class="ms-3">
-                <span class="font-monospace text-muted fs-8" title="SHA-256: {{ f.file_hash }}">
-                  <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
+              <div class="d-flex align-items-center gap-2 flex-wrap ms-3">
+                <span class="fw-500">
+                  <i class="bi bi-file-earmark me-1 text-muted"></i>{{ f.file_name }}
                 </span>
+                {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
+                <i class="bi bi-fingerprint text-muted" title="SHA-256: {{ f.file_hash }}"></i>
+                {% endif %}
+                {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
+                {% if bs == 'Registriert' %}
+                <span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Registriert</span>
+                {% elif bs == 'Zur Registrierung' %}
+                <span class="mini-pill mini-pill-zur-reg"><i class="bi bi-pencil-square"></i>Zur Registrierung</span>
+                {% elif bs == 'Ignoriert' %}
+                <span class="mini-pill mini-pill-ignored"><i class="bi bi-eye-slash"></i>Ignoriert</span>
+                {% else %}
+                <span class="mini-pill mini-pill-neu">Neu</span>
+                {% endif %}
               </div>
-              {% endif %}
             </td>
 
             <td>
@@ -553,7 +558,6 @@ date_to} %}
               {% endif %}
             </td>
 
-            <td class="text-nowrap fs-7">{{ f.sr_started_at[:10] if f.sr_started_at else '–' }}</td>
             <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
             <td class="text-nowrap">{% if f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>{% else %}–{% endif %}</td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
@@ -561,51 +565,48 @@ date_to} %}
               {{ f.file_owner or f.office_author or '–' }}
             </td>
             <td class="text-center">
-              {% if f.has_macros %}<span class="badge bg-danger">VBA</span>
+              {% if f.has_macros %}<span class="idv-tag idv-tag-red" title="VBA-Makros vorhanden">VBA</span>
               {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
             </td>
             <td class="text-center">
               {% if f.formula_count %}
-              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
-                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              <span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator"></i>{{ f.formula_count }}
               </span>
               {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
             </td>
             <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
-            <td>
-              {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
-              {% if bs == 'Registriert' %}<span class="badge bg-success">Registriert</span>
-              {% elif bs == 'Zur Registrierung' %}<span class="badge bg-info text-dark">Zur Registrierung</span>
-              {% elif bs == 'Ignoriert' %}<span class="badge bg-secondary"><i
-                  class="bi bi-eye-slash me-1"></i>Ignoriert</span>
-              {% else %}<span class="badge bg-light text-dark border">Neu</span>{% endif %}
-            </td>
-            <td>
-              {% if f.reg_idv_id %}
-              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                class="badge bg-success text-decoration-none">{{ f.reg_idv_id }}</a>
-              {% else %}<span class="badge bg-warning text-dark">–</span>{% endif %}
-            </td>
             <td class="text-nowrap">
-              {% if not f.reg_idv_id %}
-              <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
-                class="btn btn-xs btn-primary text-nowrap">
-                <i class="bi bi-plus-lg me-1"></i>Registrieren
-              </a>
-              {% endif %}
-              {% if is_admin and not f.reg_idv_id %}
-              <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
-                data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
-                data-action="deleteScannerfund">
-                <i class="bi bi-trash"></i>
-              </button>
-              {% endif %}
+              <div class="d-inline-flex align-items-center gap-1 text-nowrap">
+                {% if f.reg_idv_id %}
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  class="btn btn-xs btn-outline-secondary" title="IDV öffnen">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  class="badge bg-success text-decoration-none" title="Verknüpft: {{ f.reg_idv_id }}">
+                  {{ f.reg_idv_id }}
+                </a>
+                {% else %}
+                <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
+                  class="btn btn-xs btn-primary text-nowrap">
+                  <i class="bi bi-plus-lg me-1"></i>Registrieren
+                </a>
+                {% if is_admin %}
+                <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
+                  data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
+                  data-action="deleteScannerfund">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+                {% endif %}
+              </div>
             </td>
           </tr>
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="14" class="text-center text-muted py-5">
+            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
             </td>
           </tr>
@@ -625,34 +626,40 @@ date_to} %}
               {% endif %}
             </td>
 
-            <!-- Dateiname -->
+            <!-- Dateiname + Hash-Icon + Status-Mini-Pill -->
             <td>
-              <span class="fw-500">
-                {% if f.status == 'archiviert' %}
-                <i class="bi bi-archive me-1 text-secondary"></i>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="fw-500">
+                  {% if f.status == 'archiviert' %}
+                  <i class="bi bi-archive me-1 text-secondary"></i>
+                  {% endif %}
+                  {{ f.file_name }}
+                </span>
+                {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
+                <i class="bi bi-fingerprint text-muted" title="SHA-256: {{ f.file_hash }}"></i>
+                {% elif f.file_hash == 'HASH_ERROR' %}
+                <i class="bi bi-exclamation-triangle text-danger"
+                  title="Hash konnte nicht berechnet werden (Zugriffsfehler oder Datei zu groß)"></i>
                 {% endif %}
-                {{ f.file_name }}
-              </span>
-              {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
-              <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
-                {% if f.file_hash in duplicate_hashes %}
+                {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
+                {% if f.status == 'archiviert' %}
+                <span class="mini-pill mini-pill-archiv"><i class="bi bi-archive"></i>Archiviert</span>
+                {% elif bs == 'Registriert' %}
+                <span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Registriert</span>
+                {% elif bs == 'Zur Registrierung' %}
+                <span class="mini-pill mini-pill-zur-reg"><i class="bi bi-pencil-square"></i>Zur Registrierung</span>
+                {% elif bs == 'Ignoriert' %}
+                <span class="mini-pill mini-pill-ignored"><i class="bi bi-eye-slash"></i>Ignoriert</span>
+                {% else %}
+                <span class="mini-pill mini-pill-neu">Neu</span>
+                {% endif %}
+                {% if f.file_hash and f.file_hash in duplicate_hashes %}
                 <span class="badge bg-warning text-dark"
                   title="Dieser SHA-256-Hash kommt in der aktuellen Ansicht mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
                   <i class="bi bi-copy me-1"></i>Duplikat
                 </span>
                 {% endif %}
-                <span class="font-monospace text-muted fs-8" title="SHA-256: {{ f.file_hash }}">
-                  <i class="bi bi-fingerprint me-1"></i>{{ f.file_hash[:12] }}…
-                </span>
               </div>
-              {% elif f.file_hash == 'HASH_ERROR' %}
-              <div class="mt-1">
-                <span class="text-danger fs-8"
-                  title="Hash konnte nicht berechnet werden (Zugriffsfehler oder Datei zu groß)">
-                  <i class="bi bi-exclamation-triangle me-1"></i>Hash-Fehler
-                </span>
-              </div>
-              {% endif %}
             </td>
 
             <!-- Typ-Vorschlag -->
@@ -673,18 +680,6 @@ date_to} %}
               {% else %}
               {{ dir_fallback(f.dir_path) }}
               {% endif %}
-              {% endif %}
-            </td>
-
-            <!-- Scan-Lauf -->
-            <td class="text-nowrap fs-7">
-              {% if f.sr_id %}
-              <a href="{{ url_for('funde.list_funde', scan_run=f.sr_id, filter=filt, sort=sort, order=order) }}"
-                class="text-decoration-none text-muted" title="#{{ f.sr_id }} – Nach diesem Scan-Lauf filtern">
-                {{ f.sr_started_at[:10] if f.sr_started_at else '–' }}
-              </a>
-              {% else %}
-              <span class="text-muted">–</span>
               {% endif %}
             </td>
 
@@ -712,7 +707,7 @@ date_to} %}
             <!-- Makros -->
             <td class="text-center">
               {% if f.has_macros %}
-              <span class="badge bg-danger">VBA</span>
+              <span class="idv-tag idv-tag-red" title="VBA-Makros vorhanden">VBA</span>
               {% else %}
               <i class="bi bi-dash text-muted"></i>
               {% endif %}
@@ -721,8 +716,8 @@ date_to} %}
             <!-- Formeln -->
             <td class="text-center">
               {% if f.formula_count %}
-              <span class="badge bg-light text-dark border" title="{{ f.formula_count }} Formelzellen">
-                <i class="bi bi-calculator me-1"></i>{{ f.formula_count }}
+              <span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen">
+                <i class="bi bi-calculator"></i>{{ f.formula_count }}
               </span>
               {% else %}
               <i class="bi bi-dash text-muted"></i>
@@ -733,50 +728,24 @@ date_to} %}
             <td class="text-center">
               {% if f.has_sheet_protection %}
               {% if f.workbook_protected %}
-              <span class="badge bg-warning text-dark"
+              <span class="idv-tag idv-tag-blue"
                 title="{{ f.protected_sheets_count }} Blatt geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %} + Arbeitsmappenschutz">
-                <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
+                <i class="bi bi-lock-fill"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
                 <i class="bi bi-journals ms-1"></i>
               </span>
               {% else %}
-              <span class="badge bg-warning text-dark"
+              <span class="idv-tag idv-tag-blue"
                 title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blätter geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %}">
-                <i class="bi bi-lock-fill me-1"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
+                <i class="bi bi-lock-fill"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
                 {% if f.sheet_protection_has_pw %}<i class="bi bi-key-fill ms-1"></i>{% endif %}
               </span>
               {% endif %}
               {% elif f.workbook_protected %}
-              <span class="badge bg-secondary" title="Arbeitsmappenschutz">
+              <span class="idv-tag idv-tag-blue" title="Arbeitsmappenschutz">
                 <i class="bi bi-journals"></i>
               </span>
               {% else %}
               <i class="bi bi-dash text-muted"></i>
-              {% endif %}
-            </td>
-
-            <!-- Bearbeitungsstatus -->
-            <td>
-              {% set bs = f.bearbeitungsstatus if f.bearbeitungsstatus is defined else 'Neu' %}
-              {% if bs == 'Registriert' %}
-              <span class="badge bg-success">Registriert</span>
-              {% elif bs == 'Zur Registrierung' %}
-              <span class="badge bg-info text-dark">Zur Registrierung</span>
-              {% elif bs == 'Ignoriert' %}
-              <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Ignoriert</span>
-              {% else %}
-              <span class="badge bg-light text-dark border">Neu</span>
-              {% endif %}
-            </td>
-
-            <!-- Eigenentwicklungs-Verknüpfung -->
-            <td>
-              {% if f.reg_idv_id %}
-              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                class="badge bg-success text-decoration-none">
-                {{ f.reg_idv_id }}
-              </a>
-              {% else %}
-              <span class="badge bg-warning text-dark">–</span>
               {% endif %}
             </td>
 
@@ -812,32 +781,36 @@ date_to} %}
             {% endif %}
 
             <td class="text-nowrap">
-              {% if filt != 'archiv' %}
-              {% if not f.reg_idv_id %}
-              <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
-                class="btn btn-xs btn-primary text-nowrap">
-                <i class="bi bi-plus-lg me-1"></i>Registrieren
-              </a>
-              {% else %}
-              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
-                class="btn btn-xs btn-outline-secondary">
-                <i class="bi bi-eye"></i>
-              </a>
-              {% endif %}
-              {% endif %}
-              {% if is_admin and not f.reg_idv_id %}
-              <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
-                data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
-                data-action="deleteScannerfund">
-                <i class="bi bi-trash"></i>
-              </button>
-              {% endif %}
+              <div class="d-inline-flex align-items-center gap-1 text-nowrap">
+                {% if filt != 'archiv' and not f.reg_idv_id %}
+                <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
+                  class="btn btn-xs btn-primary text-nowrap">
+                  <i class="bi bi-plus-lg me-1"></i>Registrieren
+                </a>
+                {% if is_admin %}
+                <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
+                  data-delete-url="{{ url_for('funde.loeschen', file_id=f.id) }}" data-filename="{{ f.file_name }}"
+                  data-action="deleteScannerfund">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+                {% elif f.reg_idv_id %}
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  class="btn btn-xs btn-outline-secondary" title="IDV öffnen">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
+                  class="badge bg-success text-decoration-none" title="Verknüpft: {{ f.reg_idv_id }}">
+                  {{ f.reg_idv_id }}
+                </a>
+                {% endif %}
+              </div>
             </td>
 
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 15 if match_suggestions_active else 14 }}" class="text-center text-muted py-5">
+            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Dateien gefunden.
             </td>
@@ -949,13 +922,28 @@ date_to} %}
         if (data.ok) {
           var row = btn.closest('tr');
           if (row) {
-            var idvCell = row.querySelector('td:nth-last-child(3)');
-            if (idvCell) {
-              idvCell.innerHTML = '<a href="' + detailUrl + '" class="badge bg-success text-decoration-none">' + data.idv_id + '</a>';
+            // Aktionen-Zelle (letzte td) auf "Lupe + IDV-Pill" umstellen
+            var actionCell = row.querySelector('td:last-child');
+            if (actionCell) {
+              actionCell.innerHTML =
+                '<div class="d-inline-flex align-items-center gap-1 flex-wrap">' +
+                  '<a href="' + detailUrl + '" class="btn btn-xs btn-outline-secondary" title="IDV öffnen"><i class="bi bi-eye"></i></a>' +
+                  '<a href="' + detailUrl + '" class="badge bg-success text-decoration-none" title="Verknüpft: ' + data.idv_id + '">' + data.idv_id + '</a>' +
+                '</div>';
             }
+            // Dateinamen-Zelle: Mini-Pill auf "Registriert" umstellen
+            var fileCell = row.querySelector('td:nth-child(2)');
+            if (fileCell) {
+              var pill = fileCell.querySelector('.mini-pill');
+              if (pill) {
+                pill.className = 'mini-pill mini-pill-reg';
+                pill.innerHTML = '<i class="bi bi-check2"></i>Registriert';
+              }
+            }
+            // Vorschlags-Zelle als "Zugeordnet" markieren
             var vorschlagCell = btn.closest('td');
             if (vorschlagCell) {
-              vorschlagCell.innerHTML = '<span class="badge bg-success"><i class="bi bi-check2 me-1"></i>Zugeordnet</span>';
+              vorschlagCell.innerHTML = '<span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Zugeordnet</span>';
             }
           }
         } else {

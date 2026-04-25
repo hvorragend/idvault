@@ -1,6 +1,6 @@
 """Prüfungen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from . import login_required, own_write_required, admin_required, get_db
+from . import login_required, own_write_required, admin_required, get_db, ROLE_ADMIN
 from datetime import datetime, timezone, date as _date
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -98,7 +98,7 @@ def new_review(idv_db_id):
 
 
 @bp.route("/<int:p_id>/bearbeiten", methods=["GET", "POST"])
-@admin_required
+@login_required
 def edit_review(p_id):
     db = get_db()
     p  = db.execute("SELECT * FROM pruefungen WHERE id=?", (p_id,)).fetchone()
@@ -106,9 +106,18 @@ def edit_review(p_id):
         flash("Prüfung nicht gefunden.", "error")
         return redirect(url_for("reviews.list_reviews"))
     idv_db_id = p["idv_id"]
+    # VULN-E: Lesezugriff auf das zugrundeliegende IDV sicherstellen, damit
+    # Nutzer ohne Leseberechtigung (z. B. fremde Fachverantwortliche) die
+    # Prüfung auch read-only nicht einsehen koennen.
+    ensure_can_read_idv(db, idv_db_id)
     idv = db.execute("SELECT * FROM idv_register WHERE id=?", (idv_db_id,)).fetchone()
 
+    is_admin = session.get("user_role") == ROLE_ADMIN
+
     if request.method == "POST":
+        if not is_admin:
+            flash("Zugriff verweigert – nur Administratoren dürfen Prüfungen bearbeiten.", "error")
+            return redirect(url_for("reviews.edit_review", p_id=p_id))
         now           = datetime.now(timezone.utc).isoformat()
         pruefungsart  = request.form.get("pruefungsart", "Regelprüfung")
         pruefungsdatum = request.form.get("pruefungsdatum") or _date.today().isoformat()
@@ -150,6 +159,7 @@ def edit_review(p_id):
     ).fetchone())
     return render_template("reviews/edit_form.html", p=p, idv=idv, persons=persons,
         ist_wesentlich=ist_wesentlich,
+        read_only=not is_admin,
         pruefungsarten=get_klassifizierungen(db, "pruefungsart"),
         pruefungs_ergebnisse=get_klassifizierungen(db, "pruefungs_ergebnis"))
 

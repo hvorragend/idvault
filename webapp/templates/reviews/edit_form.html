@@ -1,8 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Prüfung bearbeiten{% endblock %}
-{% block page_title %}<i class="bi bi-pencil-square me-2"></i>Prüfung bearbeiten – {{ idv.bezeichnung }}{% endblock %}
+{% block title %}{{ 'Prüfung ansehen' if read_only else 'Prüfung bearbeiten' }}{% endblock %}
+{% block page_title %}
+<i class="bi bi-{{ 'eye' if read_only else 'pencil-square' }} me-2"></i>
+{{ 'Prüfung ansehen' if read_only else 'Prüfung bearbeiten' }} – {{ idv.bezeichnung }}
+{% endblock %}
 
 {% block content %}
+{% if read_only %}
+<div class="alert alert-info py-2 mb-3 small">
+  <i class="bi bi-info-circle me-1"></i>
+  <strong>Lesemodus.</strong> Ihre Rolle erlaubt die Einsicht dieser Prüfung, aber keine Änderungen.
+</div>
+{% endif %}
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row g-4">
@@ -19,7 +28,7 @@
 
           <div class="col-md-4">
             <label class="form-label">Prüfungsart <span class="required-star">*</span></label>
-            <select name="pruefungsart" class="form-select" required>
+            <select name="pruefungsart" class="form-select" required {{ 'disabled' if read_only }}>
               {% for art in pruefungsarten %}
               <option value="{{ art.wert }}" {{ 'selected' if art.wert == p.pruefungsart }}>{{ art.bezeichnung }}</option>
               {% endfor %}
@@ -28,12 +37,12 @@
 
           <div class="col-md-4">
             <label class="form-label">Prüfungsdatum <span class="required-star">*</span></label>
-            <input type="date" name="pruefungsdatum" class="form-control" required value="{{ p.pruefungsdatum }}">
+            <input type="date" name="pruefungsdatum" class="form-control" required value="{{ p.pruefungsdatum }}" {{ 'disabled' if read_only }}>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Prüfer</label>
-            <select name="pruefer_id" class="form-select">
+            <select name="pruefer_id" class="form-select" {{ 'disabled' if read_only }}>
               <option value="">–</option>
               {% for per in persons %}
               <option value="{{ per.id }}" {{ 'selected' if per.id == p.pruefer_id }}>{{ per.nachname }}, {{ per.vorname }}</option>
@@ -43,7 +52,7 @@
 
           <div class="col-md-6">
             <label class="form-label">Ergebnis <span class="required-star">*</span></label>
-            <select name="ergebnis" class="form-select" required>
+            <select name="ergebnis" class="form-select" required {{ 'disabled' if read_only }}>
               {% for e in pruefungs_ergebnisse %}
               <option value="{{ e.wert }}" {{ 'selected' if e.wert == p.ergebnis }}>{{ e.bezeichnung }}</option>
               {% endfor %}
@@ -53,18 +62,18 @@
           <div class="col-12">
             <label class="form-label">Befunde / Feststellungen</label>
             <textarea name="befunde" class="form-control" rows="4"
-              placeholder="Beschreibung der Befunde (falls vorhanden) …">{{ p.befunde or '' }}</textarea>
+              placeholder="Beschreibung der Befunde (falls vorhanden) …" {{ 'readonly' if read_only }}>{{ p.befunde or '' }}</textarea>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Nächste Prüfung</label>
-            <input type="date" name="naechste_pruefung" class="form-control" value="{{ p.naechste_pruefung or '' }}">
+            <input type="date" name="naechste_pruefung" class="form-control" value="{{ p.naechste_pruefung or '' }}" {{ 'disabled' if read_only }}>
             <div class="form-text">Wird ins Register übernommen.</div>
           </div>
 
           <div class="col-12">
             <label class="form-label">Kommentar</label>
-            <textarea name="kommentar" class="form-control" rows="2" placeholder="Zusätzliche Hinweise …">{{ p.kommentar or '' }}</textarea>
+            <textarea name="kommentar" class="form-control" rows="2" placeholder="Zusätzliche Hinweise …" {{ 'readonly' if read_only }}>{{ p.kommentar or '' }}</textarea>
           </div>
 
         </div>
@@ -72,11 +81,13 @@
 
       <div class="d-flex justify-content-between">
         <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=idv.id) }}" class="btn btn-outline-secondary" data-esc-cancel>
-          <i class="bi bi-arrow-left me-1"></i>Abbrechen
+          <i class="bi bi-arrow-left me-1"></i>{{ 'Zurück' if read_only else 'Abbrechen' }}
         </a>
+        {% if not read_only %}
         <button type="submit" class="btn btn-primary" data-shortcut-save>
           <i class="bi bi-floppy me-1"></i>Änderungen speichern
         </button>
+        {% endif %}
       </div>
 
     </div>

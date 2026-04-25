@@ -848,6 +848,14 @@ def detail_idv(idv_db_id):
 
     completeness = idv_completeness_score(db, idv_db_id)
 
+    pruefungen = db.execute("""
+        SELECT p.*, per.nachname || ', ' || per.vorname AS pruefer
+        FROM pruefungen p
+        LEFT JOIN persons per ON p.pruefer_id = per.id
+        WHERE p.idv_id = ?
+        ORDER BY p.pruefungsdatum DESC
+    """, (idv_db_id,)).fetchall()
+
     # Excel-Dateien ohne Zell-/Blattschutz für das Inline-Modal der
     # Fachlichen Abnahme — muss dort bestätigt werden können.
     from .freigaben import _unprotected_excel_files_for_idv
@@ -894,6 +902,7 @@ def detail_idv(idv_db_id):
         freigabe_patch_schritte=freigabe_patch_schritte,
         hat_vorgaenger=hat_vorgaenger,
         completeness=completeness,
+        pruefungen=pruefungen,
         ungeschuetzte_excel=ungeschuetzte_excel,
         silent_release_moeglich=silent_release_moeglich,
         can_create=can_create())

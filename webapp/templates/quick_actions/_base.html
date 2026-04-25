@@ -7,14 +7,15 @@
   <title>{% block title %}Quick-Action – idvault{% endblock %}</title>
   <link href="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.min.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/idvault.css') }}" rel="stylesheet">
   <style nonce="{{ csp_nonce() }}">
-    body { background:#f6f8fb; }
+    body { background: var(--idv-bg); }
     .qa-card { max-width: 720px; margin: 2rem auto; }
-    .qa-brand { font-weight: 600; color:#0d6efd; letter-spacing:.02em; }
-    .qa-brand span { color:#212529; }
+    .qa-brand { font-weight: 700; color: var(--slate-900); letter-spacing: -.3px; font-size: 1.5rem; }
+    .qa-brand span { color: var(--amber-500); }
     .qa-idv-title { font-weight: 600; }
-    .qa-idv-desc  { color:#495057; }
-    .qa-footer-note { color:#6c757d; }
+    .qa-idv-desc  { color: var(--slate-600); }
+    .qa-footer-note { color: var(--slate-500); }
   </style>
 </head>
 <body>

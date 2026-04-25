@@ -168,7 +168,7 @@
 
 <!-- ── Unvollständige Eigenentwicklungen (Issue #348) ────────────────── -->
 {% if unvollstaendig_pro_verantwortlicher %}
-<div class="card border-0 shadow-sm mb-4 border-start border-4 border-warning">
+<div class="card border-0 shadow-sm mb-4 idv-card-accent idv-card-accent-warn">
   <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
     <span><i class="bi bi-exclamation-circle-fill me-2 text-warning"></i>Unvollständige Eigenentwicklungen
       pro Verantwortlichem</span>
@@ -203,7 +203,7 @@
 
 <!-- ── Fehlende Pflicht-Testfälle (Issue #350) ──────────────────────── -->
 {% if idvs_pflicht_offen %}
-<div class="card border-0 shadow-sm mb-4 border-start border-4 border-danger">
+<div class="card border-0 shadow-sm mb-4 idv-card-accent idv-card-accent-danger">
   <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
     <span><i class="bi bi-pin-angle-fill me-2 text-danger"></i>Eigenentwicklungen mit fehlenden Pflicht-Testfällen</span>
     <span class="badge bg-danger">{{ idvs_pflicht_offen|length }}</span>
@@ -243,7 +243,7 @@
 
 <!-- ── Meine Aufgaben (persönliche Inbox) ──────────────────────────── -->
 {% if meine_schritte %}
-<div class="card border-0 shadow-sm mb-4 border-start border-4 border-primary">
+<div class="card border-0 shadow-sm mb-4 idv-card-accent idv-card-accent-primary">
   <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
     <span><i class="bi bi-inbox-fill me-2 text-primary"></i>Meine offenen Freigabe-Schritte</span>
     <span class="badge bg-primary">{{ meine_schritte|length }}</span>

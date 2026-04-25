@@ -200,6 +200,9 @@
 
     <!-- Content -->
     <div class="content-wrapper">
+      {# Optionaler einheitlicher Seitenkopf (Tags, Status, Actions).
+         Templates rendern Markup der Art <div class="idv-page-header">…</div>. #}
+      {% block page_header %}{% endblock %}
       {% block content %}{% endblock %}
     </div>
 
