@@ -5,6 +5,99 @@
 
 {% block content %}
 
+<!-- ── Hotspot-Tabellen ─────────────────────────────────────────────── -->
+{% if nach_share or nach_typ %}
+<div class="mb-3">
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+    data-bs-target="#hotspot-collapse" aria-expanded="false" aria-controls="hotspot-collapse">
+    <i class="bi bi-bar-chart-line me-1"></i>Hotspot-Übersicht
+    <i class="bi bi-chevron-down ms-1 fs-8"></i>
+  </button>
+</div>
+<div class="collapse mb-4" id="hotspot-collapse">
+  <div class="row g-3">
+    {% if nach_share %}
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2 small" style="font-weight:600">
+          <i class="bi bi-folder2-open me-1"></i>Top-Speicherorte (Eingang)
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 fs-7">
+            <thead class="table-light">
+              <tr>
+                <th>Speicherort</th>
+                <th class="text-end">Neu</th>
+                <th class="text-end">Makros</th>
+                <th class="text-end">Formeln</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in nach_share %}
+              <tr>
+                <td class="font-monospace text-truncate" style="max-width:200px" title="{{ row.dir_path }}">
+                  {{ row.dir_path or '–' }}
+                </td>
+                <td class="text-end fw-500">{{ row.anzahl }}</td>
+                <td class="text-end">
+                  {% if row.mit_makros %}<span class="badge bg-danger fs-8">{{ row.mit_makros }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if row.mit_formeln %}<span class="text-warning fw-500">{{ row.mit_formeln }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+                <td>
+                  <a href="{{ url_for('funde.eingang_funde', dir_path=row.dir_path) }}"
+                    class="btn btn-xs btn-outline-secondary" title="Im Eingang nach diesem Speicherort filtern">
+                    <i class="bi bi-funnel"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% if nach_typ %}
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2 small" style="font-weight:600">
+          <i class="bi bi-file-earmark-code me-1"></i>Top-Dateitypen (Eingang)
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 fs-7">
+            <thead class="table-light">
+              <tr>
+                <th>Erweiterung</th>
+                <th class="text-end">Anzahl</th>
+                <th class="text-end">Makros</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in nach_typ %}
+              <tr>
+                <td><span class="badge bg-light text-dark border font-monospace">{{ row.extension }}</span></td>
+                <td class="text-end fw-500">{{ row.anzahl }}</td>
+                <td class="text-end">
+                  {% if row.mit_makros %}<span class="badge bg-danger fs-8">{{ row.mit_makros }}</span>
+                  {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <p class="text-muted mb-4">Letzte 100 Scanner-Ausführungen</p>
 
 <div class="card border-0 shadow-sm">

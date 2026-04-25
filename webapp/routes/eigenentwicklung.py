@@ -1114,6 +1114,23 @@ def new_idv():
                 ORDER BY r.idv_id
             """, ph_hash_params + ph_own_params).fetchall()
 
+        # Nicht-registrierte Duplikate (gleicher Hash, keine IDV-Zuordnung) automatisch
+        # zur Gruppe hinzufügen, sofern der Nutzer keine explizite Auswahl getroffen hat.
+        if fund and fund["file_hash"] and fund["file_hash"] != "HASH_ERROR" and not extra_file_ids:
+            already_ids = [file_id] + [ef["id"] for ef in extra_fonds]
+            ph_sib, ph_sib_params = in_clause(already_ids)
+            siblings = db.execute(f"""
+                SELECT * FROM idv_files
+                WHERE file_hash = ?
+                  AND status = 'active'
+                  AND id NOT IN ({ph_sib})
+                  AND NOT EXISTS (SELECT 1 FROM idv_register r WHERE r.file_id = idv_files.id)
+                  AND NOT EXISTS (SELECT 1 FROM idv_file_links lnk WHERE lnk.file_id = idv_files.id)
+            """, [fund["file_hash"]] + ph_sib_params).fetchall()
+            if siblings:
+                extra_fonds = list(extra_fonds) + list(siblings)
+                prefill["extra_file_ids"] = ",".join(str(s["id"]) for s in siblings)
+
     return render_template("eigenentwicklung/form.html", idv=None,
                            fund=fund, prefill=prefill,
                            extra_fonds=extra_fonds,
