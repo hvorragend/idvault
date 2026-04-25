@@ -575,44 +575,95 @@
         return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ||
           el.tagName === 'SELECT' || el.getAttribute('contenteditable') === 'true');
       }
+      // #419: Strukturierte Shortcut-Gruppen (zweispaltiges Modal).
+      // Module wie keyboard-shortcuts.js erweitern window._shortcutGroups.
       var helpEl = null;
+      function getGroups() {
+        var defaults = {
+          global: {
+            title: 'Global',
+            items: [
+              ['Strg K',   'Schnellsuche öffnen'],
+              ['Strg S',   'Formular speichern'],
+              ['Strg ⇧ S', 'Speichern & Schließen'],
+              ['?',        'Diese Übersicht zeigen'],
+              ['Esc',      'Dialog / Suche schließen']
+            ]
+          },
+          forms: {
+            title: 'Formulare',
+            items: [
+              ['N', 'Neue Eigenentwicklung anlegen'],
+              ['E', 'Eigenentwicklung bearbeiten']
+            ]
+          },
+          navigation: { title: 'Navigation', items: [] },
+          lists:      { title: 'Listen',     items: [] }
+        };
+        var ext = window._shortcutGroups || {};
+        Object.keys(ext).forEach(function (k) {
+          if (!defaults[k]) { defaults[k] = ext[k]; return; }
+          if (ext[k].items) defaults[k].items = defaults[k].items.concat(ext[k].items);
+        });
+        // Backward-Compat: window._extraShortcuts wird in „Sonstiges" gehaengt.
+        if (window._extraShortcuts && window._extraShortcuts.length) {
+          defaults.misc = defaults.misc ||
+            { title: 'Weitere', items: [] };
+          defaults.misc.items = defaults.misc.items.concat(window._extraShortcuts);
+        }
+        return defaults;
+      }
+      function escapeHelp(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+      }
+      function renderGroup(g) {
+        if (!g || !g.items || !g.items.length) return '';
+        var rows = g.items.map(function (r) {
+          return '<div class="kbd-help-row">' +
+            '<kbd class="kbd-help-key">' + escapeHelp(r[0]) + '</kbd>' +
+            '<span class="kbd-help-desc">' + escapeHelp(r[1]) + '</span></div>';
+        }).join('');
+        return '<section class="kbd-help-group">' +
+               '<h3 class="kbd-help-grouptitle">' + escapeHelp(g.title) + '</h3>' +
+               rows + '</section>';
+      }
       function getHelp() {
-        if (helpEl) return helpEl;
+        if (helpEl) {
+          // Inhalt bei jedem Aufruf neu rendern – Module koennen nachregistrieren.
+          rebuildHelp();
+          return helpEl;
+        }
         helpEl = document.createElement('div');
         helpEl.id = 'kbd-help';
-        helpEl.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:2000;' +
-          'background:rgba(0,0,0,.5);align-items:center;justify-content:center;';
-        var rows = [
-          ['Strg S', 'Formular speichern'],
-          ['Strg ⇧ S', 'Speichern &amp; Schließen (zur Liste)'],
-          ['Strg K', 'Schnellsuche öffnen'],
-          ['N', 'Neue Eigenentwicklung anlegen'],
-          ['E', 'Eigenentwicklung bearbeiten (Detailseite)'],
-          ['?', 'Diese Shortcut-Übersicht zeigen'],
-          ['Esc', 'Dialog / Suche schließen'],
-        ].concat(window._extraShortcuts || []);
-        helpEl.innerHTML =
-          '<div style="background:#fff;padding:1.5rem 2rem;min-width:340px;max-width:95vw;' +
-          'box-shadow:0 24px 64px rgba(0,0,0,.35);">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem">' +
-          '<strong style="font-size:1rem">Tastatur-Shortcuts</strong>' +
-          '<button id="kbd-help-close" style="background:none;border:none;font-size:1.4rem;' +
-          'cursor:pointer;line-height:1;color:#6b7280">&times;</button></div>' +
-          rows.map(function (r) {
-            return '<div style="display:flex;align-items:center;justify-content:space-between;gap:2rem;' +
-              'padding:.45rem 0;border-bottom:1px solid #f0f0f0">' +
-              '<kbd style="background:#f1f5f9;border:1px solid #cbd5e1;' +
-              'padding:.2rem .6rem;font-size:.82rem;white-space:nowrap;color:#1e293b">' + r[0] + '</kbd>' +
-              '<span style="color:#374151;font-size:.88rem;text-align:right">' + r[1] + '</span></div>';
-          }).join('') + '</div>';
+        helpEl.className = 'idv-kbd-help';
+        helpEl.setAttribute('role', 'dialog');
+        helpEl.setAttribute('aria-modal', 'true');
+        helpEl.setAttribute('aria-labelledby', 'kbd-help-title');
+        rebuildHelp();
         document.body.appendChild(helpEl);
         helpEl.addEventListener('click', function (e) {
           if (e.target === helpEl || e.target.id === 'kbd-help-close') hideHelp();
         });
         return helpEl;
       }
-      function showHelp() { var m = getHelp(); m.style.display = 'flex'; }
-      function hideHelp() { if (helpEl) helpEl.style.display = 'none'; }
+      function rebuildHelp() {
+        var groups = getGroups();
+        var order = ['global', 'navigation', 'lists', 'forms', 'misc'];
+        var html = order.map(function (k) { return renderGroup(groups[k]); }).join('');
+        helpEl.innerHTML =
+          '<div class="kbd-help-box" role="document">' +
+          '  <div class="kbd-help-head">' +
+          '    <h2 id="kbd-help-title" class="kbd-help-title">Tastatur-Shortcuts</h2>' +
+          '    <button id="kbd-help-close" class="kbd-help-close" aria-label="Schließen">&times;</button>' +
+          '  </div>' +
+          '  <div class="kbd-help-grid">' + html + '</div>' +
+          '  <div class="kbd-help-foot">Tipp: <kbd class="kbd-help-key">/</kbd> fokussiert die Suche, <kbd class="kbd-help-key">g</kbd> + Buchstabe springt zwischen Bereichen.</div>' +
+          '</div>';
+      }
+      function showHelp() { var m = getHelp(); m.classList.add('show'); }
+      function hideHelp() { if (helpEl) helpEl.classList.remove('show'); }
       window.showHelp = showHelp;
 
       document.addEventListener('keydown', function (e) {
@@ -658,7 +709,7 @@
         var qs = document.getElementById('qs-modal');
         if (qs && qs.style.display !== 'none') { closeSearch(); return; }
         var kh = document.getElementById('kbd-help');
-        if (kh && kh.style.display !== 'none') { kh.style.display = 'none'; return; }
+        if (kh && kh.classList.contains('show')) { kh.classList.remove('show'); return; }
         var cancel = document.querySelector('[data-esc-cancel]');
         if (cancel) { e.preventDefault(); cancel.click(); }
       }, true);

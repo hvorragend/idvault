@@ -103,18 +103,31 @@
     return false;
   }
 
-  // ── Help-Eintraege registrieren (vor base.html-Init) ────────────────────
-  window._extraShortcuts = (window._extraShortcuts || []).concat([
-    ['/',     'Suche/Filter fokussieren'],
+  // ── Help-Eintraege registrieren (#419: gruppiert) ───────────────────────
+  // Das Help-Modal in base.html liest window._shortcutGroups und rendert
+  // ein zweispaltiges Layout. Wir tragen unsere Bindings in die passenden
+  // Gruppen ein, anstatt in eine flache Liste.
+  window._shortcutGroups = window._shortcutGroups || {};
+  function ensureGroup(key, title) {
+    if (!window._shortcutGroups[key]) {
+      window._shortcutGroups[key] = { title: title, items: [] };
+    }
+    return window._shortcutGroups[key];
+  }
+  ensureGroup('navigation', 'Navigation').items.push(
+    ['/',   'Suche/Filter fokussieren'],
+    ['g d', 'Zum Dashboard'],
+    ['g e', 'Zu den Eigenentwicklungen'],
+    ['g f', 'Zu den Funden'],
+    ['g r', 'Zu den Pruefungen'],
+    ['g m', 'Zu den Massnahmen']
+  );
+  ensureGroup('lists', 'Listen').items.push(
     ['j / k', 'Naechste / vorherige Tabellenzeile'],
     ['o',     'Markierte Zeile oeffnen'],
-    ['x',     'Markierte Zeile in Bulk-Auswahl togglen'],
-    ['g d',   'Zum Dashboard'],
-    ['g e',   'Zu den Eigenentwicklungen'],
-    ['g f',   'Zu den Funden'],
-    ['g r',   'Zu den Pruefungen'],
-    ['g m',   'Zu den Massnahmen'],
-  ]);
+    ['Enter', 'Markierte Zeile oeffnen'],
+    ['x',     'Bulk-Checkbox der Zeile togglen']
+  );
 
   // ── Key-Handling ─────────────────────────────────────────────────────────
   // g-Prefix-Buffer: nach Druck von "g" warten wir bis zu 1.2s auf den
