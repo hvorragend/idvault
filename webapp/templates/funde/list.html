@@ -810,9 +810,11 @@ date_to} %}
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="text-center text-muted py-5">
-              <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-              Keine Dateien gefunden.
+            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="p-0">
+              {% with icon='bi-inbox', title='Keine Dateien gefunden',
+                      text='Mit den aktiven Filtern sind keine Funde sichtbar. Filter zurücksetzen oder einen neuen Scan starten.' %}
+                {% include "_empty_state.html" %}
+              {% endwith %}
             </td>
           </tr>
           {% endfor %}

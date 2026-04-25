@@ -72,12 +72,12 @@
           </td>
         </tr>
         {% else %}
-        <tr>
-          <td colspan="8" class="text-center text-muted py-5">
-            <i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i>
-            Keine offenen Maßnahmen – alles erledigt!
-          </td>
-        </tr>
+        <tr><td colspan="8" class="p-0">
+          {% with icon='bi-check2-circle', title='Keine offenen Maßnahmen',
+                  text='Wenn aus einer Prüfung Maßnahmen hervorgehen, erscheinen sie hier mit Fälligkeitsdatum und Verantwortlichem.' %}
+            {% include "_empty_state.html" %}
+          {% endwith %}
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>

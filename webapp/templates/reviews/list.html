@@ -32,7 +32,12 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-center text-muted py-4">Keine Prüfungen vorhanden.</td></tr>
+        <tr><td colspan="6" class="p-0">
+          {% with icon='bi-clipboard2-check', title='Keine Prüfungen vorhanden',
+                  text='Sobald eine Wirksamkeitsprüfung erfasst wird, erscheint sie hier.' %}
+            {% include "_empty_state.html" %}
+          {% endwith %}
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>

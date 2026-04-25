@@ -1516,6 +1516,43 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   transform: rotate(90deg);
 }
 
+/* 39. Empty-State (#412) ────────────────────────────────────────────────── */
+/* Konsistente Leer-Zustaende fuer Listen, Reviews, Massnahmen etc.
+   Genutzt via {% include "_empty_state.html" %}. */
+.idv-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--slate-500);
+}
+.idv-empty-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-md);
+  background: var(--slate-100);
+  color: var(--slate-400);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  margin-bottom: .8rem;
+}
+.idv-empty-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  margin-bottom: .25rem;
+}
+.idv-empty-text {
+  font-size: .85rem;
+  color: var(--slate-500);
+  max-width: 32rem;
+  line-height: 1.5;
+}
+
 /* 38. Sticky-Header fuer Tabellen (#411, #412) ───────────────────────────── */
 /* Die Header-Zelle bleibt beim vertikalen Scrollen am oberen Rand stehen.
    Vorausgesetzt: Tabelle hat einen scrollbaren Vorfahren oder die Seite
