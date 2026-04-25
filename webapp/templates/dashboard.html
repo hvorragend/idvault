@@ -291,7 +291,6 @@
         <table class="table table-hover mb-0 table-idv table-compact fs-7">
           <thead>
             <tr>
-              <th>ID</th>
               <th>Bezeichnung</th>
               <th>Status</th>
               <th class="text-nowrap">Nächste Prüfung</th>
@@ -300,8 +299,10 @@
           <tbody>
             {% for r in kritische_idvs[:8] %}
             <tr>
-              <td class="text-nowrap"><a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">{{ r.idv_id }}</a></td>
-              <td class="text-truncate" style="max-width:280px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
+              <td class="text-truncate" style="max-width:340px" title="{{ r.bezeichnung }} ({{ r.idv_id }})">
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
+                   class="fw-500 text-decoration-none">{{ r.bezeichnung }}</a>
+              </td>
               <td class="text-nowrap"><span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span></td>
               <td class="text-nowrap">
                 {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
@@ -315,7 +316,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="4" class="text-center text-muted py-4">Keine wesentlichen Eigenentwicklungen gefunden.</td>
+              <td colspan="3" class="text-center text-muted py-4">Keine wesentlichen Eigenentwicklungen gefunden.</td>
             </tr>
             {% endfor %}
           </tbody>
