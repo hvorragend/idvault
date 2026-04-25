@@ -1706,6 +1706,110 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 :root[data-bs-theme="dark"] .table-idv tbody tr:nth-child(even) { background: rgba(255,255,255,.025); }
 :root[data-bs-theme="dark"] .table-idv tbody tr:hover { background: rgba(245, 158, 11, .08); }
 
+/* #420: Tabellen-Header und Bootstrap-Utility-Hintergruende im Dark-Mode
+   neutralisieren – sonst leuchten sie weiss auf dunklen Karten. */
+:root[data-bs-theme="dark"] .table thead th,
+:root[data-bs-theme="dark"] .table-idv thead th {
+  background: #182135;
+  color: var(--idv-text-subtle);
+  border-bottom-color: var(--idv-border);
+  box-shadow: 0 1px 0 var(--idv-border);
+}
+:root[data-bs-theme="dark"] .table-idv thead th a:hover { color: var(--idv-text); }
+:root[data-bs-theme="dark"] .table-hover > tbody > tr:hover > * { background: rgba(255,255,255,.04); }
+
+/* Bootstrap-Helfer-Klassen im Dark-Mode auf Surface umlegen, damit die
+   dashboard.html-Karten („card-header bg-white", „bg-light") nicht
+   weiss bleiben. Die !important-Regeln stammen von Bootstrap. */
+:root[data-bs-theme="dark"] .bg-white,
+:root[data-bs-theme="dark"] .card > .card-header.bg-white,
+:root[data-bs-theme="dark"] .card-header.bg-white {
+  background: var(--idv-surface) !important;
+  color: var(--idv-text) !important;
+}
+:root[data-bs-theme="dark"] .bg-light,
+:root[data-bs-theme="dark"] .card > .card-header.bg-light {
+  background: #182135 !important;
+  color: var(--idv-text) !important;
+}
+
+/* List-group im Dark-Mode (Pruef-Faelligkeiten, Offene Massnahmen) */
+:root[data-bs-theme="dark"] .list-group,
+:root[data-bs-theme="dark"] .list-group-item {
+  background: var(--idv-surface);
+  color: var(--idv-text);
+  border-color: var(--idv-border);
+}
+
+/* Topbar dunkel halten */
+:root[data-bs-theme="dark"] #topbar {
+  background: var(--idv-surface);
+  border-bottom-color: var(--idv-border);
+}
+:root[data-bs-theme="dark"] .topbar-action {
+  border-color: var(--idv-border);
+  color: var(--idv-text-subtle);
+}
+:root[data-bs-theme="dark"] .topbar-action:hover {
+  border-color: var(--slate-200);
+  color: var(--idv-text);
+  background: var(--slate-50);
+}
+:root[data-bs-theme="dark"] .kbd-soft {
+  background: var(--slate-100);
+  border-color: var(--slate-200);
+  color: var(--idv-text);
+}
+
+/* Page-Header Bottom-Border + Section-Borders */
+:root[data-bs-theme="dark"] .idv-page-header { border-bottom-color: var(--idv-border); }
+:root[data-bs-theme="dark"] .idv-form-nav {
+  background: var(--idv-surface);
+  border-bottom-color: var(--idv-border);
+}
+:root[data-bs-theme="dark"] .idv-form-nav-tab:hover {
+  background: rgba(255,255,255,.03);
+  color: var(--idv-text);
+}
+:root[data-bs-theme="dark"] .idv-form-nav-tab.active { color: var(--idv-text); }
+
+/* Empty-State im Dark-Mode */
+:root[data-bs-theme="dark"] .idv-empty-icon {
+  background: rgba(255,255,255,.04);
+  color: var(--idv-text-subtle);
+}
+:root[data-bs-theme="dark"] .idv-empty-title { color: var(--idv-text); }
+
+/* Inputs und Form-Controls fuer Dark-Mode beruhigen */
+:root[data-bs-theme="dark"] .form-control,
+:root[data-bs-theme="dark"] .form-select {
+  background-color: #142036;
+  border-color: var(--idv-border);
+  color: var(--idv-text);
+}
+:root[data-bs-theme="dark"] .form-control::placeholder { color: var(--slate-200); opacity: .55; }
+:root[data-bs-theme="dark"] .form-control:focus,
+:root[data-bs-theme="dark"] .form-select:focus {
+  background-color: #142036;
+  border-color: var(--amber-500);
+  color: var(--idv-text);
+}
+
+/* Sticky-Tabellen-Header im Dark-Mode: dunklen Hintergrund hinter
+   sticky-th legen, damit der Body nicht durchscheint. */
+:root[data-bs-theme="dark"] .table-idv thead,
+:root[data-bs-theme="dark"] .table-sticky thead { background: var(--idv-surface); }
+
+/* Quick-Search-Modal im Dark-Mode (Inline-Styles in base.html ueberschreiben) */
+:root[data-bs-theme="dark"] #qs-modal { background: var(--idv-surface) !important; color: var(--idv-text); }
+:root[data-bs-theme="dark"] #qs-modal input { color: var(--idv-text); }
+:root[data-bs-theme="dark"] .qs-item:hover,
+:root[data-bs-theme="dark"] .qs-item.qs-active { background: rgba(255,255,255,.04); }
+:root[data-bs-theme="dark"] .qs-badge {
+  background: var(--slate-100);
+  color: var(--idv-text);
+}
+
 /* 41. Form-Section-Navigation (#415) ──────────────────────────────────── */
 /* Sticky Tab-Bar oberhalb langer Formulare. Anchor-Links springen zur
    jeweiligen .form-section; aktiver Tab wird per IntersectionObserver
