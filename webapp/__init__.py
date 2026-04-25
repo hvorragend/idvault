@@ -749,6 +749,28 @@ def create_app(db_path: str = None) -> Flask:
         except Exception:
             return {"ausnahmen_badge": 0}
 
+    # Issue #417: Ueberfaellig-Counter fuer Sidebar-Badges (Pruefungen & Massnahmen)
+    @app.context_processor
+    def inject_overdue_badges():
+        from flask import has_request_context, session
+        if not has_request_context() or not session.get("user_id"):
+            return {"pruefung_overdue_count": 0, "massnahme_overdue_count": 0}
+        try:
+            db = get_db()
+            pruef = db.execute(
+                "SELECT COUNT(*) FROM idv_register "
+                "WHERE naechste_pruefung < date('now') "
+                "  AND status NOT IN ('Archiviert','Abgekündigt')"
+            ).fetchone()[0]
+            massn = db.execute(
+                "SELECT COUNT(*) FROM massnahmen "
+                "WHERE faellig_am < date('now') "
+                "  AND status IN ('Offen','In Bearbeitung')"
+            ).fetchone()[0]
+        except Exception:
+            pruef, massn = 0, 0
+        return {"pruefung_overdue_count": pruef, "massnahme_overdue_count": massn}
+
     # Template-Filter
     @app.template_filter("datefmt")
     def datefmt(value, fmt="%d.%m.%Y"):

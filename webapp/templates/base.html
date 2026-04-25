@@ -109,15 +109,27 @@
     {% endif %}
 
     <div class="nav-label">Workflow</div>
-    <a href="{{ url_for('reviews.list_reviews') }}"
+    <a href="{{ url_for('reviews.list_reviews') }}{% if pruefung_overdue_count %}?filter=ueberfaellig{% endif %}"
       class="nav-link {% if request.blueprint == 'reviews' %}active{% endif %}"
       data-shortcut-goto="r">
       <i class="bi bi-clipboard2-check"></i> Prüfungen
+      {% if pruefung_overdue_count and pruefung_overdue_count > 0 %}
+      <span class="badge bg-danger ms-auto fs-9"
+            title="{{ pruefung_overdue_count }} überfällige Prüfung(en)">
+        {{ pruefung_overdue_count if pruefung_overdue_count < 1000 else (pruefung_overdue_count // 1000)|string + 'k' }}
+      </span>
+      {% endif %}
     </a>
-    <a href="{{ url_for('measures.list_measures') }}"
+    <a href="{{ url_for('measures.list_measures') }}{% if massnahme_overdue_count %}?filter=ueberfaellig{% endif %}"
       class="nav-link {% if request.blueprint == 'measures' %}active{% endif %}"
       data-shortcut-goto="m">
       <i class="bi bi-exclamation-triangle"></i> Maßnahmen
+      {% if massnahme_overdue_count and massnahme_overdue_count > 0 %}
+      <span class="badge bg-danger ms-auto fs-9"
+            title="{{ massnahme_overdue_count }} überfällige Maßnahme(n)">
+        {{ massnahme_overdue_count if massnahme_overdue_count < 1000 else (massnahme_overdue_count // 1000)|string + 'k' }}
+      </span>
+      {% endif %}
     </a>
 
 

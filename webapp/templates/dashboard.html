@@ -89,25 +89,9 @@
 </details>
 {% endif %}
 
-<!-- ── Überfällig-Alert (Prüfungen + Maßnahmen kombiniert) ─────────── -->
-{% if stats.pruefung_ueberfaellig > 0 or stats.massnahmen_ueberfaellig > 0 %}
-<div class="alert alert-overdue d-flex align-items-center flex-wrap gap-3 mb-4" role="alert">
-  <i class="bi bi-alarm-fill text-danger fs-4 flex-shrink-0" aria-hidden="true"></i>
-  <strong class="me-2">Überfällige Aufgaben:</strong>
-  {% if stats.pruefung_ueberfaellig > 0 %}
-  <a href="{{ url_for('reviews.list_reviews') }}?filter=ueberfaellig"
-     class="text-danger text-decoration-none fw-600">
-    <i class="bi bi-clipboard2-check me-1"></i>{{ stats.pruefung_ueberfaellig }} Prüfung{% if stats.pruefung_ueberfaellig != 1 %}en{% endif %} →
-  </a>
-  {% endif %}
-  {% if stats.massnahmen_ueberfaellig > 0 %}
-  <a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig"
-     class="text-danger text-decoration-none fw-600">
-    <i class="bi bi-exclamation-triangle me-1"></i>{{ stats.massnahmen_ueberfaellig }} Maßnahme{% if stats.massnahmen_ueberfaellig != 1 %}n{% endif %} →
-  </a>
-  {% endif %}
-</div>
-{% endif %}
+{# Ueberfaellig-Alert entfernt (#417): die Counter sitzen jetzt als
+   Sidebar-Badges an „Pruefungen" und „Massnahmen" und sind damit
+   auf jeder Seite praesent statt nur auf dem Dashboard. #}
 
 <!-- ── Scanner-Status ──────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm mb-4">
