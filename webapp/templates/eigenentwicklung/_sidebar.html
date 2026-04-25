@@ -213,7 +213,7 @@
                     {% if session.get('person_id') == f.bearbeitet_von_id or session.get('user_role') == 'IDV-Administrator' %}
                     <form method="post" action="{{ url_for('freigaben.claim_loesen', freigabe_id=f.id) }}" class="d-inline ms-1">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button type="submit" class="btn btn-xs btn-outline-secondary" title="Claim zurückgeben — andere Pool-Mitglieder können wieder übernehmen">
+                      <button type="submit" class="btn btn-xs btn-outline-secondary" title="Übernahme abgeben — andere Pool-Mitglieder können wieder übernehmen">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Abgeben
                       </button>
                     </form>
@@ -363,7 +363,7 @@
                     {% if session.get('person_id') == f.bearbeitet_von_id or session.get('user_role') == 'IDV-Administrator' %}
                     <form method="post" action="{{ url_for('freigaben.claim_loesen', freigabe_id=f.id) }}" class="d-inline ms-1">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button type="submit" class="btn btn-xs btn-outline-secondary" title="Claim zurückgeben — andere Pool-Mitglieder können wieder übernehmen">
+                      <button type="submit" class="btn btn-xs btn-outline-secondary" title="Übernahme abgeben — andere Pool-Mitglieder können wieder übernehmen">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Abgeben
                       </button>
                     </form>
