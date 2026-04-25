@@ -4,20 +4,21 @@
 
 {% block content %}
 
-<!-- ── KPI-Karten ─────────────────────────────────────────────────── -->
+<!-- ── KPI-Karten (Top-Level: 4 Karten – ruhiger Einstieg) ─────────── -->
+{# Vorher 6 Karten (auch „Nicht wesentlich" und „Im Entwurf"). Diese
+   beiden sind sekundaer und ueber Filter auf der Liste leicht erreichbar
+   – das Dashboard zeigt nur die vier wichtigsten Kennzahlen. #}
 <div class="row g-3 mb-4">
 
   {% set cards = [
-  ("gesamt_aktiv",    "Eigenentwicklungen gesamt", "bi-archive",                   "slate"),
-  ("wesentlich",      "Wesentlich",                "bi-exclamation-triangle-fill", "red"),
-  ("nicht_wesentlich","Nicht wesentlich",          "bi-check2-circle",             "green"),
-  ("freigegeben",     "Freigegeben",               "bi-check-circle",              "green"),
-  ("entwurf",         "Im Entwurf",                "bi-pencil-square",             "amber"),
-  ("in_pruefung",     "In Prüfung",                "bi-clipboard2-check",          "blue"),
+  ("gesamt_aktiv", "Eigenentwicklungen gesamt", "bi-archive",                   "slate"),
+  ("wesentlich",   "Wesentlich",                "bi-exclamation-triangle-fill", "red"),
+  ("freigegeben",  "Freigegeben",               "bi-check-circle",              "green"),
+  ("in_pruefung",  "In Prüfung",                "bi-clipboard2-check",          "blue"),
   ] %}
 
   {% for key, label, icon, tone in cards %}
-  <div class="col-6 col-md-4 col-xl-2">
+  <div class="col-6 col-md-6 col-xl-3">
     <div class="stat-card-v2 h-100">
       <div class="stat-head">
         <div class="stat-lbl">{{ label }}</div>
@@ -30,26 +31,28 @@
 
 </div>
 
-<!-- ── Kennzahlen / KPIs (Issue #354) ───────────────────────────────── -->
+<!-- ── Kennzahlen / KPIs (Issue #354, klappbar #411) ───────────────── -->
 {% if kpis %}
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Kennzahlen
-      <span class="text-muted small ms-2">letzte {{ kpi_window_days }} Tage</span>
-    </span>
-    <div class="btn-group btn-group-sm" role="group" aria-label="Zeitfenster">
-      <a href="{{ url_for('dashboard.index', kpi_days=30) }}"
-         class="btn btn-outline-secondary {% if kpi_window_days == 30 %}active{% endif %}">30 Tage</a>
-      <a href="{{ url_for('dashboard.index', kpi_days=90) }}"
-         class="btn btn-outline-secondary {% if kpi_window_days == 90 %}active{% endif %}">90 Tage</a>
-      <a href="{{ url_for('admin.export_excel') if 'admin.export_excel' else '#' }}"
-         class="btn btn-outline-primary"
-         title="Excel-Export inkl. Kennzahlen-Sheet">
-        <i class="bi bi-file-earmark-excel me-1"></i>Excel
-      </a>
-    </div>
-  </div>
+<details class="card border-0 shadow-sm mb-4 idv-collapsible-card" {% if request.args.get('show_kennzahlen') %}open{% endif %}>
+  <summary class="card-header bg-white fw-600 d-flex align-items-center gap-2">
+    <i class="bi bi-chevron-right idv-collapsible-chevron"></i>
+    <i class="bi bi-graph-up-arrow text-primary"></i>Kennzahlen
+    <span class="text-muted small ms-2">letzte {{ kpi_window_days }} Tage · {{ kpis|length }} Eintraege</span>
+  </summary>
   <div class="card-body">
+    <div class="d-flex justify-content-end mb-3">
+      <div class="btn-group btn-group-sm" role="group" aria-label="Zeitfenster">
+        <a href="{{ url_for('dashboard.index', kpi_days=30, show_kennzahlen=1) }}"
+           class="btn btn-outline-secondary {% if kpi_window_days == 30 %}active{% endif %}">30 Tage</a>
+        <a href="{{ url_for('dashboard.index', kpi_days=90, show_kennzahlen=1) }}"
+           class="btn btn-outline-secondary {% if kpi_window_days == 90 %}active{% endif %}">90 Tage</a>
+        <a href="{{ url_for('admin.export_excel') if 'admin.export_excel' else '#' }}"
+           class="btn btn-outline-primary"
+           title="Excel-Export inkl. Kennzahlen-Sheet">
+          <i class="bi bi-file-earmark-excel me-1"></i>Excel
+        </a>
+      </div>
+    </div>
     <div class="row g-3">
       {% for k in kpis %}
       <div class="col-md-6 col-xl-4">
@@ -83,36 +86,28 @@
       {% endfor %}
     </div>
   </div>
-</div>
+</details>
 {% endif %}
 
-<!-- ── Alert-Zeile ─────────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
+<!-- ── Überfällig-Alert (Prüfungen + Maßnahmen kombiniert) ─────────── -->
+{% if stats.pruefung_ueberfaellig > 0 or stats.massnahmen_ueberfaellig > 0 %}
+<div class="alert alert-overdue d-flex align-items-center flex-wrap gap-3 mb-4" role="alert">
+  <i class="bi bi-alarm-fill text-danger fs-4 flex-shrink-0" aria-hidden="true"></i>
+  <strong class="me-2">Überfällige Aufgaben:</strong>
   {% if stats.pruefung_ueberfaellig > 0 %}
-  <div class="col-md-4">
-    <div class="alert alert-overdue d-flex align-items-center gap-2 mb-0">
-      <i class="bi bi-alarm-fill text-danger fs-5"></i>
-      <div>
-        <strong>{{ stats.pruefung_ueberfaellig }} Prüfung(en) überfällig</strong>
-        <div class="fs-7"><a href="{{ url_for('reviews.list_reviews') }}?filter=ueberfaellig">Jetzt anzeigen
-            →</a></div>
-      </div>
-    </div>
-  </div>
+  <a href="{{ url_for('reviews.list_reviews') }}?filter=ueberfaellig"
+     class="text-danger text-decoration-none fw-600">
+    <i class="bi bi-clipboard2-check me-1"></i>{{ stats.pruefung_ueberfaellig }} Prüfung{% if stats.pruefung_ueberfaellig != 1 %}en{% endif %} →
+  </a>
   {% endif %}
   {% if stats.massnahmen_ueberfaellig > 0 %}
-  <div class="col-md-4">
-    <div class="alert alert-warning d-flex align-items-center gap-2 mb-0">
-      <i class="bi bi-exclamation-triangle-fill fs-5"></i>
-      <div>
-        <strong>{{ stats.massnahmen_ueberfaellig }} Maßnahme(n) überfällig</strong>
-        <div class="fs-7"><a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig">Jetzt
-            anzeigen →</a></div>
-      </div>
-    </div>
-  </div>
+  <a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig"
+     class="text-danger text-decoration-none fw-600">
+    <i class="bi bi-exclamation-triangle me-1"></i>{{ stats.massnahmen_ueberfaellig }} Maßnahme{% if stats.massnahmen_ueberfaellig != 1 %}n{% endif %} →
+  </a>
   {% endif %}
 </div>
+{% endif %}
 
 <!-- ── Scanner-Status ──────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm mb-4">

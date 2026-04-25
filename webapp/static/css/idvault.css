@@ -1495,6 +1495,46 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   color: var(--amber-400);
 }
 
+/* 37. Collapsible Card (<details>-basiert) ──────────────────────────────── */
+/* Genutzt im Dashboard fuer die Kennzahlen-Sektion (#411). Chevron rotiert
+   beim Aufklappen, Summary verhaelt sich wie ein Card-Header. */
+.idv-collapsible-card > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.idv-collapsible-card > summary::-webkit-details-marker { display: none; }
+.idv-collapsible-card > summary:hover { background: var(--slate-50); }
+
+.idv-collapsible-chevron {
+  transition: transform var(--t-fast);
+  color: var(--slate-500);
+  font-size: .85rem;
+}
+
+.idv-collapsible-card[open] > summary .idv-collapsible-chevron {
+  transform: rotate(90deg);
+}
+
+/* 38. Sticky-Header fuer Tabellen (#411, #412) ───────────────────────────── */
+/* Die Header-Zelle bleibt beim vertikalen Scrollen am oberen Rand stehen.
+   Vorausgesetzt: Tabelle hat einen scrollbaren Vorfahren oder die Seite
+   selbst scrollt. Reine CSS-Loesung, kein JS. */
+.table-idv thead th,
+.table-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* Schatten-Linie als optischer Trenner zur darunterliegenden Zeile */
+  box-shadow: 0 1px 0 var(--idv-border);
+}
+
+/* Klappbare Tabelle: zusaetzlicher Wrapper mit max-height + scroll. */
+.table-scrollbox {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
 /* 16. Druck-Stylesheet ────────────────────────────────────────────────────── */
 @media print {
   /* Seitenränder + Basis-Typo */
