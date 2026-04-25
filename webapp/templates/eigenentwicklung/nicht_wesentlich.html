@@ -175,7 +175,8 @@ owner_filt} %}
               </a>
             </td>
             <td>
-              <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
+              {% set _ityp = r.idv_typ or '–' %}
+              <span class="idv-typ-kuerzel" title="{{ _ityp }}">{{ {'Excel-Tabelle':'XL','Excel-Makro':'XLM','Access-Datenbank':'ACC','Python-Skript':'PY','SQL-Skript':'SQL','Power-BI-Bericht':'PBI','Cognos-Report':'COG','Sonstige':'…','unklassifiziert':'?'}.get(_ityp, _ityp[:4] if _ityp != '–' else '–') }}</span>
             </td>
             <td class="fs-7" style="white-space:nowrap">
               {% if r.vorgaenger_idv_id or r.hat_nachfolger %}

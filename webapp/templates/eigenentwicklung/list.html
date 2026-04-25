@@ -8,7 +8,9 @@
 <!-- ── Filter-Leiste ──────────────────────────────────────────────── -->
 {% set _q = request.args.get('q', '') %}
 {% set _status = request.args.get('status', '') %}
-{% set _filt_active = filt not in ('alle', '') %}
+{# Auf der /wesentlich-Seite ist filt='wesentlich' der natürliche Seitenzustand,
+   kein Benutzer-Filter – dort soll der Panel nicht zwangsweise geöffnet sein. #}
+{% set _filt_active = filt not in ('alle', '') and request.endpoint != 'eigenentwicklung.wesentliche_idvs' %}
 {% set _ef = _q or _status or _filt_active or oe_id or fv_id or share_root or owner_filt or entwicklungsart %}
 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
   <button class="btn btn-sm btn-outline-secondary" type="button"
@@ -213,7 +215,8 @@
                 class="fw-500 text-decoration-none">{{ r.bezeichnung }}</a>
             </td>
             <td>
-              <span class="badge bg-light text-dark border">{{ r.idv_typ or '–' }}</span>
+              {% set _ityp = r.idv_typ or '–' %}
+              <span class="idv-typ-kuerzel" title="{{ _ityp }}">{{ {'Excel-Tabelle':'XL','Excel-Makro':'XLM','Access-Datenbank':'ACC','Python-Skript':'PY','SQL-Skript':'SQL','Power-BI-Bericht':'PBI','Cognos-Report':'COG','Sonstige':'…','unklassifiziert':'?'}.get(_ityp, _ityp[:4] if _ityp != '–' else '–') }}</span>
             </td>
             <td>
               {% set _art = r.entwicklungsart or 'arbeitshilfe' %}

@@ -219,55 +219,47 @@ Standardsortierung zu sehen bekommt. #}
   </form>
 </div>
 
-<!-- ── Typ-Filter-Buttons ──────────────────────────────────────────── -->
-{# Sortierung wird über alle Filter-Buttons hinweg erhalten, damit
-die aktuelle Spalten-Sortierung beim Wechsel des Filter-Typs nicht
-verloren geht. #}
-<div class="d-flex gap-2 mb-3 flex-wrap">
-  <a href="{{ url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
-    Alle ({{ gesamt }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-secondary' if filt == 'ignoriert' else 'btn-outline-secondary' }}">
-    <i class="bi bi-eye-slash me-1"></i>Ignoriert ({{ ignoriert }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
-    <i class="bi bi-exclamation-circle me-1"></i>Noch nicht registriert ({{ ohne_idv }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='makros', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
-    <i class="bi bi-lightning-fill me-1"></i>Mit Makros ({{ mit_makro }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='blattschutz', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
-    <i class="bi bi-lock-fill me-1"></i>Mit Blattschutz ({{ mit_schutz }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='ohne_schutz', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-danger' if filt == 'ohne_schutz' else 'btn-outline-danger' }}"
-    title="Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz (Kandidaten für IT-Risiko-Erfassung)">
-    <i class="bi bi-unlock-fill me-1"></i>Ohne Zellschutz ({{ ohne_schutz }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
-    <i class="bi bi-check-circle me-1"></i>Bereits registriert
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='zur_registrierung', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-info' if filt == 'zur_registrierung' else 'btn-outline-info' }}">
-    <i class="bi bi-pencil-square me-1"></i>Zur Registrierung ({{ zur_registrierung }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
-    <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
-  </a>
-  {% if duplikate_anzahl %}
-  <a href="{{ url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-danger' if filt == 'duplikate' else 'btn-outline-danger' }}">
-    <i class="bi bi-copy me-1"></i>Duplikate ({{ duplikate_anzahl }} Gruppen)
-  </a>
+<!-- ── Typ-Filter-Pills ────────────────────────────────────────────── -->
+{# Sortierung wird über alle Filter hinweg erhalten, damit die aktuelle
+Spalten-Sortierung beim Wechsel des Filter-Typs nicht verloren geht.
+Pills sind in drei Gruppen gegliedert (Workflow / Eigenschaften /
+Sondermodi) und durch dünne Trennlinien optisch getrennt. #}
+{% macro filter_pill(name, label, count, icon='', accent='slate', icon_color='', title='') %}
+  {% set is_active = (filt == name) if name else (not filt) %}
+  {% if name == 'duplikate' %}
+    {% set href = url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt, sort=sort, order=order) %}
+  {% elif name %}
+    {% set href = url_for('funde.list_funde', filter=name, share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) %}
+  {% else %}
+    {% set href = url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) %}
   {% endif %}
-</div>
+  <li class="nav-item">
+    <a href="{{ href }}"
+       class="nav-link py-1 px-2{% if is_active %} active idv-pill-{{ accent }}{% endif %}"
+       {% if title %}title="{{ title }}"{% endif %}>
+      {% if icon %}<i class="bi {{ icon }}{% if icon_color and not is_active %} {{ icon_color }}{% endif %} me-1"></i>{% endif %}{{ label }}
+      <span class="idv-tag idv-tag-slate ms-1">{{ count }}</span>
+    </a>
+  </li>
+{% endmacro %}
+
+<nav class="idv-filterbar mb-3">
+  <ul class="nav nav-pills flex-wrap gap-1 small mb-0">
+    {{ filter_pill('', 'Alle', gesamt, accent='slate') }}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ filter_pill('ohne_idv', 'Eingang', ohne_idv, icon='bi-exclamation-circle', accent='amber', icon_color='text-warning') }}
+    {{ filter_pill('zur_registrierung', 'Zur Reg.', zur_registrierung, icon='bi-pencil-square', accent='blue', icon_color='text-info') }}
+    {{ filter_pill('mit_idv', 'Registriert', (gesamt - ohne_idv), icon='bi-check-circle', accent='green', icon_color='text-success') }}
+    {{ filter_pill('ignoriert', 'Ignoriert', ignoriert, icon='bi-eye-slash', accent='slate', icon_color='text-muted') }}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ filter_pill('makros', 'Makros', mit_makro, icon='bi-lightning-fill', accent='red', icon_color='text-danger') }}
+    {{ filter_pill('blattschutz', 'Blattschutz', mit_schutz, icon='bi-lock-fill', accent='blue', icon_color='text-info') }}
+    {{ filter_pill('ohne_schutz', 'Ohne Schutz', ohne_schutz, icon='bi-unlock-fill', accent='red', icon_color='text-danger', title='Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz (Kandidaten für IT-Risiko-Erfassung)') }}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ filter_pill('archiv', 'Archiv', archiviert, icon='bi-archive', accent='slate', icon_color='text-muted') }}
+    {{ filter_pill('duplikate', 'Duplikate', duplikate_anzahl or 0, icon='bi-copy', accent='red', icon_color='text-danger') }}
+  </ul>
+</nav>
 
 {% if filt == 'archiv' %}
 <div class="alert alert-secondary mb-3">
@@ -465,19 +457,20 @@ date_to} %}
     <div class="table-responsive">
       <table class="table table-hover mb-0 table-idv small">
         <thead>
+          {% set _so_gr = 'desc' if (sort == 'groesse' and order == 'asc') else 'asc' %}
+          {% set _so_dt = 'desc' if (sort == 'geaendert' and order == 'asc') else 'asc' %}
           <tr>
             <th style="width:32px"></th>
             {{ sort_th('dateiname', 'Dateiname') }}
             <th>Typ</th>
             {{ sort_th('dir_path', 'Speicherort') }}
-            {{ sort_th('groesse', 'Größe') }}
-            {{ sort_th('geaendert', 'Zuletzt gesehen' if filt == 'archiv' else 'Geändert am') }}
+            <th>
+              <a href="{{ url_for('funde.list_funde', sort='groesse', order=_so_gr, filter=filt, share_root=share_root_filt, dir_path=dir_path_filt, scan_run=scan_run_id_filt, page=1, per_page=per_page) }}" class="d-inline-flex align-items-center gap-1">Größe{% if sort == 'groesse' %}<i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>{% else %}<i class="bi bi-arrow-down-up" style="opacity:.35;font-size:.7em"></i>{% endif %}</a>
+              <span class="mx-1 text-muted">/</span>
+              <a href="{{ url_for('funde.list_funde', sort='geaendert', order=_so_dt, filter=filt, share_root=share_root_filt, dir_path=dir_path_filt, scan_run=scan_run_id_filt, page=1, per_page=per_page) }}" class="d-inline-flex align-items-center gap-1">{% if filt == 'archiv' %}Gesehen{% else %}Datum{% endif %}{% if sort == 'geaendert' %}<i class="bi bi-arrow-{{ 'up' if order == 'asc' else 'down' }}-short"></i>{% else %}<i class="bi bi-arrow-down-up" style="opacity:.35;font-size:.7em"></i>{% endif %}</a>
+            </th>
             {{ sort_th('eigentümer', 'Eigentümer') }}
-            <th class="text-center">Makros</th>
-            <th class="text-center">Formeln</th>
-            <th class="text-center">Schutz</th>
-            {% if match_suggestions_active %}<th title="Automatisch berechneter Übereinstimmungs-Score mit vorhandenen IDVs">
-              Vorschlag</th>{% endif %}
+            <th class="text-center">Eigens.</th>
             <th></th>
           </tr>
         </thead>
@@ -497,7 +490,7 @@ date_to} %}
               {% endfor %}
               <input type="checkbox" class="form-check-input dup-master-cb" data-gid="{{ gid }}">
             </td>
-            <td colspan="{{ 10 if match_suggestions_active else 9 }}">
+            <td colspan="6">
               <span class="fw-600">
                 <i class="bi bi-copy me-1 text-danger"></i>
                 {{ grp | length }} identische Dateien
@@ -534,14 +527,14 @@ date_to} %}
                 {% elif bs == 'Ignoriert' %}
                 <span class="mini-pill mini-pill-ignored"><i class="bi bi-eye-slash"></i>Ignoriert</span>
                 {% else %}
-                <span class="mini-pill mini-pill-neu">Neu</span>
+                <span class="neu-dot" title="Neu"></span>
                 {% endif %}
               </div>
             </td>
 
             <td>
               {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
-              <span class="badge bg-light text-dark border">{{ typ }}</span>
+              <span class="idv-typ-kuerzel" title="{{ typ }}">{{ {'Excel-Tabelle':'XL','Excel-Makro':'XLM','Access-Datenbank':'ACC','Python-Skript':'PY','SQL-Skript':'SQL','Power-BI-Bericht':'PBI','Cognos-Report':'COG','Sonstige':'…','unklassifiziert':'?'}.get(typ, typ[:3] if typ else '–') }}</span>
             </td>
 
             <td style="min-width:180px;max-width:280px" title="{{ f.dir_path or '' }}">
@@ -558,26 +551,23 @@ date_to} %}
               {% endif %}
             </td>
 
-            <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
-            <td class="text-nowrap">{% if f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>{% else %}–{% endif %}</td>
+            <td class="text-nowrap" style="line-height:1.3">
+              <div>{{ f.size_bytes | mb if f.size_bytes else '–' }}</div>
+              <div class="text-muted fs-8">{% if f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>{% else %}–{% endif %}</div>
+            </td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} (Office-Autor: {{ f.office_author }}){% endif %}">
               {{ f.file_owner or f.office_author or '–' }}
             </td>
             <td class="text-center">
-              {% if f.has_macros %}<span class="idv-tag idv-tag-red" title="VBA-Makros vorhanden">VBA</span>
-              {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
+              <div class="d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                {% if f.has_macros %}<span class="idv-tag idv-tag-red" title="VBA-Makros vorhanden">VBA</span>{% endif %}
+                {% if f.formula_count %}<span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen"><i class="bi bi-calculator"></i>{{ f.formula_count }}</span>{% endif %}
+                {% if not f.has_macros and not f.formula_count %}<i class="bi bi-dash text-muted"></i>{% endif %}
+              </div>
             </td>
-            <td class="text-center">
-              {% if f.formula_count %}
-              <span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen">
-                <i class="bi bi-calculator"></i>{{ f.formula_count }}
-              </span>
-              {% else %}<i class="bi bi-dash text-muted"></i>{% endif %}
-            </td>
-            <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
-            <td class="text-nowrap">
-              <div class="d-inline-flex align-items-center gap-1 text-nowrap">
+            <td>
+              <div class="d-inline-flex align-items-center gap-1 flex-wrap">
                 {% if f.reg_idv_id %}
                 <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=f.reg_db_id) }}"
                   class="btn btn-xs btn-outline-secondary" title="IDV öffnen">
@@ -589,8 +579,8 @@ date_to} %}
                 </a>
                 {% else %}
                 <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
-                  class="btn btn-xs btn-primary text-nowrap">
-                  <i class="bi bi-plus-lg me-1"></i>Registrieren
+                  class="btn btn-xs btn-primary" title="Registrieren">
+                  <i class="bi bi-plus-lg"></i>
                 </a>
                 {% if is_admin %}
                 <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
@@ -606,7 +596,7 @@ date_to} %}
           {% endfor %}
           {% else %}
           <tr>
-            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="text-center text-muted py-5">
+            <td colspan="8" class="text-center text-muted py-5">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>Keine Duplikate gefunden.
             </td>
           </tr>
@@ -651,7 +641,7 @@ date_to} %}
                 {% elif bs == 'Ignoriert' %}
                 <span class="mini-pill mini-pill-ignored"><i class="bi bi-eye-slash"></i>Ignoriert</span>
                 {% else %}
-                <span class="mini-pill mini-pill-neu">Neu</span>
+                <span class="neu-dot" title="Neu"></span>
                 {% endif %}
                 {% if f.file_hash and f.file_hash in duplicate_hashes %}
                 <span class="badge bg-warning text-dark"
@@ -662,10 +652,10 @@ date_to} %}
               </div>
             </td>
 
-            <!-- Typ-Vorschlag -->
+            <!-- Typ -->
             <td>
               {% set typ = idv_typ_vorschlag(f.extension, f.has_macros) %}
-              <span class="badge bg-light text-dark border">{{ typ }}</span>
+              <span class="idv-typ-kuerzel" title="{{ typ }}">{{ {'Excel-Tabelle':'XL','Excel-Makro':'XLM','Access-Datenbank':'ACC','Python-Skript':'PY','SQL-Skript':'SQL','Power-BI-Bericht':'PBI','Cognos-Report':'COG','Sonstige':'…','unklassifiziert':'?'}.get(typ, typ[:3] if typ else '–') }}</span>
             </td>
 
             <!-- Verzeichnis / Pfad als klickbare Breadcrumbs -->
@@ -683,13 +673,13 @@ date_to} %}
               {% endif %}
             </td>
 
-            <td class="text-nowrap">{{ f.size_bytes | mb if f.size_bytes }}</td>
-            <td class="text-nowrap">
-              {% if filt == 'archiv' and f.last_seen_at %}
-                <span title="{{ f.last_seen_at|datetimefmt }}">{{ f.last_seen_at|datefmt }}</span>
-              {% elif f.modified_at %}
-                <span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>
-              {% else %}–{% endif %}
+            <td class="text-nowrap" style="line-height:1.3">
+              <div>{{ f.size_bytes | mb if f.size_bytes else '–' }}</div>
+              <div class="text-muted fs-8">
+                {% if filt == 'archiv' and f.last_seen_at %}<span title="{{ f.last_seen_at|datetimefmt }}">{{ f.last_seen_at|datefmt }}</span>
+                {% elif f.modified_at %}<span title="{{ f.modified_at|datetimefmt }}">{{ f.modified_at|datefmt }}</span>
+                {% else %}–{% endif %}
+              </div>
             </td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ f.file_owner or f.office_author or '' }}{% if f.office_author and f.file_owner and f.office_author != f.file_owner %} · Office-Autor: {{ f.office_author }}{% endif %}">
@@ -704,88 +694,49 @@ date_to} %}
               {% endif %}
             </td>
 
-            <!-- Makros -->
+            <!-- Eigenschaften (VBA / Formeln / Schutz) -->
             <td class="text-center">
-              {% if f.has_macros %}
-              <span class="idv-tag idv-tag-red" title="VBA-Makros vorhanden">VBA</span>
-              {% else %}
-              <i class="bi bi-dash text-muted"></i>
-              {% endif %}
+              <div class="d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                {% if f.has_macros %}<span class="idv-tag idv-tag-red" title="VBA-Makros vorhanden">VBA</span>{% endif %}
+                {% if f.formula_count %}<span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen"><i class="bi bi-calculator"></i>{{ f.formula_count }}</span>{% endif %}
+                {% if f.has_sheet_protection %}
+                  {% if f.workbook_protected %}
+                  <span class="idv-tag idv-tag-blue" title="{{ f.protected_sheets_count }} Blatt geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %} + Arbeitsmappenschutz"><i class="bi bi-lock-fill"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}<i class="bi bi-journals ms-1"></i></span>
+                  {% else %}
+                  <span class="idv-tag idv-tag-blue" title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blätter geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %}"><i class="bi bi-lock-fill"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}{% if f.sheet_protection_has_pw %}<i class="bi bi-key-fill ms-1"></i>{% endif %}</span>
+                  {% endif %}
+                {% elif f.workbook_protected %}
+                  <span class="idv-tag idv-tag-blue" title="Arbeitsmappenschutz"><i class="bi bi-journals"></i></span>
+                {% endif %}
+                {% if not f.has_macros and not f.formula_count and not f.has_sheet_protection and not f.workbook_protected %}
+                  <i class="bi bi-dash text-muted"></i>
+                {% endif %}
+              </div>
             </td>
 
-            <!-- Formeln -->
-            <td class="text-center">
-              {% if f.formula_count %}
-              <span class="idv-tag idv-tag-amber" title="{{ f.formula_count }} Formelzellen">
-                <i class="bi bi-calculator"></i>{{ f.formula_count }}
-              </span>
-              {% else %}
-              <i class="bi bi-dash text-muted"></i>
-              {% endif %}
-            </td>
-
-            <!-- Blattschutz -->
-            <td class="text-center">
-              {% if f.has_sheet_protection %}
-              {% if f.workbook_protected %}
-              <span class="idv-tag idv-tag-blue"
-                title="{{ f.protected_sheets_count }} Blatt geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %} + Arbeitsmappenschutz">
-                <i class="bi bi-lock-fill"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
-                <i class="bi bi-journals ms-1"></i>
-              </span>
-              {% else %}
-              <span class="idv-tag idv-tag-blue"
-                title="{{ f.protected_sheets_count }} von {{ f.sheet_count or '?' }} Blätter geschützt{% if f.sheet_protection_has_pw %} (PW){% endif %}">
-                <i class="bi bi-lock-fill"></i>{{ f.protected_sheets_count }}/{{ f.sheet_count or '?' }}
-                {% if f.sheet_protection_has_pw %}<i class="bi bi-key-fill ms-1"></i>{% endif %}
-              </span>
-              {% endif %}
-              {% elif f.workbook_protected %}
-              <span class="idv-tag idv-tag-blue" title="Arbeitsmappenschutz">
-                <i class="bi bi-journals"></i>
-              </span>
-              {% else %}
-              <i class="bi bi-dash text-muted"></i>
-              {% endif %}
-            </td>
-
-            {% if match_suggestions_active %}
-            <!-- Matching-Vorschlag -->
-            <td class="text-nowrap">
-              {% set ms = match_scores.get(f.id) if match_scores else None %}
-              {% if ms and not f.reg_idv_id %}
-              {% if ms.score >= 70 %}{% set badge_cls = 'bg-success' %}
-              {% elif ms.score >= 40 %}{% set badge_cls = 'bg-warning text-dark' %}
-              {% else %}{% set badge_cls = 'bg-secondary' %}{% endif %}
-              <div class="d-flex flex-column gap-1">
-                <span class="badge {{ badge_cls }}" title="{{ ms.score }}/100 Übereinstimmung">
-                  {{ ms.score }}%
-                </span>
-                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=ms.idv_db_id) }}"
-                  class="text-decoration-none text-truncate d-inline-block fs-8" style="max-width:120px"
-                  title="{{ ms.bezeichnung }}">
-                  {{ ms.idv_id }}
-                </a>
+            <!-- Aktionen (inkl. Matching-Vorschlag) -->
+            <td>
+              <div class="d-inline-flex align-items-center gap-1 flex-wrap">
+                {% if match_suggestions_active %}
+                {% set ms = match_scores.get(f.id) if match_scores else None %}
+                {% if ms and not f.reg_idv_id %}
+                {% if ms.score >= 70 %}{% set badge_cls = 'bg-success' %}
+                {% elif ms.score >= 40 %}{% set badge_cls = 'bg-warning text-dark' %}
+                {% else %}{% set badge_cls = 'bg-secondary' %}{% endif %}
+                <span class="badge {{ badge_cls }}" title="{{ ms.score }}% Übereinstimmung · {{ ms.idv_id }}: {{ ms.bezeichnung }}">{{ ms.score }}%</span>
                 <button type="button" class="btn btn-xs btn-outline-primary" data-action="quickAssign"
                   data-assign-url="{{ url_for('funde.quick_assign', file_id=f.id) }}"
                   data-idv-db-id="{{ ms.idv_db_id }}" data-idv-id="{{ ms.idv_id }}"
                   data-detail-url="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=ms.idv_db_id) }}"
-                  title="Diesem IDV zuordnen: {{ ms.bezeichnung }}">
-                  <i class="bi bi-link-45deg me-1"></i>Zuordnen
+                  title="Zuordnen: {{ ms.bezeichnung }} ({{ ms.idv_id }})">
+                  <i class="bi bi-link-45deg"></i>
                 </button>
-              </div>
-              {% else %}
-              <i class="bi bi-dash text-muted"></i>
-              {% endif %}
-            </td>
-            {% endif %}
-
-            <td class="text-nowrap">
-              <div class="d-inline-flex align-items-center gap-1 text-nowrap">
+                {% endif %}
+                {% endif %}
                 {% if filt != 'archiv' and not f.reg_idv_id %}
                 <a href="{{ url_for('eigenentwicklung.new_idv', file_id=f.id) }}"
-                  class="btn btn-xs btn-primary text-nowrap">
-                  <i class="bi bi-plus-lg me-1"></i>Registrieren
+                  class="btn btn-xs btn-primary" title="Registrieren">
+                  <i class="bi bi-plus-lg"></i>
                 </a>
                 {% if is_admin %}
                 <button type="button" class="btn btn-xs btn-outline-danger" title="Eintrag löschen (Admin)"
@@ -810,7 +761,7 @@ date_to} %}
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 12 if match_suggestions_active else 11 }}" class="p-0">
+            <td colspan="8" class="p-0">
               {% with icon='bi-inbox', title='Keine Dateien gefunden',
                       text='Mit den aktiven Filtern sind keine Funde sichtbar. Filter zurücksetzen oder einen neuen Scan starten.' %}
                 {% include "_empty_state.html" %}
@@ -933,19 +884,22 @@ date_to} %}
                   '<a href="' + detailUrl + '" class="badge bg-success text-decoration-none" title="Verknüpft: ' + data.idv_id + '">' + data.idv_id + '</a>' +
                 '</div>';
             }
-            // Dateinamen-Zelle: Mini-Pill auf "Registriert" umstellen
+            // Dateinamen-Zelle: Neu-Punkt oder Mini-Pill auf "Registriert" umstellen
             var fileCell = row.querySelector('td:nth-child(2)');
             if (fileCell) {
-              var pill = fileCell.querySelector('.mini-pill');
-              if (pill) {
-                pill.className = 'mini-pill mini-pill-reg';
-                pill.innerHTML = '<i class="bi bi-check2"></i>Registriert';
+              var dot = fileCell.querySelector('.neu-dot');
+              if (dot) {
+                var reg = document.createElement('span');
+                reg.className = 'mini-pill mini-pill-reg';
+                reg.innerHTML = '<i class="bi bi-check2"></i>Registriert';
+                dot.replaceWith(reg);
+              } else {
+                var pill = fileCell.querySelector('.mini-pill');
+                if (pill) {
+                  pill.className = 'mini-pill mini-pill-reg';
+                  pill.innerHTML = '<i class="bi bi-check2"></i>Registriert';
+                }
               }
-            }
-            // Vorschlags-Zelle als "Zugeordnet" markieren
-            var vorschlagCell = btn.closest('td');
-            if (vorschlagCell) {
-              vorschlagCell.innerHTML = '<span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Zugeordnet</span>';
             }
           }
         } else {
