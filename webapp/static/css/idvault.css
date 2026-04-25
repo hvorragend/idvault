@@ -1992,6 +1992,49 @@ html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-height) + 
   outline-offset: -2px;
 }
 
+/* 50. Filter-Pills (Funde-Filterleiste) ──────────────────────────────────── */
+/* Aufgeräumte nav-pills-Variante mit gruppierender Trennlinie und
+   reduzierter Farbpalette. Aktiver Filter wird farblich gefüllt,
+   inaktive bleiben neutral; risikorelevante Icons behalten Farbe. */
+.idv-filterbar .nav-link {
+  color: var(--slate-700);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.idv-filterbar .nav-link:hover {
+  background: var(--slate-100);
+  color: var(--slate-900);
+}
+.idv-filterbar .nav-link.active {
+  background: var(--slate-100);
+  border-color: var(--slate-300);
+  color: var(--slate-800);
+}
+.idv-filterbar .nav-link.active.idv-pill-slate {
+  background: var(--slate-100); border-color: var(--slate-300); color: var(--slate-800);
+}
+.idv-filterbar .nav-link.active.idv-pill-amber {
+  background: var(--amber-50); border-color: var(--amber-200); color: var(--amber-700);
+}
+.idv-filterbar .nav-link.active.idv-pill-blue {
+  background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8;
+}
+.idv-filterbar .nav-link.active.idv-pill-green {
+  background: #f0fdf4; border-color: #bbf7d0; color: #15803d;
+}
+.idv-filterbar .nav-link.active.idv-pill-red {
+  background: #fef2f2; border-color: #fecaca; color: #b91c1c;
+}
+/* Vertikaler 1-px-Separator zwischen Filter-Gruppen */
+.idv-filter-sep {
+  border-left: 1px solid var(--slate-200);
+  height: 1.1rem;
+  align-self: center;
+  margin: 0 .35rem;
+  list-style: none;
+}
+
 /* 16. Druck-Stylesheet ────────────────────────────────────────────────────── */
 @media print {
   /* Seitenränder + Basis-Typo */

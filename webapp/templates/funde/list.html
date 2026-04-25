@@ -219,55 +219,47 @@ Standardsortierung zu sehen bekommt. #}
   </form>
 </div>
 
-<!-- ── Typ-Filter-Buttons ──────────────────────────────────────────── -->
-{# Sortierung wird über alle Filter-Buttons hinweg erhalten, damit
-die aktuelle Spalten-Sortierung beim Wechsel des Filter-Typs nicht
-verloren geht. #}
-<div class="d-flex gap-2 mb-3 flex-wrap">
-  <a href="{{ url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-primary' if not filt else 'btn-outline-secondary' }}">
-    Alle ({{ gesamt }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='ignoriert', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-secondary' if filt == 'ignoriert' else 'btn-outline-secondary' }}">
-    <i class="bi bi-eye-slash me-1"></i>Ignoriert ({{ ignoriert }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='ohne_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-warning' if filt == 'ohne_idv' else 'btn-outline-warning' }}">
-    <i class="bi bi-exclamation-circle me-1"></i>Noch nicht registriert ({{ ohne_idv }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='makros', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-danger' if filt == 'makros' else 'btn-outline-danger' }}">
-    <i class="bi bi-lightning-fill me-1"></i>Mit Makros ({{ mit_makro }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='blattschutz', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-warning' if filt == 'blattschutz' else 'btn-outline-warning' }}">
-    <i class="bi bi-lock-fill me-1"></i>Mit Blattschutz ({{ mit_schutz }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='ohne_schutz', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-danger' if filt == 'ohne_schutz' else 'btn-outline-danger' }}"
-    title="Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz (Kandidaten für IT-Risiko-Erfassung)">
-    <i class="bi bi-unlock-fill me-1"></i>Ohne Zellschutz ({{ ohne_schutz }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='mit_idv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-success' if filt == 'mit_idv' else 'btn-outline-success' }}">
-    <i class="bi bi-check-circle me-1"></i>Bereits registriert
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='zur_registrierung', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-info' if filt == 'zur_registrierung' else 'btn-outline-info' }}">
-    <i class="bi bi-pencil-square me-1"></i>Zur Registrierung ({{ zur_registrierung }})
-  </a>
-  <a href="{{ url_for('funde.list_funde', filter='archiv', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-secondary' if filt == 'archiv' else 'btn-outline-secondary' }}">
-    <i class="bi bi-archive me-1"></i>Archiv ({{ archiviert }})
-  </a>
-  {% if duplikate_anzahl %}
-  <a href="{{ url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt, sort=sort, order=order) }}"
-    class="btn btn-sm {{ 'btn-danger' if filt == 'duplikate' else 'btn-outline-danger' }}">
-    <i class="bi bi-copy me-1"></i>Duplikate ({{ duplikate_anzahl }} Gruppen)
-  </a>
+<!-- ── Typ-Filter-Pills ────────────────────────────────────────────── -->
+{# Sortierung wird über alle Filter hinweg erhalten, damit die aktuelle
+Spalten-Sortierung beim Wechsel des Filter-Typs nicht verloren geht.
+Pills sind in drei Gruppen gegliedert (Workflow / Eigenschaften /
+Sondermodi) und durch dünne Trennlinien optisch getrennt. #}
+{% macro filter_pill(name, label, count, icon='', accent='slate', icon_color='', title='') %}
+  {% set is_active = (filt == name) if name else (not filt) %}
+  {% if name == 'duplikate' %}
+    {% set href = url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt, sort=sort, order=order) %}
+  {% elif name %}
+    {% set href = url_for('funde.list_funde', filter=name, share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) %}
+  {% else %}
+    {% set href = url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) %}
   {% endif %}
-</div>
+  <li class="nav-item">
+    <a href="{{ href }}"
+       class="nav-link py-1 px-2{% if is_active %} active idv-pill-{{ accent }}{% endif %}"
+       {% if title %}title="{{ title }}"{% endif %}>
+      {% if icon %}<i class="bi {{ icon }}{% if icon_color and not is_active %} {{ icon_color }}{% endif %} me-1"></i>{% endif %}{{ label }}
+      <span class="idv-tag idv-tag-slate ms-1">{{ count }}</span>
+    </a>
+  </li>
+{% endmacro %}
+
+<nav class="idv-filterbar mb-3">
+  <ul class="nav nav-pills flex-wrap gap-1 small mb-0">
+    {{ filter_pill('', 'Alle', gesamt, accent='slate') }}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ filter_pill('ohne_idv', 'Eingang', ohne_idv, icon='bi-exclamation-circle', accent='amber', icon_color='text-warning') }}
+    {{ filter_pill('zur_registrierung', 'Zur Reg.', zur_registrierung, icon='bi-pencil-square', accent='blue', icon_color='text-info') }}
+    {{ filter_pill('mit_idv', 'Registriert', (gesamt - ohne_idv), icon='bi-check-circle', accent='green', icon_color='text-success') }}
+    {{ filter_pill('ignoriert', 'Ignoriert', ignoriert, icon='bi-eye-slash', accent='slate', icon_color='text-muted') }}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ filter_pill('makros', 'Makros', mit_makro, icon='bi-lightning-fill', accent='red', icon_color='text-danger') }}
+    {{ filter_pill('blattschutz', 'Blattschutz', mit_schutz, icon='bi-lock-fill', accent='blue', icon_color='text-info') }}
+    {{ filter_pill('ohne_schutz', 'Ohne Schutz', ohne_schutz, icon='bi-unlock-fill', accent='red', icon_color='text-danger', title='Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz (Kandidaten für IT-Risiko-Erfassung)') }}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ filter_pill('archiv', 'Archiv', archiviert, icon='bi-archive', accent='slate', icon_color='text-muted') }}
+    {{ filter_pill('duplikate', 'Duplikate', duplikate_anzahl or 0, icon='bi-copy', accent='red', icon_color='text-danger') }}
+  </ul>
+</nav>
 
 {% if filt == 'archiv' %}
 <div class="alert alert-secondary mb-3">
