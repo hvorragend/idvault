@@ -2000,6 +2000,7 @@ html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-height) + 
   color: var(--slate-700);
   background: transparent;
   border: 1px solid transparent;
+  padding: .2rem .45rem;
   transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
 }
 .idv-filterbar .nav-link:hover {
@@ -2026,12 +2027,18 @@ html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-height) + 
 .idv-filterbar .nav-link.active.idv-pill-red {
   background: #fef2f2; border-color: #fecaca; color: #b91c1c;
 }
+/* Kompakteres Count-Badge im Filter-Kontext */
+.idv-filterbar .nav-link .idv-tag {
+  padding: .02rem .35rem;
+  font-size: .65rem;
+  height: 1.1rem;
+}
 /* Vertikaler 1-px-Separator zwischen Filter-Gruppen */
 .idv-filter-sep {
   border-left: 1px solid var(--slate-200);
   height: 1.1rem;
   align-self: center;
-  margin: 0 .35rem;
+  margin: 0 .25rem;
   list-style: none;
 }
 
