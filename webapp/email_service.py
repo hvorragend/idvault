@@ -561,11 +561,11 @@ EMAIL_TEMPLATES = {
         "placeholders": ["titel", "faellig_am"],
     },
     "freigabe_pool_reminder": {
-        "label": "Pool-Freigabeschritt wartet auf Claim (täglicher Reminder)",
+        "label": "Pool-Freigabeschritt wartet auf Übernahme (täglicher Reminder)",
         "placeholders": ["idv_id", "bezeichnung", "schritt", "pool_name", "wartet_seit_tage"],
     },
     "owner_digest": {
-        "label": "Sammelbenachrichtigung an Owner: offene Scanner-Funde (Self-Service)",
+        "label": "Sammelbenachrichtigung: offene Scanner-Funde (Self-Service)",
         "placeholders": ["empfaenger", "anzahl", "link"],
     },
     "idv_incomplete_reminder": {

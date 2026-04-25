@@ -1767,14 +1767,14 @@ def claim_loesen(freigabe_id):
     except (KeyError, IndexError):
         current = None
     if not current:
-        flash("Auf diesen Schritt besteht kein Claim.", "info")
+        flash("Dieser Schritt wurde noch nicht übernommen.", "info")
         return redirect(url_for("eigenentwicklung.detail_idv",
                                 idv_db_id=freigabe["idv_id"]))
 
     from . import ROLE_ADMIN
     is_admin = session.get("user_role") == ROLE_ADMIN
     if current != person_id and not is_admin:
-        flash("Nur der aktuelle Bearbeiter oder ein Admin darf den Claim lösen.",
+        flash("Nur der aktuelle Bearbeiter oder ein Admin darf die Übernahme zurückgeben.",
               "error")
         return redirect(url_for("eigenentwicklung.detail_idv",
                                 idv_db_id=freigabe["idv_id"]))
@@ -1793,7 +1793,7 @@ def claim_loesen(freigabe_id):
                 "(idv_id, aktion, kommentar, durchgefuehrt_von_id, bearbeiter_name) "
                 "VALUES (?,?,?,?,?)",
                 (freigabe["idv_id"], "freigabe_claim_geloest",
-                 f"{freigabe['schritt']} wieder freigegeben (Claim gelöst)",
+                 f"{freigabe['schritt']} wieder freigegeben (Übernahme zurückgegeben)",
                  person_id, user_name),
             )
 

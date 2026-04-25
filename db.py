@@ -1089,7 +1089,7 @@ def get_dashboard_kpis(conn: sqlite3.Connection, days: int = 30) -> list[dict]:
          "value": f"{selbst['anteil_pct']} %", "sub": f"{selbst['self_service']} / {selbst['gesamt']} via Self-Service",
          "icon": "bi-person-check", "tone": "success",
          "sparkline": kpi_sparkline(conn, "self_service", days)},
-        {"key": "pool_claim", "label": "Pool-Claim ≤ 24 h",
+        {"key": "pool_claim", "label": "Pool-Übernahme ≤ 24 h",
          "value": f"{pool['anteil_pct']} %", "sub": f"{pool['n_24h']} / {pool['n_total']} Pool-Schritte",
          "icon": "bi-people", "tone": "info", "sparkline": []},
         {"key": "auto_match", "label": "Auto-Match-Anteil",
@@ -1100,7 +1100,7 @@ def get_dashboard_kpis(conn: sqlite3.Connection, days: int = 30) -> list[dict]:
          "value": f"{stille['anteil_pct']} %", "sub": f"{stille['stille']} / {stille['gesamt']} Freigaben",
          "icon": "bi-lightning-charge", "tone": "secondary",
          "sparkline": kpi_sparkline(conn, "stille_freigabe", days)},
-        {"key": "owner_digest", "label": "Owner-Digest-Reaktionsrate",
+        {"key": "owner_digest", "label": "Sammelbenachrichtigung-Reaktionsrate",
          "value": f"{digest['anteil_pct']} %", "sub": f"{digest['reagiert']} / {digest['gesamt']} Mails",
          "icon": "bi-envelope-check", "tone": "warning", "sparkline": []},
     ]
