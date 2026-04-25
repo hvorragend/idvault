@@ -669,30 +669,6 @@ def eingang_funde():
     # Fortschritt: nur nicht-ignorierte Dateien zählen
     gesamt_zu_bearbeiten = gesamt_aktiv - ignoriert_eingang
 
-    # Hotspot-Tabellen
-    nach_share = db.execute(f"""
-        SELECT {_DIR_PATH_EXPR_PLAIN} AS dir_path,
-               COUNT(*) AS anzahl,
-               SUM(has_macros) AS mit_makros,
-               SUM(CASE WHEN formula_count > 0 THEN 1 ELSE 0 END) AS mit_formeln
-        FROM idv_files
-        WHERE status='active' AND bearbeitungsstatus='Neu'
-        GROUP BY 1
-        ORDER BY anzahl DESC
-        LIMIT 10
-    """).fetchall()
-
-    nach_typ = db.execute("""
-        SELECT extension,
-               COUNT(*) AS anzahl,
-               SUM(has_macros) AS mit_makros
-        FROM idv_files
-        WHERE status='active' AND bearbeitungsstatus='Neu'
-        GROUP BY extension
-        ORDER BY anzahl DESC
-        LIMIT 8
-    """).fetchall()
-
     dir_paths = [
         r["dir_path"] for r in db.execute(f"""
             SELECT DISTINCT {_DIR_PATH_EXPR_PLAIN} AS dir_path
@@ -754,8 +730,6 @@ def eingang_funde():
         ignoriert_eingang=ignoriert_eingang,
         gesamt_aktiv=gesamt_aktiv,
         gesamt_zu_bearbeiten=gesamt_zu_bearbeiten,
-        nach_share=nach_share,
-        nach_typ=nach_typ,
         dir_paths=dir_paths,
         dir_path_filt=dir_path_filt,
         share_roots=share_roots,
@@ -958,7 +932,33 @@ def scan_laeufe():
         """).fetchall()
     except Exception:
         laeufe = []
+
+    nach_share = db.execute(f"""
+        SELECT {_DIR_PATH_EXPR_PLAIN} AS dir_path,
+               COUNT(*) AS anzahl,
+               SUM(has_macros) AS mit_makros,
+               SUM(CASE WHEN formula_count > 0 THEN 1 ELSE 0 END) AS mit_formeln
+        FROM idv_files
+        WHERE status='active' AND bearbeitungsstatus='Neu'
+        GROUP BY 1
+        ORDER BY anzahl DESC
+        LIMIT 10
+    """).fetchall()
+
+    nach_typ = db.execute("""
+        SELECT extension,
+               COUNT(*) AS anzahl,
+               SUM(has_macros) AS mit_makros
+        FROM idv_files
+        WHERE status='active' AND bearbeitungsstatus='Neu'
+        GROUP BY extension
+        ORDER BY anzahl DESC
+        LIMIT 8
+    """).fetchall()
+
     return render_template("funde/laeufe.html", laeufe=laeufe,
+                           nach_share=nach_share,
+                           nach_typ=nach_typ,
                            scan_run_label=_scan_run_label,
                            **_scan_btn_ctx())
 
