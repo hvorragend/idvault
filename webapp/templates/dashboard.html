@@ -4,20 +4,21 @@
 
 {% block content %}
 
-<!-- ── KPI-Karten ─────────────────────────────────────────────────── -->
+<!-- ── KPI-Karten (Top-Level: 4 Karten – ruhiger Einstieg) ─────────── -->
+{# Vorher 6 Karten (auch „Nicht wesentlich" und „Im Entwurf"). Diese
+   beiden sind sekundaer und ueber Filter auf der Liste leicht erreichbar
+   – das Dashboard zeigt nur die vier wichtigsten Kennzahlen. #}
 <div class="row g-3 mb-4">
 
   {% set cards = [
-  ("gesamt_aktiv",    "Eigenentwicklungen gesamt", "bi-archive",                   "slate"),
-  ("wesentlich",      "Wesentlich",                "bi-exclamation-triangle-fill", "red"),
-  ("nicht_wesentlich","Nicht wesentlich",          "bi-check2-circle",             "green"),
-  ("freigegeben",     "Freigegeben",               "bi-check-circle",              "green"),
-  ("entwurf",         "Im Entwurf",                "bi-pencil-square",             "amber"),
-  ("in_pruefung",     "In Prüfung",                "bi-clipboard2-check",          "blue"),
+  ("gesamt_aktiv", "Eigenentwicklungen gesamt", "bi-archive",                   "slate"),
+  ("wesentlich",   "Wesentlich",                "bi-exclamation-triangle-fill", "red"),
+  ("freigegeben",  "Freigegeben",               "bi-check-circle",              "green"),
+  ("in_pruefung",  "In Prüfung",                "bi-clipboard2-check",          "blue"),
   ] %}
 
   {% for key, label, icon, tone in cards %}
-  <div class="col-6 col-md-4 col-xl-2">
+  <div class="col-6 col-md-6 col-xl-3">
     <div class="stat-card-v2 h-100">
       <div class="stat-head">
         <div class="stat-lbl">{{ label }}</div>
@@ -30,26 +31,28 @@
 
 </div>
 
-<!-- ── Kennzahlen / KPIs (Issue #354) ───────────────────────────────── -->
+<!-- ── Kennzahlen / KPIs (Issue #354, klappbar #411) ───────────────── -->
 {% if kpis %}
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Kennzahlen
-      <span class="text-muted small ms-2">letzte {{ kpi_window_days }} Tage</span>
-    </span>
-    <div class="btn-group btn-group-sm" role="group" aria-label="Zeitfenster">
-      <a href="{{ url_for('dashboard.index', kpi_days=30) }}"
-         class="btn btn-outline-secondary {% if kpi_window_days == 30 %}active{% endif %}">30 Tage</a>
-      <a href="{{ url_for('dashboard.index', kpi_days=90) }}"
-         class="btn btn-outline-secondary {% if kpi_window_days == 90 %}active{% endif %}">90 Tage</a>
-      <a href="{{ url_for('admin.export_excel') if 'admin.export_excel' else '#' }}"
-         class="btn btn-outline-primary"
-         title="Excel-Export inkl. Kennzahlen-Sheet">
-        <i class="bi bi-file-earmark-excel me-1"></i>Excel
-      </a>
-    </div>
-  </div>
+<details class="card border-0 shadow-sm mb-4 idv-collapsible-card" {% if request.args.get('show_kennzahlen') %}open{% endif %}>
+  <summary class="card-header bg-white fw-600 d-flex align-items-center gap-2">
+    <i class="bi bi-chevron-right idv-collapsible-chevron"></i>
+    <i class="bi bi-graph-up-arrow text-primary"></i>Kennzahlen
+    <span class="text-muted small ms-2">letzte {{ kpi_window_days }} Tage · {{ kpis|length }} Eintraege</span>
+  </summary>
   <div class="card-body">
+    <div class="d-flex justify-content-end mb-3">
+      <div class="btn-group btn-group-sm" role="group" aria-label="Zeitfenster">
+        <a href="{{ url_for('dashboard.index', kpi_days=30, show_kennzahlen=1) }}"
+           class="btn btn-outline-secondary {% if kpi_window_days == 30 %}active{% endif %}">30 Tage</a>
+        <a href="{{ url_for('dashboard.index', kpi_days=90, show_kennzahlen=1) }}"
+           class="btn btn-outline-secondary {% if kpi_window_days == 90 %}active{% endif %}">90 Tage</a>
+        <a href="{{ url_for('admin.export_excel') if 'admin.export_excel' else '#' }}"
+           class="btn btn-outline-primary"
+           title="Excel-Export inkl. Kennzahlen-Sheet">
+          <i class="bi bi-file-earmark-excel me-1"></i>Excel
+        </a>
+      </div>
+    </div>
     <div class="row g-3">
       {% for k in kpis %}
       <div class="col-md-6 col-xl-4">
@@ -83,88 +86,15 @@
       {% endfor %}
     </div>
   </div>
-</div>
+</details>
 {% endif %}
 
-<!-- ── Alert-Zeile ─────────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
-  {% if stats.pruefung_ueberfaellig > 0 %}
-  <div class="col-md-4">
-    <div class="alert alert-overdue d-flex align-items-center gap-2 mb-0">
-      <i class="bi bi-alarm-fill text-danger fs-5"></i>
-      <div>
-        <strong>{{ stats.pruefung_ueberfaellig }} Prüfung(en) überfällig</strong>
-        <div class="fs-7"><a href="{{ url_for('reviews.list_reviews') }}?filter=ueberfaellig">Jetzt anzeigen
-            →</a></div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-  {% if stats.massnahmen_ueberfaellig > 0 %}
-  <div class="col-md-4">
-    <div class="alert alert-warning d-flex align-items-center gap-2 mb-0">
-      <i class="bi bi-exclamation-triangle-fill fs-5"></i>
-      <div>
-        <strong>{{ stats.massnahmen_ueberfaellig }} Maßnahme(n) überfällig</strong>
-        <div class="fs-7"><a href="{{ url_for('measures.list_measures') }}?filter=ueberfaellig">Jetzt
-            anzeigen →</a></div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-</div>
+{# Ueberfaellig-Alert entfernt (#417): die Counter sitzen jetzt als
+   Sidebar-Badges an „Pruefungen" und „Massnahmen" und sind damit
+   auf jeder Seite praesent statt nur auf dem Dashboard. #}
 
-<!-- ── Scanner-Status ──────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-body py-2 px-3">
-    <div class="d-flex flex-wrap align-items-center gap-3">
-      <div class="d-flex align-items-center gap-2">
-        <i class="bi bi-search text-primary fs-5"></i>
-        <span class="fw-600">Letzter Scan</span>
-      </div>
-
-      {% if letzter_scan %}
-        <span class="text-muted small">
-          {{ (letzter_scan.finished_at or letzter_scan.started_at)|datetimefmt }}
-        </span>
-        <span class="badge
-          {%- if letzter_scan.scan_status == 'completed' %} bg-success
-          {%- elif letzter_scan.scan_status == 'running' %} bg-primary
-          {%- elif letzter_scan.scan_status == 'cancelled' %} bg-secondary
-          {%- else %} bg-warning text-dark{%- endif %}">
-          {{ letzter_scan.scan_status|capitalize }}
-        </span>
-        <div class="d-flex gap-3 ms-2 small" style="color:#555">
-          <span><i class="bi bi-files me-1 text-muted"></i>{{ letzter_scan.total_files or 0 }} Dateien</span>
-          <span><i class="bi bi-plus-circle me-1 text-success"></i>{{ letzter_scan.new_files or 0 }} Neu</span>
-          <span><i class="bi bi-arrow-repeat me-1 text-warning"></i>{{ letzter_scan.changed_files or 0 }} Geändert</span>
-          {% if unverknuepfte_funde > 0 %}
-          <a href="{{ url_for('funde.list_funde') }}" class="status-line status-line-warn text-decoration-none"
-             title="Scanner-Funde ohne Zuordnung zu einer Eigenentwicklung">
-            <i class="bi bi-exclamation-circle"></i>{{ unverknuepfte_funde }} zu prüfen
-          </a>
-          {% else %}
-          <span class="status-line status-line-done"><i class="bi bi-check-circle"></i>Alle zugeordnet</span>
-          {% endif %}
-          {% if offene_vorschlaege and offene_vorschlaege > 0 %}
-          <span class="status-line text-info"
-                title="Offene Zuordnungs-Vorschläge (mittlere Konfidenz) – liegen beim Fachbereich">
-            <i class="bi bi-lightbulb"></i>{{ offene_vorschlaege }} Vorschlag/Vorschläge offen
-          </span>
-          {% endif %}
-        </div>
-      {% else %}
-        <span class="text-muted small">Noch kein Scan durchgeführt.</span>
-      {% endif %}
-
-      <div class="ms-auto">
-        <a href="{{ url_for('admin.scanner_einstellungen') }}" class="btn btn-xs btn-outline-secondary">
-          <i class="bi bi-gear-wide-connected me-1"></i>Scanner
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
+{# Scanner-Status ist nach #421 ans Ende des Dashboards gewandert,
+   weil er kein Tagesgeschaeft ist – siehe weiter unten. #}
 
 <!-- ── Unvollständige Eigenentwicklungen (Issue #348) ────────────────── -->
 {% if unvollstaendig_pro_verantwortlicher %}
@@ -309,27 +239,23 @@
         <a href="{{ url_for('eigenentwicklung.list_idv') }}?filter=wesentlich" class="btn btn-sm btn-outline-secondary">Alle</a>
       </div>
       <div class="card-body p-0">
-        <table class="table table-hover mb-0 table-idv">
+        <table class="table table-hover mb-0 table-idv table-compact fs-7">
           <thead>
             <tr>
-              <th>ID</th>
               <th>Bezeichnung</th>
-              <th>Wesentlichkeit</th>
               <th>Status</th>
-              <th>Nächste Prüfung</th>
+              <th class="text-nowrap">Nächste Prüfung</th>
             </tr>
           </thead>
           <tbody>
             {% for r in kritische_idvs[:8] %}
             <tr>
-              <td><a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}" class="fw-500 text-decoration-none">{{
-                  r.idv_id }}</a></td>
-              <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
-              <td>
-                <span class="badge bg-danger fs-8">Wesentlich</span>
+              <td class="text-truncate" style="max-width:340px" title="{{ r.bezeichnung }} ({{ r.idv_id }})">
+                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
+                   class="fw-500 text-decoration-none">{{ r.bezeichnung }}</a>
               </td>
-              <td><span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span></td>
-              <td>
+              <td class="text-nowrap"><span class="badge status-{{ r.status|replace(' ', '-') }}">{{ r.status }}</span></td>
+              <td class="text-nowrap">
                 {% if r.pruefstatus == 'ÜBERFÄLLIG' %}
                 <span class="text-danger fw-bold">{{ r.naechste_pruefung|datefmt }}</span>
                 {% elif r.pruefstatus == 'BALD FÄLLIG' %}
@@ -341,7 +267,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="5" class="text-center text-muted py-4">Keine wesentlichen Eigenentwicklungen gefunden.</td>
+              <td colspan="3" class="text-center text-muted py-4">Keine wesentlichen Eigenentwicklungen gefunden.</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -409,6 +335,58 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ── Scanner-Status (ans Ende verschoben, #421) ──────────────────── -->
+<div class="card border-0 shadow-sm mt-4">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-search text-primary fs-5"></i>
+        <span class="fw-600">Letzter Scan</span>
+      </div>
+
+      {% if letzter_scan %}
+        <span class="text-muted small">
+          {{ (letzter_scan.finished_at or letzter_scan.started_at)|datetimefmt }}
+        </span>
+        <span class="badge
+          {%- if letzter_scan.scan_status == 'completed' %} bg-success
+          {%- elif letzter_scan.scan_status == 'running' %} bg-primary
+          {%- elif letzter_scan.scan_status == 'cancelled' %} bg-secondary
+          {%- else %} bg-warning text-dark{%- endif %}">
+          {{ letzter_scan.scan_status|capitalize }}
+        </span>
+        <div class="d-flex gap-3 ms-2 small text-muted">
+          <span><i class="bi bi-files me-1"></i>{{ letzter_scan.total_files or 0 }} Dateien</span>
+          <span><i class="bi bi-plus-circle me-1 text-success"></i>{{ letzter_scan.new_files or 0 }} Neu</span>
+          <span><i class="bi bi-arrow-repeat me-1 text-warning"></i>{{ letzter_scan.changed_files or 0 }} Geändert</span>
+          {% if unverknuepfte_funde > 0 %}
+          <a href="{{ url_for('funde.list_funde') }}" class="status-line status-line-warn text-decoration-none"
+             title="Scanner-Funde ohne Zuordnung zu einer Eigenentwicklung">
+            <i class="bi bi-exclamation-circle"></i>{{ unverknuepfte_funde }} zu prüfen
+          </a>
+          {% else %}
+          <span class="status-line status-line-done"><i class="bi bi-check-circle"></i>Alle zugeordnet</span>
+          {% endif %}
+          {% if offene_vorschlaege and offene_vorschlaege > 0 %}
+          <span class="status-line text-info"
+                title="Offene Zuordnungs-Vorschläge (mittlere Konfidenz) – liegen beim Fachbereich">
+            <i class="bi bi-lightbulb"></i>{{ offene_vorschlaege }} Vorschlag/Vorschläge offen
+          </span>
+          {% endif %}
+        </div>
+      {% else %}
+        <span class="text-muted small">Noch kein Scan durchgeführt.</span>
+      {% endif %}
+
+      <div class="ms-auto">
+        <a href="{{ url_for('admin.scanner_einstellungen') }}" class="btn btn-xs btn-outline-secondary">
+          <i class="bi bi-gear-wide-connected me-1"></i>Scanner
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

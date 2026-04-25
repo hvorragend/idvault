@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta name="color-scheme" content="light dark">
   <title>{% block title %}idvault{% endblock %} – idvault</title>
   <!-- Bootstrap 5.3 (lokal, offline-fähig) -->
   <link href="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.min.css') }}" rel="stylesheet">
@@ -13,10 +14,16 @@
     rel="stylesheet">
   <!-- idvault eigene Styles (Tokens, Layout, Utilities) -->
   <link href="{{ url_for('static', filename='css/idvault.css') }}" rel="stylesheet">
+  {# E7 (#416): Theme-Toggle so frueh wie moeglich anwenden, vor dem
+     ersten Paint, sonst flackert der Wechsel beim Reload. #}
+  <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
   {% block extra_head %}{% endblock %}
 </head>
 
 <body>
+  {# E5 (#414): Skip-Link – tastatur-/screenreader-zentral.
+     Sichtbar nur bei Fokus, springt zum Hauptinhalt. #}
+  <a href="#main-content" class="idv-skip-link">Zum Inhalt springen</a>
   <div id="sidebar-overlay" data-action="toggleSidebar"></div>
 
   <!-- ═══ Sidebar ════════════════════════════════════════════════════════ -->
@@ -29,7 +36,8 @@
 
     <div class="nav-label">Übersicht</div>
     <a href="{{ url_for('dashboard.index', classic=1) if (_is_admin or _is_koord) else url_for('dashboard.index') }}"
-      class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+      class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}"
+      data-shortcut-goto="d">
       <i class="bi bi-speedometer2"></i> Dashboard
     </a>
     {% if _is_admin or _is_koord %}
@@ -50,7 +58,8 @@
 
     <div class="nav-label">Eigenentwicklungen</div>
     <a href="{{ url_for('eigenentwicklung.list_idv') }}"
-      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' %}active{% endif %}">
+      class="nav-link {% if request.endpoint == 'eigenentwicklung.list_idv' %}active{% endif %}"
+      data-shortcut-goto="e">
       <i class="bi bi-list-ul"></i> Alle
     </a>
     <a href="{{ url_for('eigenentwicklung.wesentliche_idvs') }}"
@@ -77,7 +86,8 @@
           {% endif %}
     </a>
     <a href="{{ url_for('funde.list_funde') }}"
-      class="nav-link {% if request.endpoint == 'funde.list_funde' %}active{% endif %}">
+      class="nav-link {% if request.endpoint == 'funde.list_funde' %}active{% endif %}"
+      data-shortcut-goto="f">
       <i class="bi bi-radar"></i> Alle Funde
     </a>
     <a href="{{ url_for('funde.ignorierte_dateien') }}"
@@ -99,13 +109,27 @@
     {% endif %}
 
     <div class="nav-label">Workflow</div>
-    <a href="{{ url_for('reviews.list_reviews') }}"
-      class="nav-link {% if request.blueprint == 'reviews' %}active{% endif %}">
+    <a href="{{ url_for('reviews.list_reviews') }}{% if pruefung_overdue_count %}?filter=ueberfaellig{% endif %}"
+      class="nav-link {% if request.blueprint == 'reviews' %}active{% endif %}"
+      data-shortcut-goto="r">
       <i class="bi bi-clipboard2-check"></i> Prüfungen
+      {% if pruefung_overdue_count and pruefung_overdue_count > 0 %}
+      <span class="badge bg-danger ms-auto fs-9"
+            title="{{ pruefung_overdue_count }} überfällige Prüfung(en)">
+        {{ pruefung_overdue_count if pruefung_overdue_count < 1000 else (pruefung_overdue_count // 1000)|string + 'k' }}
+      </span>
+      {% endif %}
     </a>
-    <a href="{{ url_for('measures.list_measures') }}"
-      class="nav-link {% if request.blueprint == 'measures' %}active{% endif %}">
+    <a href="{{ url_for('measures.list_measures') }}{% if massnahme_overdue_count %}?filter=ueberfaellig{% endif %}"
+      class="nav-link {% if request.blueprint == 'measures' %}active{% endif %}"
+      data-shortcut-goto="m">
       <i class="bi bi-exclamation-triangle"></i> Maßnahmen
+      {% if massnahme_overdue_count and massnahme_overdue_count > 0 %}
+      <span class="badge bg-danger ms-auto fs-9"
+            title="{{ massnahme_overdue_count }} überfällige Maßnahme(n)">
+        {{ massnahme_overdue_count if massnahme_overdue_count < 1000 else (massnahme_overdue_count // 1000)|string + 'k' }}
+      </span>
+      {% endif %}
     </a>
 
 
@@ -146,8 +170,9 @@
     <!-- Topbar -->
     <div id="topbar">
       <div class="d-flex align-items-center gap-2 flex-grow-1 min-w-0">
-        <button id="hamburger" data-action="toggleSidebar" title="Menü">
-          <i class="bi bi-list"></i>
+        <button id="hamburger" data-action="toggleSidebar"
+                title="Menü öffnen" aria-label="Menü öffnen" aria-controls="sidebar">
+          <i class="bi bi-list" aria-hidden="true"></i>
         </button>
         <nav class="idv-breadcrumb" aria-label="Breadcrumb">
           {% if config.IDV_INSTITUTION_NAME %}
@@ -162,15 +187,21 @@
       </div>
       <div class="d-flex align-items-center gap-2">
         {% if session.user_id %}
-        <button id="quick-search-btn" class="topbar-action" data-action="openSearch" title="Schnellsuche (Strg+K)">
-          <i class="bi bi-search"></i>
+        <button id="quick-search-btn" class="topbar-action" data-action="openSearch"
+                title="Schnellsuche (Strg+K)" aria-label="Schnellsuche öffnen" aria-keyshortcuts="Control+K">
+          <i class="bi bi-search" aria-hidden="true"></i>
           <span class="d-none d-lg-inline">Suche</span>
-          <kbd class="kbd-soft d-none d-lg-inline">Strg K</kbd>
+          <kbd class="kbd-soft d-none d-lg-inline" aria-hidden="true">Strg K</kbd>
         </button>
-        <button class="topbar-action d-none d-md-inline-flex" data-action="showHelp" title="Tastatur-Shortcuts anzeigen">
-          <i class="bi bi-keyboard"></i>
+        <button class="topbar-action d-none d-md-inline-flex" data-action="showHelp"
+                title="Tastatur-Shortcuts anzeigen" aria-label="Tastatur-Shortcuts anzeigen" aria-keyshortcuts="?">
+          <i class="bi bi-keyboard" aria-hidden="true"></i>
           <span class="d-none d-lg-inline">Shortcuts</span>
-          <kbd class="kbd-soft d-none d-lg-inline">?</kbd>
+          <kbd class="kbd-soft d-none d-lg-inline" aria-hidden="true">?</kbd>
+        </button>
+        <button id="theme-toggle-btn" class="topbar-action" data-action="toggleTheme"
+                title="Dunkles Theme aktivieren" aria-label="Dunkles Theme aktivieren">
+          <i class="bi bi-moon-stars" aria-hidden="true"></i>
         </button>
         {% endif %}
         {% if session.user_name %}
@@ -183,28 +214,35 @@
     </div>
 
     <!-- Flash Messages -->
+    {# E7 (#416): „success" und „info" werden als nicht-blockierende
+       Toasts (oben rechts) gerendert; Fehler und Phasenuebergaenge
+       bleiben Banner, weil sie aktiv gelesen werden sollen. #}
     <div class="px-4 pt-3">
       {% with messages = get_flashed_messages(with_categories=true) %}
       {% for cat, msg in messages %}
-      {% set alert_class = 'danger' if cat == 'error'
-                           else ('phase-transition' if cat == 'phase_transition'
-                           else cat) %}
-      <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center" role="alert">
-        {% if cat == 'phase_transition' %}<i class="bi bi-arrow-right-circle-fill me-2 fs-5"></i>{% endif %}
-        <div class="flex-grow-1">{{ msg }}</div>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      </div>
+        {% if cat in ('success', 'info') %}
+          <template data-toast="{{ cat }}">{{ msg }}</template>
+        {% else %}
+          {% set alert_class = 'danger' if cat == 'error'
+                               else ('phase-transition' if cat == 'phase_transition'
+                               else cat) %}
+          <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center" role="alert">
+            {% if cat == 'phase_transition' %}<i class="bi bi-arrow-right-circle-fill me-2 fs-5" aria-hidden="true"></i>{% endif %}
+            <div class="flex-grow-1">{{ msg }}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schließen"></button>
+          </div>
+        {% endif %}
       {% endfor %}
       {% endwith %}
     </div>
 
     <!-- Content -->
-    <div class="content-wrapper">
+    <main id="main-content" class="content-wrapper" tabindex="-1">
       {# Optionaler einheitlicher Seitenkopf (Tags, Status, Actions).
          Templates rendern Markup der Art <div class="idv-page-header">…</div>. #}
       {% block page_header %}{% endblock %}
       {% block content %}{% endblock %}
-    </div>
+    </main>
 
     <footer class="text-center text-muted py-3 idv-footer">
       idvault {{ config.APP_VERSION }} &nbsp;·&nbsp; MaRisk AT 7.2 / DORA
@@ -215,7 +253,14 @@
   </div>
 
   <script src="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.bundle.min.js') }}"></script>
+  {# E7 (#416): zentrale Helper (toast, escapeHTML, debounce). #}
+  <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/person_autocomplete.js') }}" defer></script>
+  {# E4 (#413): Power-User-Shortcuts (j/k, o, /, x, g d/e/f/r/m).
+     Erweitert die in diesem Template definierten Basis-Shortcuts. #}
+  <script src="{{ url_for('static', filename='js/keyboard-shortcuts.js') }}" defer></script>
+  {# E6 (#415): Section-Navigation in langen Formularen (no-op ohne .idv-form-nav). #}
+  <script src="{{ url_for('static', filename='js/form-section-nav.js') }}" defer></script>
   <script>
     // ── Tabellen-Sortierer ──────────────────────────────────────────────────
     (function () {
@@ -385,17 +430,24 @@
   <!-- ═══ Globale Schnellsuche ════════════════════════════════════════════ -->
   <div id="qs-backdrop" data-action="closeSearch"
     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1050;"></div>
-  <div id="qs-modal" style="display:none;position:fixed;top:12vh;left:50%;transform:translateX(-50%);
+  <div id="qs-modal"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="qs-title"
+       aria-hidden="true"
+       style="display:none;position:fixed;top:12vh;left:50%;transform:translateX(-50%);
               width:min(620px,95vw);background:#fff;
               box-shadow:0 20px 60px rgba(0,0,0,.3);z-index:1051;overflow:hidden;">
+    <h2 id="qs-title" class="visually-hidden">Schnellsuche</h2>
     <div style="padding:.6rem .9rem;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:.6rem;">
-      <i class="bi bi-search text-muted"></i>
-      <input id="qs-input" type="text" autocomplete="off" spellcheck="false"
+      <i class="bi bi-search text-muted" aria-hidden="true"></i>
+      <input id="qs-input" type="search" autocomplete="off" spellcheck="false"
+        aria-label="Eigenentwicklungen durchsuchen"
         placeholder="ID, Bezeichnung, Beschreibung …"
         style="flex:1;border:none;outline:none;font-size:1rem;background:transparent;">
-      <kbd class="kbd-soft" data-action="closeSearch" style="cursor:pointer">Esc</kbd>
+      <kbd class="kbd-soft" data-action="closeSearch" style="cursor:pointer" title="Schließen">Esc</kbd>
     </div>
-    <div id="qs-results" style="max-height:400px;overflow-y:auto;"></div>
+    <div id="qs-results" role="listbox" aria-label="Suchtreffer" style="max-height:400px;overflow-y:auto;"></div>
     <div id="qs-footer" class="fs-8 text-subtle" style="padding:.45rem .9rem;border-top:1px solid var(--idv-border);display:flex;gap:1rem;">
       <span><kbd class="kbd-soft">↵</kbd> Öffnen</span>
       <span><kbd class="kbd-soft">↑↓</kbd> Navigieren</span>
@@ -410,9 +462,12 @@
       const input = document.getElementById('qs-input');
       const results = document.getElementById('qs-results');
       let timer = null, activeIdx = -1, items = [];
+      let lastTrigger = null;   // Element, das das Modal geoeffnet hat (Fokus-Rueckgabe)
 
       window.openSearch = function () {
+        lastTrigger = document.activeElement;
         backdrop.style.display = modal.style.display = 'block';
+        modal.setAttribute('aria-hidden', 'false');
         input.value = '';
         results.innerHTML = '';
         activeIdx = -1;
@@ -421,7 +476,27 @@
 
       window.closeSearch = function () {
         backdrop.style.display = modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+        // Fokus an das oeffnende Element zurueckgeben (A11y).
+        if (lastTrigger && typeof lastTrigger.focus === 'function') {
+          try { lastTrigger.focus(); } catch (e) { /* ignore */ }
+        }
+        lastTrigger = null;
       };
+
+      // Fokus-Trap: Tab/Shift+Tab darf das Modal nicht verlassen, solange offen.
+      modal.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab') return;
+        var focusables = modal.querySelectorAll(
+          'input, button, [href], [tabindex]:not([tabindex="-1"]), .qs-item');
+        if (!focusables.length) return;
+        var first = focusables[0], last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault(); first.focus();
+        }
+      });
 
       // Strg+K / Cmd+K öffnet die Suche
       document.addEventListener('keydown', e => {
@@ -500,44 +575,95 @@
         return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ||
           el.tagName === 'SELECT' || el.getAttribute('contenteditable') === 'true');
       }
+      // #419: Strukturierte Shortcut-Gruppen (zweispaltiges Modal).
+      // Module wie keyboard-shortcuts.js erweitern window._shortcutGroups.
       var helpEl = null;
+      function getGroups() {
+        var defaults = {
+          global: {
+            title: 'Global',
+            items: [
+              ['Strg K',   'Schnellsuche öffnen'],
+              ['Strg S',   'Formular speichern'],
+              ['Strg ⇧ S', 'Speichern & Schließen'],
+              ['?',        'Diese Übersicht zeigen'],
+              ['Esc',      'Dialog / Suche schließen']
+            ]
+          },
+          forms: {
+            title: 'Formulare',
+            items: [
+              ['N', 'Neue Eigenentwicklung anlegen'],
+              ['E', 'Eigenentwicklung bearbeiten']
+            ]
+          },
+          navigation: { title: 'Navigation', items: [] },
+          lists:      { title: 'Listen',     items: [] }
+        };
+        var ext = window._shortcutGroups || {};
+        Object.keys(ext).forEach(function (k) {
+          if (!defaults[k]) { defaults[k] = ext[k]; return; }
+          if (ext[k].items) defaults[k].items = defaults[k].items.concat(ext[k].items);
+        });
+        // Backward-Compat: window._extraShortcuts wird in „Sonstiges" gehaengt.
+        if (window._extraShortcuts && window._extraShortcuts.length) {
+          defaults.misc = defaults.misc ||
+            { title: 'Weitere', items: [] };
+          defaults.misc.items = defaults.misc.items.concat(window._extraShortcuts);
+        }
+        return defaults;
+      }
+      function escapeHelp(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+      }
+      function renderGroup(g) {
+        if (!g || !g.items || !g.items.length) return '';
+        var rows = g.items.map(function (r) {
+          return '<div class="kbd-help-row">' +
+            '<kbd class="kbd-help-key">' + escapeHelp(r[0]) + '</kbd>' +
+            '<span class="kbd-help-desc">' + escapeHelp(r[1]) + '</span></div>';
+        }).join('');
+        return '<section class="kbd-help-group">' +
+               '<h3 class="kbd-help-grouptitle">' + escapeHelp(g.title) + '</h3>' +
+               rows + '</section>';
+      }
       function getHelp() {
-        if (helpEl) return helpEl;
+        if (helpEl) {
+          // Inhalt bei jedem Aufruf neu rendern – Module koennen nachregistrieren.
+          rebuildHelp();
+          return helpEl;
+        }
         helpEl = document.createElement('div');
         helpEl.id = 'kbd-help';
-        helpEl.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:2000;' +
-          'background:rgba(0,0,0,.5);align-items:center;justify-content:center;';
-        var rows = [
-          ['Strg S', 'Formular speichern'],
-          ['Strg ⇧ S', 'Speichern &amp; Schließen (zur Liste)'],
-          ['Strg K', 'Schnellsuche öffnen'],
-          ['N', 'Neue Eigenentwicklung anlegen'],
-          ['E', 'Eigenentwicklung bearbeiten (Detailseite)'],
-          ['?', 'Diese Shortcut-Übersicht zeigen'],
-          ['Esc', 'Dialog / Suche schließen'],
-        ].concat(window._extraShortcuts || []);
-        helpEl.innerHTML =
-          '<div style="background:#fff;padding:1.5rem 2rem;min-width:340px;max-width:95vw;' +
-          'box-shadow:0 24px 64px rgba(0,0,0,.35);">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem">' +
-          '<strong style="font-size:1rem">Tastatur-Shortcuts</strong>' +
-          '<button id="kbd-help-close" style="background:none;border:none;font-size:1.4rem;' +
-          'cursor:pointer;line-height:1;color:#6b7280">&times;</button></div>' +
-          rows.map(function (r) {
-            return '<div style="display:flex;align-items:center;justify-content:space-between;gap:2rem;' +
-              'padding:.45rem 0;border-bottom:1px solid #f0f0f0">' +
-              '<kbd style="background:#f1f5f9;border:1px solid #cbd5e1;' +
-              'padding:.2rem .6rem;font-size:.82rem;white-space:nowrap;color:#1e293b">' + r[0] + '</kbd>' +
-              '<span style="color:#374151;font-size:.88rem;text-align:right">' + r[1] + '</span></div>';
-          }).join('') + '</div>';
+        helpEl.className = 'idv-kbd-help';
+        helpEl.setAttribute('role', 'dialog');
+        helpEl.setAttribute('aria-modal', 'true');
+        helpEl.setAttribute('aria-labelledby', 'kbd-help-title');
+        rebuildHelp();
         document.body.appendChild(helpEl);
         helpEl.addEventListener('click', function (e) {
           if (e.target === helpEl || e.target.id === 'kbd-help-close') hideHelp();
         });
         return helpEl;
       }
-      function showHelp() { var m = getHelp(); m.style.display = 'flex'; }
-      function hideHelp() { if (helpEl) helpEl.style.display = 'none'; }
+      function rebuildHelp() {
+        var groups = getGroups();
+        var order = ['global', 'navigation', 'lists', 'forms', 'misc'];
+        var html = order.map(function (k) { return renderGroup(groups[k]); }).join('');
+        helpEl.innerHTML =
+          '<div class="kbd-help-box" role="document">' +
+          '  <div class="kbd-help-head">' +
+          '    <h2 id="kbd-help-title" class="kbd-help-title">Tastatur-Shortcuts</h2>' +
+          '    <button id="kbd-help-close" class="kbd-help-close" aria-label="Schließen">&times;</button>' +
+          '  </div>' +
+          '  <div class="kbd-help-grid">' + html + '</div>' +
+          '  <div class="kbd-help-foot">Tipp: <kbd class="kbd-help-key">/</kbd> fokussiert die Suche, <kbd class="kbd-help-key">g</kbd> + Buchstabe springt zwischen Bereichen.</div>' +
+          '</div>';
+      }
+      function showHelp() { var m = getHelp(); m.classList.add('show'); }
+      function hideHelp() { if (helpEl) helpEl.classList.remove('show'); }
       window.showHelp = showHelp;
 
       document.addEventListener('keydown', function (e) {
@@ -583,7 +709,7 @@
         var qs = document.getElementById('qs-modal');
         if (qs && qs.style.display !== 'none') { closeSearch(); return; }
         var kh = document.getElementById('kbd-help');
-        if (kh && kh.style.display !== 'none') { kh.style.display = 'none'; return; }
+        if (kh && kh.classList.contains('show')) { kh.classList.remove('show'); return; }
         var cancel = document.querySelector('[data-esc-cancel]');
         if (cancel) { e.preventDefault(); cancel.click(); }
       }, true);

@@ -1,0 +1,23 @@
+{# Wiederverwendbares Empty-State-Partial.
+
+   Parameter:
+     icon         – Bootstrap-Icon-Klasse (z. B. "bi-inbox").              required
+     title        – Hauptueberschrift (z. B. "Keine Eintraege").           required
+     text         – Erklaerender Hilfstext.                                optional
+     action_url   – Ziel fuer den Primaer-Button.                          optional
+     action_label – Beschriftung des Primaer-Buttons.                      optional
+     action_icon  – Icon des Primaer-Buttons (default "bi-plus-circle").   optional
+
+   Beispiel:
+     {% include "_empty_state.html" with context %}
+#}
+<div class="idv-empty-state">
+  <div class="idv-empty-icon"><i class="bi {{ icon }}" aria-hidden="true"></i></div>
+  <div class="idv-empty-title">{{ title }}</div>
+  {% if text %}<div class="idv-empty-text">{{ text }}</div>{% endif %}
+  {% if action_url and action_label %}
+  <a href="{{ action_url }}" class="btn btn-sm btn-primary mt-3">
+    <i class="bi {{ action_icon or 'bi-plus-circle' }} me-1"></i>{{ action_label }}
+  </a>
+  {% endif %}
+</div>

@@ -105,6 +105,21 @@
 
   /* Layout */
   --sidebar-width: 240px;
+  --topbar-height: 3.25rem;
+  --content-padding: 1.5rem;
+  --card-padding-x: 1.2rem;
+  --card-padding-y: 1.1rem;
+  --form-gap: 1.25rem;
+
+  /* Icon-Groessen (gemeinsame Familie fuer Card-/Stat-/Section-Icons).
+     Werden in Sektion 18/19 (stat-icon, hi-icon) und 8 (fst-icon) genutzt. */
+  --icon-xs: 1.4rem;
+  --icon-sm: 1.7rem;
+  --icon-md: 2rem;
+  --icon-lg: 2.4rem;
+
+  /* Toast-Container-Position (siehe E7) */
+  --toast-z: 1080;
 }
 
 /* 2. Basis-Typografie ──────────────────────────────────────────────────────── */
@@ -497,7 +512,7 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 }
 
 .content-wrapper {
-  padding: 1.5rem;
+  padding: var(--content-padding);
   flex: 1;
 }
 
@@ -667,6 +682,13 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 /* Visibility */
 .hidden { display: none !important; }
 
+/* Icon-Badge-Familie (gemeinsame Basis fuer .stat-icon, .hi-icon, .fst-icon).
+   Modifikatoren .icon-xs/-sm/-md/-lg liefern konsistente Groessen. */
+.icon-xs { width: var(--icon-xs); height: var(--icon-xs); font-size: .78rem; }
+.icon-sm { width: var(--icon-sm); height: var(--icon-sm); font-size: .9rem;  }
+.icon-md { width: var(--icon-md); height: var(--icon-md); font-size: 1rem;   }
+.icon-lg { width: var(--icon-lg); height: var(--icon-lg); font-size: 1.1rem; }
+
 /* 15. Avatar-Chip (Initial-Quadrat + Name + optional E-Mail) ──────────────── */
 .avatar-initial {
   display: inline-flex;
@@ -763,9 +785,10 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-color: var(--slate-300);
 }
 
-.badge.status-In\ Prüfung,
-.badge.status-In-Prüfung,
-.badge.status-In-Pr\fc fung {
+/* Templates rendern Status stets mit `replace(' ', '-')`, daher ist die
+   Bindestrich-Form die kanonische Klasse. Die alten Varianten mit
+   Leerzeichen oder Unicode-Escape (\fc = u+00FC = ü) sind entfernt. */
+.badge.status-In-Prüfung {
   background: #eff6ff;
   color: #1d4ed8;
   border-color: #bfdbfe;
@@ -777,7 +800,6 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-color: #bbf7d0;
 }
 
-.badge.status-Freigegeben\ mit\ Auflagen,
 .badge.status-Freigegeben-mit-Auflagen {
   background: var(--amber-50);
   color: var(--amber-700);
@@ -790,8 +812,7 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-color: #fecaca;
 }
 
-.badge.status-Abgekündigt,
-.badge.status-Abgek\fc ndigt {
+.badge.status-Abgekündigt {
   background: #faf5ff;
   color: #7e22ce;
   border-color: #e9d5ff;
@@ -1472,6 +1493,475 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 .nav-pills .nav-link.active i,
 .nav-pills .show > .nav-link i {
   color: var(--amber-400);
+}
+
+/* 37. Collapsible Card (<details>-basiert) ──────────────────────────────── */
+/* Genutzt im Dashboard fuer die Kennzahlen-Sektion (#411). Chevron rotiert
+   beim Aufklappen, Summary verhaelt sich wie ein Card-Header. */
+.idv-collapsible-card > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.idv-collapsible-card > summary::-webkit-details-marker { display: none; }
+.idv-collapsible-card > summary:hover { background: var(--slate-50); }
+
+.idv-collapsible-chevron {
+  transition: transform var(--t-fast);
+  color: var(--slate-500);
+  font-size: .85rem;
+}
+
+.idv-collapsible-card[open] > summary .idv-collapsible-chevron {
+  transform: rotate(90deg);
+}
+
+/* 45. Tastatur-Shortcut-Modal (#419) ────────────────────────────────── */
+/* Zweispaltiges Layout mit Gruppen-Subtitles. CSS-getrieben, damit es
+   im Dark-Mode automatisch mitfaerbt. Inline-Styles sind weg. */
+.idv-kbd-help {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, .55);
+  align-items: center;
+  justify-content: center;
+}
+.idv-kbd-help.show { display: flex; }
+.idv-kbd-help .kbd-help-box {
+  background: var(--idv-surface);
+  color: var(--idv-text);
+  padding: 1.4rem 1.6rem;
+  width: min(760px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .35);
+  border: 1px solid var(--idv-border);
+}
+.idv-kbd-help .kbd-help-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: .8rem;
+  border-bottom: 1px solid var(--idv-border);
+}
+.idv-kbd-help .kbd-help-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--idv-text);
+}
+.idv-kbd-help .kbd-help-close {
+  background: none;
+  border: 0;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--slate-500);
+  padding: 0 .3rem;
+}
+.idv-kbd-help .kbd-help-close:hover { color: var(--slate-900); }
+
+.idv-kbd-help .kbd-help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem 2rem;
+}
+@media (max-width: 575.98px) {
+  .idv-kbd-help .kbd-help-grid { grid-template-columns: 1fr; }
+}
+
+.idv-kbd-help .kbd-help-group { min-width: 0; }
+.idv-kbd-help .kbd-help-grouptitle {
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--slate-500);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin: 0 0 .5rem;
+  padding-bottom: .25rem;
+  border-bottom: 1px solid var(--idv-border);
+}
+.idv-kbd-help .kbd-help-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .35rem 0;
+}
+.idv-kbd-help .kbd-help-key {
+  background: var(--slate-100);
+  border: 1px solid var(--idv-border);
+  padding: .15rem .55rem;
+  font-size: .78rem;
+  white-space: nowrap;
+  color: var(--idv-text);
+  flex-shrink: 0;
+}
+.idv-kbd-help .kbd-help-desc {
+  color: var(--idv-text-subtle);
+  font-size: .85rem;
+  text-align: right;
+}
+.idv-kbd-help .kbd-help-foot {
+  margin-top: 1rem;
+  padding-top: .8rem;
+  border-top: 1px solid var(--idv-border);
+  color: var(--idv-text-subtle);
+  font-size: .78rem;
+}
+
+/* 42. Toasts (#416) ──────────────────────────────────────────────────── */
+/* Bootstrap-Toast-Container wird von static/js/utils.js angelegt.
+   Eigene Variante: linke Akzentkante in Tone der Kategorie. */
+.idv-toast {
+  border-left: 4px solid var(--slate-400);
+  border-radius: var(--radius-md);
+  background: var(--idv-surface);
+  color: var(--idv-text);
+  box-shadow: var(--shadow-md);
+  min-width: 280px;
+  max-width: 380px;
+}
+.idv-toast .toast-body i { font-size: 1.05rem; }
+.idv-toast-success { border-left-color: #15803d; }
+.idv-toast-success .toast-body i { color: #15803d; }
+.idv-toast-info    { border-left-color: #1d4ed8; }
+.idv-toast-info    .toast-body i { color: #1d4ed8; }
+.idv-toast-warning { border-left-color: var(--amber-500); }
+.idv-toast-warning .toast-body i { color: var(--amber-700); }
+.idv-toast-danger  { border-left-color: #b91c1c; }
+.idv-toast-danger  .toast-body i { color: #b91c1c; }
+
+/* 43. Mobile-Card-Layout fuer Tabellen (#416) ────────────────────────── */
+/* Anstatt horizontalen Scrolls werden Tabellen mit der Klasse
+   .table-cards-sm unter <768px zu Karten umformatiert. Vorausgesetzt:
+   jede <td> hat ein data-label="Spaltenname"-Attribut. */
+@media (max-width: 767.98px) {
+  .table-cards-sm,
+  .table-cards-sm thead,
+  .table-cards-sm tbody,
+  .table-cards-sm tr,
+  .table-cards-sm td {
+    display: block;
+    width: 100%;
+  }
+  .table-cards-sm thead { display: none; }
+  .table-cards-sm tbody tr {
+    border: 1px solid var(--idv-border);
+    margin-bottom: var(--space-3);
+    background: var(--idv-surface);
+    box-shadow: var(--shadow-sm);
+    padding: .5rem .25rem;
+  }
+  .table-cards-sm tbody td {
+    border: none;
+    padding: .35rem .8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: .8rem;
+  }
+  .table-cards-sm tbody td::before {
+    content: attr(data-label);
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--slate-500);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .table-cards-sm tbody td:empty { display: none; }
+  /* Sticky-Header-Regel von Sektion 38 fuer Card-Layout deaktivieren. */
+  .table-cards-sm thead th { position: static; }
+}
+
+/* 44. Dark-Mode-Vorbereitung (#416) ──────────────────────────────────── */
+/* Opt-in via <html data-bs-theme="dark">. Gesteuert durch
+   static/js/theme-toggle.js (localStorage["idv:theme"] +
+   prefers-color-scheme als Fallback). Light-Mode bleibt Default
+   und unveraendert. */
+:root[data-bs-theme="dark"] {
+  --idv-bg:          #0b1220;
+  --idv-surface:     #111a2e;
+  --idv-text:        #e2e8f0;
+  --idv-text-subtle: #94a3b8;
+  --idv-border:        #1f2a44;
+  --idv-border-strong: #2a3654;
+  --slate-50:  #1a2336;
+  --slate-100: #1f2a44;
+  --slate-200: #2a3654;
+  --shadow-sm: 0 1px 3px  rgba(0, 0, 0, .35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, .45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .55);
+}
+:root[data-bs-theme="dark"] body { background: var(--idv-bg); color: var(--idv-text); }
+:root[data-bs-theme="dark"] .stat-card-v2,
+:root[data-bs-theme="dark"] .stat-card,
+:root[data-bs-theme="dark"] .idv-card,
+:root[data-bs-theme="dark"] .form-section,
+:root[data-bs-theme="dark"] .card { background: var(--idv-surface); color: var(--idv-text); }
+:root[data-bs-theme="dark"] .table-idv tbody tr:nth-child(even) { background: rgba(255,255,255,.025); }
+:root[data-bs-theme="dark"] .table-idv tbody tr:hover { background: rgba(245, 158, 11, .08); }
+
+/* #420: Tabellen-Header und Bootstrap-Utility-Hintergruende im Dark-Mode
+   neutralisieren – sonst leuchten sie weiss auf dunklen Karten. */
+:root[data-bs-theme="dark"] .table thead th,
+:root[data-bs-theme="dark"] .table-idv thead th {
+  background: #182135;
+  color: var(--idv-text-subtle);
+  border-bottom-color: var(--idv-border);
+  box-shadow: 0 1px 0 var(--idv-border);
+}
+:root[data-bs-theme="dark"] .table-idv thead th a:hover { color: var(--idv-text); }
+:root[data-bs-theme="dark"] .table-hover > tbody > tr:hover > * { background: rgba(255,255,255,.04); }
+
+/* Bootstrap-Helfer-Klassen im Dark-Mode auf Surface umlegen, damit die
+   dashboard.html-Karten („card-header bg-white", „bg-light") nicht
+   weiss bleiben. Die !important-Regeln stammen von Bootstrap. */
+:root[data-bs-theme="dark"] .bg-white,
+:root[data-bs-theme="dark"] .card > .card-header.bg-white,
+:root[data-bs-theme="dark"] .card-header.bg-white {
+  background: var(--idv-surface) !important;
+  color: var(--idv-text) !important;
+}
+:root[data-bs-theme="dark"] .bg-light,
+:root[data-bs-theme="dark"] .card > .card-header.bg-light {
+  background: #182135 !important;
+  color: var(--idv-text) !important;
+}
+
+/* List-group im Dark-Mode (Pruef-Faelligkeiten, Offene Massnahmen) */
+:root[data-bs-theme="dark"] .list-group,
+:root[data-bs-theme="dark"] .list-group-item {
+  background: var(--idv-surface);
+  color: var(--idv-text);
+  border-color: var(--idv-border);
+}
+
+/* Topbar dunkel halten */
+:root[data-bs-theme="dark"] #topbar {
+  background: var(--idv-surface);
+  border-bottom-color: var(--idv-border);
+}
+:root[data-bs-theme="dark"] .topbar-action {
+  border-color: var(--idv-border);
+  color: var(--idv-text-subtle);
+}
+:root[data-bs-theme="dark"] .topbar-action:hover {
+  border-color: var(--slate-200);
+  color: var(--idv-text);
+  background: var(--slate-50);
+}
+:root[data-bs-theme="dark"] .kbd-soft {
+  background: var(--slate-100);
+  border-color: var(--slate-200);
+  color: var(--idv-text);
+}
+
+/* Page-Header Bottom-Border + Section-Borders */
+:root[data-bs-theme="dark"] .idv-page-header { border-bottom-color: var(--idv-border); }
+:root[data-bs-theme="dark"] .idv-form-nav {
+  background: var(--idv-surface);
+  border-bottom-color: var(--idv-border);
+}
+:root[data-bs-theme="dark"] .idv-form-nav-tab:hover {
+  background: rgba(255,255,255,.03);
+  color: var(--idv-text);
+}
+:root[data-bs-theme="dark"] .idv-form-nav-tab.active { color: var(--idv-text); }
+
+/* Empty-State im Dark-Mode */
+:root[data-bs-theme="dark"] .idv-empty-icon {
+  background: rgba(255,255,255,.04);
+  color: var(--idv-text-subtle);
+}
+:root[data-bs-theme="dark"] .idv-empty-title { color: var(--idv-text); }
+
+/* Inputs und Form-Controls fuer Dark-Mode beruhigen */
+:root[data-bs-theme="dark"] .form-control,
+:root[data-bs-theme="dark"] .form-select {
+  background-color: #142036;
+  border-color: var(--idv-border);
+  color: var(--idv-text);
+}
+:root[data-bs-theme="dark"] .form-control::placeholder { color: var(--slate-200); opacity: .55; }
+:root[data-bs-theme="dark"] .form-control:focus,
+:root[data-bs-theme="dark"] .form-select:focus {
+  background-color: #142036;
+  border-color: var(--amber-500);
+  color: var(--idv-text);
+}
+
+/* Sticky-Tabellen-Header im Dark-Mode: dunklen Hintergrund hinter
+   sticky-th legen, damit der Body nicht durchscheint. */
+:root[data-bs-theme="dark"] .table-idv thead,
+:root[data-bs-theme="dark"] .table-sticky thead { background: var(--idv-surface); }
+
+/* Quick-Search-Modal im Dark-Mode (Inline-Styles in base.html ueberschreiben) */
+:root[data-bs-theme="dark"] #qs-modal { background: var(--idv-surface) !important; color: var(--idv-text); }
+:root[data-bs-theme="dark"] #qs-modal input { color: var(--idv-text); }
+:root[data-bs-theme="dark"] .qs-item:hover,
+:root[data-bs-theme="dark"] .qs-item.qs-active { background: rgba(255,255,255,.04); }
+:root[data-bs-theme="dark"] .qs-badge {
+  background: var(--slate-100);
+  color: var(--idv-text);
+}
+
+/* 41. Form-Section-Navigation (#415) ──────────────────────────────────── */
+/* Sticky Tab-Bar oberhalb langer Formulare. Anchor-Links springen zur
+   jeweiligen .form-section; aktiver Tab wird per IntersectionObserver
+   in static/js/form-section-nav.js gesetzt.
+
+   scroll-padding-top sorgt dafuer, dass der Anker nicht hinter der
+   Topbar landet. */
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-height) + 1rem); }
+
+.idv-form-nav {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  background: var(--idv-surface);
+  border-bottom: 1px solid var(--idv-border);
+  padding: .25rem 0;
+  margin-left: calc(-1 * var(--content-padding));
+  margin-right: calc(-1 * var(--content-padding));
+  padding-left: var(--content-padding);
+  padding-right: var(--content-padding);
+  box-shadow: 0 1px 0 var(--idv-border);
+}
+
+.idv-form-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: .55rem .9rem;
+  color: var(--slate-600);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: .85rem;
+  border-bottom: 2px solid transparent;
+  transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+}
+
+.idv-form-nav-tab:hover {
+  color: var(--slate-900);
+  background: var(--slate-50);
+}
+
+.idv-form-nav-tab.active {
+  color: var(--slate-900);
+  border-bottom-color: var(--amber-500);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* 40. Accessibility (#414) ──────────────────────────────────────────────── */
+/* Skip-Link – sichtbar nur bei Tastatur-Fokus.
+   Erlaubt Screenreader-/Tastatur-Nutzern, die Sidebar zu uebergehen. */
+.idv-skip-link {
+  position: absolute;
+  top: -3rem;
+  left: 0;
+  background: var(--slate-900);
+  color: #fff;
+  padding: .55rem 1rem;
+  z-index: 9999;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top var(--t-fast);
+}
+.idv-skip-link:focus {
+  top: 0;
+  color: #fff;
+  outline: 3px solid var(--amber-400);
+  outline-offset: 2px;
+}
+
+/* Bootstrap-aequivalent .visually-hidden ist bereits in Bootstrap 5
+   enthalten; keine Eigenregel noetig. */
+
+/* 39. Empty-State (#412) ────────────────────────────────────────────────── */
+/* Konsistente Leer-Zustaende fuer Listen, Reviews, Massnahmen etc.
+   Genutzt via {% include "_empty_state.html" %}. */
+.idv-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--slate-500);
+}
+.idv-empty-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-md);
+  background: var(--slate-100);
+  color: var(--slate-400);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  margin-bottom: .8rem;
+}
+.idv-empty-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  margin-bottom: .25rem;
+}
+.idv-empty-text {
+  font-size: .85rem;
+  color: var(--slate-500);
+  max-width: 32rem;
+  line-height: 1.5;
+}
+
+/* 38. Sticky-Header fuer Tabellen (#411, #412) ───────────────────────────── */
+/* Die Header-Zelle bleibt beim vertikalen Scrollen am oberen Rand stehen.
+   Vorausgesetzt: Tabelle hat einen scrollbaren Vorfahren oder die Seite
+   selbst scrollt. Reine CSS-Loesung, kein JS. */
+.table-idv thead th,
+.table-sticky thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* Schatten-Linie als optischer Trenner zur darunterliegenden Zeile */
+  box-shadow: 0 1px 0 var(--idv-border);
+}
+
+/* Klappbare Tabelle: zusaetzlicher Wrapper mit max-height + scroll. */
+.table-scrollbox {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* Kompakter Tabellen-Modifier (#418): kleinere Zeilen-Padding fuer
+   Dashboard-Mini-Listen, damit z. B. die „Wesentliche IDVs"-Tabelle
+   nicht in Zeilenumbrueche geraet. Mit .fs-7 / .fs-8 kombinierbar. */
+.table.table-compact > :not(caption) > * > * {
+  padding: .35rem .5rem;
+}
+.table.table-compact thead th {
+  padding: .4rem .5rem;
+  font-size: .68rem;
+}
+
+/* Tastatur-Navigations-Zeile (j/k aus keyboard-shortcuts.js, #413).
+   Hebt die aktuell mit Pfeilen/JK markierte Zeile dezent hervor. */
+.table-idv tbody tr.idv-row-active,
+.table-idv tbody tr.idv-row-active:hover {
+  background: var(--amber-50);
+  outline: 2px solid var(--amber-300);
+  outline-offset: -2px;
 }
 
 /* 16. Druck-Stylesheet ────────────────────────────────────────────────────── */

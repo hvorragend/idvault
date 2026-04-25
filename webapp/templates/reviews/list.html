@@ -7,17 +7,17 @@
     <span class="fw-600">{{ pruefungen|length }} Prüfungen</span>
   </div>
   <div class="table-responsive">
-    <table class="table table-hover mb-0 table-idv">
+    <table class="table table-hover mb-0 table-idv table-cards-sm">
       <thead><tr><th>Datum</th><th>Eigenentwicklung</th><th>Art</th><th>Ergebnis</th><th>Prüfer</th><th></th></tr></thead>
       <tbody>
         {% for p in pruefungen %}
         <tr>
-          <td>{{ p.pruefungsdatum|datefmt }}</td>
-          <td><a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=p.idv_id) }}" class="text-decoration-none fw-500">{{ p.idv_bezeichnung|truncate(40) }}</a></td>
-          <td>{{ p.pruefungsart }}</td>
-          <td><span class="badge {{ 'bg-success' if p.ergebnis == 'Ohne Befund' else 'bg-warning text-dark' if p.ergebnis == 'Mit Befund' else 'bg-danger' }}">{{ p.ergebnis }}</span></td>
-          <td>{{ p.pruefer or '–' }}</td>
-          <td class="text-nowrap text-end">
+          <td data-label="Datum">{{ p.pruefungsdatum|datefmt }}</td>
+          <td data-label="Eigenentwicklung"><a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=p.idv_id) }}" class="text-decoration-none fw-500">{{ p.idv_bezeichnung|truncate(40) }}</a></td>
+          <td data-label="Art">{{ p.pruefungsart }}</td>
+          <td data-label="Ergebnis"><span class="badge {{ 'bg-success' if p.ergebnis == 'Ohne Befund' else 'bg-warning text-dark' if p.ergebnis == 'Mit Befund' else 'bg-danger' }}">{{ p.ergebnis }}</span></td>
+          <td data-label="Prüfer">{{ p.pruefer or '–' }}</td>
+          <td data-label="" class="text-nowrap text-end">
             {% if session.user_role == 'IDV-Administrator' %}
             <a href="{{ url_for('reviews.edit_review', p_id=p.id) }}" class="btn btn-xs btn-outline-secondary" title="Bearbeiten">
               <i class="bi bi-pencil"></i>
@@ -32,7 +32,12 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-center text-muted py-4">Keine Prüfungen vorhanden.</td></tr>
+        <tr><td colspan="6" class="p-0">
+          {% with icon='bi-clipboard2-check', title='Keine Prüfungen vorhanden',
+                  text='Sobald eine Wirksamkeitsprüfung erfasst wird, erscheint sie hier.' %}
+            {% include "_empty_state.html" %}
+          {% endwith %}
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>
