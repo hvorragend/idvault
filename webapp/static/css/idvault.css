@@ -105,6 +105,21 @@
 
   /* Layout */
   --sidebar-width: 240px;
+  --topbar-height: 3.25rem;
+  --content-padding: 1.5rem;
+  --card-padding-x: 1.2rem;
+  --card-padding-y: 1.1rem;
+  --form-gap: 1.25rem;
+
+  /* Icon-Groessen (gemeinsame Familie fuer Card-/Stat-/Section-Icons).
+     Werden in Sektion 18/19 (stat-icon, hi-icon) und 8 (fst-icon) genutzt. */
+  --icon-xs: 1.4rem;
+  --icon-sm: 1.7rem;
+  --icon-md: 2rem;
+  --icon-lg: 2.4rem;
+
+  /* Toast-Container-Position (siehe E7) */
+  --toast-z: 1080;
 }
 
 /* 2. Basis-Typografie ──────────────────────────────────────────────────────── */
@@ -497,7 +512,7 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 }
 
 .content-wrapper {
-  padding: 1.5rem;
+  padding: var(--content-padding);
   flex: 1;
 }
 
@@ -667,6 +682,13 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 /* Visibility */
 .hidden { display: none !important; }
 
+/* Icon-Badge-Familie (gemeinsame Basis fuer .stat-icon, .hi-icon, .fst-icon).
+   Modifikatoren .icon-xs/-sm/-md/-lg liefern konsistente Groessen. */
+.icon-xs { width: var(--icon-xs); height: var(--icon-xs); font-size: .78rem; }
+.icon-sm { width: var(--icon-sm); height: var(--icon-sm); font-size: .9rem;  }
+.icon-md { width: var(--icon-md); height: var(--icon-md); font-size: 1rem;   }
+.icon-lg { width: var(--icon-lg); height: var(--icon-lg); font-size: 1.1rem; }
+
 /* 15. Avatar-Chip (Initial-Quadrat + Name + optional E-Mail) ──────────────── */
 .avatar-initial {
   display: inline-flex;
@@ -763,9 +785,10 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-color: var(--slate-300);
 }
 
-.badge.status-In\ Prüfung,
-.badge.status-In-Prüfung,
-.badge.status-In-Pr\fc fung {
+/* Templates rendern Status stets mit `replace(' ', '-')`, daher ist die
+   Bindestrich-Form die kanonische Klasse. Die alten Varianten mit
+   Leerzeichen oder Unicode-Escape (\fc = u+00FC = ü) sind entfernt. */
+.badge.status-In-Prüfung {
   background: #eff6ff;
   color: #1d4ed8;
   border-color: #bfdbfe;
@@ -777,7 +800,6 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-color: #bbf7d0;
 }
 
-.badge.status-Freigegeben\ mit\ Auflagen,
 .badge.status-Freigegeben-mit-Auflagen {
   background: var(--amber-50);
   color: var(--amber-700);
@@ -790,8 +812,7 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   border-color: #fecaca;
 }
 
-.badge.status-Abgekündigt,
-.badge.status-Abgek\fc ndigt {
+.badge.status-Abgekündigt {
   background: #faf5ff;
   color: #7e22ce;
   border-color: #e9d5ff;
