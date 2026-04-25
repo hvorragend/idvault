@@ -1323,6 +1323,21 @@ CREATE INDEX IF NOT EXISTS idx_self_service_tokens_person
 CREATE INDEX IF NOT EXISTS idx_self_service_tokens_expires
     ON self_service_tokens(expires_at);
 
+-- #401: Einmalige Magic-Links für die Stille Freigabe. Wir speichern nur
+-- den jti; der Token selbst lebt nur in der versendeten Mail. Zweite
+-- Einlösung schlägt fehl (revoked_at gesetzt).
+CREATE TABLE IF NOT EXISTS silent_release_tokens (
+    jti           TEXT    PRIMARY KEY,
+    idv_db_id     INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
+    person_id     INTEGER NOT NULL REFERENCES persons(id),
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now','utc')),
+    first_used_at TEXT,
+    revoked_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_silent_release_tokens_idv
+    ON silent_release_tokens(idv_db_id);
+
 -- Audit-Trail für Self-Service-Aktionen (Quelle "mail-link").
 CREATE TABLE IF NOT EXISTS self_service_audit (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

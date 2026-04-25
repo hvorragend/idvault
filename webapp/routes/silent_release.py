@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import secrets
 from datetime import datetime, timezone
 
 from flask import (Blueprint, render_template, request, redirect, url_for,
@@ -129,6 +130,13 @@ def stille_freigabe_starten(idv_db_id):
     user_name = session.get("user_name") or ""
     now = _now()
 
+    # #401: Pro Anforderung wird ein neuer One-Time-jti erzeugt und in
+    # ``silent_release_tokens`` registriert. Vorher offene jtis derselben
+    # IDV werden revoked, damit eine zweite Selbstzertifizierung den
+    # alten Link gleich invalidiert.
+    new_jti = secrets.token_urlsafe(24)
+    fachv_id = idv["fachverantwortlicher_id"]
+
     def _do(c):
         with write_tx(c):
             c.execute(
@@ -145,13 +153,23 @@ def stille_freigabe_starten(idv_db_id):
                 f"Entwickler {user_name} bestaetigt Funktion und Korrektheit.",
                 person_id,
             )
+            c.execute(
+                "UPDATE silent_release_tokens "
+                "   SET revoked_at = ? "
+                " WHERE idv_db_id = ? AND revoked_at IS NULL",
+                (now, idv_db_id),
+            )
+            c.execute(
+                "INSERT INTO silent_release_tokens "
+                "(jti, idv_db_id, person_id, created_at) VALUES (?,?,?,?)",
+                (new_jti, idv_db_id, fachv_id, now),
+            )
 
     get_writer().submit(_do, wait=True)
 
     # Magic-Link versenden
     secret_key = current_app.config["SECRET_KEY"]
-    token = make_silent_release_token(secret_key, idv_db_id,
-                                      idv["fachverantwortlicher_id"])
+    token = make_silent_release_token(secret_key, idv_db_id, fachv_id, new_jti)
     base = current_app.config.get("APP_BASE_URL") or request.host_url.rstrip("/")
     magic_link = f"{base}/selbst/sicht-freigabe/{token}"
 
@@ -176,21 +194,41 @@ def stille_freigabe_starten(idv_db_id):
 
 # ── Schritt 2: Fachverantwortlicher quittiert via Magic-Link ────────
 
-def _resolve_token(db, token: str):
+def _resolve_token(db, token: str, *, require_active_jti: bool = True):
+    """Validiert Token + Payload und liefert ``(idv, person, jti)`` zurueck.
+
+    #401: ``require_active_jti=True`` (Default) verlangt, dass der Token-jti
+    in ``silent_release_tokens`` als nicht revoked vorliegt – d. h. der
+    Magic-Link wurde noch nie eingelöst und nicht durch eine spätere
+    Selbstzertifizierung invalidiert. Bei abgelaufener Signatur, fehlendem
+    jti-Eintrag oder ``revoked_at != NULL`` liefert die Funktion
+    ``(None, None, None)``.
+    """
     secret_key = current_app.config["SECRET_KEY"]
     payload = verify_silent_release_token(secret_key, token)
     if not payload:
-        return None, None
+        return None, None, None
+    jti = payload.get("j")
+    if not jti:
+        return None, None, None
     idv = _idv(db, int(payload["i"]))
     if not idv:
-        return None, None
+        return None, None, None
     person = db.execute(
         "SELECT id, vorname, nachname, email FROM persons WHERE id=?",
         (int(payload["p"]),),
     ).fetchone()
     if person is None or person["id"] != idv["fachverantwortlicher_id"]:
-        return None, None
-    return idv, person
+        return None, None, None
+    if require_active_jti:
+        row = db.execute(
+            "SELECT revoked_at FROM silent_release_tokens "
+            "WHERE jti = ? AND idv_db_id = ? AND person_id = ?",
+            (jti, idv["id"], person["id"]),
+        ).fetchone()
+        if row is None or row["revoked_at"] is not None:
+            return None, None, None
+    return idv, person, jti
 
 
 @bp_self.route("/sicht-freigabe/<token>", methods=["GET"])
@@ -198,7 +236,12 @@ def sicht_freigabe_seite(token: str):
     db = get_db()
     if not _setting_enabled(db):
         abort(404)
-    idv, person = _resolve_token(db, token)
+    # #401: Beim GET zeigen wir die abgeschlossene Seite auch dann an,
+    # wenn der jti bereits revoked ist – sonst könnte ein Refresh nach der
+    # Bestätigung wie ein Token-Fehler aussehen. Die eigentliche
+    # Sicht-Freigabe-Aktion (POST) verlangt aber zwingend einen aktiven
+    # jti.
+    idv, person, _ = _resolve_token(db, token, require_active_jti=False)
     if not idv:
         return render_template("self_service/sicht_freigabe_fehler.html"), 404
     return render_template(
@@ -213,9 +256,9 @@ def sicht_freigabe_bestaetigen(token: str):
     db = get_db()
     if not _setting_enabled(db):
         abort(404)
-    idv, person = _resolve_token(db, token)
+    idv, person, jti = _resolve_token(db, token)
     if not idv:
-        return render_template("self_service/sicht_freigabe_fehler.html"), 404
+        return render_template("self_service/sicht_freigabe_fehler.html"), 410
     if idv["status"] == "Freigegeben (Stille Freigabe)":
         return render_template("self_service/sicht_freigabe_fertig.html",
                                idv=idv, sha256=None, dateiname=None)
@@ -227,6 +270,21 @@ def sicht_freigabe_bestaetigen(token: str):
 
     def _do(c):
         with write_tx(c):
+            # #401: Token-Revoke atomar mit dem Statuswechsel. Bedingung
+            # ``revoked_at IS NULL`` schützt gegen Race-Condition zwischen
+            # zwei parallelen POSTs auf denselben Magic-Link – nur einer
+            # findet den jti aktiv vor.
+            cur = c.execute(
+                "UPDATE silent_release_tokens "
+                "   SET revoked_at = ?, first_used_at = ? "
+                " WHERE jti = ? AND revoked_at IS NULL",
+                (now, now, jti),
+            )
+            if cur.rowcount != 1:
+                # Race verloren oder zwischenzeitlich revoked – keine
+                # weiteren Änderungen anwenden, der zweite Aufrufer landet
+                # gleich auf der "bereits_freigegeben"-Seite (siehe unten).
+                return False
             c.execute(
                 "UPDATE idv_register "
                 "   SET status='Freigegeben (Stille Freigabe)', "
@@ -253,7 +311,10 @@ def sicht_freigabe_bestaetigen(token: str):
                 arch_kommentar,
                 person_id,
             )
+            return True
 
-    get_writer().submit(_do, wait=True)
+    applied = get_writer().submit(_do, wait=True)
+    if not applied:
+        return render_template("self_service/sicht_freigabe_fehler.html"), 410
     return render_template("self_service/sicht_freigabe_fertig.html",
                            idv=idv, sha256=sha256, dateiname=dateiname)

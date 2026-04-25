@@ -363,6 +363,62 @@ OOXML_NS = {
     "dcterms":  "http://purl.org/dc/terms/",
 }
 
+
+# #405: Zip-Bomb-Limits fuer den Scanner-Pfad. Der Scanner liest Office-
+# Dateien direkt vom Netzlaufwerk; Webfront-Uploads sind durch
+# MAX_CONTENT_LENGTH=32 MB schon abgedeckt. Werte sind grosszuegig dimensioniert,
+# damit reale Excel-Dateien (10 MB mit vielen Formeln) regulaer durchlaufen,
+# aber 42.zip-analoge Bombs sicher abgewiesen werden.
+_OOXML_MAX_ENTRY_BYTES   = 50 * 1024 * 1024     # 50 MB pro Eintrag
+_OOXML_MAX_TOTAL_BYTES   = 200 * 1024 * 1024    # 200 MB aggregiert
+_OOXML_MAX_SHEET_FILES   = 1000                 # absurd hohe Sheet-Zahl
+_COGNOS_MAX_FILE_BYTES   = 100 * 1024 * 1024    # 100 MB *.ida
+
+
+class _ZipBombSuspected(Exception):
+    """Wird ausgeloest, wenn eine OOXML-Datei die Zip-Bomb-Schwellen reisst."""
+
+
+def _ooxml_size_budget(zf: "zipfile.ZipFile") -> tuple[bool, str]:
+    """Prueft Summe aller unkomprimierten Eintraege gegen das Aggregat-Limit.
+
+    Liefert ``(ok, reason)``. ``ok=False`` heisst: Datei wird komplett
+    geskipt – kein einzelner Eintrag wird mehr geoeffnet.
+    """
+    total = 0
+    sheet_files = 0
+    for info in zf.infolist():
+        try:
+            total += int(info.file_size or 0)
+        except (TypeError, ValueError):
+            continue
+        if info.filename.startswith("xl/worksheets/sheet") and info.filename.endswith(".xml"):
+            sheet_files += 1
+    if total > _OOXML_MAX_TOTAL_BYTES:
+        return False, (
+            f"unkomprimierte Gesamtgroesse {total / 1_048_576:.1f} MB "
+            f"> Limit {_OOXML_MAX_TOTAL_BYTES / 1_048_576:.0f} MB"
+        )
+    if sheet_files > _OOXML_MAX_SHEET_FILES:
+        return False, (
+            f"{sheet_files} sheet*.xml > Limit {_OOXML_MAX_SHEET_FILES}"
+        )
+    return True, ""
+
+
+def _safe_open_zip_entry(zf: "zipfile.ZipFile", name: str):
+    """Oeffnet ``name`` aus dem ZIP nur, wenn ``file_size`` unter dem
+    Per-Entry-Limit liegt. Sonst wird :class:`_ZipBombSuspected` geworfen.
+    Der Aufrufer schliesst die Datei (Context-Manager).
+    """
+    info = zf.getinfo(name)
+    if info.file_size and info.file_size > _OOXML_MAX_ENTRY_BYTES:
+        raise _ZipBombSuspected(
+            f"{name}: file_size={info.file_size} > "
+            f"{_OOXML_MAX_ENTRY_BYTES} (per-entry limit)"
+        )
+    return zf.open(name)
+
 def analyze_ooxml(path: str, ext: str) -> dict:
     """Analysiert OOXML-Dateien (xlsx, xlsm, docm, pptm …) via ZIP-Inspektion."""
     result = {
@@ -386,12 +442,21 @@ def analyze_ooxml(path: str, ext: str) -> dict:
             return result
 
         with zipfile.ZipFile(path, "r") as z:
+            # #405: vor jeder Tiefen-Analyse einen Zip-Bomb-Sanity-Check
+            ok, reason = _ooxml_size_budget(z)
+            if not ok:
+                logging.getLogger(__name__).warning(
+                    "OOXML-Analyse uebersprungen (zip-bomb-Verdacht, %s): %s",
+                    reason, path,
+                )
+                return result
+
             names = z.namelist()
 
             # --- Core Properties (Autor, Datum) ---
             if "docProps/core.xml" in names:
                 try:
-                    with z.open("docProps/core.xml") as f:
+                    with _safe_open_zip_entry(z, "docProps/core.xml") as f:
                         tree = ET.parse(f)
                         root = tree.getroot()
                         def _find(tag, ns_key):
@@ -422,7 +487,7 @@ def analyze_ooxml(path: str, ext: str) -> dict:
                 # --- Benannte Bereiche + Arbeitsmappenschutz (workbook.xml) ---
                 if "xl/workbook.xml" in names:
                     try:
-                        with z.open("xl/workbook.xml") as f:
+                        with _safe_open_zip_entry(z, "xl/workbook.xml") as f:
                             wb_tree = ET.parse(f)
                             wb_root = wb_tree.getroot()
                             ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -448,7 +513,7 @@ def analyze_ooxml(path: str, ext: str) -> dict:
                 ns_ss = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
                 for sheet_file in sheet_files:
                     try:
-                        with z.open(sheet_file) as sf:
+                        with _safe_open_zip_entry(z, sheet_file) as sf:
                             sh_tree = ET.parse(sf)
                             sh_root = sh_tree.getroot()
                             # Blattschutz: <sheetProtection> vorhanden UND
@@ -506,6 +571,18 @@ def analyze_cognos_xml(path: str) -> dict:
         "cognos_parameter_anzahl":    None,
         "cognos_namespace_version":   None,
     }
+    # #405: Cognos *.ida-Reports liegen direkt auf dem Netzlaufwerk und
+    # sind in der Regel < 5 MB. Riesige Dateien sind verdaechtig (DoS-
+    # Vektor analog Zip-Bomb in OOXML) – dann gleich abbrechen.
+    try:
+        if os.path.getsize(path) > _COGNOS_MAX_FILE_BYTES:
+            logging.getLogger(__name__).warning(
+                "Cognos-Analyse uebersprungen (Datei > %d MB): %s",
+                _COGNOS_MAX_FILE_BYTES // 1_048_576, path,
+            )
+            return result
+    except OSError:
+        return result
     try:
         tree = ET.parse(path)
         root = tree.getroot()
