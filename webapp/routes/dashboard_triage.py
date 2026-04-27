@@ -24,6 +24,12 @@ from db_write_tx import write_tx
 _DEFAULT_PAGE_SIZE = 25
 _PAGE_SIZE_OPTIONS = (10, 25, 50, 100, 200)
 
+_SORTS_MITTLERE_KONFIDENZ = {
+    "score_desc": "ORDER BY s.score DESC, s.created_at",
+    "score_asc":  "ORDER BY s.score ASC,  s.created_at",
+}
+_DEFAULT_SORT_MITTLERE_KONFIDENZ = "score_desc"
+
 
 def _resolve_page_size() -> int:
     """Liest ``?per_page=N`` aus der Query und validiert gegen die
@@ -56,11 +62,15 @@ def _koordinator_required(f):
 # Kategorie-Queries
 # ---------------------------------------------------------------------------
 
-def _mittlere_konfidenz(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
+def _mittlere_konfidenz(db, page=1, page_size=_DEFAULT_PAGE_SIZE,
+                        sort=_DEFAULT_SORT_MITTLERE_KONFIDENZ):
     """Auto-Match-Vorschlaege ohne Entscheidung (mittlere Konfidenz)."""
     offset = (page - 1) * page_size
+    order_by = _SORTS_MITTLERE_KONFIDENZ.get(
+        sort, _SORTS_MITTLERE_KONFIDENZ[_DEFAULT_SORT_MITTLERE_KONFIDENZ]
+    )
     try:
-        return db.execute("""
+        return db.execute(f"""
             SELECT s.id AS suggestion_id, s.score, s.created_at,
                    f.id AS file_id, f.file_name, f.file_owner,
                    r.id AS idv_db_id, r.idv_id, r.bezeichnung
@@ -76,7 +86,7 @@ def _mittlere_konfidenz(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
                     WHERE v.kategorie = 'mittlere_konfidenz'
                       AND v.ref_key = CAST(s.id AS TEXT)
                )
-             ORDER BY s.score DESC, s.created_at
+             {order_by}
              LIMIT ? OFFSET ?
         """, (page_size, offset)).fetchall()
     except Exception:
@@ -344,6 +354,18 @@ def _page_url(key: str, page: int) -> str:
     return f"{base}{('?' + qs) if qs else ''}#section-{key}"
 
 
+def _sort_url(key: str, sort_value: str) -> str:
+    """Baut die /triage-URL mit aktualisierter ``sort_<key>``-Wahl
+    und resettet ``page_<key>`` (Reihenfolge geaendert -> Seite 1).
+    """
+    args = {k: v for k, v in request.args.items()}
+    args[f"sort_{key}"] = sort_value
+    args.pop(f"page_{key}", None)
+    qs = urlencode(args)
+    base = url_for("dashboard_triage.index")
+    return f"{base}{('?' + qs) if qs else ''}#section-{key}"
+
+
 @bp.route("/triage")
 @login_required
 @_koordinator_required
@@ -359,6 +381,12 @@ def index():
     }
 
     per_page = _resolve_page_size()
+    sort_mk = request.args.get(
+        "sort_mittlere_konfidenz", _DEFAULT_SORT_MITTLERE_KONFIDENZ
+    )
+    if sort_mk not in _SORTS_MITTLERE_KONFIDENZ:
+        sort_mk = _DEFAULT_SORT_MITTLERE_KONFIDENZ
+
     sections = []
     for key, icon, tone, label, hint, fn_name in _SECTION_DEFS:
         count = _count_category(db, key)
@@ -368,8 +396,13 @@ def index():
         except (TypeError, ValueError):
             page = 1
         page = max(1, min(page, total_pages))
-        rows = [dict(r) for r in fns[fn_name](db, page=page, page_size=per_page)]
-        sections.append({
+
+        fn_kwargs = {"page": page, "page_size": per_page}
+        if key == "mittlere_konfidenz":
+            fn_kwargs["sort"] = sort_mk
+        rows = [dict(r) for r in fns[fn_name](db, **fn_kwargs)]
+
+        section = {
             "key":         key,
             "icon":        icon,
             "tone":        tone,
@@ -384,7 +417,13 @@ def index():
             "prev_url":    _page_url(key, page - 1) if page > 1 else None,
             "next_url":    _page_url(key, page + 1) if page < total_pages else None,
             "last_url":    _page_url(key, total_pages) if page < total_pages else None,
-        })
+        }
+        if key == "mittlere_konfidenz":
+            section["sort"] = sort_mk
+            next_sort = ("score_asc"
+                         if sort_mk == "score_desc" else "score_desc")
+            section["score_sort_url"] = _sort_url(key, next_sort)
+        sections.append(section)
     total = sum(s["total"] for s in sections)
 
     persons_aktiv = []

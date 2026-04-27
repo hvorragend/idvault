@@ -95,7 +95,17 @@
             <th>IDV-ID</th>
             <th>Bezeichnung</th>
             <th>Datei</th>
-            <th>Score</th>
+            <th>
+              <a href="{{ s.score_sort_url }}" class="text-decoration-none text-reset"
+                 title="Nach Score sortieren">
+                Score
+                {% if s.sort == 'score_desc' %}
+                  <i class="bi bi-caret-down-fill small ms-1 text-primary"></i>
+                {% elif s.sort == 'score_asc' %}
+                  <i class="bi bi-caret-up-fill small ms-1 text-primary"></i>
+                {% endif %}
+              </a>
+            </th>
             <th class="text-end pe-3">&nbsp;</th>
           {% elif s.key == 'owner_fehlt' %}
             <th>Datei</th>
