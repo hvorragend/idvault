@@ -46,7 +46,10 @@ for _stream_name in ("stdout", "stderr"):
     if _reconfigure is not None:
         try:
             _reconfigure(encoding="utf-8", errors="backslashreplace")
-        except (ValueError, OSError):
+        except Exception:
+            # Reconfigure ist Best-Effort fuer print()/logging.StreamHandler.
+            # Fuer NDJSON ist es egal: ``emit()`` schreibt UTF-8-Bytes
+            # direkt durch ``sys.stdout.buffer`` (siehe unten).
             pass
 
 # ``emit`` kann aus mehreren Worker-Threads aufgerufen werden (Share-Level-
@@ -80,8 +83,23 @@ def emit(op: str, **payload: Any) -> None:
     ``payload`` muss JSON-serialisierbar sein. Zusaetzliche Keys werden
     als zusammengefuehrte Datenstruktur gesendet; ``op`` wird stets
     als erstes Feld geschrieben.
+
+    Die Zeile wird als UTF-8-Bytes direkt durch ``sys.stdout.buffer``
+    geschrieben — das umgeht das ``TextIOWrapper``-Encoding komplett.
+    Damit bleibt der Scanner-Output auch dann korrekt, wenn das oben
+    stehende ``reconfigure`` (aus welchen Gruenden auch immer) nicht
+    greifen sollte: die Webapp liest die Pipe als UTF-8 und sieht so
+    immer die richtigen Bytes. Fallback auf den Text-Pfad nur, wenn
+    ``sys.stdout`` keinen ``buffer`` hat (z. B. wenn jemand ihn durch
+    eine eigene Klasse ersetzt hat).
     """
     line = json.dumps({"op": op, **payload}, ensure_ascii=False, default=str)
+    payload_bytes = (line + "\n").encode("utf-8")
     with _EMIT_LOCK:
-        sys.stdout.write(line + "\n")
-        sys.stdout.flush()
+        buf = getattr(sys.stdout, "buffer", None)
+        if buf is not None:
+            buf.write(payload_bytes)
+            buf.flush()
+        else:
+            sys.stdout.write(line + "\n")
+            sys.stdout.flush()
