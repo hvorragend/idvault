@@ -28,6 +28,27 @@ import sys
 import threading
 from typing import Any
 
+# Stdout/Stderr explizit auf UTF-8 zwingen, *bevor* die erste NDJSON-Zeile
+# rausgeht. Die Webapp liest den Subprozess-Stream mit
+# ``encoding="utf-8", errors="replace"``; faellt der Scanner auf cp1252
+# zurueck (Windows-Dienstkontext oder PyInstaller-Bundle, in denen die
+# vom Webapp-Parent gesetzten ``PYTHONIOENCODING``/``PYTHONUTF8``-Env-Vars
+# nicht greifen), landen Umlaute als Single-Byte (0xE4 = ä, 0xDC = Ü)
+# in der Pipe. Diese Bytes sind keine gueltigen UTF-8-Startbytes – die
+# Webapp ersetzt sie durch U+FFFD ("�"), und so landen Datei- bzw.
+# Ordnernamen mit Umlauten verstuemmelt in der DB.
+# ``reconfigure`` ist ab Python 3.7 verfuegbar; der Fallback schuetzt
+# vor exotischen Stdout-Wrappern (z. B. wenn jemand ``sys.stdout``
+# vorab durch ein eigenes Objekt ersetzt hat).
+for _stream_name in ("stdout", "stderr"):
+    _stream = getattr(sys, _stream_name, None)
+    _reconfigure = getattr(_stream, "reconfigure", None)
+    if _reconfigure is not None:
+        try:
+            _reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (ValueError, OSError):
+            pass
+
 # ``emit`` kann aus mehreren Worker-Threads aufgerufen werden (Share-Level-
 # Parallelisierung im Scanner). ``sys.stdout.write`` ist nicht atomar,
 # daher serialisieren wir Zeile + Flush mit einem Lock – so koennen

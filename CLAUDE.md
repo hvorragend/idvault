@@ -37,3 +37,23 @@ wenn (a) der Branch gemerged wurde, (b) ein PR offen ist, der das Issue
 nennt, oder (c) der Commit ein Closing-Keyword enthält. Ohne das
 Keyword ist „der Commit existiert auf einem Branch" praktisch
 unsichtbar – das war der Auslöser für diese Regel.
+
+## Keine personenbezogenen Daten in Commits oder Code-Kommentaren
+
+Commit-Nachrichten, Code-Kommentare und Doc-Strings dürfen KEINE
+personenbezogenen Daten enthalten. Das umfasst – auch wenn sie aus
+einem Bug-Report, Screenshot oder Log stammen:
+
+- Vor- oder Nachnamen realer Personen (Mitarbeiter, Kunden, Dritte)
+- Konkrete Datei- oder Ordnernamen aus Produktivlaufwerken,
+  insbesondere wenn sie Personennamen, Mandanten oder Vorgangsdaten
+  enthalten
+- Benutzerkennungen, E-Mail-Adressen, Telefonnummern, IP-Adressen,
+  UNC-Pfade, die auf konkrete Shares zeigen
+
+Stattdessen abstrahieren: „Datei mit Umlaut im Namen", „interner
+Share", „Mitarbeiter-Account". Wenn ein konkretes Beispiel zur
+Reproduktion nötig ist, generische Platzhalter („Müller, Max",
+„Beispieldatei.xlsx") verwenden, die eindeutig als Beispiel erkennbar
+sind. Diese Regel gilt auch für PR-Beschreibungen, Issue-Kommentare
+und ähnliches.
