@@ -22,6 +22,22 @@ Folge-Scans mit der nun korrekt-pfadigen Version derselben Datei:
 Dieses Skript loescht die kaputt-pfadigen Zeilen kontrolliert. Beim
 naechsten Vollscan werden die Dateien mit korrekten Pfaden neu eingespielt.
 
+Self-Heal: Scanner-Top-Level-Module flach legen
+-----------------------------------------------
+Der ``_SidecarFinder`` in run.py findet Top-Level-Module nur direkt
+unter ``updates/<modul>.py`` – nicht unter ``updates/scanner/<modul>.py``.
+Die Whitelist in ``webapp/routes/admin/__init__.py`` umzumappen reicht
+nicht, weil Package-``__init__.py``s explizit nicht aus dem Sidecar
+geladen werden (run.py:145-148): die alte gebundle Whitelist verarbeitet
+jedes Sidecar-ZIP, sodass ``scanner_protocol.py`` weiterhin unter
+``updates/scanner/`` landet und nie geladen wird.
+
+Damit der Umlaute-Fix in ``scanner_protocol.py`` ohne EXE-Neubau wirksam
+wird, kopieren wir hier zu Beginn des Webapp-Starts die relevanten
+Top-Level-Module flach in ``updates/``. Das passiert vor dem Blueprint-
+Import, der ``from scanner_protocol import ...`` ausloest, und auch vor
+dem Spawn des Scanner-Subprozesses.
+
 Sicherheitsnetz
 ---------------
 Zeilen, die mit einem manuell registrierten IDV verknuepft sind
@@ -38,6 +54,8 @@ No-Op. Es kann gefahrlos im Sidecar-Ordner liegen bleiben.
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import sqlite3
 
 # U+FFFD = REPLACEMENT CHARACTER ('?'). Keine personenbezogenen
@@ -54,9 +72,78 @@ _NULLABLE_FK_TARGETS = (
     ("self_service_audit", "file_id"),
 )
 
+# Scanner-Top-Level-Module, die im PyInstaller-Bundle ueber
+# ``pathex=['.', 'scanner']`` flach importiert werden. Wenn sie im
+# Sidecar-ZIP unter scanner/<modul>.py liegen (alte Whitelist im
+# laufenden Bundle), wird hier die flache Kopie nachgezogen.
+_SCANNER_TOPLEVEL_MODULES = (
+    "scanner_protocol",
+    "path_utils",
+    "network_scanner",
+    "excel_export",
+    "teams_scanner",
+)
+
+
+def _flatten_scanner_modules(logger: logging.Logger) -> None:
+    """Kopiert ``updates/scanner/<modul>.py`` nach ``updates/<modul>.py``,
+    wenn die flache Variante fehlt oder aelter ist. Sonst wuerde der
+    SidecarFinder die geupdatete Datei nicht finden.
+    """
+    # __file__ ist updates/db_migrate.py (das ruft webapp/__init__.py auf).
+    updates_dir = os.path.dirname(os.path.abspath(__file__))
+    nested_dir = os.path.join(updates_dir, "scanner")
+    if not os.path.isdir(nested_dir):
+        return  # Keine geschachtelte Variante => nichts zu tun
+
+    copied = 0
+    for mod in _SCANNER_TOPLEVEL_MODULES:
+        src = os.path.join(nested_dir, mod + ".py")
+        dst = os.path.join(updates_dir, mod + ".py")
+        if not os.path.isfile(src):
+            continue
+        # Nur kopieren wenn dst fehlt oder src neuer ist – verhindert,
+        # dass ein neueres flaches Update von einer alten geschachtelten
+        # Datei ueberschrieben wird.
+        if os.path.isfile(dst):
+            try:
+                if os.path.getmtime(src) <= os.path.getmtime(dst):
+                    continue
+            except OSError:
+                continue
+        try:
+            shutil.copy2(src, dst)
+            copied += 1
+            logger.warning(
+                "Sidecar-Self-Heal: %s aus updates/scanner/ flach kopiert "
+                "nach updates/%s.py", mod, mod,
+            )
+        except OSError as exc:
+            logger.warning(
+                "Sidecar-Self-Heal: Kopie %s -> %s fehlgeschlagen: %s",
+                src, dst, exc,
+            )
+
+    if copied:
+        logger.warning(
+            "Sidecar-Self-Heal: %d Scanner-Modul(e) flach gelegt. "
+            "Beim naechsten Scan-Subprozess- bzw. Blueprint-Import wird die "
+            "neue Version aus updates/ geladen.",
+            copied,
+        )
+
 
 def run(db_path: str) -> None:
     logger = logging.getLogger("idv_migrate.umlaut_cleanup")
+
+    # 1. Self-Heal: Scanner-Module flach legen, bevor der Webapp sie
+    #    via Blueprint-Import zieht.
+    try:
+        _flatten_scanner_modules(logger)
+    except Exception as exc:  # niemals den Start blockieren
+        logger.warning("Sidecar-Self-Heal fehlgeschlagen: %s", exc)
+
+    # 2. DB-Cleanup
 
     conn = sqlite3.connect(db_path)
     try:
