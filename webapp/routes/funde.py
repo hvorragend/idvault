@@ -1960,6 +1960,41 @@ def notify_file(file_id):
         flash("Datei nicht gefunden.", "error")
         return redirect(url_for("funde.list_funde"))
 
+    # Hash-Dedup: Wenn eine inhaltlich identische Datei (gleicher
+    # ``file_hash``) bereits an einem IDV hängt – direkt über
+    # ``idv_register.file_id`` oder ergänzend über ``idv_file_links`` –
+    # ist der Fund kein neuer Sachverhalt mehr, und es darf auch manuell
+    # keine "Neue-Datei"-Mail ausgehen.
+    #
+    # Override: Mit ``force=1`` (Form-Feld oder Query-Parameter) kann der
+    # Versand bewusst erzwungen werden, z. B. wenn der Owner einer neuen
+    # Kopie informiert werden soll, obwohl das Original schon registriert
+    # ist. Der Override gilt nur für diesen manuellen Pfad – die
+    # automatische Sammelbenachrichtigung
+    # (``notification_scheduler._dispatch_owner_digest``) kennt ihn nicht.
+    force = (
+        request.form.get("force") or request.args.get("force") or ""
+    ).strip() in ("1", "true", "on", "yes")
+
+    duplicate = db.execute("""
+        SELECT 1
+          FROM idv_files f
+         WHERE f.file_hash = ?
+           AND (
+                EXISTS (SELECT 1 FROM idv_register   r WHERE r.file_id = f.id)
+             OR EXISTS (SELECT 1 FROM idv_file_links l WHERE l.file_id = f.id)
+           )
+         LIMIT 1
+    """, (file["file_hash"],)).fetchone()
+    if duplicate and not force:
+        flash(
+            "Identische Datei ist bereits in einem IDV registriert – "
+            "es wurde keine Benachrichtigung versendet. "
+            "Versand kann mit 'Trotzdem senden' (force=1) erzwungen werden.",
+            "info",
+        )
+        return redirect(url_for("funde.list_funde"))
+
     recipients = [
         r["email"] for r in db.execute("""
             SELECT email FROM persons
@@ -1977,7 +2012,11 @@ def notify_file(file_id):
         from ..email_service import notify_new_scanner_file
         ok = notify_new_scanner_file(db, file, recipients)
         if ok:
-            flash(f"Benachrichtigung gesendet an: {', '.join(recipients)}", "success")
+            suffix = " (Hash-Dedup bewusst übersteuert)" if duplicate else ""
+            flash(
+                f"Benachrichtigung gesendet an: {', '.join(recipients)}{suffix}",
+                "success",
+            )
         else:
             flash("E-Mail konnte nicht gesendet werden – SMTP-Einstellungen prüfen.", "warning")
     except Exception as exc:

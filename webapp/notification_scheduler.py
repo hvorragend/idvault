@@ -355,7 +355,15 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
     except Exception:
         burst_threshold = 0
 
-    # Offene Funde gruppieren: file_owner ↔ persons (user_id | ad_name)
+    # Offene Funde gruppieren: file_owner ↔ persons (user_id | ad_name).
+    #
+    # Hash-Dedup: Eine inhaltlich identische Datei (gleicher ``file_hash``)
+    # gilt fachlich als bereits bekannt, sobald *irgendeine* Kopie davon an
+    # einem IDV hängt – egal, ob über ``idv_register.file_id`` oder
+    # ``idv_file_links``. In dem Fall darf für die neu aufgetauchte Kopie
+    # keine Owner-Sammelmail mehr ausgehen, sonst bekommt der Fachbereich
+    # für jede Umbenennung / jeden Kopie-Vorgang eine separate
+    # Benachrichtigung über dieselbe Datei.
     rows = db.execute("""
         SELECT f.id, f.file_name, f.full_path, f.file_owner,
                p.id     AS person_id,
@@ -375,6 +383,16 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
            AND f.file_owner IS NOT NULL AND f.file_owner <> ''
            AND NOT EXISTS (SELECT 1 FROM idv_register r   WHERE r.file_id = f.id)
            AND NOT EXISTS (SELECT 1 FROM idv_file_links l WHERE l.file_id = f.id)
+           AND NOT EXISTS (
+                 SELECT 1
+                   FROM idv_files f2
+                  WHERE f2.file_hash = f.file_hash
+                    AND f2.id <> f.id
+                    AND (
+                         EXISTS (SELECT 1 FROM idv_register   r2 WHERE r2.file_id = f2.id)
+                      OR EXISTS (SELECT 1 FROM idv_file_links l2 WHERE l2.file_id = f2.id)
+                    )
+               )
     """).fetchall()
 
     if not rows:
