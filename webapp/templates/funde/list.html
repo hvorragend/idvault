@@ -151,6 +151,7 @@ Standardsortierung zu sehen bekommt. #}
   <form method="get" class="card border-0 shadow-sm p-3 mb-3">
     <input type="hidden" name="filter" value="{{ filt }}">
     <input type="hidden" name="order" value="{{ order }}">
+    {% if mine_filt %}<input type="hidden" name="mine" value="1">{% endif %}
     <div class="row g-2 align-items-end">
       <div class="col-12">
         <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
@@ -192,11 +193,25 @@ Standardsortierung zu sehen bekommt. #}
       </div>
       <div class="col-md-2">
         <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert ab</label>
-        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+        <input type="date" name="date_from" id="date-from-input" value="{{ date_from }}"
+          class="form-control form-control-sm">
       </div>
       <div class="col-md-2">
         <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert bis</label>
-        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+        <input type="date" name="date_to" id="date-to-input" value="{{ date_to }}"
+          class="form-control form-control-sm">
+      </div>
+      <div class="col-12">
+        <label class="form-label form-label-sm text-muted">
+          <i class="bi bi-clock-history me-1"></i>Zeitraum-Schnellwahl (setzt „geändert ab" auf heute minus &hellip;)
+        </label>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Zeitraum-Presets">
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="7">Letzte 7 Tage</button>
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="30">Letzter Monat</button>
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="90">Letztes Quartal</button>
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="365">Letztes Jahr</button>
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="">Zurücksetzen</button>
+        </div>
       </div>
       <div class="col-md-6">
         <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
@@ -227,11 +242,14 @@ Sondermodi) und durch dünne Trennlinien optisch getrennt. #}
 {% macro filter_pill(name, label, count, icon='', accent='slate', icon_color='', title='') %}
   {% set is_active = (filt == name) if name else (not filt) %}
   {% if name == 'duplikate' %}
-    {% set href = url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt, sort=sort, order=order) %}
+    {% set href = url_for('funde.list_funde', filter='duplikate', share_root=share_root_filt,
+                           mine='1' if mine_filt else none, sort=sort, order=order) %}
   {% elif name %}
-    {% set href = url_for('funde.list_funde', filter=name, share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) %}
+    {% set href = url_for('funde.list_funde', filter=name, share_root=share_root_filt, scan_run=scan_run_id_filt,
+                           mine='1' if mine_filt else none, sort=sort, order=order) %}
   {% else %}
-    {% set href = url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt, sort=sort, order=order) %}
+    {% set href = url_for('funde.list_funde', share_root=share_root_filt, scan_run=scan_run_id_filt,
+                           mine='1' if mine_filt else none, sort=sort, order=order) %}
   {% endif %}
   <li class="nav-item">
     <a href="{{ href }}"
@@ -239,6 +257,25 @@ Sondermodi) und durch dünne Trennlinien optisch getrennt. #}
        {% if title %}title="{{ title }}"{% endif %}>
       {% if icon %}<i class="bi {{ icon }}{% if icon_color and not is_active %} {{ icon_color }}{% endif %} me-1"></i>{% endif %}{{ label }}
       <span class="idv-tag idv-tag-slate ms-1">{{ count }}</span>
+    </a>
+  </li>
+{% endmacro %}
+
+{# „Nur meine"-Pill: toggelt den ``mine``-Parameter, ohne den Workflow-/
+   Eigenschaftsfilter zu verlieren. #}
+{% macro mine_pill() %}
+  {% set href = url_for('funde.list_funde',
+                         mine=none if mine_filt else '1',
+                         filter=filt or none,
+                         share_root=share_root_filt or none,
+                         scan_run=scan_run_id_filt or none,
+                         sort=sort, order=order) %}
+  <li class="nav-item">
+    <a href="{{ href }}"
+       class="nav-link py-1 px-2{% if mine_filt %} active idv-pill-blue{% endif %}"
+       title="Nur Funde anzeigen, deren Datei-Eigentümer mein Benutzerkonto ist">
+      <i class="bi bi-person-check{% if not mine_filt %} text-info{% endif %} me-1"></i>Nur meine
+      <span class="idv-tag idv-tag-slate ms-1">{{ mine_count }}</span>
     </a>
   </li>
 {% endmacro %}
@@ -253,11 +290,18 @@ Sondermodi) und durch dünne Trennlinien optisch getrennt. #}
     {{ filter_pill('ignoriert', 'Ignoriert', ignoriert, icon='bi-eye-slash', accent='slate', icon_color='text-muted') }}
     <li class="idv-filter-sep" aria-hidden="true"></li>
     {{ filter_pill('makros', 'Makros', mit_makro, icon='bi-lightning-fill', accent='red', icon_color='text-danger') }}
+    {{ filter_pill('formeln_viele', 'Viele Formeln', formeln_viele_anzahl or 0,
+                   icon='bi-calculator-fill', accent='amber', icon_color='text-warning',
+                   title='Excel-Dateien mit ≥ ' ~ formeln_viele_schwelle ~ ' Formeln (Hinweis auf Modelle/Kalkulationen)') }}
     {{ filter_pill('blattschutz', 'Blattschutz', mit_schutz, icon='bi-lock-fill', accent='blue', icon_color='text-info') }}
     {{ filter_pill('ohne_schutz', 'Ohne Schutz', ohne_schutz, icon='bi-unlock-fill', accent='red', icon_color='text-danger', title='Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz (Kandidaten für IT-Risiko-Erfassung)') }}
     <li class="idv-filter-sep" aria-hidden="true"></li>
     {{ filter_pill('archiv', 'Archiv', archiviert, icon='bi-archive', accent='slate', icon_color='text-muted') }}
     {{ filter_pill('duplikate', 'Duplikate', duplikate_anzahl or 0, icon='bi-copy', accent='red', icon_color='text-danger') }}
+    {% if me_user_id %}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ mine_pill() }}
+    {% endif %}
   </ul>
 </nav>
 
@@ -329,7 +373,7 @@ Sondermodi) und durch dünne Trennlinien optisch getrennt. #}
 <!-- ── Pagination + Variablen (vor dem Bulk-Formular setzen) ──────── -->
 {% set url_extra = {'filter': filt, 'share_root': share_root_filt, 'dir_path': dir_path_filt, 'scan_run':
 scan_run_id_filt, 'sort': sort, 'order': order, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'date_to':
-date_to} %}
+date_to, 'mine': '1' if mine_filt else ''} %}
 {% set endpoint = 'funde.list_funde' %}
 {% include 'funde/_pagination.html' %}
 
@@ -643,10 +687,12 @@ date_to} %}
                 {% else %}
                 <span class="neu-dot" title="Neu"></span>
                 {% endif %}
-                {% if f.file_hash and f.file_hash in duplicate_hashes %}
+                {% set _dup_total = duplicate_counts.get(f.file_hash) if f.file_hash else None %}
+                {% if _dup_total %}
+                {% set _dup_others = _dup_total - 1 %}
                 <span class="badge bg-warning text-dark"
-                  title="Dieser SHA-256-Hash kommt in der aktuellen Ansicht mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
-                  <i class="bi bi-copy me-1"></i>Duplikat
+                  title="Datenbankweit existieren {{ _dup_total }} identische Kopien dieser Datei (gleicher SHA-256-Hash).&#10;SHA-256: {{ f.file_hash }}">
+                  <i class="bi bi-copy me-1"></i>Duplikat&nbsp;&times;{{ _dup_others }}
                 </span>
                 {% endif %}
               </div>
@@ -998,6 +1044,28 @@ date_to} %}
       });
     }
   })();
+
+  // Datums-Schnellwahl: setzt date_from auf heute minus N Tage und
+  // schickt das Filter-Formular ab.
+  document.querySelectorAll('.date-preset').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var days = this.dataset.days;
+      var fromInp = document.getElementById('date-from-input');
+      var toInp = document.getElementById('date-to-input');
+      if (!fromInp) return;
+      if (!days) {
+        fromInp.value = '';
+        if (toInp) toInp.value = '';
+      } else {
+        var d = new Date();
+        d.setDate(d.getDate() - parseInt(days, 10));
+        fromInp.value = d.toISOString().slice(0, 10);
+        if (toInp) toInp.value = '';
+      }
+      var form = fromInp.closest('form');
+      if (form) form.submit();
+    });
+  });
 
   // ── Spaltensortierung wird zentral im extra_head-Block aus dem
   // sessionStorage wiederhergestellt – siehe oben. ─────────────────────
