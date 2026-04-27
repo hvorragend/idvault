@@ -9,6 +9,9 @@ Sichtbar fuer ROLE_ADMIN und ROLE_KOORDINATOR. Per Helper
 """
 from __future__ import annotations
 
+import math
+from urllib.parse import urlencode
+
 from flask import Blueprint, render_template, redirect, request, url_for, flash, session
 from functools import wraps
 
@@ -16,6 +19,9 @@ from . import login_required, get_db, ROLE_ADMIN, ROLE_KOORDINATOR
 from ..db_writer import get_writer
 
 from db_write_tx import write_tx
+
+
+_PAGE_SIZE = 25
 
 
 bp = Blueprint("dashboard_ausnahmen", __name__, url_prefix="/dashboard")
@@ -38,8 +44,9 @@ def _koordinator_required(f):
 # Kategorie-Queries
 # ---------------------------------------------------------------------------
 
-def _mittlere_konfidenz(db):
+def _mittlere_konfidenz(db, page=1):
     """Auto-Match-Vorschlaege ohne Entscheidung (mittlere Konfidenz)."""
+    offset = (page - 1) * _PAGE_SIZE
     try:
         return db.execute("""
             SELECT s.id AS suggestion_id, s.score, s.created_at,
@@ -58,14 +65,15 @@ def _mittlere_konfidenz(db):
                       AND v.ref_key = CAST(s.id AS TEXT)
                )
              ORDER BY s.score DESC, s.created_at
-             LIMIT 10
-        """).fetchall()
+             LIMIT ? OFFSET ?
+        """, (_PAGE_SIZE, offset)).fetchall()
     except Exception:
         return []
 
 
-def _owner_mapping_fehlt(db):
+def _owner_mapping_fehlt(db, page=1):
     """Scanner-Dateien mit ``file_owner``, der nicht in ``persons`` aufloesbar ist."""
+    offset = (page - 1) * _PAGE_SIZE
     return db.execute("""
         SELECT f.id AS file_id, f.file_name, f.full_path, f.file_owner,
                f.modified_at
@@ -85,12 +93,13 @@ def _owner_mapping_fehlt(db):
                   AND v.ref_key = CAST(f.id AS TEXT)
            )
          ORDER BY f.modified_at DESC
-         LIMIT 10
-    """).fetchall()
+         LIMIT ? OFFSET ?
+    """, (_PAGE_SIZE, offset)).fetchall()
 
 
-def _self_service_stumm(db):
+def _self_service_stumm(db, page=1):
     """Tokens versendet, > 14 Tage ohne Aktion (kein audit-Eintrag fuer den Token)."""
+    offset = (page - 1) * _PAGE_SIZE
     try:
         return db.execute("""
             SELECT t.jti, t.person_id, t.created_at, t.expires_at,
@@ -111,14 +120,15 @@ def _self_service_stumm(db):
                       AND v.ref_key = t.jti
                )
              ORDER BY t.created_at
-             LIMIT 10
-        """).fetchall()
+             LIMIT ? OFFSET ?
+        """, (_PAGE_SIZE, offset)).fetchall()
     except Exception:
         return []
 
 
-def _auto_classify_fehlgeschlagen(db):
+def _auto_classify_fehlgeschlagen(db, page=1):
     """IDV-Files mit Treffer auf eine Auto-Klassifizier-Regel, aber unklassifiziert."""
+    offset = (page - 1) * _PAGE_SIZE
     try:
         return db.execute("""
             SELECT f.id AS file_id, f.file_name, f.full_path,
@@ -133,14 +143,15 @@ def _auto_classify_fehlgeschlagen(db):
                       AND v.ref_key = CAST(f.id AS TEXT)
                )
              ORDER BY f.modified_at DESC
-             LIMIT 10
-        """).fetchall()
+             LIMIT ? OFFSET ?
+        """, (_PAGE_SIZE, offset)).fetchall()
     except Exception:
         return []
 
 
-def _eskalierte_idvs(db):
+def _eskalierte_idvs(db, page=1):
     """IDVs mit Vollstaendigkeit < 100% UND mind. 4 Erinnerungen erhalten."""
+    offset = (page - 1) * _PAGE_SIZE
     try:
         return db.execute("""
             SELECT r.id, r.idv_id, r.bezeichnung,
@@ -159,14 +170,15 @@ def _eskalierte_idvs(db):
              GROUP BY r.id, r.idv_id, r.bezeichnung
             HAVING reminder_count >= 4
              ORDER BY reminder_count DESC, r.idv_id
-             LIMIT 10
-        """).fetchall()
+             LIMIT ? OFFSET ?
+        """, (_PAGE_SIZE, offset)).fetchall()
     except Exception:
         return []
 
 
-def _pool_reminder_ausgelaufen(db):
+def _pool_reminder_ausgelaufen(db, page=1):
     """Pool-Schritte aelter als ``notify_pool_reminder_max_days`` (Default 14)."""
+    offset = (page - 1) * _PAGE_SIZE
     try:
         cfg = db.execute(
             "SELECT value FROM app_settings WHERE key='notify_pool_reminder_max_days'"
@@ -193,8 +205,8 @@ def _pool_reminder_ausgelaufen(db):
                       AND v.ref_key = CAST(f.id AS TEXT)
                )
              ORDER BY f.beauftragt_am
-             LIMIT 10
-        """).fetchall()
+             LIMIT ? OFFSET ?
+        """, (_PAGE_SIZE, offset)).fetchall()
     except Exception:
         return []
 
@@ -203,35 +215,35 @@ def _pool_reminder_ausgelaufen(db):
 # Aggregierter Zaehler (Header-Badge)
 # ---------------------------------------------------------------------------
 
-_CATEGORIES_FOR_COUNT = (
-    ("idv_match_suggestions",
+_COUNT_SQL = {
+    "mittlere_konfidenz":
      "SELECT COUNT(*) FROM idv_match_suggestions s "
      "JOIN idv_files f ON f.id=s.file_id JOIN idv_register r ON r.id=s.idv_db_id "
      "WHERE s.decision IS NULL AND f.status='active' AND f.bearbeitungsstatus='Neu' "
      "AND r.status NOT IN ('Archiviert') "
      "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
-     "WHERE v.kategorie='mittlere_konfidenz' AND v.ref_key=CAST(s.id AS TEXT))"),
-    ("owner_fehlt",
+     "WHERE v.kategorie='mittlere_konfidenz' AND v.ref_key=CAST(s.id AS TEXT))",
+    "owner_fehlt":
      "SELECT COUNT(*) FROM idv_files f "
      "WHERE f.status='active' AND f.bearbeitungsstatus='Neu' "
      "AND f.file_owner IS NOT NULL AND TRIM(f.file_owner)!='' "
      "AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.aktiv=1 "
      "AND (p.user_id=f.file_owner OR p.ad_name=f.file_owner)) "
      "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
-     "WHERE v.kategorie='owner_fehlt' AND v.ref_key=CAST(f.id AS TEXT))"),
-    ("self_service_stumm",
+     "WHERE v.kategorie='owner_fehlt' AND v.ref_key=CAST(f.id AS TEXT))",
+    "self_service_stumm":
      "SELECT COUNT(*) FROM self_service_tokens t WHERE t.created_at <= datetime('now','-14 days') "
      "AND t.first_used_at IS NULL AND t.revoked_at IS NULL "
      "AND NOT EXISTS (SELECT 1 FROM self_service_audit a "
      "WHERE a.person_id=t.person_id AND a.created_at >= t.created_at) "
      "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
-     "WHERE v.kategorie='self_service_stumm' AND v.ref_key=t.jti)"),
-    ("auto_classify_failed",
+     "WHERE v.kategorie='self_service_stumm' AND v.ref_key=t.jti)",
+    "auto_classify_failed":
      "SELECT COUNT(*) FROM idv_files f WHERE f.status='active' "
      "AND f.bearbeitungsstatus='Auto-Klassifizierung fehlgeschlagen' "
      "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
-     "WHERE v.kategorie='auto_classify_failed' AND v.ref_key=CAST(f.id AS TEXT))"),
-    ("eskalierte_idvs",
+     "WHERE v.kategorie='auto_classify_failed' AND v.ref_key=CAST(f.id AS TEXT))",
+    "eskalierte_idvs":
      "SELECT COUNT(*) FROM ("
      " SELECT 1 FROM notification_log n "
      " JOIN idv_register r ON r.id=n.ref_id "
@@ -240,97 +252,125 @@ _CATEGORIES_FOR_COUNT = (
      " AND r.status NOT IN ('Archiviert','Abgekündigt') "
      " AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen tv "
      " WHERE tv.kategorie='eskalierte_idvs' AND tv.ref_key=CAST(r.id AS TEXT)) "
-     " GROUP BY r.id HAVING COUNT(n.id) >= 4)"),
-    ("pool_reminder_alt",
+     " GROUP BY r.id HAVING COUNT(n.id) >= 4)",
+    "pool_reminder_alt":
      "SELECT COUNT(*) FROM idv_freigaben f WHERE f.status='Ausstehend' "
      "AND f.pool_id IS NOT NULL AND f.zugewiesen_an_id IS NULL "
      "AND f.beauftragt_am IS NOT NULL "
      "AND f.beauftragt_am <= datetime('now','-14 days') "
      "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
-     "WHERE v.kategorie='pool_reminder_alt' AND v.ref_key=CAST(f.id AS TEXT))"),
-)
+     "WHERE v.kategorie='pool_reminder_alt' AND v.ref_key=CAST(f.id AS TEXT))",
+}
+
+
+def _count_category(db, key: str) -> int:
+    sql = _COUNT_SQL.get(key)
+    if not sql:
+        return 0
+    try:
+        row = db.execute(sql).fetchone()
+        return int(row[0] or 0)
+    except Exception:
+        return 0
 
 
 def ausnahmen_count(db) -> int:
     """Aggregierte Anzahl Items im Ausnahmen-Dashboard (fuer Header-Badge)."""
-    total = 0
-    for _name, sql in _CATEGORIES_FOR_COUNT:
-        try:
-            row = db.execute(sql).fetchone()
-            total += int(row[0] or 0)
-        except Exception:
-            continue
-    return total
+    return sum(_count_category(db, key) for key in _COUNT_SQL)
 
 
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
 
+_SECTION_DEFS = [
+    ("mittlere_konfidenz", "bi-bullseye", "primary",
+     "Mittlere Konfidenz-Treffer",
+     "Auto-Match-Vorschläge im mittleren Konfidenz-Bereich — die "
+     "Eigentümer entscheiden im Self-Service. Wenn der Vorschlag "
+     "offensichtlich nicht passt, hier verwerfen; passt er, kannst du "
+     "ihn per »Vorschlag prüfen« direkt übernehmen.",
+     "_mittlere_konfidenz"),
+    ("owner_fehlt", "bi-person-x", "warning",
+     "Owner-Mapping fehlt",
+     "Scanner-Dateien, deren Eigentümer-Kennung nicht in der "
+     "Personen-Tabelle auflösbar ist.",
+     "_owner_mapping_fehlt"),
+    ("self_service_stumm", "bi-envelope-slash", "secondary",
+     "Self-Service stumm (>14 Tage)",
+     "Magic-Link versendet, aber keinerlei Reaktion erfasst.",
+     "_self_service_stumm"),
+    ("auto_classify_failed", "bi-shuffle", "danger",
+     "Auto-Klassifizierung fehlgeschlagen",
+     "Auto-Klassifizier-Regel ist getroffen, hat aber kein valides "
+     "Ergebnis geliefert.",
+     "_auto_classify_fehlgeschlagen"),
+    ("eskalierte_idvs", "bi-fire", "danger",
+     "Eskalierte IDVs (≥ 4 Erinnerungen, < 100 % vollständig)",
+     "Vollständigkeits-Score < 100 % nach 4 oder mehr Reminder-Mails "
+     "(vgl. Issue #348).",
+     "_eskalierte_idvs"),
+    ("pool_reminder_alt", "bi-people", "warning",
+     "Pool-Reminder ausgelaufen",
+     "Pool-Schritt seit mehr als 14 Tagen offen (konfigurierbar in "
+     "den Reminder-Einstellungen).",
+     "_pool_reminder_ausgelaufen"),
+]
+
+
+def _page_url(key: str, page: int) -> str:
+    """Baut die /ausnahmen-URL mit aktualisiertem ``page_<key>`` und
+    Anker auf die Sektion. Andere ``page_*``-Parameter bleiben erhalten.
+    """
+    args = {k: v for k, v in request.args.items()}
+    if page <= 1:
+        args.pop(f"page_{key}", None)
+    else:
+        args[f"page_{key}"] = str(page)
+    qs = urlencode(args)
+    base = url_for("dashboard_ausnahmen.index")
+    return f"{base}{('?' + qs) if qs else ''}#section-{key}"
+
+
 @bp.route("/ausnahmen")
 @login_required
 @_koordinator_required
 def index():
     db = get_db()
-    sections = [
-        {
-            "key":   "mittlere_konfidenz",
-            "icon":  "bi-bullseye",
-            "tone":  "primary",
-            "label": "Mittlere Konfidenz-Treffer",
-            "hint":  "Auto-Match-Vorschläge im mittleren Konfidenz-Bereich — "
-                     "die Eigentümer entscheiden im Self-Service. Wenn der "
-                     "Vorschlag offensichtlich nicht passt, hier verwerfen; "
-                     "passt er, kannst du ihn per »Vorschlag prüfen« direkt "
-                     "übernehmen.",
-            "rows":  [dict(r) for r in _mittlere_konfidenz(db)],
-        },
-        {
-            "key":   "owner_fehlt",
-            "icon":  "bi-person-x",
-            "tone":  "warning",
-            "label": "Owner-Mapping fehlt",
-            "hint":  "Scanner-Dateien, deren Eigentümer-Kennung nicht in der "
-                     "Personen-Tabelle auflösbar ist.",
-            "rows":  [dict(r) for r in _owner_mapping_fehlt(db)],
-        },
-        {
-            "key":   "self_service_stumm",
-            "icon":  "bi-envelope-slash",
-            "tone":  "secondary",
-            "label": "Self-Service stumm (>14 Tage)",
-            "hint":  "Magic-Link versendet, aber keinerlei Reaktion erfasst.",
-            "rows":  [dict(r) for r in _self_service_stumm(db)],
-        },
-        {
-            "key":   "auto_classify_failed",
-            "icon":  "bi-shuffle",
-            "tone":  "danger",
-            "label": "Auto-Klassifizierung fehlgeschlagen",
-            "hint":  "Auto-Klassifizier-Regel ist getroffen, hat aber kein "
-                     "valides Ergebnis geliefert.",
-            "rows":  [dict(r) for r in _auto_classify_fehlgeschlagen(db)],
-        },
-        {
-            "key":   "eskalierte_idvs",
-            "icon":  "bi-fire",
-            "tone":  "danger",
-            "label": "Eskalierte IDVs (≥ 4 Erinnerungen, < 100 % vollständig)",
-            "hint":  "Vollständigkeits-Score < 100 % nach 4 oder mehr "
-                     "Reminder-Mails (vgl. Issue #348).",
-            "rows":  [dict(r) for r in _eskalierte_idvs(db)],
-        },
-        {
-            "key":   "pool_reminder_alt",
-            "icon":  "bi-people",
-            "tone":  "warning",
-            "label": "Pool-Reminder ausgelaufen",
-            "hint":  "Pool-Schritt seit mehr als 14 Tagen offen "
-                     "(konfigurierbar in den Reminder-Einstellungen).",
-            "rows":  [dict(r) for r in _pool_reminder_ausgelaufen(db)],
-        },
-    ]
-    total = ausnahmen_count(db)
+    fns = {
+        "_mittlere_konfidenz":         _mittlere_konfidenz,
+        "_owner_mapping_fehlt":        _owner_mapping_fehlt,
+        "_self_service_stumm":         _self_service_stumm,
+        "_auto_classify_fehlgeschlagen": _auto_classify_fehlgeschlagen,
+        "_eskalierte_idvs":            _eskalierte_idvs,
+        "_pool_reminder_ausgelaufen":  _pool_reminder_ausgelaufen,
+    }
+
+    sections = []
+    for key, icon, tone, label, hint, fn_name in _SECTION_DEFS:
+        count = _count_category(db, key)
+        total_pages = max(1, math.ceil(count / _PAGE_SIZE)) if count else 1
+        try:
+            page = int(request.args.get(f"page_{key}", "1") or "1")
+        except (TypeError, ValueError):
+            page = 1
+        page = max(1, min(page, total_pages))
+        rows = [dict(r) for r in fns[fn_name](db, page=page)]
+        sections.append({
+            "key":         key,
+            "icon":        icon,
+            "tone":        tone,
+            "label":       label,
+            "hint":        hint,
+            "rows":        rows,
+            "page":        page,
+            "total":       count,
+            "total_pages": total_pages,
+            "page_size":   _PAGE_SIZE,
+            "prev_url":    _page_url(key, page - 1) if page > 1 else None,
+            "next_url":    _page_url(key, page + 1) if page < total_pages else None,
+        })
+    total = sum(s["total"] for s in sections)
 
     persons_aktiv = []
     has_owner_fehlt = any(

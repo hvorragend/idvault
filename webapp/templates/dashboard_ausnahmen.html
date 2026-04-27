@@ -21,7 +21,7 @@
 </div>
 {% endif %}
 
-{% set non_empty = sections | selectattr('rows') | list %}
+{% set non_empty = sections | selectattr('total') | list %}
 {% if non_empty | length > 1 %}
 <div class="d-flex flex-wrap gap-1 align-items-center mb-3" id="triage-filter-bar"
      aria-label="Kategorien filtern">
@@ -33,14 +33,14 @@
   <button type="button" class="btn btn-sm btn-outline-{{ s.tone }} active triage-filter-pill"
           data-kategorie="{{ s.key }}">
     <i class="bi {{ s.icon }} me-1"></i>{{ s.label }}
-    <span class="badge bg-{{ s.tone }} bg-opacity-25 text-{{ s.tone }} ms-1">{{ s.rows|length }}</span>
+    <span class="badge bg-{{ s.tone }} bg-opacity-25 text-{{ s.tone }} ms-1">{{ s.total }}</span>
   </button>
   {% endfor %}
 </div>
 {% endif %}
 
 {% for s in sections %}
-{% if s.rows %}
+{% if s.total %}
 <form method="post" class="triage-section-form" data-kategorie="{{ s.key }}"
       action="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -50,7 +50,7 @@
   <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
     <span><i class="bi {{ s.icon }} me-2 text-{{ s.tone }}"></i>{{ s.label }}</span>
     <div class="d-flex align-items-center gap-2">
-      <span class="badge bg-{{ s.tone }}">{{ s.rows|length }}</span>
+      <span class="badge bg-{{ s.tone }}">{{ s.total }}</span>
       <button type="submit" class="btn btn-sm btn-outline-secondary triage-bulk-selected" disabled
               formaction="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}"
               title="Nur die markierten Einträge verwerfen">
@@ -222,11 +222,32 @@
           </tr>
           {% endfor %}
         {% endif %}
-        {% if s.rows|length == 10 %}
+        {% if s.total_pages > 1 %}
         <tr>
-          <td colspan="99" class="text-center text-muted small py-2 fst-italic">
-            <i class="bi bi-three-dots me-1"></i>Zeigt die ersten 10 Einträge — weitere sind vorhanden.
-            Einträge verwerfen, um die nächsten zu sehen.
+          <td colspan="99" class="py-2 bg-light bg-opacity-50">
+            <nav aria-label="Paginierung {{ s.label }}">
+              <ul class="pagination pagination-sm justify-content-center mb-0">
+                <li class="page-item{% if not s.prev_url %} disabled{% endif %}">
+                  {% if s.prev_url %}
+                    <a class="page-link" href="{{ s.prev_url }}">&lsaquo; Zurück</a>
+                  {% else %}
+                    <span class="page-link">&lsaquo; Zurück</span>
+                  {% endif %}
+                </li>
+                <li class="page-item disabled">
+                  <span class="page-link">
+                    Seite {{ s.page }} von {{ s.total_pages }} · {{ s.total }} gesamt
+                  </span>
+                </li>
+                <li class="page-item{% if not s.next_url %} disabled{% endif %}">
+                  {% if s.next_url %}
+                    <a class="page-link" href="{{ s.next_url }}">Weiter &rsaquo;</a>
+                  {% else %}
+                    <span class="page-link">Weiter &rsaquo;</span>
+                  {% endif %}
+                </li>
+              </ul>
+            </nav>
           </td>
         </tr>
         {% endif %}
