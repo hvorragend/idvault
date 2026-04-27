@@ -21,23 +21,53 @@
 </div>
 {% endif %}
 
+{% set non_empty = sections | selectattr('total') | list %}
+{% if non_empty | length > 1 %}
+<div class="d-flex flex-wrap gap-1 align-items-center mb-3" id="triage-filter-bar"
+     aria-label="Kategorien filtern">
+  <span class="small text-muted me-1">Anzeigen:</span>
+  <button type="button" class="btn btn-sm btn-outline-secondary triage-filter-all active">
+    Alle
+  </button>
+  {% for s in non_empty %}
+  <button type="button" class="btn btn-sm btn-outline-{{ s.tone }} active triage-filter-pill"
+          data-kategorie="{{ s.key }}">
+    <i class="bi {{ s.icon }} me-1"></i>{{ s.label }}
+    <span class="badge bg-{{ s.tone }} bg-opacity-25 text-{{ s.tone }} ms-1">{{ s.total }}</span>
+  </button>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% for s in sections %}
-{% if s.rows %}
+{% if s.total %}
+<form method="post" class="triage-section-form" data-kategorie="{{ s.key }}"
+      action="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="kategorie" value="{{ s.key }}">
 <div class="card border-0 shadow-sm mb-4 border-start border-4 border-{{ s.tone }}"
      id="section-{{ s.key }}">
   <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
     <span><i class="bi {{ s.icon }} me-2 text-{{ s.tone }}"></i>{{ s.label }}</span>
     <div class="d-flex align-items-center gap-2">
-      <span class="badge bg-{{ s.tone }}">{{ s.rows|length }}</span>
-      <form method="post" action="{{ url_for('dashboard_ausnahmen.alle_verwerfen') }}" class="d-inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="kategorie" value="{{ s.key }}">
-        <button type="submit" class="btn btn-sm btn-outline-secondary"
-                title="Alle Einträge dieser Kategorie verwerfen"
-                onclick="return confirm('Alle Einträge in dieser Kategorie verwerfen?')">
-          <i class="bi bi-x-circle me-1"></i>Alle verwerfen
-        </button>
-      </form>
+      <span class="badge bg-{{ s.tone }}">{{ s.total }}</span>
+      {% if s.key == 'owner_fehlt' %}
+      <button type="button" class="btn btn-sm btn-outline-warning triage-bulk-assign" disabled
+              title="Markierten Dateien Eigentümer zuordnen">
+        <i class="bi bi-person-check me-1"></i><span class="triage-bulk-assign-label">Markierte zuordnen</span>
+      </button>
+      {% endif %}
+      <button type="submit" class="btn btn-sm btn-outline-secondary triage-bulk-selected" disabled
+              formaction="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}"
+              title="Nur die markierten Einträge verwerfen">
+        <i class="bi bi-check2-square me-1"></i><span class="triage-bulk-selected-label">Markierte verwerfen</span>
+      </button>
+      <button type="submit" class="btn btn-sm btn-outline-secondary"
+              formaction="{{ url_for('dashboard_ausnahmen.alle_verwerfen') }}"
+              title="Alle Einträge dieser Kategorie verwerfen"
+              onclick="return confirm('Alle Einträge in dieser Kategorie verwerfen?')">
+        <i class="bi bi-x-circle me-1"></i>Alle verwerfen
+      </button>
     </div>
   </div>
   <div class="card-body py-2 small text-muted">
@@ -45,11 +75,25 @@
   </div>
   <div class="table-responsive">
     <table class="table table-hover table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th class="ps-3 align-middle" style="width:2.5rem">
+            <input type="checkbox" class="form-check-input triage-master"
+                   aria-label="Alle Einträge markieren">
+          </th>
+          <th colspan="99"></th>
+        </tr>
+      </thead>
       <tbody>
         {% if s.key == 'mittlere_konfidenz' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3 fw-500">{{ r.idv_id }}</td>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.suggestion_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">{{ r.idv_id }}</td>
             <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
             <td class="text-truncate" style="max-width:220px" title="{{ r.file_name }}">
               <i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}
@@ -69,7 +113,13 @@
         {% elif s.key == 'owner_fehlt' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3"><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.file_id }}"
+                     class="form-check-input triage-row-check"
+                     data-file-owner="{{ r.file_owner }}"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
             <td class="small text-muted text-truncate" style="max-width:280px" title="{{ r.full_path }}">{{ r.full_path }}</td>
             <td><code>{{ r.file_owner }}</code></td>
             <td class="text-end pe-3">
@@ -87,7 +137,12 @@
         {% elif s.key == 'self_service_stumm' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3 fw-500">{{ r.nachname }}, {{ r.vorname }}</td>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.jti }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">{{ r.nachname }}, {{ r.vorname }}</td>
             <td class="small text-muted">{{ r.email or '–' }}</td>
             <td class="small text-muted">Versendet {{ r.created_at[:10] }}</td>
             <td class="text-end pe-3">
@@ -103,7 +158,12 @@
         {% elif s.key == 'auto_classify_failed' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3"><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.file_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
             <td class="small text-muted text-truncate" style="max-width:320px" title="{{ r.full_path }}">{{ r.full_path }}</td>
             <td class="small text-muted">{{ r.modified_at[:10] if r.modified_at else '–' }}</td>
             <td class="text-end pe-3">
@@ -120,7 +180,12 @@
         {% elif s.key == 'eskalierte_idvs' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3 fw-500">
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
                  class="text-decoration-none">{{ r.idv_id }}</a>
             </td>
@@ -140,7 +205,12 @@
         {% elif s.key == 'pool_reminder_alt' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3 fw-500">
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.freigabe_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.idv_db_id) }}"
                  class="text-decoration-none">{{ r.idv_id }}</a>
             </td>
@@ -159,11 +229,32 @@
           </tr>
           {% endfor %}
         {% endif %}
-        {% if s.rows|length == 10 %}
+        {% if s.total_pages > 1 %}
         <tr>
-          <td colspan="99" class="text-center text-muted small py-2 fst-italic">
-            <i class="bi bi-three-dots me-1"></i>Zeigt die ersten 10 Einträge — weitere sind vorhanden.
-            Einträge verwerfen, um die nächsten zu sehen.
+          <td colspan="99" class="py-2 bg-light bg-opacity-50">
+            <nav aria-label="Paginierung {{ s.label }}">
+              <ul class="pagination pagination-sm justify-content-center mb-0">
+                <li class="page-item{% if not s.prev_url %} disabled{% endif %}">
+                  {% if s.prev_url %}
+                    <a class="page-link" href="{{ s.prev_url }}">&lsaquo; Zurück</a>
+                  {% else %}
+                    <span class="page-link">&lsaquo; Zurück</span>
+                  {% endif %}
+                </li>
+                <li class="page-item disabled">
+                  <span class="page-link">
+                    Seite {{ s.page }} von {{ s.total_pages }} · {{ s.total }} gesamt
+                  </span>
+                </li>
+                <li class="page-item{% if not s.next_url %} disabled{% endif %}">
+                  {% if s.next_url %}
+                    <a class="page-link" href="{{ s.next_url }}">Weiter &rsaquo;</a>
+                  {% else %}
+                    <span class="page-link">Weiter &rsaquo;</span>
+                  {% endif %}
+                </li>
+              </ul>
+            </nav>
           </td>
         </tr>
         {% endif %}
@@ -171,6 +262,7 @@
     </table>
   </div>
 </div>
+</form>
 {% endif %}
 {% endfor %}
 
@@ -217,6 +309,40 @@
     {% endfor %}
   {% endif %}
 {% endfor %}
+
+{% if persons_aktiv %}
+<script type="application/json" id="triage-persons-data">
+[{% for p in persons_aktiv -%}
+{"id": {{ p.id }}, "label": "{{ (p.nachname ~ ', ' ~ p.vorname ~ (' (' ~ p.user_id ~ ')' if p.user_id else '')) | e }}"}{% if not loop.last %},{% endif %}
+{%- endfor %}]
+</script>
+
+<div class="modal fade" id="bulkOwnerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post"
+            action="{{ url_for('dashboard_ausnahmen.eigentuemer_zuordnen_bulk') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-person-check me-2"></i>Eigentümer zuordnen (Mehrfachauswahl)</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Abbrechen"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Pro Scanner-Eigentümer eine Person wählen. Die Zuordnung wirkt
+            für alle Dateien dieses Eigentümers — nicht nur für die markierten.
+          </p>
+          <div id="bulkOwnerRows" class="vstack gap-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-warning btn-sm">Zuordnen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {# Verwerfen-Modals fuer alle Kategorien #}
 {% for s in sections %}
@@ -275,4 +401,176 @@
     {% endif %}
   {% endfor %}
 {% endfor %}
+
+<script>
+(function () {
+  var filterBar = document.getElementById('triage-filter-bar');
+  if (filterBar) {
+    var STORAGE_KEY = 'triage-hidden-cats';
+    var pills = filterBar.querySelectorAll('.triage-filter-pill');
+    var allBtn = filterBar.querySelector('.triage-filter-all');
+
+    function loadHidden() {
+      try {
+        var raw = window.localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) { return []; }
+    }
+    function saveHidden(arr) {
+      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+      catch (e) { /* ignore */ }
+    }
+
+    function applyHidden(hidden) {
+      pills.forEach(function (pill) {
+        var key = pill.getAttribute('data-kategorie');
+        var isHidden = hidden.indexOf(key) !== -1;
+        pill.classList.toggle('active', !isHidden);
+        var section = document.querySelector(
+          '.triage-section-form[data-kategorie="' + key + '"]'
+        );
+        if (section) section.classList.toggle('d-none', isHidden);
+      });
+      if (allBtn) allBtn.classList.toggle('active', hidden.length === 0);
+    }
+
+    var hidden = loadHidden();
+    applyHidden(hidden);
+
+    pills.forEach(function (pill) {
+      pill.addEventListener('click', function () {
+        var key = pill.getAttribute('data-kategorie');
+        var idx = hidden.indexOf(key);
+        if (idx === -1) hidden.push(key); else hidden.splice(idx, 1);
+        saveHidden(hidden);
+        applyHidden(hidden);
+      });
+    });
+    if (allBtn) {
+      allBtn.addEventListener('click', function () {
+        hidden = [];
+        saveHidden(hidden);
+        applyHidden(hidden);
+      });
+    }
+  }
+
+  document.querySelectorAll('.triage-section-form').forEach(function (form) {
+    var master       = form.querySelector('.triage-master');
+    var rowChks      = form.querySelectorAll('.triage-row-check');
+    var bulkBtn      = form.querySelector('.triage-bulk-selected');
+    var bulkLbl      = form.querySelector('.triage-bulk-selected-label');
+    var assignBtn    = form.querySelector('.triage-bulk-assign');
+    var assignLbl    = form.querySelector('.triage-bulk-assign-label');
+    if (!bulkBtn || !bulkLbl) return;
+
+    function selectedCount() {
+      return form.querySelectorAll('.triage-row-check:checked').length;
+    }
+
+    function refresh() {
+      var n = selectedCount();
+      bulkBtn.disabled = (n === 0);
+      bulkLbl.textContent = n > 0
+        ? 'Markierte verwerfen (' + n + ')'
+        : 'Markierte verwerfen';
+      if (assignBtn) {
+        assignBtn.disabled = (n === 0);
+        if (assignLbl) assignLbl.textContent = n > 0
+          ? 'Markierte zuordnen (' + n + ')'
+          : 'Markierte zuordnen';
+      }
+      if (master) {
+        master.checked = (n > 0 && n === rowChks.length);
+        master.indeterminate = (n > 0 && n < rowChks.length);
+      }
+    }
+
+    if (assignBtn) {
+      assignBtn.addEventListener('click', function () {
+        var checked = form.querySelectorAll('.triage-row-check:checked');
+        if (checked.length === 0) return;
+        var seen = {};
+        var owners = [];
+        checked.forEach(function (cb) {
+          var fo = cb.getAttribute('data-file-owner') || '';
+          if (fo && !seen[fo]) { seen[fo] = true; owners.push(fo); }
+        });
+        if (owners.length === 0) return;
+
+        var rowsContainer = document.getElementById('bulkOwnerRows');
+        var personsTag    = document.getElementById('triage-persons-data');
+        var modalEl       = document.getElementById('bulkOwnerModal');
+        if (!rowsContainer || !personsTag || !modalEl) return;
+        var persons = [];
+        try { persons = JSON.parse(personsTag.textContent); } catch (e) {}
+
+        rowsContainer.innerHTML = '';
+        owners.forEach(function (fo) {
+          var row = document.createElement('div');
+          row.className = 'row g-2 align-items-center';
+
+          var ownerCol = document.createElement('div');
+          ownerCol.className = 'col-md-5';
+          var code = document.createElement('code');
+          code.textContent = fo;
+          ownerCol.appendChild(code);
+          var hidden = document.createElement('input');
+          hidden.type  = 'hidden';
+          hidden.name  = 'file_owner';
+          hidden.value = fo;
+          ownerCol.appendChild(hidden);
+
+          var selectCol = document.createElement('div');
+          selectCol.className = 'col-md-7';
+          var select = document.createElement('select');
+          select.name      = 'person_id';
+          select.className = 'form-select form-select-sm';
+          select.required  = true;
+          var optDefault = document.createElement('option');
+          optDefault.value       = '';
+          optDefault.textContent = '— Person wählen —';
+          optDefault.disabled    = true;
+          optDefault.selected    = true;
+          select.appendChild(optDefault);
+          persons.forEach(function (p) {
+            var opt = document.createElement('option');
+            opt.value       = p.id;
+            opt.textContent = p.label;
+            select.appendChild(opt);
+          });
+          selectCol.appendChild(select);
+
+          row.appendChild(ownerCol);
+          row.appendChild(selectCol);
+          rowsContainer.appendChild(row);
+        });
+
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      });
+    }
+
+    if (master) {
+      master.addEventListener('change', function () {
+        rowChks.forEach(function (cb) { cb.checked = master.checked; });
+        refresh();
+      });
+    }
+    rowChks.forEach(function (cb) {
+      cb.addEventListener('change', refresh);
+    });
+
+    bulkBtn.addEventListener('click', function (ev) {
+      var n = selectedCount();
+      if (n === 0) { ev.preventDefault(); return; }
+      var msg = n === 1
+        ? '1 markierten Eintrag verwerfen?'
+        : n + ' markierte Einträge verwerfen?';
+      if (!window.confirm(msg)) ev.preventDefault();
+    });
+
+    refresh();
+  });
+})();
+</script>
 {% endblock %}
