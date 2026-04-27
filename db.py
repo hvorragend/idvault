@@ -264,6 +264,11 @@ def validate_regex_pattern(pattern: str) -> Optional[str]:
 _VERSION_FP_PATTERNS: tuple = (
     # ISO-Datum 2024-06-15 — muss vor der Jahres-Maske laufen
     (re.compile(r"\d{4}-\d{2}-\d{2}"),          "####-##-##"),
+    # Deutsches Datum DD.MM.YYYY (auch D.M.YYYY) — atomar maskieren, sonst
+    # bleibt der Tag stehen, sobald er groesser als 12 ist (z.B. 15.01.2025
+    # vs. 17.03.2025), und das Monatsmuster trifft den Tag-Anteil nicht.
+    # Muss vor Jahres- und Monatsmaske laufen.
+    (re.compile(r"(?<!\d)\d{1,2}\.\d{1,2}\.\d{4}(?!\d)"), "##.##.####"),
     # Jahr 20xx (eigenstaendig, nicht Teil einer laengeren Ziffernfolge)
     (re.compile(r"(?<!\d)20\d{2}(?!\d)"),       "####"),
     # Quartal Q1..Q4 (case-insensitiv)
@@ -291,6 +296,7 @@ def compute_version_fingerprint(full_path: Optional[str],
       2. Stem = ``file_name`` ohne letzte Extension.
       3. Versions-/Zeitstempel-Muster im Stem maskieren:
          - ISO-Datum  ``\\d{4}-\\d{2}-\\d{2}``    -> ``####-##-##``
+         - DE-Datum   ``\\d{1,2}\\.\\d{1,2}\\.\\d{4}`` -> ``##.##.####``
          - Jahr       ``20\\d{2}``                -> ``####``
          - Quartal    ``Q[1-4]``                 -> ``Q#``
          - Version    ``v\\d+``                   -> ``v#``

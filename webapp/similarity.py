@@ -39,6 +39,11 @@ DEFAULT_NOISE_WORDS: list[str] = [
     "der", "die", "das", "und", "fur", "für", "von", "mit", "zu", "in",
     "v1", "v2", "v3", "final", "neu", "alt", "copy", "backup", "temp", "tmp",
     "test", "old", "new", "kopie", "entwurf", "draft",
+    # Quartals-Tokens: bei quartalsweise abgelegten Reports unterscheidet sich
+    # nur der Quartals-Marker. Analog zur Quartals-Maske im Versions-Finger-
+    # print (db.py) werden q1..q4 hier aus der Tokenisierung gefiltert, damit
+    # der Score nicht allein durch das wechselnde Quartal sinkt.
+    "q1", "q2", "q3", "q4",
 ]
 
 DEFAULT_CONFIG: dict = {
