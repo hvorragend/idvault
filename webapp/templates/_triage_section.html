@@ -1,0 +1,383 @@
+{# Wird auch als Sidecar-Fragment bei ?fragment=<key> ausgeliefert,
+   deshalb komplett in einen <div class="triage-section"> gehuellt — der
+   ist die Swap-Einheit beim Fetch+Replace. #}
+<div class="triage-section" data-kategorie="{{ s.key }}">
+<form method="post" class="triage-section-form" data-kategorie="{{ s.key }}"
+      action="{{ url_for('dashboard_triage.markierte_verwerfen') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="kategorie" value="{{ s.key }}">
+<div class="card border-0 shadow-sm mb-4 border-start border-4 border-{{ s.tone }}"
+     id="section-{{ s.key }}">
+  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+    <span><i class="bi {{ s.icon }} me-2 text-{{ s.tone }}"></i>{{ s.label }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-{{ s.tone }}">{{ s.total }}</span>
+      {% if s.key == 'owner_fehlt' %}
+      <button type="button" class="btn btn-sm btn-outline-warning triage-bulk-assign" disabled
+              title="Markierten Dateien Eigentümer zuordnen">
+        <i class="bi bi-person-check me-1"></i><span class="triage-bulk-assign-label">Markierte zuordnen</span>
+      </button>
+      {% endif %}
+      <button type="submit" class="btn btn-sm btn-outline-secondary triage-bulk-selected" disabled
+              formaction="{{ url_for('dashboard_triage.markierte_verwerfen') }}"
+              title="Nur die markierten Einträge verwerfen">
+        <i class="bi bi-check2-square me-1"></i><span class="triage-bulk-selected-label">Markierte verwerfen</span>
+      </button>
+      <button type="submit" class="btn btn-sm btn-outline-secondary"
+              formaction="{{ url_for('dashboard_triage.alle_verwerfen') }}"
+              title="Alle Einträge dieser Kategorie verwerfen"
+              onclick="return confirm('Alle Einträge in dieser Kategorie verwerfen?')">
+        <i class="bi bi-x-circle me-1"></i>Alle verwerfen
+      </button>
+    </div>
+  </div>
+  <div class="card-body py-2 small text-muted">
+    <i class="bi bi-info-circle me-1"></i>{{ s.hint }}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3 align-middle" style="width:2.5rem">
+            <input type="checkbox" class="form-check-input triage-master"
+                   aria-label="Alle Einträge markieren">
+          </th>
+          {% if s.key == 'mittlere_konfidenz' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Datei</th>
+            <th>
+              <a href="{{ s.score_sort_url }}" class="text-decoration-none text-reset triage-sort-link"
+                 title="Nach Score sortieren">
+                Score
+                {% if s.sort == 'score_desc' %}
+                  <i class="bi bi-caret-down-fill small ms-1 text-primary"></i>
+                {% elif s.sort == 'score_asc' %}
+                  <i class="bi bi-caret-up-fill small ms-1 text-primary"></i>
+                {% endif %}
+              </a>
+            </th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'owner_fehlt' %}
+            <th>Datei</th>
+            <th>Pfad</th>
+            <th>Eigentümer</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'self_service_stumm' %}
+            <th>Person</th>
+            <th>E-Mail</th>
+            <th>Versendet</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'auto_classify_failed' %}
+            <th>Datei</th>
+            <th>Pfad</th>
+            <th>Geändert</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'eskalierte_idvs' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Reminder</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'pool_reminder_alt' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Schritt</th>
+            <th>Pool</th>
+            <th>Beauftragt</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% if s.key == 'mittlere_konfidenz' %}
+          {% for r in s.rows %}
+          <tr>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.suggestion_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">{{ r.idv_id }}</td>
+            <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
+            <td class="text-truncate" style="max-width:220px" title="{{ r.file_name }}">
+              <i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}
+            </td>
+            <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Score {{ r.score }}</span></td>
+            <td class="text-end pe-3">
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.idv_db_id) }}"
+                 class="btn btn-sm btn-outline-primary me-1">Vorschlag prüfen</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-mittlere_konfidenz-{{ r.suggestion_id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+
+        {% elif s.key == 'owner_fehlt' %}
+          {% for r in s.rows %}
+          <tr>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.file_id }}"
+                     class="form-check-input triage-row-check"
+                     data-file-owner="{{ r.file_owner }}"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
+            <td class="small text-muted text-truncate" style="max-width:280px" title="{{ r.full_path }}">{{ r.full_path }}</td>
+            <td><code>{{ r.file_owner }}</code></td>
+            <td class="text-end pe-3">
+              <button type="button" class="btn btn-sm btn-outline-warning me-1"
+                      data-bs-toggle="modal"
+                      data-bs-target="#ownerModal{{ r.file_id }}">Eigentümer zuordnen</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-owner_fehlt-{{ r.file_id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+
+        {% elif s.key == 'self_service_stumm' %}
+          {% for r in s.rows %}
+          <tr>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.jti }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">{{ r.nachname }}, {{ r.vorname }}</td>
+            <td class="small text-muted">{{ r.email or '–' }}</td>
+            <td class="small text-muted">Versendet {{ r.created_at[:10] }}</td>
+            <td class="text-end pe-3">
+              <span class="text-muted small me-2">Eskalation siehe #355</span>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-self_service_stumm-{{ r.jti }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+
+        {% elif s.key == 'auto_classify_failed' %}
+          {% for r in s.rows %}
+          <tr>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.file_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
+            <td class="small text-muted text-truncate" style="max-width:320px" title="{{ r.full_path }}">{{ r.full_path }}</td>
+            <td class="small text-muted">{{ r.modified_at[:10] if r.modified_at else '–' }}</td>
+            <td class="text-end pe-3">
+              <a href="{{ url_for('funde.list_funde') }}"
+                 class="btn btn-sm btn-outline-danger me-1">Zur Triage</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-auto_classify_failed-{{ r.file_id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+
+        {% elif s.key == 'eskalierte_idvs' %}
+          {% for r in s.rows %}
+          <tr>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
+                 class="text-decoration-none">{{ r.idv_id }}</a>
+            </td>
+            <td class="text-truncate" style="max-width:280px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
+            <td><span class="badge bg-danger">{{ r.reminder_count }} Reminder</span></td>
+            <td class="text-end pe-3">
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
+                 class="btn btn-sm btn-outline-danger me-1">Eskalieren</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-eskalierte_idvs-{{ r.id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+
+        {% elif s.key == 'pool_reminder_alt' %}
+          {% for r in s.rows %}
+          <tr>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.freigabe_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.idv_db_id) }}"
+                 class="text-decoration-none">{{ r.idv_id }}</a>
+            </td>
+            <td class="text-truncate" style="max-width:240px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
+            <td><span class="badge bg-warning text-dark">{{ r.schritt }}</span></td>
+            <td class="small text-muted">Pool: {{ r.pool_name }}</td>
+            <td class="small text-muted">Beauftragt {{ r.beauftragt_am[:10] }}</td>
+            <td class="text-end pe-3">
+              <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.idv_db_id) }}"
+                 class="btn btn-sm btn-outline-warning me-1">Pool zuweisen</a>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#verwerfenModal-pool_reminder_alt-{{ r.freigabe_id }}"
+                      title="Eintrag verwerfen"><i class="bi bi-x-lg"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+        {% endif %}
+      </tbody>
+      {% if s.total_pages > 1 %}
+      <tfoot>
+        <tr>
+          <td colspan="99" class="py-2 bg-light bg-opacity-50">
+            <nav aria-label="Paginierung {{ s.label }}">
+              <ul class="pagination pagination-sm justify-content-center mb-0">
+                <li class="page-item{% if not s.first_url %} disabled{% endif %}">
+                  {% if s.first_url %}
+                    <a class="page-link triage-page-link" href="{{ s.first_url }}" aria-label="Erste Seite">&laquo; Anfang</a>
+                  {% else %}
+                    <span class="page-link" aria-label="Erste Seite">&laquo; Anfang</span>
+                  {% endif %}
+                </li>
+                <li class="page-item{% if not s.prev_url %} disabled{% endif %}">
+                  {% if s.prev_url %}
+                    <a class="page-link triage-page-link" href="{{ s.prev_url }}">&lsaquo; Zurück</a>
+                  {% else %}
+                    <span class="page-link">&lsaquo; Zurück</span>
+                  {% endif %}
+                </li>
+                <li class="page-item disabled">
+                  <span class="page-link">
+                    Seite {{ s.page }} von {{ s.total_pages }} · {{ s.total }} gesamt
+                  </span>
+                </li>
+                <li class="page-item{% if not s.next_url %} disabled{% endif %}">
+                  {% if s.next_url %}
+                    <a class="page-link triage-page-link" href="{{ s.next_url }}">Weiter &rsaquo;</a>
+                  {% else %}
+                    <span class="page-link">Weiter &rsaquo;</span>
+                  {% endif %}
+                </li>
+                <li class="page-item{% if not s.last_url %} disabled{% endif %}">
+                  {% if s.last_url %}
+                    <a class="page-link triage-page-link" href="{{ s.last_url }}" aria-label="Letzte Seite">Ende &raquo;</a>
+                  {% else %}
+                    <span class="page-link" aria-label="Letzte Seite">Ende &raquo;</span>
+                  {% endif %}
+                </li>
+              </ul>
+            </nav>
+          </td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+</form>
+
+{% if s.key == 'owner_fehlt' %}
+  {% for r in s.rows %}
+  <div class="modal fade" id="ownerModal{{ r.file_id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form method="post"
+              action="{{ url_for('dashboard_triage.eigentuemer_zuordnen') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="file_owner" value="{{ r.file_owner }}">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-person-check me-2"></i>Eigentümer zuordnen</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Abbrechen"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted mb-3">
+              Scanner-Eigentümer <code>{{ r.file_owner }}</code>
+              ist in den Stammdaten nicht zugeordnet. Wähle die passende
+              Person.
+            </p>
+            <div class="mb-1">
+              <label class="form-label fw-600">Person</label>
+              <select name="person_id" class="form-select" required>
+                <option value="" disabled selected>— Person wählen —</option>
+                {% for p in persons_aktiv %}
+                <option value="{{ p.id }}">
+                  {{ p.nachname }}, {{ p.vorname }}{% if p.user_id %} ({{ p.user_id }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+            <button type="submit" class="btn btn-warning">Zuordnen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
+
+{% for r in s.rows %}
+  {% if s.key == 'mittlere_konfidenz' %}
+    {% set modal_id = 'verwerfenModal-mittlere_konfidenz-' ~ r.suggestion_id %}
+    {% set ref_key = r.suggestion_id | string %}
+    {% set label = r.idv_id ~ ' – ' ~ r.file_name %}
+  {% elif s.key == 'owner_fehlt' %}
+    {% set modal_id = 'verwerfenModal-owner_fehlt-' ~ r.file_id %}
+    {% set ref_key = r.file_id | string %}
+    {% set label = r.file_name %}
+  {% elif s.key == 'self_service_stumm' %}
+    {% set modal_id = 'verwerfenModal-self_service_stumm-' ~ r.jti %}
+    {% set ref_key = r.jti %}
+    {% set label = r.nachname ~ ', ' ~ r.vorname %}
+  {% elif s.key == 'auto_classify_failed' %}
+    {% set modal_id = 'verwerfenModal-auto_classify_failed-' ~ r.file_id %}
+    {% set ref_key = r.file_id | string %}
+    {% set label = r.file_name %}
+  {% elif s.key == 'eskalierte_idvs' %}
+    {% set modal_id = 'verwerfenModal-eskalierte_idvs-' ~ r.id %}
+    {% set ref_key = r.id | string %}
+    {% set label = r.idv_id ~ ' – ' ~ r.bezeichnung %}
+  {% elif s.key == 'pool_reminder_alt' %}
+    {% set modal_id = 'verwerfenModal-pool_reminder_alt-' ~ r.freigabe_id %}
+    {% set ref_key = r.freigabe_id | string %}
+    {% set label = r.idv_id ~ ' – ' ~ r.bezeichnung %}
+  {% else %}
+    {% set modal_id = '' %}
+  {% endif %}
+  {% if modal_id %}
+  <div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <form method="post" action="{{ url_for('dashboard_triage.eintrag_verwerfen') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="kategorie" value="{{ s.key }}">
+          <input type="hidden" name="ref_key" value="{{ ref_key }}">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-x-circle me-2 text-secondary"></i>Eintrag verwerfen</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Abbrechen"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-1">Diesen Eintrag aus der Triage-Ansicht entfernen?</p>
+            <p class="small text-muted mb-0">{{ label }}</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Verwerfen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+{% endfor %}
+</div>

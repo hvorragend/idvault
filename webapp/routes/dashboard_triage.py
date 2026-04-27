@@ -366,19 +366,86 @@ def _sort_url(key: str, sort_value: str) -> str:
     return f"{base}{('?' + qs) if qs else ''}#section-{key}"
 
 
+_FNS_BY_NAME = None  # lazy: vermeidet Forward-Reference-Probleme
+
+
+def _resolve_fns():
+    global _FNS_BY_NAME
+    if _FNS_BY_NAME is None:
+        _FNS_BY_NAME = {
+            "_mittlere_konfidenz":           _mittlere_konfidenz,
+            "_owner_mapping_fehlt":          _owner_mapping_fehlt,
+            "_self_service_stumm":           _self_service_stumm,
+            "_auto_classify_fehlgeschlagen": _auto_classify_fehlgeschlagen,
+            "_eskalierte_idvs":              _eskalierte_idvs,
+            "_pool_reminder_ausgelaufen":    _pool_reminder_ausgelaufen,
+        }
+    return _FNS_BY_NAME
+
+
+def _build_section(db, key, per_page, sort_mk):
+    """Baut das Section-Dict fuer Template/Sidecar-Render. Erwartet,
+    dass der Aufrufer ``per_page`` und ``sort_mk`` bereits aus der
+    Query gezogen + validiert hat, damit Vollrender und Fragment
+    konsistent bleiben.
+    """
+    fns = _resolve_fns()
+    sec_def = next((d for d in _SECTION_DEFS if d[0] == key), None)
+    if not sec_def:
+        return None
+    _, icon, tone, label, hint, fn_name = sec_def
+
+    count = _count_category(db, key)
+    total_pages = max(1, math.ceil(count / per_page)) if count else 1
+    try:
+        page = int(request.args.get(f"page_{key}", "1") or "1")
+    except (TypeError, ValueError):
+        page = 1
+    page = max(1, min(page, total_pages))
+
+    fn_kwargs = {"page": page, "page_size": per_page}
+    if key == "mittlere_konfidenz":
+        fn_kwargs["sort"] = sort_mk
+    rows = [dict(r) for r in fns[fn_name](db, **fn_kwargs)]
+
+    section = {
+        "key":         key,
+        "icon":        icon,
+        "tone":        tone,
+        "label":       label,
+        "hint":        hint,
+        "rows":        rows,
+        "page":        page,
+        "total":       count,
+        "total_pages": total_pages,
+        "page_size":   per_page,
+        "first_url":   _page_url(key, 1) if page > 1 else None,
+        "prev_url":    _page_url(key, page - 1) if page > 1 else None,
+        "next_url":    _page_url(key, page + 1) if page < total_pages else None,
+        "last_url":    _page_url(key, total_pages) if page < total_pages else None,
+    }
+    if key == "mittlere_konfidenz":
+        section["sort"] = sort_mk
+        next_sort = ("score_asc"
+                     if sort_mk == "score_desc" else "score_desc")
+        section["score_sort_url"] = _sort_url(key, next_sort)
+    return section
+
+
+def _load_persons_aktiv(db):
+    return [dict(r) for r in db.execute("""
+        SELECT id, nachname, vorname, ad_name, user_id
+          FROM persons
+         WHERE aktiv = 1
+         ORDER BY nachname, vorname
+    """).fetchall()]
+
+
 @bp.route("/triage")
 @login_required
 @_koordinator_required
 def index():
     db = get_db()
-    fns = {
-        "_mittlere_konfidenz":         _mittlere_konfidenz,
-        "_owner_mapping_fehlt":        _owner_mapping_fehlt,
-        "_self_service_stumm":         _self_service_stumm,
-        "_auto_classify_fehlgeschlagen": _auto_classify_fehlgeschlagen,
-        "_eskalierte_idvs":            _eskalierte_idvs,
-        "_pool_reminder_ausgelaufen":  _pool_reminder_ausgelaufen,
-    }
 
     per_page = _resolve_page_size()
     sort_mk = request.args.get(
@@ -387,43 +454,21 @@ def index():
     if sort_mk not in _SORTS_MITTLERE_KONFIDENZ:
         sort_mk = _DEFAULT_SORT_MITTLERE_KONFIDENZ
 
+    # Sidecar-Update: nur eine Sektion rendern.
+    fragment_key = (request.args.get("fragment") or "").strip()
+    if fragment_key and fragment_key in _COUNT_SQL:
+        section = _build_section(db, fragment_key, per_page, sort_mk)
+        if section is None:
+            return ("Unknown section", 404)
+        persons_aktiv = (_load_persons_aktiv(db)
+                         if fragment_key == "owner_fehlt" and section["rows"]
+                         else [])
+        return render_template("_triage_section.html",
+                               s=section, persons_aktiv=persons_aktiv)
+
     sections = []
-    for key, icon, tone, label, hint, fn_name in _SECTION_DEFS:
-        count = _count_category(db, key)
-        total_pages = max(1, math.ceil(count / per_page)) if count else 1
-        try:
-            page = int(request.args.get(f"page_{key}", "1") or "1")
-        except (TypeError, ValueError):
-            page = 1
-        page = max(1, min(page, total_pages))
-
-        fn_kwargs = {"page": page, "page_size": per_page}
-        if key == "mittlere_konfidenz":
-            fn_kwargs["sort"] = sort_mk
-        rows = [dict(r) for r in fns[fn_name](db, **fn_kwargs)]
-
-        section = {
-            "key":         key,
-            "icon":        icon,
-            "tone":        tone,
-            "label":       label,
-            "hint":        hint,
-            "rows":        rows,
-            "page":        page,
-            "total":       count,
-            "total_pages": total_pages,
-            "page_size":   per_page,
-            "first_url":   _page_url(key, 1) if page > 1 else None,
-            "prev_url":    _page_url(key, page - 1) if page > 1 else None,
-            "next_url":    _page_url(key, page + 1) if page < total_pages else None,
-            "last_url":    _page_url(key, total_pages) if page < total_pages else None,
-        }
-        if key == "mittlere_konfidenz":
-            section["sort"] = sort_mk
-            next_sort = ("score_asc"
-                         if sort_mk == "score_desc" else "score_desc")
-            section["score_sort_url"] = _sort_url(key, next_sort)
-        sections.append(section)
+    for key, _icon, _tone, _label, _hint, _fn in _SECTION_DEFS:
+        sections.append(_build_section(db, key, per_page, sort_mk))
     total = sum(s["total"] for s in sections)
 
     persons_aktiv = []
@@ -431,12 +476,7 @@ def index():
         s["key"] == "owner_fehlt" and s["rows"] for s in sections
     )
     if has_owner_fehlt:
-        persons_aktiv = [dict(r) for r in db.execute("""
-            SELECT id, nachname, vorname, ad_name, user_id
-              FROM persons
-             WHERE aktiv = 1
-             ORDER BY nachname, vorname
-        """).fetchall()]
+        persons_aktiv = _load_persons_aktiv(db)
 
     return render_template("dashboard_triage.html",
                            sections=sections, total=total,
