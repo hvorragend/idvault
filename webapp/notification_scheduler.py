@@ -314,7 +314,14 @@ def _self_service_master_enabled(db) -> bool:
     return bool(row and row["value"] == "1")
 
 
-def _dispatch_owner_digest(db, today_iso: str) -> int:
+def _dispatch_owner_digest(
+    db,
+    today_iso: str,
+    *,
+    force: bool = False,
+    test_recipient: str | None = None,
+    test_limit: int = 3,
+) -> dict:
     """Wöchentliche Sammelbenachrichtigung an Fachbereichs-Mitarbeiter:
     gruppiert neue Scanner-Funde nach Empfänger (aus ``file_owner`` →
     ``persons`` resolved) und sendet pro Empfänger **höchstens eine** Mail
@@ -326,9 +333,24 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
     mehr als eine Mail pro Empfänger und Tag.
 
     Greift nur, wenn ``_self_service_master_enabled`` True liefert.
+
+    ``force=True`` (manueller Sofortversand aus dem Admin-UI) ignoriert
+    Tageslimit und Intervall-Dedup, registriert Tokens und protokolliert
+    den Versand in ``notification_log`` wie ein regulärer Lauf.
+
+    ``test_recipient`` (Testversand aus dem Admin-UI) leitet alle Mails
+    an diese Adresse um, kennzeichnet Betreff/Body als Test, ignoriert
+    Master-Switch und Dedup-Gates, erzeugt keine Tokens und schreibt
+    nicht in ``notification_log``. Begrenzt auf ``test_limit`` Empfänger
+    (Default 3), damit ein einzelner Test keine Mailflut auslöst.
+
+    Rückgabe: ``{"sent": int, "candidates": [...], "skipped_test_limit": int}``.
+    ``candidates`` enthält pro Eintrag ``email``, ``name``, ``file_count``
+    und ``burst`` für Anzeige im Admin-UI.
     """
-    if not _self_service_master_enabled(db):
-        return 0
+    test_mode = bool(test_recipient)
+    if not test_mode and not _self_service_master_enabled(db):
+        return {"sent": 0, "candidates": [], "skipped_test_limit": 0}
 
     from .email_service import notify_owner_digest, get_app_base_url
     from .tokens import make_self_service_token
@@ -396,7 +418,7 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
     """).fetchall()
 
     if not rows:
-        return 0
+        return {"sent": 0, "candidates": [], "skipped_test_limit": 0}
 
     grouped: dict[int, dict] = {}
     for r in rows:
@@ -410,92 +432,136 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
 
     secret_key = current_app.config.get("SECRET_KEY", "")
     base_url   = get_app_base_url(db)
-    if not base_url or not secret_key:
+    if not base_url or (not test_mode and not secret_key):
+        # Im Testmodus reicht base_url; ein fehlender SECRET_KEY ist nur
+        # für die echte Token-Erzeugung kritisch.
         log.warning(
             "Sammelbenachrichtigung übersprungen: app_base_url oder SECRET_KEY fehlt."
         )
-        return 0
+        return {"sent": 0, "candidates": [], "skipped_test_limit": 0}
 
     sent = 0
-    expires_at_iso = (
-        datetime.utcnow().replace(microsecond=0).isoformat(" ")
-    )  # Platzhalter – wird unten überschrieben
+    candidates: list[dict] = []
+    skipped_test_limit = 0
+    processed_in_test = 0
     for person_id, group in grouped.items():
         file_count = len(group["files"])
 
-        # Hartes Tageslimit: pro Empfänger höchstens **eine** Sammel-Mail
-        # pro Tag – verhindert Mail-Flut, auch wenn Sofort-Schwelle und
-        # Intervall-Ablauf am selben Tag zusammentreffen.
-        sent_today = db.execute(
-            "SELECT 1 FROM notification_log "
-            "WHERE kind=? AND ref_id=? AND sent_date = date('now')",
-            (_OWNER_DIGEST_KIND, person_id),
-        ).fetchone()
-        if sent_today:
-            continue
+        if test_mode:
+            # Im Testmodus alle Dedup-Gates ignorieren, aber pro Klick nur
+            # eine begrenzte Anzahl Mails an die Test-Adresse senden.
+            burst_mode = False
+            if processed_in_test >= max(0, test_limit):
+                skipped_test_limit += 1
+                candidates.append({
+                    "email":      group["email"],
+                    "name":       group["anzeigename"],
+                    "file_count": file_count,
+                    "burst":      False,
+                    "skipped":    True,
+                })
+                continue
+            processed_in_test += 1
+        else:
+            # Hartes Tageslimit: pro Empfänger höchstens **eine** Sammel-Mail
+            # pro Tag – verhindert Mail-Flut, auch wenn Sofort-Schwelle und
+            # Intervall-Ablauf am selben Tag zusammentreffen.
+            sent_today = db.execute(
+                "SELECT 1 FROM notification_log "
+                "WHERE kind=? AND ref_id=? AND sent_date = date('now')",
+                (_OWNER_DIGEST_KIND, person_id),
+            ).fetchone()
+            if sent_today and not force:
+                continue
 
-        # Dedup pro Empfänger + Intervall. Sofort-Versand: wenn die Anzahl
-        # offener Funde die Schwelle erreicht, wird das Intervall ignoriert.
-        recent = db.execute(
-            "SELECT 1 FROM notification_log "
-            "WHERE kind=? AND ref_id=? AND sent_date >= date('now', ?)",
-            (_OWNER_DIGEST_KIND, person_id, f"-{freq_days} days"),
-        ).fetchone()
-        burst_mode = bool(
-            recent and burst_threshold > 0 and file_count >= burst_threshold
-        )
-        if recent and not burst_mode:
-            continue
+            # Dedup pro Empfänger + Intervall. Sofort-Versand: wenn die Anzahl
+            # offener Funde die Schwelle erreicht, wird das Intervall ignoriert.
+            recent = db.execute(
+                "SELECT 1 FROM notification_log "
+                "WHERE kind=? AND ref_id=? AND sent_date >= date('now', ?)",
+                (_OWNER_DIGEST_KIND, person_id, f"-{freq_days} days"),
+            ).fetchone()
+            burst_mode = bool(
+                recent and burst_threshold > 0 and file_count >= burst_threshold
+            )
+            if recent and not burst_mode and not force:
+                continue
 
-        jti = _secrets.token_urlsafe(18)
-        try:
-            token = make_self_service_token(secret_key, person_id, jti)
-        except Exception:
-            log.exception("Token-Erzeugung fehlgeschlagen (person_id=%s)", person_id)
-            continue
+        if test_mode:
+            # Kein gültiges Token erzeugen/registrieren – der Link in der
+            # Test-Mail ist nur für die Layout-Vorschau gedacht.
+            magic_link = f"{base_url}/selbst/meine-funde?token=TEST-MODE-NO-VALID-TOKEN"
+            jti = None
+        else:
+            jti = _secrets.token_urlsafe(18)
+            try:
+                token = make_self_service_token(secret_key, person_id, jti)
+            except Exception:
+                log.exception("Token-Erzeugung fehlgeschlagen (person_id=%s)", person_id)
+                continue
 
-        # Token serverseitig registrieren (7 Tage gültig – siehe tokens.py).
-        # expires_at für Transparenz in der Tabelle, die Signatur ist autoritativ.
-        from datetime import timedelta as _td
-        expires_at = (datetime.utcnow() + _td(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+            # Token serverseitig registrieren (7 Tage gültig – siehe tokens.py).
+            # expires_at für Transparenz in der Tabelle, die Signatur ist autoritativ.
+            from datetime import timedelta as _td
+            expires_at = (datetime.utcnow() + _td(days=7)).strftime("%Y-%m-%d %H:%M:%S")
 
-        def _register(c, _jti=jti, _pid=person_id, _exp=expires_at):
-            with write_tx(c):
-                c.execute(
-                    "INSERT INTO self_service_tokens "
-                    "(jti, person_id, expires_at) VALUES (?,?,?)",
-                    (_jti, _pid, _exp),
-                )
-        try:
-            get_writer().submit(_register, wait=True)
-        except Exception:
-            log.exception("Token-Registrierung in DB fehlgeschlagen (jti=%s)", jti)
-            continue
+            def _register(c, _jti=jti, _pid=person_id, _exp=expires_at):
+                with write_tx(c):
+                    c.execute(
+                        "INSERT INTO self_service_tokens "
+                        "(jti, person_id, expires_at) VALUES (?,?,?)",
+                        (_jti, _pid, _exp),
+                    )
+            try:
+                get_writer().submit(_register, wait=True)
+            except Exception:
+                log.exception("Token-Registrierung in DB fehlgeschlagen (jti=%s)", jti)
+                continue
 
-        magic_link = f"{base_url}/selbst/meine-funde?token={token}"
+            magic_link = f"{base_url}/selbst/meine-funde?token={token}"
+
+        recipient_email = test_recipient if test_mode else group["email"]
+        test_banner = None
+        if test_mode:
+            test_banner = (
+                f"Eigentlicher Empfänger: {group['anzeigename']} "
+                f"&lt;{group['email']}&gt; — Magic-Link in dieser Mail ist "
+                "ein Platzhalter und nicht funktionsfähig."
+            )
 
         try:
             ok = notify_owner_digest(
                 db,
-                recipient_email=group["email"],
+                recipient_email=recipient_email,
                 recipient_name=group["anzeigename"],
                 file_rows=group["files"],
                 magic_link=magic_link,
                 base_url=base_url,
                 burst=burst_mode,
+                test_banner=test_banner,
             )
         except Exception:
             log.exception(
                 "Fehler beim Versand der Sammelbenachrichtigung "
-                "(person_id=%s, burst=%s)",
-                person_id, burst_mode,
+                "(person_id=%s, burst=%s, test=%s)",
+                person_id, burst_mode, test_mode,
             )
             ok = False
 
+        candidates.append({
+            "email":      group["email"],
+            "name":       group["anzeigename"],
+            "file_count": file_count,
+            "burst":      burst_mode,
+            "skipped":    False,
+            "sent":       ok,
+        })
+
         if ok:
-            _record_sent(_OWNER_DIGEST_KIND, person_id, today_iso)
+            if not test_mode:
+                _record_sent(_OWNER_DIGEST_KIND, person_id, today_iso)
             sent += 1
-        else:
+        elif jti is not None:
             # Versand nicht erfolgreich → Token direkt widerrufen,
             # damit im Fehlerfall keine "Waisen-Tokens" stehen bleiben.
             def _revoke(c, _jti=jti):
@@ -511,7 +577,11 @@ def _dispatch_owner_digest(db, today_iso: str) -> int:
             except Exception:
                 pass
 
-    return sent
+    return {
+        "sent": sent,
+        "candidates": candidates,
+        "skipped_test_limit": skipped_test_limit,
+    }
 
 
 def _dispatch_idv_incomplete_reminders(db, today_iso: str) -> int:
@@ -728,7 +798,7 @@ def _run_daily_dispatch(app) -> None:
         m_sent = _dispatch_overdue_measures(db, today)
         r_sent = _dispatch_due_reviews(db, today)
         p_sent = _dispatch_pool_claim_reminders(db, today)
-        o_sent = _dispatch_owner_digest(db, today)
+        o_sent = _dispatch_owner_digest(db, today)["sent"]
         i_sent = _dispatch_idv_incomplete_reminders(db, today)
         e_sent = _dispatch_self_service_escalations(db, today)
         log.info(
@@ -826,7 +896,7 @@ def trigger_now(app) -> dict:
             "massnahmen":             _dispatch_overdue_measures(db, today),
             "pruefungen":             _dispatch_due_reviews(db, today),
             "pool_reminder":          _dispatch_pool_claim_reminders(db, today),
-            "owner_digest":           _dispatch_owner_digest(db, today),
+            "owner_digest":           _dispatch_owner_digest(db, today)["sent"],
             "idv_incomplete_reminder": _dispatch_idv_incomplete_reminders(db, today),
             "self_service_escalations": _dispatch_self_service_escalations(db, today),
         }

@@ -364,6 +364,45 @@
     </div>
   </div>
 
+  <!-- ── Owner-Digest manueller Versand ──────────────────────────── -->
+  <div class="col-12" id="owner-digest-run">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-send-arrow-up me-2"></i>Sammelbenachrichtigung – manueller Versand
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3 small">
+          Stösst die Owner-Sammelmail ausserhalb des Tagesplans an. Der
+          <strong>Testversand</strong> leitet die Mails an eine einzelne
+          Adresse um (max. 3 Stück), erzeugt keine Magic-Link-Tokens und
+          schreibt nichts in das Versand-Protokoll. Der
+          <strong>Sofortversand</strong> geht an die echten Empfänger und
+          ignoriert das Intervall- und Tages-Dedup – setzt aktivierten
+          Self-Service voraus.
+        </p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-5">
+            <label class="form-label form-label-sm fw-600">Test-Empfänger</label>
+            <input type="email" id="owner-digest-test-email"
+                   class="form-control form-control-sm"
+                   placeholder="admin@bank.de">
+          </div>
+          <div class="col-md-7 d-flex flex-wrap gap-2">
+            <button type="button" id="owner-digest-test-btn"
+                    class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-envelope-check me-1"></i>Testversand
+            </button>
+            <button type="button" id="owner-digest-live-btn"
+                    class="btn btn-sm btn-outline-warning">
+              <i class="bi bi-send me-1"></i>Sofortversand (echte Empfänger)
+            </button>
+          </div>
+        </div>
+        <div id="owner-digest-result" class="mt-3" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── SMTP-Test ──────────────────────────────────────────────── -->
   <div class="col-12" id="smtp-test">
     <div class="card border-0 shadow-sm">
@@ -583,6 +622,81 @@ document.getElementById('smtp-test-btn').addEventListener('click', function () {
 function _esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ── Owner-Digest: manueller Versand ──────────────────────────────────────────
+(function () {
+  var resultEl = document.getElementById('owner-digest-result');
+  var testBtn  = document.getElementById('owner-digest-test-btn');
+  var liveBtn  = document.getElementById('owner-digest-live-btn');
+  var emailEl  = document.getElementById('owner-digest-test-email');
+
+  function showResult(html, level) {
+    var cls = 'alert-' + (level || 'info');
+    resultEl.innerHTML = '<div class="alert ' + cls + ' py-2 mb-0 small">' + html + '</div>';
+    resultEl.style.display = 'block';
+  }
+
+  function renderCandidates(cands) {
+    if (!cands || !cands.length) return '';
+    var rows = cands.map(function (c) {
+      var badge = '';
+      if (c.skipped) badge = ' <span class="badge bg-secondary fs-8">übersprungen</span>';
+      else if (c.sent === false) badge = ' <span class="badge bg-danger fs-8">Fehler</span>';
+      else if (c.burst) badge = ' <span class="badge bg-warning text-dark fs-8">Sofort</span>';
+      return '<li>' + _esc(c.name || '') + ' &lt;' + _esc(c.email || '') + '&gt; – '
+             + (c.file_count || 0) + ' Datei(en)' + badge + '</li>';
+    }).join('');
+    return '<ul class="mb-0 mt-2 ps-3 small">' + rows + '</ul>';
+  }
+
+  function run(mode) {
+    var btn  = mode === 'test' ? testBtn : liveBtn;
+    var orig = btn.innerHTML;
+    var form = new FormData();
+    form.append('csrf_token', '{{ csrf_token() }}');
+    form.append('mode', mode);
+    if (mode === 'test') {
+      var to = (emailEl.value || '').trim();
+      if (!to) {
+        showResult('<i class="bi bi-exclamation-triangle me-1"></i>Bitte eine Empfänger-Adresse eingeben.', 'warning');
+        return;
+      }
+      form.append('test_recipient', to);
+    } else {
+      if (!confirm('Sofortversand an die echten Owner – Tageslimit und Intervall werden ignoriert. Fortfahren?')) {
+        return;
+      }
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sende…';
+    resultEl.style.display = 'none';
+
+    fetch('{{ url_for("admin.owner_digest_run") }}', {method: 'POST', body: form})
+      .then(function (r) { return r.json().then(function (d) { return {ok: r.ok, body: d}; }); })
+      .then(function (resp) {
+        var d = resp.body || {};
+        var level = (d.success && d.sent > 0) ? 'success'
+                  : (d.success ? 'info' : 'danger');
+        var icon  = (level === 'success') ? 'check-circle'
+                  : (level === 'info' ? 'info-circle' : 'x-circle');
+        showResult(
+          '<i class="bi bi-' + icon + ' me-1"></i>' + _esc(d.message || '') + renderCandidates(d.candidates),
+          level
+        );
+      })
+      .catch(function (err) {
+        showResult('<i class="bi bi-x-circle me-1"></i>Netzwerkfehler: ' + _esc(String(err)), 'danger');
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      });
+  }
+
+  if (testBtn) testBtn.addEventListener('click', function () { run('test'); });
+  if (liveBtn) liveBtn.addEventListener('click', function () { run('live'); });
+})();
 </script>
 
 <style>

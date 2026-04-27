@@ -1041,7 +1041,8 @@ def notify_freigabe_pool_reminder(db, idv_row, schritt: str, pool_name: str,
 def notify_owner_digest(db, recipient_email: str, recipient_name: str,
                         file_rows: list, magic_link: str,
                         base_url: str = "",
-                        burst: bool = False) -> bool:
+                        burst: bool = False,
+                        test_banner: str | None = None) -> bool:
     """Sendet die Sammelbenachrichtigung an einen Fachbereichs-Mitarbeiter.
 
     ``file_rows`` sind die offenen Scanner-Funde (``bearbeitungsstatus='Neu'``)
@@ -1049,6 +1050,12 @@ def notify_owner_digest(db, recipient_email: str, recipient_name: str,
     die Self-Service-Ansicht (Issue #315). ``burst`` = True markiert eine
     vorgezogene Sammelbenachrichtigung ausserhalb des regulären Intervalls
     (Issue #346); der Betreff wird dann mit ``[Sofort]`` gekennzeichnet.
+
+    ``test_banner`` (Admin-Testversand): Wenn gesetzt, wird der Betreff mit
+    ``[TEST]`` versehen und der Text als Banner über der Datei-Tabelle
+    eingeblendet. Soll Layout-Vorschau ohne Token-Nebenwirkungen
+    ermöglichen — der Aufrufer leitet die Mail in dem Fall an die
+    Test-Adresse um und übergibt einen Platzhalter-Magic-Link.
 
     Gibt True zurück, wenn die E-Mail versendet wurde.
     """
@@ -1071,6 +1078,8 @@ def notify_owner_digest(db, recipient_email: str, recipient_name: str,
     )
     if burst:
         subject = f"[Sofort] {subject}"
+    if test_banner:
+        subject = f"[TEST] {subject}"
 
     # Datei-Tabelle einblenden (vor dem schließenden </body>). Die Tabelle
     # steht zusätzlich zum konfigurierbaren Body-Text, damit Admin-Anpassungen
@@ -1094,7 +1103,16 @@ def notify_owner_digest(db, recipient_email: str, recipient_name: str,
         '</tr></thead>'
         f'<tbody>{rows_html}</tbody></table>'
     )
-    html = html.replace("</body>", table_html + "</body>")
+    extra_html = table_html
+    if test_banner:
+        banner_html = (
+            '<div style="border:1px solid #ffc107;background:#fff3cd;color:#664d03;'
+            'padding:8px 12px;margin-top:12px;font-size:13px;">'
+            '<strong>Testversand:</strong> ' + test_banner +
+            '</div>'
+        )
+        extra_html = banner_html + table_html
+    html = html.replace("</body>", extra_html + "</body>")
     text = _strip_html_tags(html)
 
     return send_mail(db, recipient_email, subject, html, text)
