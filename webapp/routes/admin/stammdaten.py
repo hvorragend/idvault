@@ -50,12 +50,12 @@ def new_person():
     user_id = request.form.get("user_id", "").strip()
     if not user_id:
         flash("User-ID ist erforderlich.", "error")
-        return redirect(url_for("admin.index"))
+        return redirect(url_for("admin.mitarbeiter"))
     try:
         rolle = _normalize_rolle(request.form.get("rolle"))
     except ValueError as exc:
         flash(str(exc), "error")
-        return redirect(url_for("admin.index"))
+        return redirect(url_for("admin.mitarbeiter"))
     params = (
         user_id,
         request.form.get("nachname", "").strip(),
@@ -77,13 +77,13 @@ def new_person():
         get_writer().submit(_do, wait=True)
     except sqlite3.IntegrityError:
         flash(f"User-ID '{user_id}' ist bereits vergeben.", "error")
-        return redirect(url_for("admin.index"))
+        return redirect(url_for("admin.mitarbeiter"))
     except sqlite3.OperationalError as exc:
         current_app.logger.warning("new_person: Datenbank gesperrt: %s", exc)
         flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
-        return redirect(url_for("admin.index"))
+        return redirect(url_for("admin.mitarbeiter"))
     flash("Person angelegt.", "success")
-    return redirect(url_for("admin.index"))
+    return redirect(url_for("admin.mitarbeiter"))
 
 
 @bp.route("/person/<int:pid>/bearbeiten", methods=["GET", "POST"])
@@ -93,7 +93,7 @@ def edit_person(pid):
     person = db.execute("SELECT * FROM persons WHERE id = ?", (pid,)).fetchone()
     if not person:
         flash("Person nicht gefunden.", "error")
-        return redirect(url_for("admin.index"))
+        return redirect(url_for("admin.mitarbeiter"))
 
     org_units = db.execute("SELECT * FROM org_units ORDER BY bezeichnung").fetchall()
     all_persons = db.execute(
@@ -154,9 +154,9 @@ def edit_person(pid):
         except sqlite3.OperationalError as exc:
             current_app.logger.warning("edit_person (pid=%s): Datenbank gesperrt: %s", pid, exc)
             flash("Datenbank vorübergehend gesperrt, bitte in wenigen Sekunden erneut versuchen.", "error")
-            return redirect(url_for("admin.index"))
+            return redirect(url_for("admin.mitarbeiter"))
         flash("Person gespeichert.", "success")
-        return redirect(url_for("admin.index"))
+        return redirect(url_for("admin.mitarbeiter"))
 
     return render_template("admin/person_edit.html", person=person, org_units=org_units,
                            all_persons=all_persons)
@@ -170,7 +170,7 @@ def delete_person(pid):
             c.execute("UPDATE persons SET aktiv=0 WHERE id=?", (pid,))
     get_writer().submit(_do, wait=True)
     flash("Person deaktiviert.", "success")
-    return redirect(url_for("admin.index"))
+    return redirect(url_for("admin.mitarbeiter"))
 
 
 @bp.route("/person/<int:pid>/endgueltig-loeschen", methods=["POST"])
@@ -184,7 +184,7 @@ def delete_person_hard(pid):
         flash("Person gelöscht.", "success")
     except Exception:
         flash("Person konnte nicht gelöscht werden (noch Eigenentwicklungen zugeordnet) – bitte zuerst deaktivieren.", "warning")
-    return redirect(url_for("admin.index"))
+    return redirect(url_for("admin.mitarbeiter"))
 
 
 @bp.route("/personen/bulk", methods=["POST"])
@@ -198,7 +198,7 @@ def bulk_persons():
 
     if not ids:
         flash("Keine Personen ausgewählt.", "warning")
-        return redirect(url_for("admin.index"))
+        return redirect(url_for("admin.mitarbeiter"))
 
     if action == "deactivate":
         ph, ph_params = in_clause(ids)
@@ -236,7 +236,7 @@ def bulk_persons():
     else:
         flash("Unbekannte Aktion.", "error")
 
-    return redirect(url_for("admin.index"))
+    return redirect(url_for("admin.mitarbeiter"))
 
 
 # ── Organisationseinheiten ─────────────────────────────────────────────────
@@ -513,7 +513,7 @@ def import_persons():
     f = request.files.get("csv_file")
     if not f or not f.filename:
         flash("Keine Datei ausgewählt.", "error")
-        return redirect(url_for("admin.index"))
+        return redirect(url_for("admin.mitarbeiter"))
 
     db      = get_db()
     content = f.read().decode("utf-8-sig")  # BOM-sicher
@@ -588,7 +588,7 @@ def import_persons():
         return created, updated
     created, updated = get_writer().submit(_do, wait=True)
     flash(f"Import abgeschlossen: {created} neu, {updated} aktualisiert, {errors} Fehler.", "success")
-    return redirect(url_for("admin.index"))
+    return redirect(url_for("admin.mitarbeiter"))
 
 
 @bp.route("/import/vorlage")
