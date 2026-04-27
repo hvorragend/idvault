@@ -21,6 +21,24 @@
 </div>
 {% endif %}
 
+{% set non_empty = sections | selectattr('rows') | list %}
+{% if non_empty | length > 1 %}
+<div class="d-flex flex-wrap gap-1 align-items-center mb-3" id="triage-filter-bar"
+     aria-label="Kategorien filtern">
+  <span class="small text-muted me-1">Anzeigen:</span>
+  <button type="button" class="btn btn-sm btn-outline-secondary triage-filter-all active">
+    Alle
+  </button>
+  {% for s in non_empty %}
+  <button type="button" class="btn btn-sm btn-outline-{{ s.tone }} active triage-filter-pill"
+          data-kategorie="{{ s.key }}">
+    <i class="bi {{ s.icon }} me-1"></i>{{ s.label }}
+    <span class="badge bg-{{ s.tone }} bg-opacity-25 text-{{ s.tone }} ms-1">{{ s.rows|length }}</span>
+  </button>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% for s in sections %}
 {% if s.rows %}
 <form method="post" class="triage-section-form" data-kategorie="{{ s.key }}"
@@ -324,6 +342,57 @@
 
 <script>
 (function () {
+  var filterBar = document.getElementById('triage-filter-bar');
+  if (filterBar) {
+    var STORAGE_KEY = 'triage-hidden-cats';
+    var pills = filterBar.querySelectorAll('.triage-filter-pill');
+    var allBtn = filterBar.querySelector('.triage-filter-all');
+
+    function loadHidden() {
+      try {
+        var raw = window.localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) { return []; }
+    }
+    function saveHidden(arr) {
+      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+      catch (e) { /* ignore */ }
+    }
+
+    function applyHidden(hidden) {
+      pills.forEach(function (pill) {
+        var key = pill.getAttribute('data-kategorie');
+        var isHidden = hidden.indexOf(key) !== -1;
+        pill.classList.toggle('active', !isHidden);
+        var section = document.querySelector(
+          '.triage-section-form[data-kategorie="' + key + '"]'
+        );
+        if (section) section.classList.toggle('d-none', isHidden);
+      });
+      if (allBtn) allBtn.classList.toggle('active', hidden.length === 0);
+    }
+
+    var hidden = loadHidden();
+    applyHidden(hidden);
+
+    pills.forEach(function (pill) {
+      pill.addEventListener('click', function () {
+        var key = pill.getAttribute('data-kategorie');
+        var idx = hidden.indexOf(key);
+        if (idx === -1) hidden.push(key); else hidden.splice(idx, 1);
+        saveHidden(hidden);
+        applyHidden(hidden);
+      });
+    });
+    if (allBtn) {
+      allBtn.addEventListener('click', function () {
+        hidden = [];
+        saveHidden(hidden);
+        applyHidden(hidden);
+      });
+    }
+  }
+
   document.querySelectorAll('.triage-section-form').forEach(function (form) {
     var master  = form.querySelector('.triage-master');
     var rowChks = form.querySelectorAll('.triage-row-check');
