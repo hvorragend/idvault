@@ -144,6 +144,9 @@
 </div>
 <div class="collapse{{ ' show' if _ef or filter_panel_open }}" id="filter-panel">
   <form method="get" class="card border-0 shadow-sm p-3 mb-3">
+    {# Eigenschafts-Pill und „Nur meine" beim Filtern erhalten #}
+    {% if prop_filt %}<input type="hidden" name="prop" value="{{ prop_filt }}">{% endif %}
+    {% if mine_filt %}<input type="hidden" name="mine" value="1">{% endif %}
     <div class="row g-2 align-items-end">
       <div class="col-12">
         <label class="form-label form-label-sm"><i class="bi bi-search me-1"></i>Dateiname suchen</label>
@@ -185,11 +188,25 @@
       </div>
       <div class="col-md-2">
         <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert ab</label>
-        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+        <input type="date" name="date_from" id="date-from-input" value="{{ date_from }}"
+          class="form-control form-control-sm">
       </div>
       <div class="col-md-2">
         <label class="form-label form-label-sm"><i class="bi bi-calendar me-1"></i>Geändert bis</label>
-        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+        <input type="date" name="date_to" id="date-to-input" value="{{ date_to }}"
+          class="form-control form-control-sm">
+      </div>
+      <div class="col-12">
+        <label class="form-label form-label-sm text-muted">
+          <i class="bi bi-clock-history me-1"></i>Zeitraum-Schnellwahl (setzt „geändert ab" auf heute minus &hellip;)
+        </label>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Zeitraum-Presets">
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="7">Letzte 7 Tage</button>
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="30">Letzter Monat</button>
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="90">Letztes Quartal</button>
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="365">Letztes Jahr</button>
+          <button type="button" class="btn btn-outline-secondary date-preset" data-days="">Zurücksetzen</button>
+        </div>
       </div>
       <div class="col-md-6">
         <label class="form-label form-label-sm"><i class="bi bi-sort-down me-1"></i>Sortierung</label>
@@ -241,9 +258,85 @@
   </div>
 </div>
 
+<!-- ── Eigenschafts-Filterbar (Pills, scoped auf Eingang) ──────────── -->
+{# Pills filtern nach Datei-Eigenschaft. „Workflow"-Pills (Eingang/Registriert/...)
+   gibt es hier bewusst nicht: der Eingang zeigt per Definition Status='Neu'. #}
+{% macro prop_pill(name, label, count, icon='', accent='slate', icon_color='', title='') %}
+  {% set is_active = (prop_filt == name) if name else (not prop_filt) %}
+  {% set href = url_for('funde.eingang_funde',
+                         prop=name or none,
+                         mine='1' if mine_filt else none,
+                         sort=sort,
+                         dir_path=dir_path_filt or none,
+                         share_root=share_root_filt or none,
+                         scan_run=scan_run_id_filt or none,
+                         q=q_search or none,
+                         owner=owner_filt or none,
+                         date_from=date_from or none,
+                         date_to=date_to or none) %}
+  <li class="nav-item">
+    <a href="{{ href }}"
+       class="nav-link py-1 px-2{% if is_active %} active idv-pill-{{ accent }}{% endif %}"
+       {% if title %}title="{{ title }}"{% endif %}>
+      {% if icon %}<i class="bi {{ icon }}{% if icon_color and not is_active %} {{ icon_color }}{% endif %} me-1"></i>{% endif %}{{ label }}
+      <span class="idv-tag idv-tag-slate ms-1">{{ count }}</span>
+    </a>
+  </li>
+{% endmacro %}
+
+{# „Nur meine"-Pill: toggelt den ``mine``-URL-Parameter, ohne den
+   Eigenschafts-Filter zu verlieren. #}
+{% macro mine_pill() %}
+  {% set href = url_for('funde.eingang_funde',
+                         mine=none if mine_filt else '1',
+                         prop=prop_filt or none,
+                         sort=sort,
+                         dir_path=dir_path_filt or none,
+                         share_root=share_root_filt or none,
+                         scan_run=scan_run_id_filt or none,
+                         q=q_search or none,
+                         owner=owner_filt or none,
+                         date_from=date_from or none,
+                         date_to=date_to or none) %}
+  <li class="nav-item">
+    <a href="{{ href }}"
+       class="nav-link py-1 px-2{% if mine_filt %} active idv-pill-blue{% endif %}"
+       title="Nur Funde anzeigen, deren Datei-Eigentümer mein Benutzerkonto ist">
+      <i class="bi bi-person-check{% if not mine_filt %} text-info{% endif %} me-1"></i>Nur meine
+      <span class="idv-tag idv-tag-slate ms-1">{{ mine_count }}</span>
+    </a>
+  </li>
+{% endmacro %}
+
+<nav class="idv-filterbar mb-3">
+  <ul class="nav nav-pills flex-wrap gap-1 small mb-0">
+    {{ prop_pill('', 'Alle', neu_gesamt, accent='slate') }}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ prop_pill('makros', 'Makros', prop_counts.makros,
+                 icon='bi-lightning-fill', accent='red', icon_color='text-danger') }}
+    {{ prop_pill('formeln_viele', 'Viele Formeln', prop_counts.formeln_viele,
+                 icon='bi-calculator-fill', accent='amber', icon_color='text-warning',
+                 title='Excel-Dateien mit ≥ ' ~ formeln_viele_schwelle ~ ' Formeln (Hinweis auf Modelle/Kalkulationen)') }}
+    {{ prop_pill('blattschutz', 'Blattschutz', prop_counts.blattschutz,
+                 icon='bi-lock-fill', accent='blue', icon_color='text-info') }}
+    {{ prop_pill('ohne_schutz', 'Ohne Schutz', prop_counts.ohne_schutz,
+                 icon='bi-unlock-fill', accent='red', icon_color='text-danger',
+                 title='Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz') }}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ prop_pill('duplikate', 'Duplikate', prop_counts.duplikate,
+                 icon='bi-copy', accent='red', icon_color='text-danger',
+                 title='Datei-Hash kommt mehrfach vor (datenbankweit)') }}
+    {% if me_user_id %}
+    <li class="idv-filter-sep" aria-hidden="true"></li>
+    {{ mine_pill() }}
+    {% endif %}
+  </ul>
+</nav>
+
 <!-- ── Pagination-Variablen (vor dem Formular) ─────────────────────── -->
 {% set url_extra = {'sort': sort, 'dir_path': dir_path_filt, 'share_root': share_root_filt, 'scan_run':
-scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'date_to': date_to} %}
+scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'date_to': date_to,
+'prop': prop_filt, 'mine': '1' if mine_filt else ''} %}
 {% set endpoint = 'funde.eingang_funde' %}
 {% include 'funde/_pagination.html' %}
 
@@ -373,10 +466,12 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
               <span class="fw-500">{{ f.file_name }}</span>
               {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
               <i class="bi bi-fingerprint text-muted ms-1" title="SHA-256: {{ f.file_hash }}"></i>
-              {% if f.file_hash in duplicate_hashes %}
+              {% set _dup_total = duplicate_counts.get(f.file_hash) %}
+              {% if _dup_total %}
+              {% set _dup_others = _dup_total - 1 %}
               <span class="badge bg-warning text-dark ms-1"
-                title="Dieser Hash kommt auf dieser Seite mehrfach vor – identische Datei!&#10;SHA-256: {{ f.file_hash }}">
-                <i class="bi bi-copy me-1"></i>Duplikat
+                title="Datenbankweit existieren {{ _dup_total }} identische Kopien dieser Datei (gleicher SHA-256-Hash).&#10;SHA-256: {{ f.file_hash }}">
+                <i class="bi bi-copy me-1"></i>Duplikat&nbsp;&times;{{ _dup_others }}
               </span>
               {% endif %}
               {% elif f.file_hash == 'HASH_ERROR' %}
@@ -545,6 +640,27 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
         updateBar();
       });
     }
+
+    // Datums-Schnellwahl: setzt date_from auf heute minus N Tage und schickt das Filter-Formular ab
+    document.querySelectorAll('.date-preset').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const days = this.dataset.days;
+        const fromInp = document.getElementById('date-from-input');
+        const toInp = document.getElementById('date-to-input');
+        if (!fromInp) return;
+        if (!days) {
+          fromInp.value = '';
+          if (toInp) toInp.value = '';
+        } else {
+          const d = new Date();
+          d.setDate(d.getDate() - parseInt(days, 10));
+          fromInp.value = d.toISOString().slice(0, 10);
+          if (toInp) toInp.value = '';
+        }
+        const form = fromInp.closest('form');
+        if (form) form.submit();
+      });
+    });
 
     // Eigentümer-Modal
     const ownerModal = document.getElementById('ownerModal');

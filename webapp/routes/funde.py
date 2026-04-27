@@ -82,6 +82,40 @@ _VALID_PER_PAGE = (25, 50, 100, 200, 500)
 _EXCEL_PROTECTABLE_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx")
 _EXCEL_EXT_PLACEHOLDERS = ",".join("?" * len(_EXCEL_PROTECTABLE_EXTS))
 
+# Schwellwert für den Filter „Viele Formeln". Excel-Dateien jenseits dieser
+# Grenze sind erfahrungsgemäß komplex genug, um einer IDV-Bewertung zu bedürfen
+# (Modelle, Kalkulationsblätter), während wenige Formeln eher Hilfsfelder sind.
+_FORMELN_VIELE_SCHWELLE = 500
+
+
+def _owner_list_for(db, base_where: str, base_params, extra_filters):
+    """Eigentümer-Auswahl kontextabhängig.
+
+    Liefert nur Owner zurück, die unter den aktuell gesetzten Filtern
+    (share_root, dir_path, scan_run, date_*) auch wirklich Funde besitzen.
+    So bleibt das Dropdown sinnvoll, wenn der User schon einen Scan-Pfad
+    ausgewählt hat – Eigentümer ohne Treffer im Kontext werden ausgeblendet.
+
+    ``base_where``    Status-Basis (z. B. ``status='active' AND
+                      bearbeitungsstatus='Neu'``).
+    ``base_params``   Parameter zur Basis (in der Praxis leer).
+    ``extra_filters`` Liste von ``(sql_fragment, [params])``-Tupeln.
+    """
+    parts = [base_where] if base_where else []
+    params = list(base_params or [])
+    parts.append("file_owner IS NOT NULL")
+    parts.append("file_owner != ''")
+    for frag, frag_params in extra_filters:
+        parts.append(frag)
+        params.extend(frag_params)
+    where_sql = "WHERE " + " AND ".join(parts) if parts else ""
+    return [
+        r["file_owner"] for r in db.execute(
+            f"SELECT DISTINCT file_owner FROM idv_files {where_sql} ORDER BY file_owner",
+            params,
+        ).fetchall()
+    ]
+
 
 def _compute_match_scores(dateien, db):
     """For unregistered funds compute the best-matching IDV score.
@@ -177,6 +211,10 @@ def list_funde():
     date_to     = request.args.get("date_to", "").strip()
     sort        = request.args.get("sort", "scan").strip()
     order       = request.args.get("order", "desc").strip()
+    mine_filt   = request.args.get("mine", "").strip() in ("1", "true", "on")
+    me_user_id  = (session.get("user_id") or "").strip()
+    if mine_filt and not me_user_id:
+        mine_filt = False
     highlight_raw = request.args.get("highlight", "").strip()
     try:
         highlight_id = int(highlight_raw) if highlight_raw else None
@@ -219,6 +257,11 @@ def list_funde():
             WHERE status='active' AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
             GROUP BY file_hash HAVING COUNT(*) > 1
         )""")
+    elif filt == "formeln_viele":
+        where_parts.append("f.status = 'active'")
+        where_parts.append("COALESCE(f.formula_count, 0) >= ?")
+        params.append(_FORMELN_VIELE_SCHWELLE)
+        where_parts.append("(f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')")
     else:
         where_parts.append("f.status = 'active'")
         _no_idv = (
@@ -279,6 +322,10 @@ def list_funde():
         where_parts.append("f.file_owner = ?")
         params.append(owner_filt)
 
+    if mine_filt:
+        where_parts.append("f.file_owner = ?")
+        params.append(me_user_id)
+
     if date_from:
         where_parts.append("f.modified_at >= ?")
         params.append(date_from)
@@ -288,9 +335,15 @@ def list_funde():
         params.append(date_to + "T23:59:59")
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
-    # Duplikate nach Hash sortieren, damit Jinja2-groupby funktioniert
+    # Duplikate primär nach Anzahl Kopien (DESC) sortieren, damit die
+    # größten Duplikatgruppen oben stehen – das ist für die Bewertung
+    # ergiebiger als chronologisch. Sekundär nach Hash, damit Jinja2-groupby
+    # weiterhin zusammenhängende Blöcke erhält.
     if filt == "duplikate":
-        order_sql = "ORDER BY f.file_hash, f.last_seen_at DESC"
+        order_sql = """ORDER BY (
+            SELECT COUNT(*) FROM idv_files d
+            WHERE d.status='active' AND d.file_hash = f.file_hash
+        ) DESC, f.file_hash, f.last_seen_at DESC"""
     elif sort in _FUNDE_SORT_COLS:
         sort_col = _FUNDE_SORT_COLS[sort]
         sort_dir = "DESC" if order == "desc" else "ASC"
@@ -341,9 +394,11 @@ def list_funde():
             return redirect(url_for("funde.list_funde", **args))
 
     # ---------- Duplikat-Erkennung (datenbankweit, nicht nur in der aktuellen Seite) ----------
-    duplicate_hashes = {
-        r["file_hash"] for r in db.execute("""
-            SELECT file_hash FROM idv_files
+    # Map file_hash -> Anzahl identischer Kopien (>=2). Im Template wird
+    # ``duplicate_counts[hash] - 1`` als „X weitere Kopien" angezeigt.
+    duplicate_counts = {
+        r["file_hash"]: r["cnt"] for r in db.execute("""
+            SELECT file_hash, COUNT(*) AS cnt FROM idv_files
             WHERE status = 'active'
               AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
             GROUP BY file_hash HAVING COUNT(*) > 1
@@ -402,6 +457,14 @@ def list_funde():
     except Exception:
         duplikate_anzahl = 0
 
+    formeln_viele_anzahl = db.execute(
+        "SELECT COUNT(*) FROM idv_files"
+        " WHERE status='active'"
+        "   AND COALESCE(formula_count, 0) >= ?"
+        "   AND (bearbeitungsstatus IS NULL OR bearbeitungsstatus != 'Ignoriert')",
+        (_FORMELN_VIELE_SCHWELLE,),
+    ).fetchone()[0]
+
     # ---------- Filter-Optionen ----------
     share_roots = [
         r["share_root"] for r in db.execute("""
@@ -420,13 +483,39 @@ def list_funde():
         """).fetchall()
         if r["dir_path"]
     ]
-    owner_list = [
-        r["file_owner"] for r in db.execute(
-            "SELECT DISTINCT file_owner FROM idv_files"
-            " WHERE file_owner IS NOT NULL AND file_owner != '' AND status='active'"
-            " ORDER BY file_owner"
-        ).fetchall()
-    ]
+    # Eigentümer-Liste kontextabhängig: nur Owner anzeigen, die unter den
+    # gerade aktiven Filtern (share_root / dir_path / scan_run / Datum) auch
+    # Funde besitzen.
+    _ctx_extra = []
+    if share_root:
+        _ctx_extra.append(("share_root = ?", [share_root]))
+    if dir_path_filt:
+        _ctx_extra.append((
+            f"({_DIR_PATH_EXPR_PLAIN} = ? OR {_DIR_PATH_EXPR_PLAIN} LIKE ? OR {_DIR_PATH_EXPR_PLAIN} LIKE ?)",
+            [dir_path_filt, dir_path_filt + "\\%", dir_path_filt + "/%"],
+        ))
+    if scan_run_id:
+        try:
+            _ctx_extra.append(("last_scan_run_id = ?", [int(scan_run_id)]))
+        except ValueError:
+            pass
+    if date_from:
+        _ctx_extra.append(("modified_at >= ?", [date_from]))
+    if date_to:
+        _ctx_extra.append(("modified_at <= ?", [date_to + "T23:59:59"]))
+    owner_list = _owner_list_for(db, "status='active'", [], _ctx_extra)
+
+    # Anzahl eigener Funde (für die „Nur meine"-Pill).
+    if me_user_id:
+        mine_count = db.execute(
+            "SELECT COUNT(*) FROM idv_files"
+            " WHERE status='active' AND file_owner = ?"
+            "   AND (bearbeitungsstatus IS NULL OR bearbeitungsstatus != 'Ignoriert')",
+            (me_user_id,),
+        ).fetchone()[0]
+    else:
+        mine_count = 0
+
     try:
         scan_runs = db.execute("""
             SELECT id, started_at, finished_at, scan_paths,
@@ -476,6 +565,8 @@ def list_funde():
         ignoriert=ignoriert, zur_registrierung=zur_registrierung,
         neu_gesamt=neu_gesamt,
         duplikate_anzahl=duplikate_anzahl,
+        formeln_viele_anzahl=formeln_viele_anzahl,
+        formeln_viele_schwelle=_FORMELN_VIELE_SCHWELLE,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         share_roots=share_roots,
         share_root_filt=share_root,
@@ -485,7 +576,7 @@ def list_funde():
         scan_run_id_filt=scan_run_id,
         letzter_scan=letzter_scan,
         scan_run_label=_scan_run_label,
-        duplicate_hashes=duplicate_hashes,
+        duplicate_counts=duplicate_counts,
         is_admin=is_admin,
         persons=persons,
         sort=sort, order=order,
@@ -493,6 +584,9 @@ def list_funde():
         highlight_id=highlight_id,
         owner_list=owner_list,
         owner_filt=owner_filt,
+        mine_filt=mine_filt,
+        mine_count=mine_count,
+        me_user_id=me_user_id,
         date_from=date_from,
         date_to=date_to,
         webapp_db_path=current_app.config['DATABASE'],
@@ -575,6 +669,13 @@ def eingang_funde():
     owner_filt    = request.args.get("owner", "").strip()
     date_from     = request.args.get("date_from", "").strip()
     date_to       = request.args.get("date_to", "").strip()
+    prop_filt     = request.args.get("prop", "").strip()
+    if prop_filt not in {"makros", "blattschutz", "ohne_schutz", "formeln_viele", "duplikate"}:
+        prop_filt = ""
+    mine_filt     = request.args.get("mine", "").strip() in ("1", "true", "on")
+    me_user_id    = (session.get("user_id") or "").strip()
+    if mine_filt and not me_user_id:
+        mine_filt = False
     sort          = request.args.get("sort", "prioritaet")
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
@@ -621,12 +722,35 @@ def eingang_funde():
     if owner_filt:
         where_parts.append("f.file_owner = ?")
         params.append(owner_filt)
+    if mine_filt:
+        where_parts.append("f.file_owner = ?")
+        params.append(me_user_id)
     if date_from:
         where_parts.append("f.modified_at >= ?")
         params.append(date_from)
     if date_to:
         where_parts.append("f.modified_at <= ?")
         params.append(date_to + "T23:59:59")
+    if prop_filt == "makros":
+        where_parts.append("f.has_macros = 1")
+    elif prop_filt == "blattschutz":
+        where_parts.append("f.has_sheet_protection = 1")
+    elif prop_filt == "ohne_schutz":
+        where_parts.append(
+            f"LOWER(f.extension) IN ({_EXCEL_EXT_PLACEHOLDERS})"
+        )
+        params.extend(_EXCEL_PROTECTABLE_EXTS)
+        where_parts.append("COALESCE(f.has_sheet_protection, 0) = 0")
+        where_parts.append("COALESCE(f.workbook_protected, 0) = 0")
+    elif prop_filt == "formeln_viele":
+        where_parts.append("COALESCE(f.formula_count, 0) >= ?")
+        params.append(_FORMELN_VIELE_SCHWELLE)
+    elif prop_filt == "duplikate":
+        where_parts.append("""f.file_hash IN (
+            SELECT file_hash FROM idv_files
+            WHERE status='active' AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
+            GROUP BY file_hash HAVING COUNT(*) > 1
+        )""")
     where_sql = "WHERE " + " AND ".join(where_parts)
 
     sort_map = {
@@ -696,14 +820,48 @@ def eingang_funde():
     except Exception:
         scan_runs = []
 
-    # Duplikate datenbankweit ermitteln (nicht nur auf der aktuellen Seite)
-    duplicate_hashes = {
-        r["file_hash"] for r in db.execute("""
-            SELECT file_hash FROM idv_files
+    # Duplikate datenbankweit ermitteln (nicht nur auf der aktuellen Seite).
+    # Map file_hash -> Anzahl identischer Kopien (>=2). Im Template wird
+    # ``duplicate_counts[hash] - 1`` als „X weitere Kopien" angezeigt.
+    duplicate_counts = {
+        r["file_hash"]: r["cnt"] for r in db.execute("""
+            SELECT file_hash, COUNT(*) AS cnt FROM idv_files
             WHERE status = 'active'
               AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
             GROUP BY file_hash HAVING COUNT(*) > 1
         """).fetchall()
+    }
+
+    # ---------- Eigenschafts-Counts (auf den Eingang gescoped) ----------
+    _eingang_base = "status='active' AND bearbeitungsstatus='Neu'"
+    prop_counts = {
+        "makros": db.execute(
+            f"SELECT COUNT(*) FROM idv_files WHERE {_eingang_base} AND has_macros=1"
+        ).fetchone()[0],
+        "blattschutz": db.execute(
+            f"SELECT COUNT(*) FROM idv_files WHERE {_eingang_base} AND has_sheet_protection=1"
+        ).fetchone()[0],
+        "ohne_schutz": db.execute(
+            "SELECT COUNT(*) FROM idv_files"
+            f" WHERE {_eingang_base}"
+            f"   AND LOWER(extension) IN ({_EXCEL_EXT_PLACEHOLDERS})"
+            "   AND COALESCE(has_sheet_protection, 0) = 0"
+            "   AND COALESCE(workbook_protected, 0) = 0",
+            _EXCEL_PROTECTABLE_EXTS,
+        ).fetchone()[0],
+        "formeln_viele": db.execute(
+            f"SELECT COUNT(*) FROM idv_files WHERE {_eingang_base}"
+            "   AND COALESCE(formula_count, 0) >= ?",
+            (_FORMELN_VIELE_SCHWELLE,),
+        ).fetchone()[0],
+        "duplikate": db.execute(
+            f"SELECT COUNT(*) FROM idv_files WHERE {_eingang_base}"
+            "   AND file_hash IN ("
+            "       SELECT file_hash FROM idv_files"
+            "       WHERE status='active' AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'"
+            "       GROUP BY file_hash HAVING COUNT(*) > 1"
+            "   )"
+        ).fetchone()[0],
     }
     is_admin = current_user_role() == ROLE_ADMIN
 
@@ -711,14 +869,43 @@ def eingang_funde():
         "SELECT id, user_id, nachname, vorname FROM persons WHERE aktiv=1 ORDER BY nachname, vorname"
     ).fetchall()
 
-    owner_list = [
-        r["file_owner"] for r in db.execute(
-            "SELECT DISTINCT file_owner FROM idv_files"
-            " WHERE file_owner IS NOT NULL AND file_owner != ''"
-            " AND status='active' AND bearbeitungsstatus='Neu'"
-            " ORDER BY file_owner"
-        ).fetchall()
-    ]
+    # Eigentümer-Liste kontextabhängig: nur Owner, die unter den
+    # Kontext-Filtern (share_root / dir_path / scan_run / Datum) auch
+    # tatsächlich Funde besitzen. So werden Auswahl-Optionen nicht angeboten,
+    # die zu einem leeren Ergebnis führen.
+    _ctx_extra = []
+    if share_root:
+        _ctx_extra.append(("share_root = ?", [share_root]))
+    if dir_path_filt:
+        _ctx_extra.append((
+            f"({_DIR_PATH_EXPR_PLAIN} = ? OR {_DIR_PATH_EXPR_PLAIN} LIKE ? OR {_DIR_PATH_EXPR_PLAIN} LIKE ?)",
+            [dir_path_filt, dir_path_filt + "\\%", dir_path_filt + "/%"],
+        ))
+    if scan_run_id:
+        try:
+            _ctx_extra.append(("last_scan_run_id = ?", [int(scan_run_id)]))
+        except ValueError:
+            pass
+    if date_from:
+        _ctx_extra.append(("modified_at >= ?", [date_from]))
+    if date_to:
+        _ctx_extra.append(("modified_at <= ?", [date_to + "T23:59:59"]))
+    owner_list = _owner_list_for(
+        db,
+        "status='active' AND bearbeitungsstatus='Neu'",
+        [],
+        _ctx_extra,
+    )
+
+    # Anzahl eigener Funde im Eingang (für die „Nur meine"-Pill).
+    if me_user_id:
+        mine_count = db.execute(
+            "SELECT COUNT(*) FROM idv_files"
+            " WHERE status='active' AND bearbeitungsstatus='Neu' AND file_owner = ?",
+            (me_user_id,),
+        ).fetchone()[0]
+    else:
+        mine_count = 0
 
     return render_template("funde/eingang.html",
         dateien=dateien,
@@ -739,7 +926,7 @@ def eingang_funde():
         scan_run_label=_scan_run_label,
         sort=sort,
         q_search=q_search,
-        duplicate_hashes=duplicate_hashes,
+        duplicate_counts=duplicate_counts,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         is_admin=is_admin,
         persons=persons,
@@ -747,6 +934,12 @@ def eingang_funde():
         owner_filt=owner_filt,
         date_from=date_from,
         date_to=date_to,
+        prop_filt=prop_filt,
+        prop_counts=prop_counts,
+        formeln_viele_schwelle=_FORMELN_VIELE_SCHWELLE,
+        mine_filt=mine_filt,
+        mine_count=mine_count,
+        me_user_id=me_user_id,
         valid_per_page=_VALID_PER_PAGE,
         **_scan_btn_ctx(),
     )
