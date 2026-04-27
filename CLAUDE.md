@@ -40,20 +40,30 @@ unsichtbar – das war der Auslöser für diese Regel.
 
 ## Keine personenbezogenen Daten in Commits oder Code-Kommentaren
 
-Commit-Nachrichten, Code-Kommentare und Doc-Strings dürfen KEINE
-personenbezogenen Daten enthalten. Das umfasst – auch wenn sie aus
-einem Bug-Report, Screenshot oder Log stammen:
+Commit-Nachrichten, Code-Kommentare, Doc-Strings **und Test-Fixtures**
+dürfen KEINE personenbezogenen oder produktionsspezifischen Daten
+enthalten. Das umfasst – auch wenn sie aus einem Bug-Report,
+Screenshot, Log oder einer Chat-Anfrage stammen:
 
 - Vor- oder Nachnamen realer Personen (Mitarbeiter, Kunden, Dritte)
 - Konkrete Datei- oder Ordnernamen aus Produktivlaufwerken,
   insbesondere wenn sie Personennamen, Mandanten oder Vorgangsdaten
   enthalten
+- Mandanten-/Bereichs-Akronyme (z.B. interne Kürzel für Abteilungen,
+  Produkte, Projekte) aus User-Anfragen
+- Konkrete Datums-/Zeitstempel aus User-Anfragen, soweit sie als
+  Stichtage o.ä. einen Geschäftsbezug erkennen lassen
 - Benutzerkennungen, E-Mail-Adressen, Telefonnummern, IP-Adressen,
   UNC-Pfade, die auf konkrete Shares zeigen
 
 Stattdessen abstrahieren: „Datei mit Umlaut im Namen", „interner
 Share", „Mitarbeiter-Account". Wenn ein konkretes Beispiel zur
 Reproduktion nötig ist, generische Platzhalter („Müller, Max",
-„Beispieldatei.xlsx") verwenden, die eindeutig als Beispiel erkennbar
-sind. Diese Regel gilt auch für PR-Beschreibungen, Issue-Kommentare
-und ähnliches.
+„Beispieldatei.xlsx", „Demo_Stand 27.04.2024") verwenden, die
+eindeutig als Beispiel erkennbar sind. **Auch in Tests** Original-
+Tokens aus User-Anfragen (Akronyme, konkrete Datumswerte, Pfade)
+nicht 1:1 übernehmen — Test-Fixtures sind ebenso dauerhaft im
+Repository sichtbar wie Code-Kommentare.
+
+Diese Regel gilt auch für PR-Beschreibungen, Issue-Kommentare und
+ähnliches.
