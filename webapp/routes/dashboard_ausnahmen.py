@@ -399,6 +399,65 @@ def _feld_fuer_owner(file_owner: str) -> str:
     return "user_id"
 
 
+@bp.route("/ausnahmen/eigentuemer-zuordnen-bulk", methods=["POST"])
+@login_required
+@_koordinator_required
+def eigentuemer_zuordnen_bulk():
+    """Bulk-Variante: mehrere ``file_owner``-Werte in einem Schritt
+    Personen zuordnen (parallele Felder ``file_owner[]``/``person_id[]``).
+    Eingaben werden zeilenweise validiert, ungueltige Paare verworfen.
+    """
+    file_owners = request.form.getlist("file_owner")
+    person_ids  = request.form.getlist("person_id")
+
+    if not file_owners or len(file_owners) != len(person_ids):
+        flash("Bulk-Zuordnung fehlgeschlagen: unvollständige Eingabe.",
+              "error")
+        return redirect(
+            url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt"
+        )
+
+    db = get_db()
+    aktiv_pids = {row["id"] for row in db.execute(
+        "SELECT id FROM persons WHERE aktiv = 1"
+    ).fetchall()}
+
+    pairs = []
+    for fo, pid_raw in zip(file_owners, person_ids):
+        fo = (fo or "").strip()
+        pid_raw = (pid_raw or "").strip()
+        if not fo or not pid_raw:
+            continue
+        try:
+            pid = int(pid_raw)
+        except ValueError:
+            continue
+        if pid not in aktiv_pids:
+            continue
+        pairs.append((_feld_fuer_owner(fo), fo, pid))
+
+    if not pairs:
+        flash("Bulk-Zuordnung fehlgeschlagen: keine gültigen Mappings.",
+              "error")
+        return redirect(
+            url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt"
+        )
+
+    def _do(c):
+        with write_tx(c):
+            for col, fo, pid in pairs:
+                c.execute(
+                    f"UPDATE persons SET {col}=? WHERE id=?",
+                    (fo, pid),
+                )
+
+    get_writer().submit(_do, wait=True)
+    flash(f"{len(pairs)} Eigentümer zugeordnet.", "success")
+    return redirect(
+        url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt"
+    )
+
+
 @bp.route("/ausnahmen/eigentuemer-zuordnen", methods=["POST"])
 @login_required
 @_koordinator_required

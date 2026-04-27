@@ -51,6 +51,12 @@
     <span><i class="bi {{ s.icon }} me-2 text-{{ s.tone }}"></i>{{ s.label }}</span>
     <div class="d-flex align-items-center gap-2">
       <span class="badge bg-{{ s.tone }}">{{ s.total }}</span>
+      {% if s.key == 'owner_fehlt' %}
+      <button type="button" class="btn btn-sm btn-outline-warning triage-bulk-assign" disabled
+              title="Markierten Dateien Eigentümer zuordnen">
+        <i class="bi bi-person-check me-1"></i><span class="triage-bulk-assign-label">Markierte zuordnen</span>
+      </button>
+      {% endif %}
       <button type="submit" class="btn btn-sm btn-outline-secondary triage-bulk-selected" disabled
               formaction="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}"
               title="Nur die markierten Einträge verwerfen">
@@ -110,6 +116,7 @@
             <td class="ps-3 align-middle">
               <input type="checkbox" name="ref_keys" value="{{ r.file_id }}"
                      class="form-check-input triage-row-check"
+                     data-file-owner="{{ r.file_owner }}"
                      aria-label="Eintrag markieren">
             </td>
             <td><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
@@ -303,6 +310,40 @@
   {% endif %}
 {% endfor %}
 
+{% if persons_aktiv %}
+<script type="application/json" id="triage-persons-data">
+[{% for p in persons_aktiv -%}
+{"id": {{ p.id }}, "label": "{{ (p.nachname ~ ', ' ~ p.vorname ~ (' (' ~ p.user_id ~ ')' if p.user_id else '')) | e }}"}{% if not loop.last %},{% endif %}
+{%- endfor %}]
+</script>
+
+<div class="modal fade" id="bulkOwnerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post"
+            action="{{ url_for('dashboard_ausnahmen.eigentuemer_zuordnen_bulk') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-person-check me-2"></i>Eigentümer zuordnen (Mehrfachauswahl)</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Abbrechen"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Pro Scanner-Eigentümer eine Person wählen. Die Zuordnung wirkt
+            für alle Dateien dieses Eigentümers — nicht nur für die markierten.
+          </p>
+          <div id="bulkOwnerRows" class="vstack gap-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-warning btn-sm">Zuordnen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {# Verwerfen-Modals fuer alle Kategorien #}
 {% for s in sections %}
   {% for r in s.rows %}
@@ -415,10 +456,12 @@
   }
 
   document.querySelectorAll('.triage-section-form').forEach(function (form) {
-    var master  = form.querySelector('.triage-master');
-    var rowChks = form.querySelectorAll('.triage-row-check');
-    var bulkBtn = form.querySelector('.triage-bulk-selected');
-    var bulkLbl = form.querySelector('.triage-bulk-selected-label');
+    var master       = form.querySelector('.triage-master');
+    var rowChks      = form.querySelectorAll('.triage-row-check');
+    var bulkBtn      = form.querySelector('.triage-bulk-selected');
+    var bulkLbl      = form.querySelector('.triage-bulk-selected-label');
+    var assignBtn    = form.querySelector('.triage-bulk-assign');
+    var assignLbl    = form.querySelector('.triage-bulk-assign-label');
     if (!bulkBtn || !bulkLbl) return;
 
     function selectedCount() {
@@ -431,10 +474,80 @@
       bulkLbl.textContent = n > 0
         ? 'Markierte verwerfen (' + n + ')'
         : 'Markierte verwerfen';
+      if (assignBtn) {
+        assignBtn.disabled = (n === 0);
+        if (assignLbl) assignLbl.textContent = n > 0
+          ? 'Markierte zuordnen (' + n + ')'
+          : 'Markierte zuordnen';
+      }
       if (master) {
         master.checked = (n > 0 && n === rowChks.length);
         master.indeterminate = (n > 0 && n < rowChks.length);
       }
+    }
+
+    if (assignBtn) {
+      assignBtn.addEventListener('click', function () {
+        var checked = form.querySelectorAll('.triage-row-check:checked');
+        if (checked.length === 0) return;
+        var seen = {};
+        var owners = [];
+        checked.forEach(function (cb) {
+          var fo = cb.getAttribute('data-file-owner') || '';
+          if (fo && !seen[fo]) { seen[fo] = true; owners.push(fo); }
+        });
+        if (owners.length === 0) return;
+
+        var rowsContainer = document.getElementById('bulkOwnerRows');
+        var personsTag    = document.getElementById('triage-persons-data');
+        var modalEl       = document.getElementById('bulkOwnerModal');
+        if (!rowsContainer || !personsTag || !modalEl) return;
+        var persons = [];
+        try { persons = JSON.parse(personsTag.textContent); } catch (e) {}
+
+        rowsContainer.innerHTML = '';
+        owners.forEach(function (fo) {
+          var row = document.createElement('div');
+          row.className = 'row g-2 align-items-center';
+
+          var ownerCol = document.createElement('div');
+          ownerCol.className = 'col-md-5';
+          var code = document.createElement('code');
+          code.textContent = fo;
+          ownerCol.appendChild(code);
+          var hidden = document.createElement('input');
+          hidden.type  = 'hidden';
+          hidden.name  = 'file_owner';
+          hidden.value = fo;
+          ownerCol.appendChild(hidden);
+
+          var selectCol = document.createElement('div');
+          selectCol.className = 'col-md-7';
+          var select = document.createElement('select');
+          select.name      = 'person_id';
+          select.className = 'form-select form-select-sm';
+          select.required  = true;
+          var optDefault = document.createElement('option');
+          optDefault.value       = '';
+          optDefault.textContent = '— Person wählen —';
+          optDefault.disabled    = true;
+          optDefault.selected    = true;
+          select.appendChild(optDefault);
+          persons.forEach(function (p) {
+            var opt = document.createElement('option');
+            opt.value       = p.id;
+            opt.textContent = p.label;
+            select.appendChild(opt);
+          });
+          selectCol.appendChild(select);
+
+          row.appendChild(ownerCol);
+          row.appendChild(selectCol);
+          rowsContainer.appendChild(row);
+        });
+
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      });
     }
 
     if (master) {
