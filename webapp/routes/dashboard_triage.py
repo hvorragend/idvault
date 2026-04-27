@@ -21,7 +21,19 @@ from ..db_writer import get_writer
 from db_write_tx import write_tx
 
 
-_PAGE_SIZE = 25
+_DEFAULT_PAGE_SIZE = 25
+_PAGE_SIZE_OPTIONS = (10, 25, 50, 100, 200)
+
+
+def _resolve_page_size() -> int:
+    """Liest ``?per_page=N`` aus der Query und validiert gegen die
+    Whitelist; faellt sonst auf den Default zurueck."""
+    raw = request.args.get("per_page", _DEFAULT_PAGE_SIZE)
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_PAGE_SIZE
+    return n if n in _PAGE_SIZE_OPTIONS else _DEFAULT_PAGE_SIZE
 
 
 bp = Blueprint("dashboard_triage", __name__, url_prefix="/dashboard")
@@ -44,9 +56,9 @@ def _koordinator_required(f):
 # Kategorie-Queries
 # ---------------------------------------------------------------------------
 
-def _mittlere_konfidenz(db, page=1):
+def _mittlere_konfidenz(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
     """Auto-Match-Vorschlaege ohne Entscheidung (mittlere Konfidenz)."""
-    offset = (page - 1) * _PAGE_SIZE
+    offset = (page - 1) * page_size
     try:
         return db.execute("""
             SELECT s.id AS suggestion_id, s.score, s.created_at,
@@ -66,14 +78,14 @@ def _mittlere_konfidenz(db, page=1):
                )
              ORDER BY s.score DESC, s.created_at
              LIMIT ? OFFSET ?
-        """, (_PAGE_SIZE, offset)).fetchall()
+        """, (page_size, offset)).fetchall()
     except Exception:
         return []
 
 
-def _owner_mapping_fehlt(db, page=1):
+def _owner_mapping_fehlt(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
     """Scanner-Dateien mit ``file_owner``, der nicht in ``persons`` aufloesbar ist."""
-    offset = (page - 1) * _PAGE_SIZE
+    offset = (page - 1) * page_size
     return db.execute("""
         SELECT f.id AS file_id, f.file_name, f.full_path, f.file_owner,
                f.modified_at
@@ -94,12 +106,12 @@ def _owner_mapping_fehlt(db, page=1):
            )
          ORDER BY f.modified_at DESC
          LIMIT ? OFFSET ?
-    """, (_PAGE_SIZE, offset)).fetchall()
+    """, (page_size, offset)).fetchall()
 
 
-def _self_service_stumm(db, page=1):
+def _self_service_stumm(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
     """Tokens versendet, > 14 Tage ohne Aktion (kein audit-Eintrag fuer den Token)."""
-    offset = (page - 1) * _PAGE_SIZE
+    offset = (page - 1) * page_size
     try:
         return db.execute("""
             SELECT t.jti, t.person_id, t.created_at, t.expires_at,
@@ -121,14 +133,14 @@ def _self_service_stumm(db, page=1):
                )
              ORDER BY t.created_at
              LIMIT ? OFFSET ?
-        """, (_PAGE_SIZE, offset)).fetchall()
+        """, (page_size, offset)).fetchall()
     except Exception:
         return []
 
 
-def _auto_classify_fehlgeschlagen(db, page=1):
+def _auto_classify_fehlgeschlagen(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
     """IDV-Files mit Treffer auf eine Auto-Klassifizier-Regel, aber unklassifiziert."""
-    offset = (page - 1) * _PAGE_SIZE
+    offset = (page - 1) * page_size
     try:
         return db.execute("""
             SELECT f.id AS file_id, f.file_name, f.full_path,
@@ -144,14 +156,14 @@ def _auto_classify_fehlgeschlagen(db, page=1):
                )
              ORDER BY f.modified_at DESC
              LIMIT ? OFFSET ?
-        """, (_PAGE_SIZE, offset)).fetchall()
+        """, (page_size, offset)).fetchall()
     except Exception:
         return []
 
 
-def _eskalierte_idvs(db, page=1):
+def _eskalierte_idvs(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
     """IDVs mit Vollstaendigkeit < 100% UND mind. 4 Erinnerungen erhalten."""
-    offset = (page - 1) * _PAGE_SIZE
+    offset = (page - 1) * page_size
     try:
         return db.execute("""
             SELECT r.id, r.idv_id, r.bezeichnung,
@@ -171,14 +183,14 @@ def _eskalierte_idvs(db, page=1):
             HAVING reminder_count >= 4
              ORDER BY reminder_count DESC, r.idv_id
              LIMIT ? OFFSET ?
-        """, (_PAGE_SIZE, offset)).fetchall()
+        """, (page_size, offset)).fetchall()
     except Exception:
         return []
 
 
-def _pool_reminder_ausgelaufen(db, page=1):
+def _pool_reminder_ausgelaufen(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
     """Pool-Schritte aelter als ``notify_pool_reminder_max_days`` (Default 14)."""
-    offset = (page - 1) * _PAGE_SIZE
+    offset = (page - 1) * page_size
     try:
         cfg = db.execute(
             "SELECT value FROM app_settings WHERE key='notify_pool_reminder_max_days'"
@@ -206,7 +218,7 @@ def _pool_reminder_ausgelaufen(db, page=1):
                )
              ORDER BY f.beauftragt_am
              LIMIT ? OFFSET ?
-        """, (_PAGE_SIZE, offset)).fetchall()
+        """, (page_size, offset)).fetchall()
     except Exception:
         return []
 
@@ -346,16 +358,17 @@ def index():
         "_pool_reminder_ausgelaufen":  _pool_reminder_ausgelaufen,
     }
 
+    per_page = _resolve_page_size()
     sections = []
     for key, icon, tone, label, hint, fn_name in _SECTION_DEFS:
         count = _count_category(db, key)
-        total_pages = max(1, math.ceil(count / _PAGE_SIZE)) if count else 1
+        total_pages = max(1, math.ceil(count / per_page)) if count else 1
         try:
             page = int(request.args.get(f"page_{key}", "1") or "1")
         except (TypeError, ValueError):
             page = 1
         page = max(1, min(page, total_pages))
-        rows = [dict(r) for r in fns[fn_name](db, page=page)]
+        rows = [dict(r) for r in fns[fn_name](db, page=page, page_size=per_page)]
         sections.append({
             "key":         key,
             "icon":        icon,
@@ -366,9 +379,11 @@ def index():
             "page":        page,
             "total":       count,
             "total_pages": total_pages,
-            "page_size":   _PAGE_SIZE,
+            "page_size":   per_page,
+            "first_url":   _page_url(key, 1) if page > 1 else None,
             "prev_url":    _page_url(key, page - 1) if page > 1 else None,
             "next_url":    _page_url(key, page + 1) if page < total_pages else None,
+            "last_url":    _page_url(key, total_pages) if page < total_pages else None,
         })
     total = sum(s["total"] for s in sections)
 
@@ -386,7 +401,9 @@ def index():
 
     return render_template("dashboard_triage.html",
                            sections=sections, total=total,
-                           persons_aktiv=persons_aktiv)
+                           persons_aktiv=persons_aktiv,
+                           page_size=per_page,
+                           page_size_options=_PAGE_SIZE_OPTIONS)
 
 
 def _feld_fuer_owner(file_owner: str) -> str:

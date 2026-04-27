@@ -3,12 +3,22 @@
 {% block page_title %}<i class="bi bi-cone-striped me-2"></i>Triage{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <p class="text-muted mb-0">
     Sammelt alle Items, die <strong>menschliche Prüfung</strong> brauchen — alles
     andere läuft automatisch.
   </p>
-  <span class="badge bg-secondary fs-6">{{ total }} offen</span>
+  <div class="d-flex align-items-center gap-2">
+    {% if total > 0 %}
+    <label class="small text-muted mb-0" for="triage-per-page">Pro Seite:</label>
+    <select id="triage-per-page" class="form-select form-select-sm" style="width:auto">
+      {% for opt in page_size_options %}
+      <option value="{{ opt }}"{% if opt == page_size %} selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <span class="badge bg-secondary fs-6">{{ total }} offen</span>
+  </div>
 </div>
 
 {% if total == 0 %}
@@ -269,6 +279,13 @@
           <td colspan="99" class="py-2 bg-light bg-opacity-50">
             <nav aria-label="Paginierung {{ s.label }}">
               <ul class="pagination pagination-sm justify-content-center mb-0">
+                <li class="page-item{% if not s.first_url %} disabled{% endif %}">
+                  {% if s.first_url %}
+                    <a class="page-link" href="{{ s.first_url }}" aria-label="Erste Seite">&laquo; Anfang</a>
+                  {% else %}
+                    <span class="page-link" aria-label="Erste Seite">&laquo; Anfang</span>
+                  {% endif %}
+                </li>
                 <li class="page-item{% if not s.prev_url %} disabled{% endif %}">
                   {% if s.prev_url %}
                     <a class="page-link" href="{{ s.prev_url }}">&lsaquo; Zurück</a>
@@ -286,6 +303,13 @@
                     <a class="page-link" href="{{ s.next_url }}">Weiter &rsaquo;</a>
                   {% else %}
                     <span class="page-link">Weiter &rsaquo;</span>
+                  {% endif %}
+                </li>
+                <li class="page-item{% if not s.last_url %} disabled{% endif %}">
+                  {% if s.last_url %}
+                    <a class="page-link" href="{{ s.last_url }}" aria-label="Letzte Seite">Ende &raquo;</a>
+                  {% else %}
+                    <span class="page-link" aria-label="Letzte Seite">Ende &raquo;</span>
                   {% endif %}
                 </li>
               </ul>
@@ -439,6 +463,21 @@
 
 <script>
 (function () {
+  var perPageSelect = document.getElementById('triage-per-page');
+  if (perPageSelect) {
+    perPageSelect.addEventListener('change', function () {
+      var url = new URL(window.location.href);
+      url.searchParams.set('per_page', perPageSelect.value);
+      // Beim Wechsel der Seitengroesse sind die page_*-Indizes
+      // bedeutungslos — alle zuruecksetzen.
+      Array.from(url.searchParams.keys()).forEach(function (k) {
+        if (k.indexOf('page_') === 0) url.searchParams.delete(k);
+      });
+      url.hash = '';
+      window.location.assign(url.toString());
+    });
+  }
+
   var filterBar = document.getElementById('triage-filter-bar');
   if (filterBar) {
     var STORAGE_KEY = 'triage-hidden-cats';
