@@ -23,21 +23,27 @@
 
 {% for s in sections %}
 {% if s.rows %}
+<form method="post" class="triage-section-form" data-kategorie="{{ s.key }}"
+      action="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="kategorie" value="{{ s.key }}">
 <div class="card border-0 shadow-sm mb-4 border-start border-4 border-{{ s.tone }}"
      id="section-{{ s.key }}">
   <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
     <span><i class="bi {{ s.icon }} me-2 text-{{ s.tone }}"></i>{{ s.label }}</span>
     <div class="d-flex align-items-center gap-2">
       <span class="badge bg-{{ s.tone }}">{{ s.rows|length }}</span>
-      <form method="post" action="{{ url_for('dashboard_ausnahmen.alle_verwerfen') }}" class="d-inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="kategorie" value="{{ s.key }}">
-        <button type="submit" class="btn btn-sm btn-outline-secondary"
-                title="Alle Einträge dieser Kategorie verwerfen"
-                onclick="return confirm('Alle Einträge in dieser Kategorie verwerfen?')">
-          <i class="bi bi-x-circle me-1"></i>Alle verwerfen
-        </button>
-      </form>
+      <button type="submit" class="btn btn-sm btn-outline-secondary triage-bulk-selected" disabled
+              formaction="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}"
+              title="Nur die markierten Einträge verwerfen">
+        <i class="bi bi-check2-square me-1"></i><span class="triage-bulk-selected-label">Markierte verwerfen</span>
+      </button>
+      <button type="submit" class="btn btn-sm btn-outline-secondary"
+              formaction="{{ url_for('dashboard_ausnahmen.alle_verwerfen') }}"
+              title="Alle Einträge dieser Kategorie verwerfen"
+              onclick="return confirm('Alle Einträge in dieser Kategorie verwerfen?')">
+        <i class="bi bi-x-circle me-1"></i>Alle verwerfen
+      </button>
     </div>
   </div>
   <div class="card-body py-2 small text-muted">
@@ -45,11 +51,25 @@
   </div>
   <div class="table-responsive">
     <table class="table table-hover table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th class="ps-3 align-middle" style="width:2.5rem">
+            <input type="checkbox" class="form-check-input triage-master"
+                   aria-label="Alle Einträge markieren">
+          </th>
+          <th colspan="99"></th>
+        </tr>
+      </thead>
       <tbody>
         {% if s.key == 'mittlere_konfidenz' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3 fw-500">{{ r.idv_id }}</td>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.suggestion_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">{{ r.idv_id }}</td>
             <td class="text-truncate" style="max-width:220px" title="{{ r.bezeichnung }}">{{ r.bezeichnung }}</td>
             <td class="text-truncate" style="max-width:220px" title="{{ r.file_name }}">
               <i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}
@@ -69,7 +89,12 @@
         {% elif s.key == 'owner_fehlt' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3"><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.file_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
             <td class="small text-muted text-truncate" style="max-width:280px" title="{{ r.full_path }}">{{ r.full_path }}</td>
             <td><code>{{ r.file_owner }}</code></td>
             <td class="text-end pe-3">
@@ -87,7 +112,12 @@
         {% elif s.key == 'self_service_stumm' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3 fw-500">{{ r.nachname }}, {{ r.vorname }}</td>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.jti }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">{{ r.nachname }}, {{ r.vorname }}</td>
             <td class="small text-muted">{{ r.email or '–' }}</td>
             <td class="small text-muted">Versendet {{ r.created_at[:10] }}</td>
             <td class="text-end pe-3">
@@ -103,7 +133,12 @@
         {% elif s.key == 'auto_classify_failed' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3"><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.file_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td><i class="bi bi-file-earmark me-1 text-muted"></i>{{ r.file_name }}</td>
             <td class="small text-muted text-truncate" style="max-width:320px" title="{{ r.full_path }}">{{ r.full_path }}</td>
             <td class="small text-muted">{{ r.modified_at[:10] if r.modified_at else '–' }}</td>
             <td class="text-end pe-3">
@@ -120,7 +155,12 @@
         {% elif s.key == 'eskalierte_idvs' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3 fw-500">
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.id) }}"
                  class="text-decoration-none">{{ r.idv_id }}</a>
             </td>
@@ -140,7 +180,12 @@
         {% elif s.key == 'pool_reminder_alt' %}
           {% for r in s.rows %}
           <tr>
-            <td class="ps-3 fw-500">
+            <td class="ps-3 align-middle">
+              <input type="checkbox" name="ref_keys" value="{{ r.freigabe_id }}"
+                     class="form-check-input triage-row-check"
+                     aria-label="Eintrag markieren">
+            </td>
+            <td class="fw-500">
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=r.idv_db_id) }}"
                  class="text-decoration-none">{{ r.idv_id }}</a>
             </td>
@@ -171,6 +216,7 @@
     </table>
   </div>
 </div>
+</form>
 {% endif %}
 {% endfor %}
 
@@ -275,4 +321,53 @@
     {% endif %}
   {% endfor %}
 {% endfor %}
+
+<script>
+(function () {
+  document.querySelectorAll('.triage-section-form').forEach(function (form) {
+    var master  = form.querySelector('.triage-master');
+    var rowChks = form.querySelectorAll('.triage-row-check');
+    var bulkBtn = form.querySelector('.triage-bulk-selected');
+    var bulkLbl = form.querySelector('.triage-bulk-selected-label');
+    if (!bulkBtn || !bulkLbl) return;
+
+    function selectedCount() {
+      return form.querySelectorAll('.triage-row-check:checked').length;
+    }
+
+    function refresh() {
+      var n = selectedCount();
+      bulkBtn.disabled = (n === 0);
+      bulkLbl.textContent = n > 0
+        ? 'Markierte verwerfen (' + n + ')'
+        : 'Markierte verwerfen';
+      if (master) {
+        master.checked = (n > 0 && n === rowChks.length);
+        master.indeterminate = (n > 0 && n < rowChks.length);
+      }
+    }
+
+    if (master) {
+      master.addEventListener('change', function () {
+        rowChks.forEach(function (cb) { cb.checked = master.checked; });
+        refresh();
+      });
+    }
+    rowChks.forEach(function (cb) {
+      cb.addEventListener('change', refresh);
+    });
+
+    bulkBtn.addEventListener('click', function (ev) {
+      var n = selectedCount();
+      if (n === 0) { ev.preventDefault(); return; }
+      var msg = n === 1
+        ? '1 markierten Eintrag verwerfen?'
+        : n + ' markierte Einträge verwerfen?';
+      if (!window.confirm(msg)) ev.preventDefault();
+    });
+
+    refresh();
+  });
+})();
+</script>
 {% endblock %}

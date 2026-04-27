@@ -525,3 +525,39 @@ def alle_verwerfen():
     get_writer().submit(_do, wait=True)
     flash(f'Alle Einträge in "{kategorie}" verworfen.', "success")
     return redirect(url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}")
+
+
+@bp.route("/ausnahmen/markierte-verwerfen", methods=["POST"])
+@login_required
+@_koordinator_required
+def markierte_verwerfen():
+    """Verwirft die in der Triage-Ansicht markierten Eintraege einer Kategorie."""
+    kategorie = (request.form.get("kategorie") or "").strip()
+    ref_keys = [k.strip() for k in request.form.getlist("ref_keys")
+                if k and k.strip()]
+
+    if not kategorie or kategorie not in _VALID_KATEGORIEN:
+        flash("Verwerfen fehlgeschlagen: ungültige Kategorie.", "error")
+        return redirect(url_for("dashboard_ausnahmen.index"))
+    if not ref_keys:
+        flash("Keine Einträge ausgewählt.", "warning")
+        return redirect(
+            url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}"
+        )
+
+    person_id = session.get("person_id")
+    rows = [(kategorie, k, person_id) for k in ref_keys]
+
+    def _do(c):
+        with write_tx(c):
+            c.executemany(
+                "INSERT OR IGNORE INTO triage_ausnahmen_verworfen "
+                "(kategorie, ref_key, verworfen_von_id) VALUES (?, ?, ?)",
+                rows,
+            )
+
+    get_writer().submit(_do, wait=True)
+    flash(f"{len(ref_keys)} markierte Einträge verworfen.", "success")
+    return redirect(
+        url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}"
+    )
