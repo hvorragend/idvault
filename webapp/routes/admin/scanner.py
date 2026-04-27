@@ -1036,6 +1036,46 @@ def scanner_einstellungen():
                 flash(f"Fehler beim Speichern der Pfad-Mappings: {exc}", "error")
             return redirect(url_for("admin.scanner_einstellungen"))
 
+        # Separates Formular nur für den zeitgesteuerten Scan?
+        if request.form.get("_only_schedule") == "1":
+            sched_enabled = "1" if request.form.get("scan_schedule_enabled") == "1" else "0"
+            sched_type = request.form.get("scan_schedule_type", "daily")
+            if sched_type not in ("daily", "weekly"):
+                sched_type = "daily"
+            sched_time = request.form.get("scan_schedule_time", "02:00").strip()
+            try:
+                _sh, _sm = map(int, sched_time.split(":"))
+                if not (0 <= _sh <= 23 and 0 <= _sm <= 59):
+                    raise ValueError
+                sched_time = f"{_sh:02d}:{_sm:02d}"
+            except Exception:
+                sched_time = "02:00"
+            sched_weekday = request.form.get("scan_schedule_weekday", "0")
+            try:
+                _wd = int(sched_weekday)
+                if not (0 <= _wd <= 6):
+                    raise ValueError
+                sched_weekday = str(_wd)
+            except Exception:
+                sched_weekday = "0"
+            try:
+                _settings = [
+                    ("scan_schedule_enabled", sched_enabled),
+                    ("scan_schedule_type",    sched_type),
+                    ("scan_schedule_time",    sched_time),
+                    ("scan_schedule_weekday", sched_weekday),
+                ]
+                def _do(c):
+                    with write_tx(c):
+                        for _key, _val in _settings:
+                            c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
+                                      (_key, _val))
+                get_writer().submit(_do, wait=True)
+                flash("Zeitplan gespeichert.", "success")
+            except Exception as exc:
+                flash(f"Fehler beim Speichern des Zeitplans: {exc}", "error")
+            return redirect(url_for("admin.scanner_einstellungen") + "#zeitplan")
+
         scan_paths    = [p.strip() for p in request.form.get("scan_paths",    "").splitlines() if p.strip()]
         extensions    = [e.strip().lower() for e in request.form.get("extensions",    "").splitlines() if e.strip()]
         blacklist_paths = [p.strip() for p in request.form.get("blacklist_paths", "").splitlines() if p.strip()]
