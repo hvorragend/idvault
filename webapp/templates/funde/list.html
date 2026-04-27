@@ -290,9 +290,9 @@ Sondermodi) und durch dünne Trennlinien optisch getrennt. #}
     {{ filter_pill('ignoriert', 'Ignoriert', ignoriert, icon='bi-eye-slash', accent='slate', icon_color='text-muted') }}
     <li class="idv-filter-sep" aria-hidden="true"></li>
     {{ filter_pill('makros', 'Makros', mit_makro, icon='bi-lightning-fill', accent='red', icon_color='text-danger') }}
-    {{ filter_pill('formeln_viele', 'Viele Formeln', formeln_viele_anzahl or 0,
+    {{ filter_pill('formeln', 'Formeln', formeln_anzahl or 0,
                    icon='bi-calculator-fill', accent='amber', icon_color='text-warning',
-                   title='Excel-Dateien mit ≥ ' ~ formeln_viele_schwelle ~ ' Formeln (Hinweis auf Modelle/Kalkulationen)') }}
+                   title='Excel-Dateien mit Formeln (über Tabellen-Kopfzeile nach Anzahl sortieren)') }}
     {{ filter_pill('blattschutz', 'Blattschutz', mit_schutz, icon='bi-lock-fill', accent='blue', icon_color='text-info') }}
     {{ filter_pill('ohne_schutz', 'Ohne Schutz', ohne_schutz, icon='bi-unlock-fill', accent='red', icon_color='text-danger', title='Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz (Kandidaten für IT-Risiko-Erfassung)') }}
     <li class="idv-filter-sep" aria-hidden="true"></li>

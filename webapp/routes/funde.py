@@ -82,11 +82,6 @@ _VALID_PER_PAGE = (25, 50, 100, 200, 500)
 _EXCEL_PROTECTABLE_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx")
 _EXCEL_EXT_PLACEHOLDERS = ",".join("?" * len(_EXCEL_PROTECTABLE_EXTS))
 
-# Schwellwert für den Filter „Viele Formeln". Excel-Dateien jenseits dieser
-# Grenze sind erfahrungsgemäß komplex genug, um einer IDV-Bewertung zu bedürfen
-# (Modelle, Kalkulationsblätter), während wenige Formeln eher Hilfsfelder sind.
-_FORMELN_VIELE_SCHWELLE = 500
-
 
 def _owner_list_for(db, base_where: str, base_params, extra_filters):
     """Eigentümer-Auswahl kontextabhängig.
@@ -297,10 +292,9 @@ def list_funde():
             WHERE status='active' AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
             GROUP BY file_hash HAVING COUNT(*) > 1
         )""")
-    elif filt == "formeln_viele":
+    elif filt == "formeln":
         where_parts.append("f.status = 'active'")
-        where_parts.append("COALESCE(f.formula_count, 0) >= ?")
-        params.append(_FORMELN_VIELE_SCHWELLE)
+        where_parts.append("COALESCE(f.formula_count, 0) > 0")
         where_parts.append("(f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')")
     else:
         where_parts.append("f.status = 'active'")
@@ -499,12 +493,11 @@ def list_funde():
     except Exception:
         duplikate_anzahl = 0
 
-    formeln_viele_anzahl = db.execute(
+    formeln_anzahl = db.execute(
         "SELECT COUNT(*) FROM idv_files"
         " WHERE status='active'"
-        "   AND COALESCE(formula_count, 0) >= ?"
-        "   AND (bearbeitungsstatus IS NULL OR bearbeitungsstatus != 'Ignoriert')",
-        (_FORMELN_VIELE_SCHWELLE,),
+        "   AND COALESCE(formula_count, 0) > 0"
+        "   AND (bearbeitungsstatus IS NULL OR bearbeitungsstatus != 'Ignoriert')"
     ).fetchone()[0]
 
     # ---------- Filter-Optionen ----------
@@ -610,8 +603,7 @@ def list_funde():
         ignoriert=ignoriert, zur_registrierung=zur_registrierung,
         neu_gesamt=neu_gesamt,
         duplikate_anzahl=duplikate_anzahl,
-        formeln_viele_anzahl=formeln_viele_anzahl,
-        formeln_viele_schwelle=_FORMELN_VIELE_SCHWELLE,
+        formeln_anzahl=formeln_anzahl,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         share_roots=share_roots,
         share_root_filt=share_root,
@@ -815,7 +807,7 @@ def eingang_funde():
     date_from     = request.args.get("date_from", "").strip()
     date_to       = request.args.get("date_to", "").strip()
     prop_filt     = request.args.get("prop", "").strip()
-    if prop_filt not in {"makros", "blattschutz", "ohne_schutz", "formeln_viele", "duplikate"}:
+    if prop_filt not in {"makros", "blattschutz", "ohne_schutz", "formeln", "duplikate"}:
         prop_filt = ""
     mine_filt     = request.args.get("mine", "").strip() in ("1", "true", "on")
     me_aliases    = _me_owner_aliases(get_db())
@@ -890,9 +882,8 @@ def eingang_funde():
         params.extend(_EXCEL_PROTECTABLE_EXTS)
         where_parts.append("COALESCE(f.has_sheet_protection, 0) = 0")
         where_parts.append("COALESCE(f.workbook_protected, 0) = 0")
-    elif prop_filt == "formeln_viele":
-        where_parts.append("COALESCE(f.formula_count, 0) >= ?")
-        params.append(_FORMELN_VIELE_SCHWELLE)
+    elif prop_filt == "formeln":
+        where_parts.append("COALESCE(f.formula_count, 0) > 0")
     elif prop_filt == "duplikate":
         where_parts.append("""f.file_hash IN (
             SELECT file_hash FROM idv_files
@@ -997,10 +988,9 @@ def eingang_funde():
             "   AND COALESCE(workbook_protected, 0) = 0",
             _EXCEL_PROTECTABLE_EXTS,
         ).fetchone()[0],
-        "formeln_viele": db.execute(
+        "formeln": db.execute(
             f"SELECT COUNT(*) FROM idv_files WHERE {_eingang_base}"
-            "   AND COALESCE(formula_count, 0) >= ?",
-            (_FORMELN_VIELE_SCHWELLE,),
+            "   AND COALESCE(formula_count, 0) > 0"
         ).fetchone()[0],
         "duplikate": db.execute(
             f"SELECT COUNT(*) FROM idv_files WHERE {_eingang_base}"
@@ -1087,7 +1077,6 @@ def eingang_funde():
         date_to=date_to,
         prop_filt=prop_filt,
         prop_counts=prop_counts,
-        formeln_viele_schwelle=_FORMELN_VIELE_SCHWELLE,
         mine_filt=mine_filt,
         mine_count=mine_count,
         me_user_id=me_user_id,
