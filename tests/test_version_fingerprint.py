@@ -57,6 +57,70 @@ class ComputeVersionFingerprintTests(unittest.TestCase):
         self.assertNotIn("####-##-##|", a)  # Stem-Teil enthaelt das Datum, nicht den Trenner
         self.assertTrue(a.endswith("tagesabschluss_####-##-##"))
 
+    # ── 2b. Deutsches Datum DD.MM.YYYY ──
+    # Reports mit deutschem Tagesdatum im Namen (z.B. quartalsweise abgelegte
+    # Stand-Reports mit wechselndem Stichtag) muessen kollabieren — auch
+    # wenn der Tag groesser als 12 ist und damit nicht durch die generische
+    # Monatsmaske abgedeckt wird.
+    def test_de_date_masked(self):
+        # Tagesvarianten: drei mit Tag>12 (umgeht das Monatsmuster) und
+        # eine mit Tag<=12 (Sanity: kollabiert ueber dieselbe Maske).
+        a = compute_version_fingerprint(
+            r"X:\Beispiel\Demo_Stand 27.04.2024.xlsx",
+            "Demo_Stand 27.04.2024.xlsx",
+        )
+        b = compute_version_fingerprint(
+            r"X:\Beispiel\Demo_Stand 13.05.2024.xlsx",
+            "Demo_Stand 13.05.2024.xlsx",
+        )
+        c = compute_version_fingerprint(
+            r"X:\Beispiel\Demo_Stand 30.11.2024.xlsx",
+            "Demo_Stand 30.11.2024.xlsx",
+        )
+        d = compute_version_fingerprint(
+            r"X:\Beispiel\Demo_Stand 05.07.2024.xlsx",
+            "Demo_Stand 05.07.2024.xlsx",
+        )
+        self.assertIsNotNone(a)
+        self.assertEqual(a, b)
+        self.assertEqual(a, c)
+        self.assertEqual(a, d)
+        self.assertTrue(a.endswith("demo_stand ##.##.####"))
+
+    # ── 2c. DE-Datum kombiniert mit Quartal ──
+    # Beide Masken laufen, der Quartals-Token sowie das Tagesdatum kollabieren.
+    def test_de_date_with_quartal_masked(self):
+        a = compute_version_fingerprint(
+            r"X:\Beispiel\Demo_Q1_Stand 27.04.2024.xlsx",
+            "Demo_Q1_Stand 27.04.2024.xlsx",
+        )
+        b = compute_version_fingerprint(
+            r"X:\Beispiel\Demo_Q2_Stand 13.05.2024.xlsx",
+            "Demo_Q2_Stand 13.05.2024.xlsx",
+        )
+        c = compute_version_fingerprint(
+            r"X:\Beispiel\Demo_Q3_Stand 30.11.2024.xlsx",
+            "Demo_Q3_Stand 30.11.2024.xlsx",
+        )
+        self.assertIsNotNone(a)
+        self.assertEqual(a, b)
+        self.assertEqual(a, c)
+        self.assertTrue(a.endswith("demo_q#_stand ##.##.####"))
+
+    # ── 2d. DE-Datum darf nicht laengere Ziffernfolgen anschneiden ──
+    # Ein 5-stelliger Zahlenblock ist kein Tagesdatum — die Datumsmaske darf
+    # ihn nicht anschneiden.
+    def test_de_date_does_not_match_longer_digit_runs(self):
+        fp = compute_version_fingerprint(
+            "/data/Demo_12345.06.2024.csv",
+            "Demo_12345.06.2024.csv",
+        )
+        self.assertIsNotNone(fp)
+        # Tagesdatum-Maske darf den 5-stelligen Block nicht angreifen;
+        # nur Jahr (####) und Monat (##) werden ueber die generischen
+        # Masken abgedeckt.
+        self.assertNotIn("##.##.####", fp)
+
     # ── 3. Monat als eigenstaendiges Token ──
     def test_month_token_masked(self):
         a = compute_version_fingerprint(
