@@ -1081,15 +1081,9 @@ def scanner_einstellungen():
         blacklist_paths = [p.strip() for p in request.form.get("blacklist_paths", "").splitlines() if p.strip()]
         whitelist_paths = [p.strip() for p in request.form.get("whitelist_paths", "").splitlines() if p.strip()]
 
-        # path_mappings aus JSON-Feld (wird per JS serialisiert)
-        try:
-            pm_raw = request.form.get("path_mappings_json", "[]")
-            path_mappings_new = json.loads(pm_raw)
-            if not isinstance(path_mappings_new, list):
-                path_mappings_new = []
-        except (ValueError, TypeError):
-            path_mappings_new = []
-            flash("Pfad-Mappings konnten nicht gelesen werden – bitte prüfen.", "warning")
+        # Pfad-Mappings haben ein eigenes Formular (_only_path_mappings=1) und
+        # werden hier bewusst NICHT verarbeitet, sonst würde der Default "[]"
+        # die bestehenden Mappings überschreiben.
 
         try:
             hash_limit  = max(1, int(request.form.get("hash_size_limit_mb", 500)))
@@ -1144,8 +1138,6 @@ def scanner_einstellungen():
 
         try:
             _save_scanner_config(cfg)
-            _save_path_mappings(path_mappings_new)
-            path_mappings = path_mappings_new
             val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
             val_dc = "1" if request.form.get("discard_no_formula") == "1" else "0"
             val_cf = "1" if request.form.get("auto_classify_by_filename") == "1" else "0"
