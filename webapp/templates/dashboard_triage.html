@@ -75,13 +75,46 @@
   </div>
   <div class="table-responsive">
     <table class="table table-hover table-sm align-middle mb-0">
-      <thead>
+      <thead class="table-light">
         <tr>
           <th class="ps-3 align-middle" style="width:2.5rem">
             <input type="checkbox" class="form-check-input triage-master"
                    aria-label="Alle Einträge markieren">
           </th>
-          <th colspan="99"></th>
+          {% if s.key == 'mittlere_konfidenz' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Datei</th>
+            <th>Score</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'owner_fehlt' %}
+            <th>Datei</th>
+            <th>Pfad</th>
+            <th>Eigentümer</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'self_service_stumm' %}
+            <th>Person</th>
+            <th>E-Mail</th>
+            <th>Versendet</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'auto_classify_failed' %}
+            <th>Datei</th>
+            <th>Pfad</th>
+            <th>Geändert</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'eskalierte_idvs' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Reminder</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'pool_reminder_alt' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Schritt</th>
+            <th>Pool</th>
+            <th>Beauftragt</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% endif %}
         </tr>
       </thead>
       <tbody>
@@ -229,7 +262,9 @@
           </tr>
           {% endfor %}
         {% endif %}
-        {% if s.total_pages > 1 %}
+      </tbody>
+      {% if s.total_pages > 1 %}
+      <tfoot>
         <tr>
           <td colspan="99" class="py-2 bg-light bg-opacity-50">
             <nav aria-label="Paginierung {{ s.label }}">
@@ -257,8 +292,8 @@
             </nav>
           </td>
         </tr>
-        {% endif %}
-      </tbody>
+      </tfoot>
+      {% endif %}
     </table>
   </div>
 </div>
