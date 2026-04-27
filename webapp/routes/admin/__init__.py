@@ -300,7 +300,21 @@ def _zip_strip_prefix(members: list[str]) -> str:
 # Top-Level-Importnamen, die im Bundle aus dem scanner/-Verzeichnis stammen
 # (idvault.spec: pathex=['.', 'scanner']). Sie müssen flach unter updates/
 # abgelegt werden, damit der Sidecar-Finder in run.py sie findet.
-_SCANNER_TOPLEVEL_MODULES = frozenset({"network_scanner", "excel_export"})
+#
+# scanner_protocol/path_utils/teams_scanner werden ebenfalls als Top-Level
+# importiert (siehe `from scanner_protocol import emit` in
+# network_scanner.py / teams_scanner.py / webapp/routes/admin/scanner.py
+# bzw. `from path_utils import ...` in webapp/__init__.py). Ohne diese
+# Eintraege landet ein Sidecar-Update von scanner_protocol.py unter
+# updates/scanner/scanner_protocol.py – wo der SidecarFinder es nicht
+# findet, sodass weiterhin die gebuendelte Version geladen wird.
+_SCANNER_TOPLEVEL_MODULES = frozenset({
+    "network_scanner",
+    "excel_export",
+    "scanner_protocol",
+    "path_utils",
+    "teams_scanner",
+})
 
 
 def _zip_remap(rel: str) -> str:
