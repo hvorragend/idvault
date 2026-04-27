@@ -3,12 +3,22 @@
 {% block page_title %}<i class="bi bi-cone-striped me-2"></i>Triage{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <p class="text-muted mb-0">
     Sammelt alle Items, die <strong>menschliche Prüfung</strong> brauchen — alles
     andere läuft automatisch.
   </p>
-  <span class="badge bg-secondary fs-6">{{ total }} offen</span>
+  <div class="d-flex align-items-center gap-2">
+    {% if total > 0 %}
+    <label class="small text-muted mb-0" for="triage-per-page">Pro Seite:</label>
+    <select id="triage-per-page" class="form-select form-select-sm" style="width:auto">
+      {% for opt in page_size_options %}
+      <option value="{{ opt }}"{% if opt == page_size %} selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <span class="badge bg-secondary fs-6">{{ total }} offen</span>
+  </div>
 </div>
 
 {% if total == 0 %}
@@ -42,7 +52,7 @@
 {% for s in sections %}
 {% if s.total %}
 <form method="post" class="triage-section-form" data-kategorie="{{ s.key }}"
-      action="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}">
+      action="{{ url_for('dashboard_triage.markierte_verwerfen') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="kategorie" value="{{ s.key }}">
 <div class="card border-0 shadow-sm mb-4 border-start border-4 border-{{ s.tone }}"
@@ -58,12 +68,12 @@
       </button>
       {% endif %}
       <button type="submit" class="btn btn-sm btn-outline-secondary triage-bulk-selected" disabled
-              formaction="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}"
+              formaction="{{ url_for('dashboard_triage.markierte_verwerfen') }}"
               title="Nur die markierten Einträge verwerfen">
         <i class="bi bi-check2-square me-1"></i><span class="triage-bulk-selected-label">Markierte verwerfen</span>
       </button>
       <button type="submit" class="btn btn-sm btn-outline-secondary"
-              formaction="{{ url_for('dashboard_ausnahmen.alle_verwerfen') }}"
+              formaction="{{ url_for('dashboard_triage.alle_verwerfen') }}"
               title="Alle Einträge dieser Kategorie verwerfen"
               onclick="return confirm('Alle Einträge in dieser Kategorie verwerfen?')">
         <i class="bi bi-x-circle me-1"></i>Alle verwerfen
@@ -75,13 +85,56 @@
   </div>
   <div class="table-responsive">
     <table class="table table-hover table-sm align-middle mb-0">
-      <thead>
+      <thead class="table-light">
         <tr>
           <th class="ps-3 align-middle" style="width:2.5rem">
             <input type="checkbox" class="form-check-input triage-master"
                    aria-label="Alle Einträge markieren">
           </th>
-          <th colspan="99"></th>
+          {% if s.key == 'mittlere_konfidenz' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Datei</th>
+            <th>
+              <a href="{{ s.score_sort_url }}" class="text-decoration-none text-reset"
+                 title="Nach Score sortieren">
+                Score
+                {% if s.sort == 'score_desc' %}
+                  <i class="bi bi-caret-down-fill small ms-1 text-primary"></i>
+                {% elif s.sort == 'score_asc' %}
+                  <i class="bi bi-caret-up-fill small ms-1 text-primary"></i>
+                {% endif %}
+              </a>
+            </th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'owner_fehlt' %}
+            <th>Datei</th>
+            <th>Pfad</th>
+            <th>Eigentümer</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'self_service_stumm' %}
+            <th>Person</th>
+            <th>E-Mail</th>
+            <th>Versendet</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'auto_classify_failed' %}
+            <th>Datei</th>
+            <th>Pfad</th>
+            <th>Geändert</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'eskalierte_idvs' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Reminder</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% elif s.key == 'pool_reminder_alt' %}
+            <th>IDV-ID</th>
+            <th>Bezeichnung</th>
+            <th>Schritt</th>
+            <th>Pool</th>
+            <th>Beauftragt</th>
+            <th class="text-end pe-3">&nbsp;</th>
+          {% endif %}
         </tr>
       </thead>
       <tbody>
@@ -229,11 +282,20 @@
           </tr>
           {% endfor %}
         {% endif %}
-        {% if s.total_pages > 1 %}
+      </tbody>
+      {% if s.total_pages > 1 %}
+      <tfoot>
         <tr>
           <td colspan="99" class="py-2 bg-light bg-opacity-50">
             <nav aria-label="Paginierung {{ s.label }}">
               <ul class="pagination pagination-sm justify-content-center mb-0">
+                <li class="page-item{% if not s.first_url %} disabled{% endif %}">
+                  {% if s.first_url %}
+                    <a class="page-link" href="{{ s.first_url }}" aria-label="Erste Seite">&laquo; Anfang</a>
+                  {% else %}
+                    <span class="page-link" aria-label="Erste Seite">&laquo; Anfang</span>
+                  {% endif %}
+                </li>
                 <li class="page-item{% if not s.prev_url %} disabled{% endif %}">
                   {% if s.prev_url %}
                     <a class="page-link" href="{{ s.prev_url }}">&lsaquo; Zurück</a>
@@ -253,12 +315,19 @@
                     <span class="page-link">Weiter &rsaquo;</span>
                   {% endif %}
                 </li>
+                <li class="page-item{% if not s.last_url %} disabled{% endif %}">
+                  {% if s.last_url %}
+                    <a class="page-link" href="{{ s.last_url }}" aria-label="Letzte Seite">Ende &raquo;</a>
+                  {% else %}
+                    <span class="page-link" aria-label="Letzte Seite">Ende &raquo;</span>
+                  {% endif %}
+                </li>
               </ul>
             </nav>
           </td>
         </tr>
-        {% endif %}
-      </tbody>
+      </tfoot>
+      {% endif %}
     </table>
   </div>
 </div>
@@ -273,7 +342,7 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <form method="post"
-                action="{{ url_for('dashboard_ausnahmen.eigentuemer_zuordnen') }}">
+                action="{{ url_for('dashboard_triage.eigentuemer_zuordnen') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="file_owner" value="{{ r.file_owner }}">
             <div class="modal-header">
@@ -321,7 +390,7 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <form method="post"
-            action="{{ url_for('dashboard_ausnahmen.eigentuemer_zuordnen_bulk') }}">
+            action="{{ url_for('dashboard_triage.eigentuemer_zuordnen_bulk') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="modal-header">
           <h5 class="modal-title"><i class="bi bi-person-check me-2"></i>Eigentümer zuordnen (Mehrfachauswahl)</h5>
@@ -378,7 +447,7 @@
     <div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-sm">
         <div class="modal-content">
-          <form method="post" action="{{ url_for('dashboard_ausnahmen.eintrag_verwerfen') }}">
+          <form method="post" action="{{ url_for('dashboard_triage.eintrag_verwerfen') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="kategorie" value="{{ s.key }}">
             <input type="hidden" name="ref_key" value="{{ ref_key }}">
@@ -404,6 +473,21 @@
 
 <script>
 (function () {
+  var perPageSelect = document.getElementById('triage-per-page');
+  if (perPageSelect) {
+    perPageSelect.addEventListener('change', function () {
+      var url = new URL(window.location.href);
+      url.searchParams.set('per_page', perPageSelect.value);
+      // Beim Wechsel der Seitengroesse sind die page_*-Indizes
+      // bedeutungslos — alle zuruecksetzen.
+      Array.from(url.searchParams.keys()).forEach(function (k) {
+        if (k.indexOf('page_') === 0) url.searchParams.delete(k);
+      });
+      url.hash = '';
+      window.location.assign(url.toString());
+    });
+  }
+
   var filterBar = document.getElementById('triage-filter-bar');
   if (filterBar) {
     var STORAGE_KEY = 'triage-hidden-cats';

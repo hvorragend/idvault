@@ -556,11 +556,11 @@ def create_app(db_path: str = None) -> Flask:
     from .routes.self_service  import bp as self_service_bp
     from .routes.silent_release import (bp_internal as silent_release_internal_bp,
                                         bp_self     as silent_release_self_bp)
-    from .routes.dashboard_ausnahmen import bp as dashboard_ausnahmen_bp
+    from .routes.dashboard_triage import bp as dashboard_triage_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dash_bp)
-    app.register_blueprint(dashboard_ausnahmen_bp)
+    app.register_blueprint(dashboard_triage_bp)
     app.register_blueprint(eigenentwicklung_bp)
     app.register_blueprint(rev_bp)
     app.register_blueprint(meas_bp)
@@ -735,19 +735,19 @@ def create_app(db_path: str = None) -> Flask:
             count = 0
         return {"scanner_eingang_count": count}
 
-    # Issue #353: Ausnahmen-Badge fuer Koordinator-Navigation
+    # Issue #353: Triage-Badge fuer Koordinator-Navigation
     @app.context_processor
-    def inject_ausnahmen_badge():
+    def inject_triage_badge():
         from flask import has_request_context, session
         if not has_request_context():
             return {}
         if session.get("user_role") not in ("IDV-Administrator", "IDV-Koordinator"):
-            return {"ausnahmen_badge": 0}
+            return {"triage_badge": 0}
         try:
-            from .routes.dashboard_ausnahmen import ausnahmen_count
-            return {"ausnahmen_badge": ausnahmen_count(get_db())}
+            from .routes.dashboard_triage import triage_count
+            return {"triage_badge": triage_count(get_db())}
         except Exception:
-            return {"ausnahmen_badge": 0}
+            return {"triage_badge": 0}
 
     # Issue #417: Ueberfaellig-Counter fuer Sidebar-Badges (Pruefungen & Massnahmen)
     @app.context_processor
