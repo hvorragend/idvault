@@ -12,11 +12,11 @@ bp = Blueprint("dashboard", __name__)
 @login_required
 def index():
     # Issue #353: Standard-Landingpage des IDV-Koordinators ist das
-    # Ausnahmen-Dashboard. Die alte Uebersicht bleibt ueber den
+    # Triage-Dashboard. Die alte Uebersicht bleibt ueber den
     # Navigations-Eintrag bzw. den ?classic=1 Override erreichbar.
     if (session.get("user_role") == ROLE_KOORDINATOR
             and not request.args.get("classic")):
-        return redirect(url_for("dashboard_ausnahmen.index"))
+        return redirect(url_for("dashboard_triage.index"))
     db  = get_db()
     # Eingeschränkte Nutzer (z.B. Fachverantwortliche) sehen nur ihre eigenen
     # unvollständigen IDVs, damit der Zähler zu ihren Berechtigungen passt.

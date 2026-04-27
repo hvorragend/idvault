@@ -1393,13 +1393,13 @@ CREATE INDEX IF NOT EXISTS idx_fund_pfad_profile_aktiv
     ON fund_pfad_profile(aktiv);
 
 -- -----------------------------------------------------------------------------
--- 19. TRIAGE-VERWERFEN (verworfene Einträge im Ausnahmen-Dashboard, #359)
+-- 19. TRIAGE-VERWERFEN (verworfene Einträge im Triage-Dashboard, #359)
 -- -----------------------------------------------------------------------------
 -- Speichert Einträge, die ein Koordinator aus der Triage-Ansicht entfernt hat.
 -- ref_key ist TEXT, damit neben Integer-IDs auch der TEXT-PK jti der
 -- self_service_tokens abgebildet werden kann.
 
-CREATE TABLE IF NOT EXISTS triage_ausnahmen_verworfen (
+CREATE TABLE IF NOT EXISTS triage_verworfen (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     kategorie        TEXT    NOT NULL,
     ref_key          TEXT    NOT NULL,
@@ -1408,5 +1408,5 @@ CREATE TABLE IF NOT EXISTS triage_ausnahmen_verworfen (
     UNIQUE(kategorie, ref_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_triage_ausnahmen_verworfen_kat
-    ON triage_ausnahmen_verworfen(kategorie);
+CREATE INDEX IF NOT EXISTS idx_triage_verworfen_kat
+    ON triage_verworfen(kategorie);

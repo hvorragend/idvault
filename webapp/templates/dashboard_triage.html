@@ -42,7 +42,7 @@
 {% for s in sections %}
 {% if s.total %}
 <form method="post" class="triage-section-form" data-kategorie="{{ s.key }}"
-      action="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}">
+      action="{{ url_for('dashboard_triage.markierte_verwerfen') }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="kategorie" value="{{ s.key }}">
 <div class="card border-0 shadow-sm mb-4 border-start border-4 border-{{ s.tone }}"
@@ -58,12 +58,12 @@
       </button>
       {% endif %}
       <button type="submit" class="btn btn-sm btn-outline-secondary triage-bulk-selected" disabled
-              formaction="{{ url_for('dashboard_ausnahmen.markierte_verwerfen') }}"
+              formaction="{{ url_for('dashboard_triage.markierte_verwerfen') }}"
               title="Nur die markierten Einträge verwerfen">
         <i class="bi bi-check2-square me-1"></i><span class="triage-bulk-selected-label">Markierte verwerfen</span>
       </button>
       <button type="submit" class="btn btn-sm btn-outline-secondary"
-              formaction="{{ url_for('dashboard_ausnahmen.alle_verwerfen') }}"
+              formaction="{{ url_for('dashboard_triage.alle_verwerfen') }}"
               title="Alle Einträge dieser Kategorie verwerfen"
               onclick="return confirm('Alle Einträge in dieser Kategorie verwerfen?')">
         <i class="bi bi-x-circle me-1"></i>Alle verwerfen
@@ -273,7 +273,7 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <form method="post"
-                action="{{ url_for('dashboard_ausnahmen.eigentuemer_zuordnen') }}">
+                action="{{ url_for('dashboard_triage.eigentuemer_zuordnen') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="file_owner" value="{{ r.file_owner }}">
             <div class="modal-header">
@@ -321,7 +321,7 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <form method="post"
-            action="{{ url_for('dashboard_ausnahmen.eigentuemer_zuordnen_bulk') }}">
+            action="{{ url_for('dashboard_triage.eigentuemer_zuordnen_bulk') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="modal-header">
           <h5 class="modal-title"><i class="bi bi-person-check me-2"></i>Eigentümer zuordnen (Mehrfachauswahl)</h5>
@@ -378,7 +378,7 @@
     <div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-sm">
         <div class="modal-content">
-          <form method="post" action="{{ url_for('dashboard_ausnahmen.eintrag_verwerfen') }}">
+          <form method="post" action="{{ url_for('dashboard_triage.eintrag_verwerfen') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="kategorie" value="{{ s.key }}">
             <input type="hidden" name="ref_key" value="{{ ref_key }}">

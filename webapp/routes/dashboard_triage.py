@@ -1,11 +1,11 @@
-"""Ausnahmen-Dashboard fuer den IDV-Koordinator (Issue #353).
+"""Triage-Dashboard fuer den IDV-Koordinator (Issue #353).
 
 Zeigt ausschliesslich Items, die menschliche Triage brauchen — alles
-andere ist Aufgabe der Automatisierung. Sechs Kategorien, Top-10 je
-Kategorie + Direktaktionen.
+andere ist Aufgabe der Automatisierung. Sechs Kategorien mit
+Pagination und Direktaktionen.
 
 Sichtbar fuer ROLE_ADMIN und ROLE_KOORDINATOR. Per Helper
-``ausnahmen_count(db)`` zur Anzeige der Header-Badge.
+``triage_count(db)`` zur Anzeige der Header-Badge.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from db_write_tx import write_tx
 _PAGE_SIZE = 25
 
 
-bp = Blueprint("dashboard_ausnahmen", __name__, url_prefix="/dashboard")
+bp = Blueprint("dashboard_triage", __name__, url_prefix="/dashboard")
 
 
 def _koordinator_required(f):
@@ -60,7 +60,7 @@ def _mittlere_konfidenz(db, page=1):
                AND f.bearbeitungsstatus = 'Neu'
                AND r.status NOT IN ('Archiviert')
                AND NOT EXISTS (
-                   SELECT 1 FROM triage_ausnahmen_verworfen v
+                   SELECT 1 FROM triage_verworfen v
                     WHERE v.kategorie = 'mittlere_konfidenz'
                       AND v.ref_key = CAST(s.id AS TEXT)
                )
@@ -88,7 +88,7 @@ def _owner_mapping_fehlt(db, page=1):
                   AND (p.user_id = f.file_owner OR p.ad_name = f.file_owner)
            )
            AND NOT EXISTS (
-               SELECT 1 FROM triage_ausnahmen_verworfen v
+               SELECT 1 FROM triage_verworfen v
                 WHERE v.kategorie = 'owner_fehlt'
                   AND v.ref_key = CAST(f.id AS TEXT)
            )
@@ -115,7 +115,7 @@ def _self_service_stumm(db, page=1):
                       AND a.created_at >= t.created_at
                )
                AND NOT EXISTS (
-                   SELECT 1 FROM triage_ausnahmen_verworfen v
+                   SELECT 1 FROM triage_verworfen v
                     WHERE v.kategorie = 'self_service_stumm'
                       AND v.ref_key = t.jti
                )
@@ -138,7 +138,7 @@ def _auto_classify_fehlgeschlagen(db, page=1):
              WHERE f.status = 'active'
                AND f.bearbeitungsstatus = 'Auto-Klassifizierung fehlgeschlagen'
                AND NOT EXISTS (
-                   SELECT 1 FROM triage_ausnahmen_verworfen v
+                   SELECT 1 FROM triage_verworfen v
                     WHERE v.kategorie = 'auto_classify_failed'
                       AND v.ref_key = CAST(f.id AS TEXT)
                )
@@ -163,7 +163,7 @@ def _eskalierte_idvs(db, page=1):
               JOIN v_unvollstaendige_idvs v ON v.idv_id = r.idv_id
              WHERE r.status NOT IN ('Archiviert','Abgekündigt')
                AND NOT EXISTS (
-                   SELECT 1 FROM triage_ausnahmen_verworfen tv
+                   SELECT 1 FROM triage_verworfen tv
                     WHERE tv.kategorie = 'eskalierte_idvs'
                       AND tv.ref_key = CAST(r.id AS TEXT)
                )
@@ -200,7 +200,7 @@ def _pool_reminder_ausgelaufen(db, page=1):
                AND f.beauftragt_am IS NOT NULL
                AND f.beauftragt_am <= datetime('now','-{int(max_days)} days')
                AND NOT EXISTS (
-                   SELECT 1 FROM triage_ausnahmen_verworfen v
+                   SELECT 1 FROM triage_verworfen v
                     WHERE v.kategorie = 'pool_reminder_alt'
                       AND v.ref_key = CAST(f.id AS TEXT)
                )
@@ -221,7 +221,7 @@ _COUNT_SQL = {
      "JOIN idv_files f ON f.id=s.file_id JOIN idv_register r ON r.id=s.idv_db_id "
      "WHERE s.decision IS NULL AND f.status='active' AND f.bearbeitungsstatus='Neu' "
      "AND r.status NOT IN ('Archiviert') "
-     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "AND NOT EXISTS (SELECT 1 FROM triage_verworfen v "
      "WHERE v.kategorie='mittlere_konfidenz' AND v.ref_key=CAST(s.id AS TEXT))",
     "owner_fehlt":
      "SELECT COUNT(*) FROM idv_files f "
@@ -229,19 +229,19 @@ _COUNT_SQL = {
      "AND f.file_owner IS NOT NULL AND TRIM(f.file_owner)!='' "
      "AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.aktiv=1 "
      "AND (p.user_id=f.file_owner OR p.ad_name=f.file_owner)) "
-     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "AND NOT EXISTS (SELECT 1 FROM triage_verworfen v "
      "WHERE v.kategorie='owner_fehlt' AND v.ref_key=CAST(f.id AS TEXT))",
     "self_service_stumm":
      "SELECT COUNT(*) FROM self_service_tokens t WHERE t.created_at <= datetime('now','-14 days') "
      "AND t.first_used_at IS NULL AND t.revoked_at IS NULL "
      "AND NOT EXISTS (SELECT 1 FROM self_service_audit a "
      "WHERE a.person_id=t.person_id AND a.created_at >= t.created_at) "
-     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "AND NOT EXISTS (SELECT 1 FROM triage_verworfen v "
      "WHERE v.kategorie='self_service_stumm' AND v.ref_key=t.jti)",
     "auto_classify_failed":
      "SELECT COUNT(*) FROM idv_files f WHERE f.status='active' "
      "AND f.bearbeitungsstatus='Auto-Klassifizierung fehlgeschlagen' "
-     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "AND NOT EXISTS (SELECT 1 FROM triage_verworfen v "
      "WHERE v.kategorie='auto_classify_failed' AND v.ref_key=CAST(f.id AS TEXT))",
     "eskalierte_idvs":
      "SELECT COUNT(*) FROM ("
@@ -250,7 +250,7 @@ _COUNT_SQL = {
      " JOIN v_unvollstaendige_idvs v ON v.idv_id=r.idv_id "
      " WHERE n.kind='idv_incomplete_reminder' "
      " AND r.status NOT IN ('Archiviert','Abgekündigt') "
-     " AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen tv "
+     " AND NOT EXISTS (SELECT 1 FROM triage_verworfen tv "
      " WHERE tv.kategorie='eskalierte_idvs' AND tv.ref_key=CAST(r.id AS TEXT)) "
      " GROUP BY r.id HAVING COUNT(n.id) >= 4)",
     "pool_reminder_alt":
@@ -258,7 +258,7 @@ _COUNT_SQL = {
      "AND f.pool_id IS NOT NULL AND f.zugewiesen_an_id IS NULL "
      "AND f.beauftragt_am IS NOT NULL "
      "AND f.beauftragt_am <= datetime('now','-14 days') "
-     "AND NOT EXISTS (SELECT 1 FROM triage_ausnahmen_verworfen v "
+     "AND NOT EXISTS (SELECT 1 FROM triage_verworfen v "
      "WHERE v.kategorie='pool_reminder_alt' AND v.ref_key=CAST(f.id AS TEXT))",
 }
 
@@ -274,8 +274,8 @@ def _count_category(db, key: str) -> int:
         return 0
 
 
-def ausnahmen_count(db) -> int:
-    """Aggregierte Anzahl Items im Ausnahmen-Dashboard (fuer Header-Badge)."""
+def triage_count(db) -> int:
+    """Aggregierte Anzahl Items im Triage-Dashboard (fuer Header-Badge)."""
     return sum(_count_category(db, key) for key in _COUNT_SQL)
 
 
@@ -319,7 +319,7 @@ _SECTION_DEFS = [
 
 
 def _page_url(key: str, page: int) -> str:
-    """Baut die /ausnahmen-URL mit aktualisiertem ``page_<key>`` und
+    """Baut die /triage-URL mit aktualisiertem ``page_<key>`` und
     Anker auf die Sektion. Andere ``page_*``-Parameter bleiben erhalten.
     """
     args = {k: v for k, v in request.args.items()}
@@ -328,11 +328,11 @@ def _page_url(key: str, page: int) -> str:
     else:
         args[f"page_{key}"] = str(page)
     qs = urlencode(args)
-    base = url_for("dashboard_ausnahmen.index")
+    base = url_for("dashboard_triage.index")
     return f"{base}{('?' + qs) if qs else ''}#section-{key}"
 
 
-@bp.route("/ausnahmen")
+@bp.route("/triage")
 @login_required
 @_koordinator_required
 def index():
@@ -384,7 +384,7 @@ def index():
              ORDER BY nachname, vorname
         """).fetchall()]
 
-    return render_template("dashboard_ausnahmen.html",
+    return render_template("dashboard_triage.html",
                            sections=sections, total=total,
                            persons_aktiv=persons_aktiv)
 
@@ -399,7 +399,7 @@ def _feld_fuer_owner(file_owner: str) -> str:
     return "user_id"
 
 
-@bp.route("/ausnahmen/eigentuemer-zuordnen-bulk", methods=["POST"])
+@bp.route("/triage/eigentuemer-zuordnen-bulk", methods=["POST"])
 @login_required
 @_koordinator_required
 def eigentuemer_zuordnen_bulk():
@@ -414,7 +414,7 @@ def eigentuemer_zuordnen_bulk():
         flash("Bulk-Zuordnung fehlgeschlagen: unvollständige Eingabe.",
               "error")
         return redirect(
-            url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt"
+            url_for("dashboard_triage.index") + "#section-owner_fehlt"
         )
 
     db = get_db()
@@ -440,7 +440,7 @@ def eigentuemer_zuordnen_bulk():
         flash("Bulk-Zuordnung fehlgeschlagen: keine gültigen Mappings.",
               "error")
         return redirect(
-            url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt"
+            url_for("dashboard_triage.index") + "#section-owner_fehlt"
         )
 
     def _do(c):
@@ -454,11 +454,11 @@ def eigentuemer_zuordnen_bulk():
     get_writer().submit(_do, wait=True)
     flash(f"{len(pairs)} Eigentümer zugeordnet.", "success")
     return redirect(
-        url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt"
+        url_for("dashboard_triage.index") + "#section-owner_fehlt"
     )
 
 
-@bp.route("/ausnahmen/eigentuemer-zuordnen", methods=["POST"])
+@bp.route("/triage/eigentuemer-zuordnen", methods=["POST"])
 @login_required
 @_koordinator_required
 def eigentuemer_zuordnen():
@@ -472,13 +472,13 @@ def eigentuemer_zuordnen():
 
     if not file_owner or not person_id_raw:
         flash("Zuordnung fehlgeschlagen: unvollständige Eingabe.", "error")
-        return redirect(url_for("dashboard_ausnahmen.index"))
+        return redirect(url_for("dashboard_triage.index"))
 
     try:
         person_id = int(person_id_raw)
     except ValueError:
         flash("Zuordnung fehlgeschlagen: ungültige Person-ID.", "error")
-        return redirect(url_for("dashboard_ausnahmen.index"))
+        return redirect(url_for("dashboard_triage.index"))
 
     db = get_db()
     person = db.execute(
@@ -487,7 +487,7 @@ def eigentuemer_zuordnen():
     ).fetchone()
     if not person:
         flash("Zuordnung fehlgeschlagen: Person nicht gefunden oder inaktiv.", "error")
-        return redirect(url_for("dashboard_ausnahmen.index"))
+        return redirect(url_for("dashboard_triage.index"))
 
     col = _feld_fuer_owner(file_owner)
 
@@ -504,7 +504,7 @@ def eigentuemer_zuordnen():
         f"{file_owner} als Eigentümer hinterlegt.",
         "success",
     )
-    return redirect(url_for("dashboard_ausnahmen.index") + "#section-owner_fehlt")
+    return redirect(url_for("dashboard_triage.index") + "#section-owner_fehlt")
 
 
 _VALID_KATEGORIEN = frozenset({
@@ -519,7 +519,7 @@ _VALID_KATEGORIEN = frozenset({
 # INSERT…SELECT-Statements fuer Bulk-Verwerfen. Parameter: (verworfen_von_id,)
 _BULK_VERWERFEN_SQL = {
     "mittlere_konfidenz": """
-        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        INSERT OR IGNORE INTO triage_verworfen (kategorie, ref_key, verworfen_von_id)
         SELECT 'mittlere_konfidenz', CAST(s.id AS TEXT), ?
           FROM idv_match_suggestions s
           JOIN idv_files    f ON f.id = s.file_id
@@ -529,7 +529,7 @@ _BULK_VERWERFEN_SQL = {
            AND r.status NOT IN ('Archiviert')
     """,
     "owner_fehlt": """
-        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        INSERT OR IGNORE INTO triage_verworfen (kategorie, ref_key, verworfen_von_id)
         SELECT 'owner_fehlt', CAST(f.id AS TEXT), ?
           FROM idv_files f
          WHERE f.status = 'active' AND f.bearbeitungsstatus = 'Neu'
@@ -540,7 +540,7 @@ _BULK_VERWERFEN_SQL = {
            )
     """,
     "self_service_stumm": """
-        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        INSERT OR IGNORE INTO triage_verworfen (kategorie, ref_key, verworfen_von_id)
         SELECT 'self_service_stumm', t.jti, ?
           FROM self_service_tokens t
          WHERE t.created_at <= datetime('now','-14 days')
@@ -551,14 +551,14 @@ _BULK_VERWERFEN_SQL = {
            )
     """,
     "auto_classify_failed": """
-        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        INSERT OR IGNORE INTO triage_verworfen (kategorie, ref_key, verworfen_von_id)
         SELECT 'auto_classify_failed', CAST(f.id AS TEXT), ?
           FROM idv_files f
          WHERE f.status = 'active'
            AND f.bearbeitungsstatus = 'Auto-Klassifizierung fehlgeschlagen'
     """,
     "eskalierte_idvs": """
-        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        INSERT OR IGNORE INTO triage_verworfen (kategorie, ref_key, verworfen_von_id)
         SELECT 'eskalierte_idvs', CAST(r.id AS TEXT), ?
           FROM idv_register r
           JOIN notification_log n
@@ -569,7 +569,7 @@ _BULK_VERWERFEN_SQL = {
         HAVING COUNT(n.id) >= 4
     """,
     "pool_reminder_alt": """
-        INSERT OR IGNORE INTO triage_ausnahmen_verworfen (kategorie, ref_key, verworfen_von_id)
+        INSERT OR IGNORE INTO triage_verworfen (kategorie, ref_key, verworfen_von_id)
         SELECT 'pool_reminder_alt', CAST(f.id AS TEXT), ?
           FROM idv_freigaben f
          WHERE f.status = 'Ausstehend' AND f.pool_id IS NOT NULL
@@ -579,7 +579,7 @@ _BULK_VERWERFEN_SQL = {
 }
 
 
-@bp.route("/ausnahmen/verwerfen", methods=["POST"])
+@bp.route("/triage/verwerfen", methods=["POST"])
 @login_required
 @_koordinator_required
 def eintrag_verwerfen():
@@ -589,24 +589,24 @@ def eintrag_verwerfen():
 
     if not kategorie or not ref_key or kategorie not in _VALID_KATEGORIEN:
         flash("Verwerfen fehlgeschlagen: ungültige Eingabe.", "error")
-        return redirect(url_for("dashboard_ausnahmen.index"))
+        return redirect(url_for("dashboard_triage.index"))
 
     person_id = session.get("person_id")
 
     def _do(c):
         with write_tx(c):
             c.execute(
-                "INSERT OR IGNORE INTO triage_ausnahmen_verworfen "
+                "INSERT OR IGNORE INTO triage_verworfen "
                 "(kategorie, ref_key, verworfen_von_id) VALUES (?, ?, ?)",
                 (kategorie, ref_key, person_id),
             )
 
     get_writer().submit(_do, wait=True)
     flash("Triage-Eintrag verworfen.", "success")
-    return redirect(url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}")
+    return redirect(url_for("dashboard_triage.index") + f"#section-{kategorie}")
 
 
-@bp.route("/ausnahmen/alle-verwerfen", methods=["POST"])
+@bp.route("/triage/alle-verwerfen", methods=["POST"])
 @login_required
 @_koordinator_required
 def alle_verwerfen():
@@ -615,7 +615,7 @@ def alle_verwerfen():
 
     if not kategorie or kategorie not in _VALID_KATEGORIEN:
         flash("Verwerfen fehlgeschlagen: ungültige Kategorie.", "error")
-        return redirect(url_for("dashboard_ausnahmen.index"))
+        return redirect(url_for("dashboard_triage.index"))
 
     sql = _BULK_VERWERFEN_SQL[kategorie]
     person_id = session.get("person_id")
@@ -626,10 +626,10 @@ def alle_verwerfen():
 
     get_writer().submit(_do, wait=True)
     flash(f'Alle Einträge in "{kategorie}" verworfen.', "success")
-    return redirect(url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}")
+    return redirect(url_for("dashboard_triage.index") + f"#section-{kategorie}")
 
 
-@bp.route("/ausnahmen/markierte-verwerfen", methods=["POST"])
+@bp.route("/triage/markierte-verwerfen", methods=["POST"])
 @login_required
 @_koordinator_required
 def markierte_verwerfen():
@@ -640,11 +640,11 @@ def markierte_verwerfen():
 
     if not kategorie or kategorie not in _VALID_KATEGORIEN:
         flash("Verwerfen fehlgeschlagen: ungültige Kategorie.", "error")
-        return redirect(url_for("dashboard_ausnahmen.index"))
+        return redirect(url_for("dashboard_triage.index"))
     if not ref_keys:
         flash("Keine Einträge ausgewählt.", "warning")
         return redirect(
-            url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}"
+            url_for("dashboard_triage.index") + f"#section-{kategorie}"
         )
 
     person_id = session.get("person_id")
@@ -653,7 +653,7 @@ def markierte_verwerfen():
     def _do(c):
         with write_tx(c):
             c.executemany(
-                "INSERT OR IGNORE INTO triage_ausnahmen_verworfen "
+                "INSERT OR IGNORE INTO triage_verworfen "
                 "(kategorie, ref_key, verworfen_von_id) VALUES (?, ?, ?)",
                 rows,
             )
@@ -661,5 +661,5 @@ def markierte_verwerfen():
     get_writer().submit(_do, wait=True)
     flash(f"{len(ref_keys)} markierte Einträge verworfen.", "success")
     return redirect(
-        url_for("dashboard_ausnahmen.index") + f"#section-{kategorie}"
+        url_for("dashboard_triage.index") + f"#section-{kategorie}"
     )
