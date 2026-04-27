@@ -290,7 +290,7 @@ def index():
             "icon":  "bi-person-x",
             "tone":  "warning",
             "label": "Owner-Mapping fehlt",
-            "hint":  "Scanner-Dateien mit ``file_owner``, der nicht in der "
+            "hint":  "Scanner-Dateien, deren Eigentümer-Kennung nicht in der "
                      "Personen-Tabelle auflösbar ist.",
             "rows":  [dict(r) for r in _owner_mapping_fehlt(db)],
         },
@@ -325,8 +325,8 @@ def index():
             "icon":  "bi-people",
             "tone":  "warning",
             "label": "Pool-Reminder ausgelaufen",
-            "hint":  "Pool-Schritt offen länger als "
-                     "``notify_pool_reminder_max_days`` (Default 14 Tage).",
+            "hint":  "Pool-Schritt seit mehr als 14 Tagen offen "
+                     "(konfigurierbar in den Reminder-Einstellungen).",
             "rows":  [dict(r) for r in _pool_reminder_ausgelaufen(db)],
         },
     ]
