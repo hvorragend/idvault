@@ -1960,6 +1960,29 @@ def notify_file(file_id):
         flash("Datei nicht gefunden.", "error")
         return redirect(url_for("funde.list_funde"))
 
+    # Hash-Dedup: Wenn eine inhaltlich identische Datei (gleicher
+    # ``file_hash``) bereits an einem IDV hängt – direkt über
+    # ``idv_register.file_id`` oder ergänzend über ``idv_file_links`` –
+    # ist der Fund kein neuer Sachverhalt mehr, und es darf auch manuell
+    # keine "Neue-Datei"-Mail ausgehen.
+    duplicate = db.execute("""
+        SELECT 1
+          FROM idv_files f
+         WHERE f.file_hash = ?
+           AND (
+                EXISTS (SELECT 1 FROM idv_register   r WHERE r.file_id = f.id)
+             OR EXISTS (SELECT 1 FROM idv_file_links l WHERE l.file_id = f.id)
+           )
+         LIMIT 1
+    """, (file["file_hash"],)).fetchone()
+    if duplicate:
+        flash(
+            "Identische Datei ist bereits in einem IDV registriert – "
+            "es wurde keine Benachrichtigung versendet.",
+            "info",
+        )
+        return redirect(url_for("funde.list_funde"))
+
     recipients = [
         r["email"] for r in db.execute("""
             SELECT email FROM persons
