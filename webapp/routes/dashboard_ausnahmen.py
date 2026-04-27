@@ -278,8 +278,11 @@ def index():
             "icon":  "bi-bullseye",
             "tone":  "primary",
             "label": "Mittlere Konfidenz-Treffer",
-            "hint":  "Auto-Match-Vorschläge, die der Owner per Self-Service "
-                     "bestätigen oder ablehnen muss.",
+            "hint":  "Auto-Match-Vorschläge im mittleren Konfidenz-Bereich — "
+                     "die Eigentümer entscheiden im Self-Service. Wenn der "
+                     "Vorschlag offensichtlich nicht passt, hier verwerfen; "
+                     "passt er, kannst du ihn per »Vorschlag prüfen« direkt "
+                     "übernehmen.",
             "rows":  [dict(r) for r in _mittlere_konfidenz(db)],
         },
         {
