@@ -441,6 +441,23 @@ def list_funde():
         """).fetchall()
     }
 
+    # Gruppen für die Duplikat-Ansicht im Backend vorbereiten.
+    # Hintergrund: Jinjas ``groupby``-Filter sortiert die Gruppen alphabetisch
+    # nach Schlüssel und zerstört damit die SQL-Sortierung (Anzahl Kopien
+    # absteigend). Wir bauen daher eine geordnete Liste von Tupeln
+    # ``(file_hash, [files])`` und übergeben sie direkt – das Template
+    # iteriert in dieser Reihenfolge.
+    dup_groups = []
+    if filt == "duplikate":
+        _grp_idx = {}
+        for f in dateien:
+            h = f["file_hash"]
+            if h not in _grp_idx:
+                _grp_idx[h] = len(dup_groups)
+                dup_groups.append((h, [f]))
+            else:
+                dup_groups[_grp_idx[h]][1].append(f)
+
     # ---------- Zählkarten ----------
     gesamt_inkl_ignoriert = db.execute("SELECT COUNT(*) FROM idv_files WHERE status='active'").fetchone()[0]
     ohne_idv   = db.execute("""
@@ -614,6 +631,7 @@ def list_funde():
         letzter_scan=letzter_scan,
         scan_run_label=_scan_run_label,
         duplicate_counts=duplicate_counts,
+        dup_groups=dup_groups,
         is_admin=is_admin,
         persons=persons,
         sort=sort, order=order,

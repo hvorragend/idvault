@@ -520,9 +520,11 @@ date_to, 'mine': '1' if mine_filt else ''} %}
         </thead>
         <tbody>
           {% if filt == 'duplikate' %}
-          {# ── Duplikat-Gruppenansicht ── #}
-          {% for hash_val, gruppe in dateien | groupby('file_hash') %}
-          {% set grp = gruppe | list %}
+          {# ── Duplikat-Gruppenansicht ──
+             Gruppen werden im Backend in der korrekten Reihenfolge (Anzahl
+             Kopien absteigend) bereitgestellt; Jinjas ``groupby`` würde sie
+             alphabetisch nach Hash sortieren und damit zerstören. #}
+          {% for hash_val, grp in dup_groups %}
           {% set gid = 'dup-' ~ hash_val[:8] %}
           {# Bereits einer IDV zugeordnete Kopien (für „An IDV anhängen") und
              noch nicht zugeordnete Kopien (für „Gemeinsam registrieren"). #}
