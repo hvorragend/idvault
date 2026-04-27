@@ -1,4 +1,6 @@
 """Admin-Sub-Modul: SMTP-Konfiguration, E-Mail-Templates, Test-Versand."""
+import re
+
 from flask import render_template, request, redirect, url_for, flash, jsonify
 
 from db_write_tx import write_tx
@@ -6,6 +8,9 @@ from db_write_tx import write_tx
 from .. import admin_required, get_db
 from ...db_writer import get_writer
 from . import bp, _encrypt_smtp_password
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 @bp.route("/mail", methods=["GET", "POST"])
@@ -94,3 +99,82 @@ def mail_test():
         tls_mode  = f_tls if f_tls in ("starttls", "ssl", "none") else None,
     )
     return jsonify({"success": ok, "message": msg})
+
+
+@bp.route("/owner-digest/run", methods=["POST"])
+@admin_required
+def owner_digest_run():
+    """Manueller Versand der Owner-Sammelbenachrichtigung aus dem Admin-UI.
+
+    Modi:
+      * ``test`` – Testversand an eine vom Admin angegebene Adresse
+        (max. 3 Empfänger pro Klick), keine Token, keine
+        ``notification_log``-Einträge, ignoriert Master-Switch und
+        Dedup-Gates.
+      * ``live`` – echter Sofortversand an die regulären Empfänger;
+        ignoriert Tageslimit und Intervall-Dedup, schreibt
+        ``notification_log`` wie ein regulärer Lauf. Setzt voraus, dass
+        Self-Service aktiviert ist.
+
+    Antwort: JSON mit ``success``, ``message``, ``sent``, ``candidates``.
+    """
+    from datetime import datetime
+    from ...notification_scheduler import _dispatch_owner_digest
+
+    db   = get_db()
+    mode = request.form.get("mode", "").strip()
+    if mode not in ("test", "live"):
+        return jsonify({"success": False, "message": "Ungültiger Modus."}), 400
+
+    if mode == "test":
+        to_email = request.form.get("test_recipient", "").strip()
+        if not to_email or not _EMAIL_RE.match(to_email):
+            return jsonify({
+                "success": False,
+                "message": "Bitte eine gültige Empfänger-Adresse angeben.",
+            }), 400
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        if mode == "test":
+            result = _dispatch_owner_digest(
+                db, today, test_recipient=to_email,
+            )
+        else:
+            result = _dispatch_owner_digest(db, today, force=True)
+    except Exception as exc:
+        from flask import current_app
+        current_app.logger.exception("Manueller Owner-Digest-Versand fehlgeschlagen")
+        return jsonify({
+            "success": False,
+            "message": f"Fehler beim Versand: {exc}",
+        }), 500
+
+    sent       = int(result.get("sent", 0))
+    candidates = result.get("candidates", [])
+    skipped    = int(result.get("skipped_test_limit", 0))
+
+    if mode == "test":
+        if sent == 0 and not candidates:
+            msg = "Keine offenen Funde – nichts zu senden."
+        elif sent == 0:
+            msg = "Versand fehlgeschlagen (siehe SMTP-Versandlog)."
+        else:
+            msg = f"{sent} Test-Mail(s) an {to_email} gesendet."
+            if skipped:
+                msg += f" {skipped} weitere Empfänger wegen Test-Limit übersprungen."
+    else:
+        if sent == 0 and not candidates:
+            msg = "Keine offenen Funde – nichts zu senden."
+        elif sent == 0:
+            msg = "Versand fehlgeschlagen (siehe SMTP-Versandlog)."
+        else:
+            msg = f"{sent} Sammelbenachrichtigung(en) versendet."
+
+    return jsonify({
+        "success":    sent > 0 or not candidates,
+        "message":    msg,
+        "sent":       sent,
+        "skipped":    skipped,
+        "candidates": candidates,
+    })
