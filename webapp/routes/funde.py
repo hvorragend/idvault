@@ -82,11 +82,6 @@ _VALID_PER_PAGE = (25, 50, 100, 200, 500)
 _EXCEL_PROTECTABLE_EXTS = (".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx")
 _EXCEL_EXT_PLACEHOLDERS = ",".join("?" * len(_EXCEL_PROTECTABLE_EXTS))
 
-# Schwellwert für den Filter „Viele Formeln". Excel-Dateien jenseits dieser
-# Grenze sind erfahrungsgemäß komplex genug, um einer IDV-Bewertung zu bedürfen
-# (Modelle, Kalkulationsblätter), während wenige Formeln eher Hilfsfelder sind.
-_FORMELN_VIELE_SCHWELLE = 500
-
 
 def _owner_list_for(db, base_where: str, base_params, extra_filters):
     """Eigentümer-Auswahl kontextabhängig.
@@ -115,6 +110,45 @@ def _owner_list_for(db, base_where: str, base_params, extra_filters):
             params,
         ).fetchall()
     ]
+
+
+def _me_owner_aliases(db) -> list[str]:
+    """Aliasse des eingeloggten Users für den ``file_owner``-Vergleich.
+
+    Hintergrund: ``session.user_id`` ist der sAMAccountName, der
+    ``file_owner`` aus dem Scanner stammt aus ``win32security.LookupAccountSid``.
+    In gewachsenen AD-Strukturen weichen beide gerne in der Schreibweise oder
+    sogar im Stamm ab (z. B. ``max.mustermann`` vs. ``MMUSTERMANN``); zusätzlich
+    kennt ``persons`` ein separates ``ad_name`` für die AD-Anzeige. Wir matchen
+    daher gegen beide bekannte Aliasse und vergleichen case-insensitiv.
+    """
+    aliases = []
+    uid = (session.get("user_id") or "").strip()
+    if uid:
+        aliases.append(uid)
+    person_id = session.get("person_id")
+    if person_id:
+        try:
+            row = db.execute(
+                "SELECT user_id, ad_name FROM persons WHERE id = ?",
+                (person_id,),
+            ).fetchone()
+        except Exception:
+            row = None
+        if row:
+            for col in ("user_id", "ad_name"):
+                v = (row[col] or "").strip() if row[col] else ""
+                if v and v.lower() not in (a.lower() for a in aliases):
+                    aliases.append(v)
+    return aliases
+
+
+def _mine_where(aliases: list[str]) -> tuple[str, list[str]]:
+    """SQL-Fragment + Parameter für den ``mine``-Filter (case-insensitiv)."""
+    if not aliases:
+        return "", []
+    placeholders = ",".join(["LOWER(?)"] * len(aliases))
+    return f"LOWER(f.file_owner) IN ({placeholders})", list(aliases)
 
 
 def _compute_match_scores(dateien, db):
@@ -212,8 +246,9 @@ def list_funde():
     sort        = request.args.get("sort", "scan").strip()
     order       = request.args.get("order", "desc").strip()
     mine_filt   = request.args.get("mine", "").strip() in ("1", "true", "on")
-    me_user_id  = (session.get("user_id") or "").strip()
-    if mine_filt and not me_user_id:
+    me_aliases  = _me_owner_aliases(get_db())
+    me_user_id  = me_aliases[0] if me_aliases else ""
+    if mine_filt and not me_aliases:
         mine_filt = False
     highlight_raw = request.args.get("highlight", "").strip()
     try:
@@ -257,10 +292,9 @@ def list_funde():
             WHERE status='active' AND file_hash IS NOT NULL AND file_hash != 'HASH_ERROR'
             GROUP BY file_hash HAVING COUNT(*) > 1
         )""")
-    elif filt == "formeln_viele":
+    elif filt == "formeln":
         where_parts.append("f.status = 'active'")
-        where_parts.append("COALESCE(f.formula_count, 0) >= ?")
-        params.append(_FORMELN_VIELE_SCHWELLE)
+        where_parts.append("COALESCE(f.formula_count, 0) > 0")
         where_parts.append("(f.bearbeitungsstatus IS NULL OR f.bearbeitungsstatus != 'Ignoriert')")
     else:
         where_parts.append("f.status = 'active'")
@@ -323,8 +357,10 @@ def list_funde():
         params.append(owner_filt)
 
     if mine_filt:
-        where_parts.append("f.file_owner = ?")
-        params.append(me_user_id)
+        _mine_sql, _mine_params = _mine_where(me_aliases)
+        if _mine_sql:
+            where_parts.append(_mine_sql)
+            params.extend(_mine_params)
 
     if date_from:
         where_parts.append("f.modified_at >= ?")
@@ -457,12 +493,11 @@ def list_funde():
     except Exception:
         duplikate_anzahl = 0
 
-    formeln_viele_anzahl = db.execute(
+    formeln_anzahl = db.execute(
         "SELECT COUNT(*) FROM idv_files"
         " WHERE status='active'"
-        "   AND COALESCE(formula_count, 0) >= ?"
-        "   AND (bearbeitungsstatus IS NULL OR bearbeitungsstatus != 'Ignoriert')",
-        (_FORMELN_VIELE_SCHWELLE,),
+        "   AND COALESCE(formula_count, 0) > 0"
+        "   AND (bearbeitungsstatus IS NULL OR bearbeitungsstatus != 'Ignoriert')"
     ).fetchone()[0]
 
     # ---------- Filter-Optionen ----------
@@ -505,13 +540,16 @@ def list_funde():
         _ctx_extra.append(("modified_at <= ?", [date_to + "T23:59:59"]))
     owner_list = _owner_list_for(db, "status='active'", [], _ctx_extra)
 
-    # Anzahl eigener Funde (für die „Nur meine"-Pill).
-    if me_user_id:
+    # Anzahl eigener Funde (für die „Nur meine"-Pill). Case-/Alias-tolerant
+    # gegen alle bekannten Schreibweisen des eingeloggten Users.
+    if me_aliases:
+        _placeholders = ",".join(["LOWER(?)"] * len(me_aliases))
         mine_count = db.execute(
             "SELECT COUNT(*) FROM idv_files"
-            " WHERE status='active' AND file_owner = ?"
+            " WHERE status='active'"
+            f"   AND LOWER(file_owner) IN ({_placeholders})"
             "   AND (bearbeitungsstatus IS NULL OR bearbeitungsstatus != 'Ignoriert')",
-            (me_user_id,),
+            me_aliases,
         ).fetchone()[0]
     else:
         mine_count = 0
@@ -565,8 +603,7 @@ def list_funde():
         ignoriert=ignoriert, zur_registrierung=zur_registrierung,
         neu_gesamt=neu_gesamt,
         duplikate_anzahl=duplikate_anzahl,
-        formeln_viele_anzahl=formeln_viele_anzahl,
-        formeln_viele_schwelle=_FORMELN_VIELE_SCHWELLE,
+        formeln_anzahl=formeln_anzahl,
         idv_typ_vorschlag=_idv_typ_vorschlag,
         share_roots=share_roots,
         share_root_filt=share_root,
@@ -615,6 +652,106 @@ def export_ohne_schutz():
         as_attachment=True,
         download_name=fname,
     )
+
+
+@bp.route("/duplikate/anhaengen", methods=["POST"])
+@own_write_required
+def duplikate_anhaengen():
+    """Restliche Kopien eines Duplikat-Hashes an eine bestehende IDV anhängen.
+
+    Erwartet ``idv_db_id`` und mehrere ``file_ids`` aus dem Formular der
+    Duplikat-Gruppen-Header-Zeile (``funde/list.html``). Vor dem Verknüpfen
+    wird sichergestellt, dass jede angegebene Datei denselben Hash hat wie
+    mindestens eine Datei, die bereits an diese IDV gehängt ist – sonst
+    könnten beliebige Funde quer auf fremde IDVs verlinkt werden.
+    """
+    try:
+        idv_db_id = int(request.form.get("idv_db_id", ""))
+    except (ValueError, TypeError):
+        flash("Ungültige IDV-ID.", "error")
+        return redirect(url_for("funde.list_funde", filter="duplikate"))
+
+    raw_ids = request.form.getlist("file_ids")
+    try:
+        file_ids = [int(i) for i in raw_ids if i]
+    except ValueError:
+        file_ids = []
+    if not file_ids:
+        flash("Keine Dateien ausgewählt.", "warning")
+        return redirect(url_for("funde.list_funde", filter="duplikate"))
+
+    db = get_db()
+    idv_row = db.execute(
+        "SELECT id, idv_id FROM idv_register WHERE id = ?", (idv_db_id,)
+    ).fetchone()
+    if not idv_row:
+        flash("Eigenentwicklung nicht gefunden.", "error")
+        return redirect(url_for("funde.list_funde", filter="duplikate"))
+
+    # Hashes der bereits mit dieser IDV verknüpften Dateien sammeln.
+    linked_hashes = {
+        r["file_hash"] for r in db.execute(
+            "SELECT DISTINCT f.file_hash FROM idv_file_links l "
+            "JOIN idv_files f ON f.id = l.file_id "
+            "WHERE l.idv_db_id = ? AND f.file_hash IS NOT NULL "
+            "  AND f.file_hash != 'HASH_ERROR'",
+            (idv_db_id,),
+        ).fetchall()
+    }
+    if not linked_hashes:
+        flash(
+            "Diese IDV hat noch keine Datei mit Hash, an die angehängt werden "
+            "könnte.",
+            "error",
+        )
+        return redirect(url_for("funde.list_funde", filter="duplikate"))
+
+    # Nur Dateien zulassen, deren Hash mit einer bereits verknüpften Kopie
+    # übereinstimmt. Dadurch wird "Anhängen" auf echte Duplikate begrenzt.
+    ph, ph_params = in_clause(file_ids)
+    candidates = db.execute(
+        f"SELECT id, file_hash FROM idv_files WHERE id IN ({ph})",
+        ph_params,
+    ).fetchall()
+    valid_ids = [
+        r["id"] for r in candidates
+        if r["file_hash"] and r["file_hash"] in linked_hashes
+    ]
+    skipped = len(file_ids) - len(valid_ids)
+    if not valid_ids:
+        flash(
+            "Keine der ausgewählten Dateien hat denselben Hash wie eine "
+            "bereits verknüpfte Kopie.",
+            "error",
+        )
+        return redirect(url_for("funde.list_funde", filter="duplikate"))
+
+    def _do(c):
+        ok = 0
+        with write_tx(c):
+            for fid in valid_ids:
+                try:
+                    c.execute(
+                        "INSERT OR IGNORE INTO idv_file_links "
+                        "(idv_db_id, file_id) VALUES (?, ?)",
+                        (idv_db_id, fid),
+                    )
+                    c.execute(
+                        "UPDATE idv_files SET bearbeitungsstatus='Registriert' "
+                        "WHERE id = ?",
+                        (fid,),
+                    )
+                    ok += 1
+                except Exception:
+                    pass
+        return ok
+
+    linked = get_writer().submit(_do, wait=True)
+    msg = f"{linked} Kopie(n) an IDV {idv_row['idv_id']} angehängt."
+    if skipped:
+        msg += f" {skipped} Datei(en) übersprungen (anderer Hash)."
+    flash(msg, "success")
+    return redirect(url_for("funde.list_funde", filter="duplikate"))
 
 
 @bp.route("/<int:file_id>/quick-assign", methods=["POST"])
@@ -670,11 +807,12 @@ def eingang_funde():
     date_from     = request.args.get("date_from", "").strip()
     date_to       = request.args.get("date_to", "").strip()
     prop_filt     = request.args.get("prop", "").strip()
-    if prop_filt not in {"makros", "blattschutz", "ohne_schutz", "formeln_viele", "duplikate"}:
+    if prop_filt not in {"makros", "blattschutz", "ohne_schutz", "formeln", "duplikate"}:
         prop_filt = ""
     mine_filt     = request.args.get("mine", "").strip() in ("1", "true", "on")
-    me_user_id    = (session.get("user_id") or "").strip()
-    if mine_filt and not me_user_id:
+    me_aliases    = _me_owner_aliases(get_db())
+    me_user_id    = me_aliases[0] if me_aliases else ""
+    if mine_filt and not me_aliases:
         mine_filt = False
     sort          = request.args.get("sort", "prioritaet")
     try:
@@ -723,8 +861,10 @@ def eingang_funde():
         where_parts.append("f.file_owner = ?")
         params.append(owner_filt)
     if mine_filt:
-        where_parts.append("f.file_owner = ?")
-        params.append(me_user_id)
+        _mine_sql, _mine_params = _mine_where(me_aliases)
+        if _mine_sql:
+            where_parts.append(_mine_sql)
+            params.extend(_mine_params)
     if date_from:
         where_parts.append("f.modified_at >= ?")
         params.append(date_from)
@@ -742,9 +882,8 @@ def eingang_funde():
         params.extend(_EXCEL_PROTECTABLE_EXTS)
         where_parts.append("COALESCE(f.has_sheet_protection, 0) = 0")
         where_parts.append("COALESCE(f.workbook_protected, 0) = 0")
-    elif prop_filt == "formeln_viele":
-        where_parts.append("COALESCE(f.formula_count, 0) >= ?")
-        params.append(_FORMELN_VIELE_SCHWELLE)
+    elif prop_filt == "formeln":
+        where_parts.append("COALESCE(f.formula_count, 0) > 0")
     elif prop_filt == "duplikate":
         where_parts.append("""f.file_hash IN (
             SELECT file_hash FROM idv_files
@@ -849,10 +988,9 @@ def eingang_funde():
             "   AND COALESCE(workbook_protected, 0) = 0",
             _EXCEL_PROTECTABLE_EXTS,
         ).fetchone()[0],
-        "formeln_viele": db.execute(
+        "formeln": db.execute(
             f"SELECT COUNT(*) FROM idv_files WHERE {_eingang_base}"
-            "   AND COALESCE(formula_count, 0) >= ?",
-            (_FORMELN_VIELE_SCHWELLE,),
+            "   AND COALESCE(formula_count, 0) > 0"
         ).fetchone()[0],
         "duplikate": db.execute(
             f"SELECT COUNT(*) FROM idv_files WHERE {_eingang_base}"
@@ -897,12 +1035,15 @@ def eingang_funde():
         _ctx_extra,
     )
 
-    # Anzahl eigener Funde im Eingang (für die „Nur meine"-Pill).
-    if me_user_id:
+    # Anzahl eigener Funde im Eingang (für die „Nur meine"-Pill). Case-/
+    # Alias-tolerant gegen alle Schreibweisen des eingeloggten Users.
+    if me_aliases:
+        _placeholders = ",".join(["LOWER(?)"] * len(me_aliases))
         mine_count = db.execute(
             "SELECT COUNT(*) FROM idv_files"
-            " WHERE status='active' AND bearbeitungsstatus='Neu' AND file_owner = ?",
-            (me_user_id,),
+            " WHERE status='active' AND bearbeitungsstatus='Neu'"
+            f"   AND LOWER(file_owner) IN ({_placeholders})",
+            me_aliases,
         ).fetchone()[0]
     else:
         mine_count = 0
@@ -936,7 +1077,6 @@ def eingang_funde():
         date_to=date_to,
         prop_filt=prop_filt,
         prop_counts=prop_counts,
-        formeln_viele_schwelle=_FORMELN_VIELE_SCHWELLE,
         mine_filt=mine_filt,
         mine_count=mine_count,
         me_user_id=me_user_id,

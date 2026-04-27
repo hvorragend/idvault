@@ -290,9 +290,9 @@ Sondermodi) und durch dünne Trennlinien optisch getrennt. #}
     {{ filter_pill('ignoriert', 'Ignoriert', ignoriert, icon='bi-eye-slash', accent='slate', icon_color='text-muted') }}
     <li class="idv-filter-sep" aria-hidden="true"></li>
     {{ filter_pill('makros', 'Makros', mit_makro, icon='bi-lightning-fill', accent='red', icon_color='text-danger') }}
-    {{ filter_pill('formeln_viele', 'Viele Formeln', formeln_viele_anzahl or 0,
+    {{ filter_pill('formeln', 'Formeln', formeln_anzahl or 0,
                    icon='bi-calculator-fill', accent='amber', icon_color='text-warning',
-                   title='Excel-Dateien mit ≥ ' ~ formeln_viele_schwelle ~ ' Formeln (Hinweis auf Modelle/Kalkulationen)') }}
+                   title='Excel-Dateien mit Formeln (über Tabellen-Kopfzeile nach Anzahl sortieren)') }}
     {{ filter_pill('blattschutz', 'Blattschutz', mit_schutz, icon='bi-lock-fill', accent='blue', icon_color='text-info') }}
     {{ filter_pill('ohne_schutz', 'Ohne Schutz', ohne_schutz, icon='bi-unlock-fill', accent='red', icon_color='text-danger', title='Excel-Dateien ohne Blatt- oder Arbeitsmappenschutz (Kandidaten für IT-Risiko-Erfassung)') }}
     <li class="idv-filter-sep" aria-hidden="true"></li>
@@ -463,8 +463,8 @@ date_to, 'mine': '1' if mine_filt else ''} %}
             </li>
             <li>
               <button class="dropdown-item" type="submit" name="aktion" value="zusammenfassen"
-                title="Ausgewählte Dateien als Projekt zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
-                <i class="bi bi-diagram-3 me-2"></i>Zu Projekt zusammenfassen
+                title="Ausgewählte Dateien zusammenfassen oder mit bestehender Eigenentwicklung verknüpfen">
+                <i class="bi bi-diagram-3 me-2"></i>Zusammenfassen
               </button>
             </li>
             <li>
@@ -524,6 +524,10 @@ date_to, 'mine': '1' if mine_filt else ''} %}
           {% for hash_val, gruppe in dateien | groupby('file_hash') %}
           {% set grp = gruppe | list %}
           {% set gid = 'dup-' ~ hash_val[:8] %}
+          {# Bereits einer IDV zugeordnete Kopien (für „An IDV anhängen") und
+             noch nicht zugeordnete Kopien (für „Gemeinsam registrieren"). #}
+          {% set linked_files = grp | selectattr('reg_db_id') | list %}
+          {% set unlinked_files = grp | rejectattr('reg_db_id') | list %}
           {# Gruppen-Header-Zeile (VULN-K: gid wird über data-Attribut übergeben,
           damit keine dynamischen Jinja-Werte in JS-String-Literale fließen) #}
           <tr class="table-warning dup-group-header" style="cursor:pointer" data-gid="{{ gid }}">
@@ -543,6 +547,36 @@ date_to, 'mine': '1' if mine_filt else ''} %}
               <span class="font-monospace text-muted ms-2 fs-8" title="SHA-256: {{ hash_val }}">
                 <i class="bi bi-fingerprint me-1"></i>{{ hash_val[:16] }}…
               </span>
+              {% if can_write %}
+                {% if linked_files and unlinked_files %}
+                {# Mind. eine Kopie ist bereits einer IDV zugeordnet – die
+                   übrigen können per One-Click an dieselbe IDV angehängt
+                   werden. data-action verhindert das Aufklappen der Gruppe. #}
+                {% set target = linked_files[0] %}
+                <form method="post" action="{{ url_for('funde.duplikate_anhaengen') }}"
+                      class="d-inline ms-2 dup-action-form" data-action="link">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="idv_db_id" value="{{ target.reg_db_id }}">
+                  {% for f in unlinked_files %}
+                  <input type="hidden" name="file_ids" value="{{ f.id }}">
+                  {% endfor %}
+                  <button type="submit" class="btn btn-sm btn-outline-primary dup-action-btn"
+                          title="Hängt die {{ unlinked_files|length }} noch nicht zugeordnete{{ '' if unlinked_files|length == 1 else 'n' }} Kopie(n) an die bestehende IDV {{ target.reg_idv_id }} an.">
+                    <i class="bi bi-link-45deg me-1"></i>An IDV {{ target.reg_idv_id }} anhängen
+                    ({{ unlinked_files|length }})
+                  </button>
+                </form>
+                {% elif unlinked_files %}
+                {# Keine Kopie ist zugeordnet – gemeinsame Registrierung anbieten.
+                   Direkt-Link zur Zusammenfassen-Seite mit allen file_ids. #}
+                {% set grp_ids = grp | map(attribute='id') | list %}
+                <a href="{{ url_for('funde.zusammenfassen', file_ids=grp_ids) }}"
+                   class="btn btn-sm btn-outline-primary ms-2 dup-action-btn"
+                   title="Diese {{ grp|length }} identischen Dateien als eine Eigenentwicklung registrieren.">
+                  <i class="bi bi-diagram-3 me-1"></i>Gemeinsam registrieren
+                </a>
+                {% endif %}
+              {% endif %}
               <span class="text-muted ms-2 fs-7">
                 <i class="bi bi-chevron-down" id="{{ gid }}-icon"></i>
               </span>
@@ -858,7 +892,12 @@ date_to, 'mine': '1' if mine_filt else ''} %}
   // VULN-K: Event-Delegation statt Inline-Handler mit Jinja-Interpolation.
   document.addEventListener('click', function (ev) {
     const header = ev.target.closest('.dup-group-header');
-    if (header && !ev.target.closest('.dup-master-cb')) {
+    // Klicks auf Aktions-Buttons (Anhängen / Gemeinsam registrieren) und auf
+    // die Master-Checkbox dürfen die Gruppe nicht ein-/ausklappen.
+    if (header
+        && !ev.target.closest('.dup-master-cb')
+        && !ev.target.closest('.dup-action-btn')
+        && !ev.target.closest('.dup-action-form')) {
       toggleDupGroup(header.dataset.gid);
     }
     if (ev.target.classList.contains('dup-master-cb')) {
