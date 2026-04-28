@@ -282,10 +282,12 @@ und die Anwendung neu starten.
 
 ### Sicherheits-Hinweis: Berechtigungen für `updates/` (#404)
 
-Der Inhalt von `updates/` wird beim Start als Python-Code geladen
-(`db_migrate.py`, Blueprint-Module unter `updates/webapp/routes/*.py`).
-Wer dort Schreibrechte hat, erreicht beim nächsten Neustart
-Code-Execution im App-Prozess. Deshalb:
+Der Inhalt von `updates/` wird beim Start vom Sidecar-Loader gezogen
+(Python-Module flach unter `updates/`, Blueprints unter
+`updates/webapp/routes/`, Alembic-Revisionen unter
+`updates/migrations/versions/`, Statics/Templates analog). Wer dort
+Schreibrechte hat, erreicht beim nächsten Neustart Code-Execution
+oder Stored-XSS im App-Prozess. Deshalb:
 
 - **Windows**: NTFS-ACL so setzen, dass nur das Installer-Konto und
   `SYSTEM` schreiben dürfen. Beispiel:

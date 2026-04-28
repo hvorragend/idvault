@@ -121,8 +121,8 @@ def _warn_world_writable_updates(app, updates_root: str) -> None:
                 mode & 0o777, updates_root,
             )
         # Pro Overlay-Datei pruefen — abhaengig vom Typ ist der Ueberfall
-        # entweder Code-Execution (.py / Alembic-Versionen / db_migrate)
-        # oder Stored-XSS (Templates, JS, CSS). Beides wollen wir nicht.
+        # entweder Code-Execution (.py / Alembic-Versionen) oder Stored-XSS
+        # (Templates, JS, CSS). Beides wollen wir nicht.
         _SKIP_DIRS = {"__pycache__"}
         for _root, _dirs, _files in os.walk(updates_root):
             _dirs[:] = [d for d in _dirs if d not in _SKIP_DIRS]
@@ -559,7 +559,6 @@ def create_app(db_path: str = None) -> Flask:
             ("static",       os.path.join(_updates_root, 'webapp', 'static')),
             ("schema.sql",   os.path.join(_updates_root, 'schema.sql')),
             ("migrations",   os.path.join(_updates_root, 'migrations', 'versions')),
-            ("db_migrate",   os.path.join(_updates_root, 'db_migrate.py')),
         ):
             if (os.path.isdir(_path) or os.path.isfile(_path)):
                 _overlays_active.append(_label)
@@ -568,23 +567,6 @@ def create_app(db_path: str = None) -> Flask:
                 "[startup] Sidecar-Overlays aktiv: %s (Wurzel: %s)",
                 ", ".join(_overlays_active), _updates_root,
             )
-
-    # Sidecar DB-Migration: updates/db_migrate.py wird einmalig beim Start
-    # ausgeführt, wenn die Datei vorhanden ist. ZIP-Updates können damit
-    # Schemaänderungen (ALTER TABLE, neue Tabellen) mitliefern, ohne dass
-    # die EXE ausgetauscht werden muss. Konvention: die Datei muss eine
-    # Funktion run(db_path: str) exportieren.
-    _migrate_script = os.path.join(_updates_root, 'db_migrate.py')
-    if os.path.isfile(_migrate_script):
-        try:
-            import importlib.util as _ilu
-            _spec = _ilu.spec_from_file_location('db_migrate', _migrate_script)
-            _mmod = _ilu.module_from_spec(_spec)
-            _spec.loader.exec_module(_mmod)
-            if hasattr(_mmod, 'run'):
-                _mmod.run(app.config['DATABASE'])
-        except Exception as _me:
-            app.logger.warning("updates/db_migrate.py fehlgeschlagen: %s", _me)
 
     # Blueprints registrieren
     from .routes.auth          import bp as auth_bp
