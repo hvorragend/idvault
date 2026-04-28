@@ -797,15 +797,24 @@ def get_app_base_url(db) -> str:
     return ""
 
 
-def notify_file_bewertung(db, file_row, recipient_email: str) -> bool:
-    """Sendet eine Bewertungsanforderung an den Datei-Ersteller/-Eigentümer."""
+def notify_file_bewertung(db, file_row, recipient_email: str,
+                          recipient_name: str = "") -> bool:
+    """Sendet eine Bewertungsanforderung an den Datei-Ersteller/-Eigentümer.
+
+    ``recipient_name`` (z.B. ``"Vorname Nachname"`` aus der ``persons``-
+    Tabelle) wird, wenn gesetzt, in der Anrede verwendet. Sonst greift
+    der bisherige Fallback auf den AD-Login aus ``file_owner`` /
+    ``office_author``.
+    """
     if not _is_notify_enabled(db, "bewertung"):
         return False
     fname = file_row["file_name"] if hasattr(file_row, "__getitem__") else str(file_row)
     fpath = file_row["full_path"] if hasattr(file_row, "__getitem__") else ""
     formula_count = file_row["formula_count"] if hasattr(file_row, "__getitem__") else 0
     has_macros = file_row["has_macros"] if hasattr(file_row, "__getitem__") else 0
-    ersteller = (file_row.get("file_owner") or file_row.get("office_author") or "–") if hasattr(file_row, "__getitem__") else "–"
+    ersteller = (recipient_name or "").strip()
+    if not ersteller:
+        ersteller = (file_row.get("file_owner") or file_row.get("office_author") or "–") if hasattr(file_row, "__getitem__") else "–"
 
     placeholders = {
         "dateiname":    fname,
@@ -825,11 +834,17 @@ def notify_file_bewertung(db, file_row, recipient_email: str) -> bool:
 
 
 def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
-                                base_url: str = "") -> bool:
+                                base_url: str = "",
+                                recipient_name: str = "") -> bool:
     """Sendet eine kombinierte Bewertungsanforderung für mehrere Dateien an einen Empfänger.
 
     Fasst alle übergebenen Dateien in einer einzigen E-Mail zusammen.
     Wenn base_url angegeben ist, wird für jede Datei ein Link in idvault eingefügt.
+
+    ``recipient_name`` (z.B. ``"Vorname Nachname"`` aus der ``persons``-
+    Tabelle) wird, wenn gesetzt, in der Anrede verwendet. Sonst greift
+    der bisherige Fallback auf den AD-Login aus ``file_owner`` /
+    ``office_author``.
     """
     if not file_rows:
         return False
@@ -837,12 +852,13 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
         log.warning("Bewertungsanforderung nicht gesendet: notify_enabled_bewertung ist deaktiviert.")
         return False
 
-    ersteller = "–"
-    for f in file_rows:
-        val = (f["file_owner"] or f["office_author"] or "") if hasattr(f, "__getitem__") else ""
-        if val:
-            ersteller = val
-            break
+    ersteller = (recipient_name or "").strip() or "–"
+    if ersteller == "–":
+        for f in file_rows:
+            val = (f["file_owner"] or f["office_author"] or "") if hasattr(f, "__getitem__") else ""
+            if val:
+                ersteller = val
+                break
 
     n = len(file_rows)
     if n == 1:
@@ -918,20 +934,28 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
 
 
 def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
-                                   base_url: str = "") -> bool:
-    """Sendet eine Bewertungsanforderung für Cognos-Berichte an einen Empfänger."""
+                                   base_url: str = "",
+                                   recipient_name: str = "") -> bool:
+    """Sendet eine Bewertungsanforderung für Cognos-Berichte an einen Empfänger.
+
+    ``recipient_name`` (z.B. ``"Vorname Nachname"`` aus der ``persons``-
+    Tabelle) wird, wenn gesetzt, in der Anrede verwendet. Sonst greift
+    der bisherige Fallback auf den ``Eigentümer``-Rohwert aus dem
+    Cognos-Export.
+    """
     if not bericht_rows:
         return False
     if not _is_notify_enabled(db, "bewertung"):
         log.warning("Bewertungsanforderung nicht gesendet: notify_enabled_bewertung ist deaktiviert.")
         return False
 
-    eigentuemer = "–"
-    for b in bericht_rows:
-        val = (b["eigentuemer"] or "") if hasattr(b, "__getitem__") else ""
-        if val:
-            eigentuemer = val
-            break
+    eigentuemer = (recipient_name or "").strip() or "–"
+    if eigentuemer == "–":
+        for b in bericht_rows:
+            val = (b["eigentuemer"] or "") if hasattr(b, "__getitem__") else ""
+            if val:
+                eigentuemer = val
+                break
 
     n = len(bericht_rows)
     if n == 1:

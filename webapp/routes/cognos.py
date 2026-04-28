@@ -926,6 +926,7 @@ def bulk_aktion():
         base_url = get_app_base_url(db)
 
         grouped: dict[str, list] = {}
+        names: dict[str, str] = {}
         kein_empfaenger = 0
         for bericht in berichte:
             person = _resolve_person_by_eigentuemer(db, bericht["eigentuemer"] or "")
@@ -934,12 +935,21 @@ def bulk_aktion():
                 kein_empfaenger += 1
                 continue
             grouped.setdefault(email, []).append(bericht)
+            if email not in names:
+                display_name = (
+                    f"{person['vorname'] or ''} {person['nachname'] or ''}"
+                ).strip()
+                if display_name:
+                    names[email] = display_name
 
         gesendet = 0
         fehler = 0
         for email, berichte_gruppe in grouped.items():
             try:
-                ok = notify_bericht_bewertung_batch(db, berichte_gruppe, email, base_url)
+                ok = notify_bericht_bewertung_batch(
+                    db, berichte_gruppe, email, base_url,
+                    recipient_name=names.get(email, ""),
+                )
                 if ok:
                     gesendet += 1
                 else:

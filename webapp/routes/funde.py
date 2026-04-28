@@ -1561,30 +1561,44 @@ def bulk_aktion():
 
         base_url = get_app_base_url(db)
 
-        # Dateien nach Empfänger-E-Mail gruppieren
+        # Dateien nach Empfänger-E-Mail gruppieren. Zusätzlich den
+        # Anzeigenamen (vorname + nachname) mitführen, damit die
+        # Anrede in der Mail nicht mit dem AD-Login auftaucht.
         grouped: dict[str, list] = {}
+        names: dict[str, str] = {}
         kein_empfaenger = 0
         for datei in dateien:
             owner = datei["file_owner"] or datei["office_author"] or ""
             email = None
+            display_name = ""
             if owner:
                 person = db.execute(
-                    "SELECT email FROM persons WHERE (user_id = ? OR ad_name = ?) AND aktiv = 1 AND email IS NOT NULL",
+                    "SELECT email, vorname, nachname FROM persons "
+                    "WHERE (user_id = ? OR ad_name = ?) AND aktiv = 1 "
+                    "AND email IS NOT NULL",
                     (owner, owner)
                 ).fetchone()
                 if person:
                     email = person["email"]
+                    display_name = (
+                        f"{person['vorname'] or ''} {person['nachname'] or ''}"
+                    ).strip()
             if not email:
                 kein_empfaenger += 1
                 continue
             grouped.setdefault(email, []).append(datei)
+            if display_name and email not in names:
+                names[email] = display_name
 
         gesendet = 0
         fehler = 0
         n_dateien_gesendet = 0
         for email, dateien_gruppe in grouped.items():
             try:
-                ok = notify_file_bewertung_batch(db, dateien_gruppe, email, base_url)
+                ok = notify_file_bewertung_batch(
+                    db, dateien_gruppe, email, base_url,
+                    recipient_name=names.get(email, ""),
+                )
                 if ok:
                     gesendet += 1
                     n_dateien_gesendet += len(dateien_gruppe)
