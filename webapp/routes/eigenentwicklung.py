@@ -294,6 +294,7 @@ def list_idv():
     from . import ROLE_ADMIN
     is_admin = (session.get("user_role") == ROLE_ADMIN)
     return render_template("eigenentwicklung/list.html", idvs=idvs, can_write=can_write(),
+                           can_create=can_create(),
                            is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
                            share_roots=share_roots,
@@ -454,6 +455,7 @@ def wesentliche_idvs():
     from . import ROLE_ADMIN
     is_admin = (session.get("user_role") == ROLE_ADMIN)
     return render_template("eigenentwicklung/list.html", idvs=idvs, can_write=can_write(),
+                           can_create=can_create(),
                            is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
                            share_roots=share_roots,
