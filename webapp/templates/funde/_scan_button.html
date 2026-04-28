@@ -80,13 +80,20 @@
     m.style.display = "";
   }
 
+  var _wasRunning = {{ 'true' if scan_running else 'false' }};
+
   function startPoll() {
+    _wasRunning = true;
     setTimeout(function check() {
       fetch("{{ url_for('admin.scanner_status') }}")
       .then(function(r){ return r.json(); })
       .then(function(d) {
+        if (_wasRunning && !d.running) {
+          location.reload();
+          return;
+        }
         updateUI(d);
-        if (d.running || d.has_checkpoint) {
+        if (d.running) {
           setTimeout(check, 3000);
         }
       })
