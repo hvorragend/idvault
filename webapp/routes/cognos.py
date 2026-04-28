@@ -251,6 +251,12 @@ def list_berichte():
     sort              = request.args.get("sort",  "berichtsname").strip()
     order             = request.args.get("order", "asc").strip()
 
+    highlight_raw = request.args.get("highlight", "").strip()
+    try:
+        highlight_id = int(highlight_raw) if highlight_raw else None
+    except ValueError:
+        highlight_id = None
+
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
     except (ValueError, TypeError):
@@ -316,6 +322,18 @@ def list_berichte():
             LIMIT ? OFFSET ?""",
         params + [per_page, offset]
     ).fetchall()
+
+    # Wenn highlight gesetzt und Bericht nicht auf aktueller Seite: zur richtigen Seite weiterleiten
+    if highlight_id and not any(b["id"] == highlight_id for b in berichte):
+        all_ids = [r[0] for r in db.execute(
+            f"SELECT cb.id FROM cognos_berichte cb {where_sql} ORDER BY {sort_col} {sort_dir}",
+            params
+        ).fetchall()]
+        if highlight_id in all_ids:
+            target_page = all_ids.index(highlight_id) // per_page + 1
+            args = request.args.to_dict()
+            args["page"] = str(target_page)
+            return redirect(url_for("cognos.list_berichte", **args))
 
     total_pages = max(1, (total + per_page - 1) // per_page)
 
@@ -392,6 +410,7 @@ def list_berichte():
         persons=persons,
         eigentuemer_map=eigentuemer_map,
         common_prefix=common_prefix,
+        highlight_id=highlight_id,
     )
 
 
@@ -874,6 +893,9 @@ def bulk_aktion():
                 else:
                     fehler += 1
             except Exception:
+                current_app.logger.exception(
+                    "Cognos-Bewertungsanforderung an %s fehlgeschlagen", email
+                )
                 fehler += 1
 
         msg_parts = []

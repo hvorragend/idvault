@@ -312,7 +312,7 @@
         </thead>
         <tbody>
           {% for b in berichte %}
-          <tr>
+          <tr id="bericht-{{ b.id }}">
             {% if can_write %}
             <td class="text-center align-middle">
               <input type="checkbox" name="bericht_ids" value="{{ b.id }}" class="form-check-input row-check"
@@ -539,6 +539,15 @@
       });
     }
   })();
+
+  {% if highlight_id %}
+  (function () {
+    var row = document.getElementById('bericht-{{ highlight_id }}');
+    if (!row) return;
+    row.classList.add('table-warning');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  })();
+  {% endif %}
 </script>
 
 {% endblock %}
