@@ -96,27 +96,30 @@ def _mittlere_konfidenz(db, page=1, page_size=_DEFAULT_PAGE_SIZE,
 def _owner_mapping_fehlt(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
     """Scanner-Dateien mit ``file_owner``, der nicht in ``persons`` aufloesbar ist."""
     offset = (page - 1) * page_size
-    return db.execute("""
-        SELECT f.id AS file_id, f.file_name, f.full_path, f.file_owner,
-               f.modified_at
-          FROM idv_files f
-         WHERE f.status = 'active'
-           AND f.bearbeitungsstatus = 'Neu'
-           AND f.file_owner IS NOT NULL
-           AND TRIM(f.file_owner) != ''
-           AND NOT EXISTS (
-               SELECT 1 FROM persons p
-                WHERE p.aktiv = 1
-                  AND (p.user_id = f.file_owner OR p.ad_name = f.file_owner)
-           )
-           AND NOT EXISTS (
-               SELECT 1 FROM triage_verworfen v
-                WHERE v.kategorie = 'owner_fehlt'
-                  AND v.ref_key = CAST(f.id AS TEXT)
-           )
-         ORDER BY f.modified_at DESC
-         LIMIT ? OFFSET ?
-    """, (page_size, offset)).fetchall()
+    try:
+        return db.execute("""
+            SELECT f.id AS file_id, f.file_name, f.full_path, f.file_owner,
+                   f.modified_at
+              FROM idv_files f
+             WHERE f.status = 'active'
+               AND f.bearbeitungsstatus = 'Neu'
+               AND f.file_owner IS NOT NULL
+               AND TRIM(f.file_owner) != ''
+               AND NOT EXISTS (
+                   SELECT 1 FROM persons p
+                    WHERE p.aktiv = 1
+                      AND (p.user_id = f.file_owner OR p.ad_name = f.file_owner)
+               )
+               AND NOT EXISTS (
+                   SELECT 1 FROM triage_verworfen v
+                    WHERE v.kategorie = 'owner_fehlt'
+                      AND v.ref_key = CAST(f.id AS TEXT)
+               )
+             ORDER BY f.modified_at DESC
+             LIMIT ? OFFSET ?
+        """, (page_size, offset)).fetchall()
+    except Exception:
+        return []
 
 
 def _self_service_stumm(db, page=1, page_size=_DEFAULT_PAGE_SIZE):
