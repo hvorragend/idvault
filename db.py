@@ -55,6 +55,78 @@ def get_connection(db_path: str, *, role: str = "reader") -> sqlite3.Connection:
     return conn
 
 
+_ALEMBIC_REVISION_RE = re.compile(
+    r"^\s*revision\s*(?::[^=]*)?\s*=\s*['\"]([^'\"]+)['\"]",
+    re.MULTILINE,
+)
+
+
+def _read_alembic_revision_id(path: Path) -> Optional[str]:
+    """Liest die ``revision = "..."``-Zuweisung aus einer Alembic-Datei.
+
+    Wir parsen die Datei textuell (statt sie zu importieren), weil das
+    Importieren Seiteneffekte hat und Module mehrfach laden wuerde.
+    Bei Lese-/Match-Fehlern liefert die Funktion None — die Datei wird
+    dann beim Mergen ignoriert.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            head = fh.read(4096)
+    except OSError:
+        return None
+    m = _ALEMBIC_REVISION_RE.search(head)
+    return m.group(1) if m else None
+
+
+def _build_alembic_versions_dir(bundled_versions: Path,
+                                 overlay_versions: Optional[Path]) -> Path:
+    """Konsolidiert Bundle- und Overlay-Versions-Dateien in einem
+    Temp-Verzeichnis. Dedup nach Revision-ID; Overlay schlaegt Bundle.
+
+    Damit kann der Admin den kompletten ``migrations/versions/``-Ordner
+    in den Sidecar copy-pasten, ohne dass alembic ueber Duplikate
+    stolpert (``MultipleHeads``).
+    """
+    import shutil
+    import tempfile
+
+    seen: dict = {}  # revision_id -> Pfad
+
+    def _absorb(directory: Path, source_label: str) -> int:
+        if not directory or not directory.is_dir():
+            return 0
+        added = 0
+        for entry in sorted(directory.iterdir()):
+            if entry.suffix != ".py" or entry.name.startswith("__"):
+                continue
+            rev = _read_alembic_revision_id(entry)
+            if not rev:
+                _logging.getLogger(__name__).warning(
+                    "[alembic] %s: %s ohne erkennbare revision = '...' "
+                    "uebersprungen", source_label, entry.name,
+                )
+                continue
+            seen[rev] = entry
+            added += 1
+        return added
+
+    bundled_count = _absorb(bundled_versions, "bundle")
+    overlay_count = _absorb(overlay_versions, "overlay") if overlay_versions else 0
+    duplicates = bundled_count + overlay_count - len(seen)
+
+    merged = Path(tempfile.mkdtemp(prefix="idvault_alembic_versions_"))
+    for rev, src in seen.items():
+        shutil.copy2(src, merged / src.name)
+
+    _logging.getLogger(__name__).info(
+        "[alembic] Versionen konsolidiert: %d aus Bundle, %d aus Overlay, "
+        "%d Duplikate per Revision-ID gemerged (Overlay gewinnt). "
+        "Merge-Verzeichnis: %s",
+        bundled_count, overlay_count, duplicates, merged,
+    )
+    return merged
+
+
 def _alembic_config(db_path: str):
     """Erzeugt eine Alembic-Config, die auf ``db_path`` zeigt.
 
@@ -77,19 +149,21 @@ def _alembic_config(db_path: str):
     bundled_migrations = _resource_path("migrations")
     cfg.set_main_option("script_location", str(bundled_migrations))
 
-    # Sidecar-Versions-Overlay: zusaetzliche Migrationen, die nach dem
-    # EXE-Build veroeffentlicht werden, koennen unter
-    # ``updates/migrations/versions/`` abgelegt werden. Alembic merged
-    # sie in dieselbe lineare Historie, solange die Revision-IDs
-    # eindeutig sind und ``down_revision`` korrekt verlinkt.
-    locations = [str(bundled_migrations / "versions")]
+    # Sidecar-Versions-Overlay: zusaetzliche oder ueberschreibende
+    # Migrationen koennen unter ``updates/migrations/versions/`` abgelegt
+    # werden. Bundle und Overlay werden in einem Temp-Verzeichnis nach
+    # Revision-ID gemerged (Overlay gewinnt) — damit kann der Admin auch
+    # den kompletten Versions-Ordner spiegeln, ohne dass alembic in
+    # MultipleHeads laeuft.
+    bundled_versions = bundled_migrations / "versions"
     upd = _updates_dir()
     overlay_versions = (upd / "migrations" / "versions") if upd else None
+
     if overlay_versions and overlay_versions.is_dir():
-        locations.append(str(overlay_versions))
-        _logging.getLogger(__name__).info(
-            "[alembic] Sidecar-Versionen aktiv: %s", overlay_versions
-        )
+        merged_dir = _build_alembic_versions_dir(bundled_versions, overlay_versions)
+        cfg.set_main_option("version_locations", str(merged_dir))
+    else:
+        cfg.set_main_option("version_locations", str(bundled_versions))
     cfg.set_main_option("version_locations", _os.pathsep.join(locations))
 
     # SQLite-URL für den aktuellen DB-Pfad – der alembic.ini-Default
