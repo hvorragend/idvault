@@ -19,7 +19,7 @@
     </div>
 
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <a href="{{ url_for('eigenentwicklung.list_idv') }}"
+      <a href="{{ cancel_url or url_for('eigenentwicklung.list_idv') }}"
          class="btn btn-sm btn-outline-secondary" data-esc-cancel>
         <i class="bi bi-arrow-left me-1"></i>Abbrechen
       </a>

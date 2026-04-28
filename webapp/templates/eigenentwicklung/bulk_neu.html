@@ -173,7 +173,7 @@
   </div>
 
   <div class="d-flex justify-content-between mt-3">
-    <a href="{{ url_for('funde.list_funde') }}" class="btn btn-outline-secondary">
+    <a href="{{ cancel_url or url_for('funde.list_funde') }}" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left me-1"></i>Abbrechen
     </a>
     <button type="submit" class="btn btn-primary" id="bulk-submit-btn" disabled>

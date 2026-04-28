@@ -14,7 +14,7 @@ from db_write_tx import write_tx
 from ..db_writer import get_writer
 from ..security import (ensure_can_read_idv, ensure_can_write_idv,
                         user_can_read_idv, in_clause)
-from ..helpers import _EXT_TO_TYP, _idv_typ_vorschlag, _int_or_none
+from ..helpers import _EXT_TO_TYP, _idv_typ_vorschlag, _int_or_none, _safe_referer_url
 from ..app_settings import get_bool as _get_bool
 
 bp = Blueprint("eigenentwicklung", __name__, url_prefix="/eigenentwicklung")
@@ -1131,6 +1131,8 @@ def new_idv():
                 extra_fonds = list(extra_fonds) + list(siblings)
                 prefill["extra_file_ids"] = ",".join(str(s["id"]) for s in siblings)
 
+    cancel_url = _safe_referer_url(request, url_for("eigenentwicklung.list_idv"))
+
     return render_template("eigenentwicklung/form.html", idv=None,
                            fund=fund, prefill=prefill,
                            extra_fonds=extra_fonds,
@@ -1138,6 +1140,7 @@ def new_idv():
                            draft_info=draft_info,
                            wesentlichkeit_antworten={},
                            can_write=can_write(),
+                           cancel_url=cancel_url,
                            **_form_lookups(db))
 
 
@@ -1199,11 +1202,13 @@ def new_idv_quick():
         prefill["fachverantwortlicher_id"] = my_pid
 
     lookups = _form_lookups(db)
+    cancel_url = _safe_referer_url(request, url_for("eigenentwicklung.list_idv"))
     return render_template(
         "eigenentwicklung/form_quick.html",
         prefill=prefill,
         persons=lookups["persons"],
         idv_typen=lookups["idv_typen"],
+        cancel_url=cancel_url,
     )
 
 
@@ -1302,9 +1307,11 @@ def bulk_neu():
                     "idv_typ":           (request.form.get(f"idv_typ_{d['id']}") or "unklassifiziert").strip(),
                     "idv_entwickler_id": _int_or_none(request.form.get(f"idv_entwickler_id_{d['id']}")),
                 })
+            cancel_url = _safe_referer_url(request, url_for("funde.list_funde"))
             return render_template("eigenentwicklung/bulk_neu.html",
                                    vorschlaege=vorschlaege,
                                    prefill_common=common,
+                                   cancel_url=cancel_url,
                                    **_form_lookups(db))
 
         if created:
@@ -1361,9 +1368,11 @@ def bulk_neu():
             "idv_entwickler_id": dev_id,
         })
 
+    cancel_url = _safe_referer_url(request, url_for("funde.list_funde"))
     return render_template("eigenentwicklung/bulk_neu.html",
                            vorschlaege=vorschlaege,
                            profil_vorbelegung=profil_vorbelegung,
+                           cancel_url=cancel_url,
                            **_form_lookups(db))
 
 

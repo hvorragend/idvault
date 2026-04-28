@@ -1,5 +1,7 @@
 """Gemeinsam genutzte Hilfsfunktionen für webapp-Module."""
 
+from urllib.parse import urlparse
+
 # Dateierweiterung → IDV-Typ-Vorschlag (gespiegelt aus scanner.py)
 _EXT_TO_TYP = {
     ".xlsx": "Excel-Tabelle",
@@ -34,3 +36,30 @@ def _int_or_none(val):
         return int(val) if val else None
     except (ValueError, TypeError):
         return None
+
+
+def _safe_referer_url(request, default: str) -> str:
+    """Liefert eine same-origin Referer-URL als Cancel-Ziel, sonst ``default``.
+
+    Schützt vor Open-Redirect (fremder Host) und vor Selbst-Loops, wenn die
+    Seite per POST-Validierungsfehler erneut gerendert wird (Referer == aktuelle
+    URL). Rückgabewert ist immer ein relativer Pfad (path?query).
+    """
+    ref = request.referrer
+    if not ref:
+        return default
+    try:
+        ref_p = urlparse(ref)
+        cur_p = urlparse(request.url)
+    except Exception:
+        return default
+    if ref_p.netloc and ref_p.netloc != cur_p.netloc:
+        return default
+    if ref_p.scheme and ref_p.scheme not in ("http", "https"):
+        return default
+    if ref_p.path == cur_p.path:
+        return default
+    rel = ref_p.path or "/"
+    if ref_p.query:
+        rel += "?" + ref_p.query
+    return rel
