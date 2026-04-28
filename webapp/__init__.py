@@ -120,11 +120,13 @@ def _warn_world_writable_updates(app, updates_root: str) -> None:
                 "(chmod 0700 bzw. NTFS-ACL nur fuer Installer-Konto).",
                 mode & 0o777, updates_root,
             )
-        # Einzelne .py-Module pruefen (db_migrate.py + Sidecar-Routen).
+        # Pro Overlay-Datei pruefen — abhaengig vom Typ ist der Ueberfall
+        # entweder Code-Execution (.py / Alembic-Versionen / db_migrate)
+        # oder Stored-XSS (Templates, JS, CSS). Beides wollen wir nicht.
+        _SKIP_DIRS = {"__pycache__"}
         for _root, _dirs, _files in os.walk(updates_root):
+            _dirs[:] = [d for d in _dirs if d not in _SKIP_DIRS]
             for _name in _files:
-                if not _name.endswith(".py"):
-                    continue
                 _p = os.path.join(_root, _name)
                 try:
                     _m = os.stat(_p).st_mode
@@ -132,9 +134,10 @@ def _warn_world_writable_updates(app, updates_root: str) -> None:
                     continue
                 if _m & (_stat.S_IWGRP | _stat.S_IWOTH):
                     app.logger.warning(
-                        "[startup] Sidecar-Modul ist Group/Other schreibbar "
+                        "[startup] Sidecar-Datei ist Group/Other schreibbar "
                         "(mode=%o, Pfad=%s). Wer dort Schreibrechte hat, "
-                        "erreicht Code-Execution beim naechsten Neustart.",
+                        "kann je nach Datei Code-Execution oder Stored-XSS "
+                        "erreichen.",
                         _m & 0o777, _p,
                     )
     except Exception as exc:
@@ -312,6 +315,28 @@ def create_app(db_path: str = None) -> Flask:
     _ovr_tpl = os.path.join(_project_root, 'updates', 'templates')
     if os.path.isdir(_ovr_tpl):
         app.jinja_loader = ChoiceLoader([_FSL(_ovr_tpl), app.jinja_loader])
+        app.logger.info("[startup] Sidecar-Templates aktiv: %s", _ovr_tpl)
+
+    # Sidecar-Static-Override: einzelne Dateien (JS/CSS/Vendor) aus
+    # updates/webapp/static/ haben Vorrang vor dem Bundle. Flask's auto-
+    # registrierte 'static'-View wird durch eine Variante ersetzt, die
+    # Overlay zuerst probiert und beim NotFound auf das Bundle zurueck-
+    # faellt. send_from_directory uebernimmt jeweils den Path-Traversal-
+    # Schutz.
+    _ovr_static = os.path.join(_project_root, 'updates', 'webapp', 'static')
+    if os.path.isdir(_ovr_static):
+        from flask import send_from_directory as _send_from
+        from werkzeug.exceptions import NotFound as _NotFound
+        _bundle_static = _static
+
+        def _static_with_overlay(filename):
+            try:
+                return _send_from(_ovr_static, filename)
+            except _NotFound:
+                return _send_from(_bundle_static, filename)
+
+        app.view_functions['static'] = _static_with_overlay
+        app.logger.info("[startup] Sidecar-Static aktiv: %s", _ovr_static)
 
     upload_folder = os.path.join(_instance_path, "uploads", "freigaben")
 
@@ -521,6 +546,28 @@ def create_app(db_path: str = None) -> Flask:
     # Eintraege als Warnung.
     _updates_root = os.path.join(_project_root, 'updates')
     _warn_world_writable_updates(app, _updates_root)
+
+    # Sidecar-Inventar fuers Diagnoselog: ein Blick in idvault.log zeigt,
+    # welche Overlays aktiv sind, ohne dass man dafuer durchs Dateisystem
+    # tasten muss. Praktisch, wenn nach einem Update-Drop etwas nicht so
+    # wirkt wie erwartet.
+    if os.path.isdir(_updates_root):
+        _overlays_active = []
+        for _label, _path in (
+            ("python",       _updates_root),
+            ("templates",    os.path.join(_updates_root, 'templates')),
+            ("static",       os.path.join(_updates_root, 'webapp', 'static')),
+            ("schema.sql",   os.path.join(_updates_root, 'schema.sql')),
+            ("migrations",   os.path.join(_updates_root, 'migrations', 'versions')),
+            ("db_migrate",   os.path.join(_updates_root, 'db_migrate.py')),
+        ):
+            if (os.path.isdir(_path) or os.path.isfile(_path)):
+                _overlays_active.append(_label)
+        if _overlays_active:
+            app.logger.info(
+                "[startup] Sidecar-Overlays aktiv: %s (Wurzel: %s)",
+                ", ".join(_overlays_active), _updates_root,
+            )
 
     # Sidecar DB-Migration: updates/db_migrate.py wird einmalig beim Start
     # ausgeführt, wenn die Datei vorhanden ist. ZIP-Updates können damit
