@@ -22,7 +22,6 @@ from db_pragmas import apply_pragmas
 from db_write_tx import write_tx
 
 
-import os as _os
 import logging as _logging
 
 
@@ -164,7 +163,6 @@ def _alembic_config(db_path: str):
         cfg.set_main_option("version_locations", str(merged_dir))
     else:
         cfg.set_main_option("version_locations", str(bundled_versions))
-    cfg.set_main_option("version_locations", _os.pathsep.join(locations))
 
     # SQLite-URL für den aktuellen DB-Pfad – der alembic.ini-Default
     # (instance/idvault.db) ist nur ein Platzhalter für Offline-Aufrufe.
