@@ -171,6 +171,35 @@
 </div>
 {% endif %}
 
+<!-- ── Meine Funde / Meine Cognos-Berichte (Issue #467) ────────────── -->
+{% if (meine_funde_count or 0) > 0 or (meine_cognos_count or 0) > 0 %}
+<div class="card border-0 shadow-sm mb-4 idv-card-accent idv-card-accent-info">
+  <div class="card-header bg-white fw-600 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-person-check me-2 text-info"></i>Mir zugeordnet</span>
+  </div>
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2">
+      {% if (meine_funde_count or 0) > 0 %}
+      <a href="{{ url_for('funde.eingang_funde', mine=1) }}"
+         class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-files"></i>
+        <span>Meine Scanner-Funde</span>
+        <span class="badge bg-primary">{{ meine_funde_count }}</span>
+      </a>
+      {% endif %}
+      {% if (meine_cognos_count or 0) > 0 %}
+      <a href="{{ url_for('cognos.list_berichte', mine=1) }}"
+         class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
+        <i class="bi bi-bar-chart"></i>
+        <span>Meine Cognos-Berichte</span>
+        <span class="badge bg-primary">{{ meine_cognos_count }}</span>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- ── Meine Aufgaben (persönliche Inbox) ──────────────────────────── -->
 {% if meine_schritte %}
 <div class="card border-0 shadow-sm mb-4 idv-card-accent idv-card-accent-primary">

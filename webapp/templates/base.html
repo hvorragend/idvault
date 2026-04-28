@@ -76,6 +76,26 @@
     {% endif %}
 
 
+    {% if not (_is_admin or _is_koord) and session.get('person_id') %}
+    {# Issue #467: Self-Service-Einstieg für eingeloggte User ohne
+       Admin/Koord-Zugriff — sie sehen ihre eigenen Scanner-Funde und
+       Cognos-Berichte ohne Umweg über das Dashboard. #}
+    <div class="nav-label">Funde</div>
+    <a href="{{ url_for('funde.eingang_funde', mine=1) }}"
+      class="nav-link {% if request.endpoint == 'funde.eingang_funde' and request.args.get('mine') %}active{% endif %}">
+      <i class="bi bi-person-check"></i> Meine Funde
+    </a>
+    {% if safe_url_for is defined %}
+    {% set _cognos_url_mine = safe_url_for('cognos.list_berichte', mine=1) %}
+    {% if _cognos_url_mine != '#' %}
+    <a href="{{ _cognos_url_mine }}"
+      class="nav-link {% if request.blueprint == 'cognos' and request.args.get('mine') %}active{% endif %}">
+      <i class="bi bi-bar-chart"></i> Meine Cognos-Berichte
+    </a>
+    {% endif %}
+    {% endif %}
+    {% endif %}
+
     {% if _is_admin or _is_koord %}
     <div class="nav-label">Funde</div>
     <a href="{{ url_for('funde.eingang_funde') }}"

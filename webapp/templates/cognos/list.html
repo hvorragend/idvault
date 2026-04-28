@@ -88,14 +88,27 @@
 </div>
 
 <!-- ── Filter ────────────────────────────────────────────────────────── -->
-{% set _cf = q or status_filt or komplexitaet_filt or abfragen_filt or pfad_prefix %}
+{% set _cf = q or status_filt or komplexitaet_filt or abfragen_filt or pfad_prefix or mine_filt %}
 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
   <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
     data-bs-target="#filter-panel" aria-expanded="{{ 'true' if _cf or filter_panel_open else 'false' }}">
     <i class="bi bi-funnel me-1"></i>Suche &amp; Filter
-    {% if _cf %}<span class="badge bg-primary ms-1">{{ [q, status_filt, komplexitaet_filt, abfragen_filt, pfad_prefix] |
+    {% if _cf %}<span class="badge bg-primary ms-1">{{ [q, status_filt, komplexitaet_filt, abfragen_filt, pfad_prefix, '1' if mine_filt else ''] |
       select | list | length }}</span>{% endif %}
   </button>
+  {% if session.get('person_id') %}
+  <a href="{{ url_for('cognos.list_berichte',
+                     mine=none if mine_filt else '1',
+                     q=q or none, status=status_filt or none,
+                     komplexitaet=komplexitaet_filt or none,
+                     abfragen=abfragen_filt or none,
+                     pfad_prefix=pfad_prefix or none,
+                     sort=sort, order=order) }}"
+     class="btn btn-sm {% if mine_filt %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+     title="Nur Berichte anzeigen, deren Eigentümer mit meinem Konto matcht">
+    <i class="bi bi-person-check me-1"></i>Nur meine
+  </a>
+  {% endif %}
   {% if _cf %}
   <a href="{{ url_for('cognos.list_berichte') }}" class="btn btn-sm btn-outline-secondary" title="Filter zurücksetzen">
     <i class="bi bi-x-lg"></i>
@@ -105,6 +118,7 @@
   {% if komplexitaet_filt %}<span class="badge bg-secondary">Kompl.: {{ komplexitaet_filt }}</span>{% endif %}
   {% if abfragen_filt %}<span class="badge bg-secondary">Abfragen: {{ abfragen_filt }}</span>{% endif %}
   {% if pfad_prefix %}<span class="badge bg-secondary">Pfad: {{ pfad_prefix }}</span>{% endif %}
+  {% if mine_filt %}<span class="badge bg-primary">Nur meine</span>{% endif %}
   {% endif %}
 </div>
 <div class="collapse{{ ' show' if _cf or filter_panel_open }}" id="filter-panel">
@@ -145,6 +159,7 @@
       </div>
       <input type="hidden" name="sort" value="{{ sort }}">
       <input type="hidden" name="order" value="{{ order }}">
+      {% if mine_filt %}<input type="hidden" name="mine" value="1">{% endif %}
       <div class="col-auto">
         <button type="submit" class="btn btn-primary btn-sm">
           <i class="bi bi-search me-1"></i>Filtern
@@ -185,7 +200,7 @@
 <!-- ── Pagination oben ────────────────────────────────────────────────── -->
 {% set endpoint = 'cognos.list_berichte' %}
 {% set url_extra = {'q': q, 'status': status_filt, 'komplexitaet': komplexitaet_filt, 'abfragen': abfragen_filt,
-'pfad_prefix': pfad_prefix, 'sort': sort, 'order': order} %}
+'pfad_prefix': pfad_prefix, 'mine': '1' if mine_filt else none, 'sort': sort, 'order': order} %}
 {% include 'funde/_pagination.html' %}
 
 {% if can_write %}
