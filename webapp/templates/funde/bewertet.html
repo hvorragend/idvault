@@ -34,7 +34,6 @@
     <table class="table table-hover mb-0 table-idv small">
       <thead>
         <tr>
-          <th>ID</th>
           <th>Bezeichnung</th>
           <th>OE</th>
           <th>Fachverantwortlicher</th>
@@ -47,7 +46,6 @@
       <tbody>
         {% for r in nicht_wesentliche %}
         <tr>
-          <td class="font-monospace fs-7">{{ r.idv_id }}</td>
           <td class="text-truncate" style="max-width:200px" title="{{ r.bezeichnung }}">
             {{ r.bezeichnung }}
           </td>
@@ -84,7 +82,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="8" class="text-center text-muted py-4">
+          <td colspan="7" class="text-center text-muted py-4">
             <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
             Keine nicht wesentlichen Scanner-Eigenentwicklungen vorhanden.
           </td>
