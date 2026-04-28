@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from '_dir_breadcrumbs.html' import dir_breadcrumbs, dir_fallback %}
+{% from '_file_link.html' import file_link, source_badge %}
 {% block title %}Scanner-Eingang{% endblock %}
 {% block page_title %}<i class="bi bi-arrow-down-circle me-2"></i>Scanner-Eingang{% endblock %}
 {% block topbar_actions %}
@@ -463,7 +464,10 @@ scan_run_id_filt, 'q': q_search, 'owner': owner_filt, 'date_from': date_from, 'd
 
             <!-- Dateiname + Hash-Icon -->
             <td>
-              <span class="fw-500">{{ f.file_name }}</span>
+              <span class="fw-500">
+                {{ source_badge(f.source) }}
+                {{ file_link(f.file_name, f.source, f.full_path) }}
+              </span>
               {% if f.file_hash and f.file_hash != 'HASH_ERROR' %}
               <i class="bi bi-fingerprint text-muted ms-1" title="SHA-256: {{ f.file_hash }}"></i>
               {% set _dup_total = duplicate_counts.get(f.file_hash) %}
