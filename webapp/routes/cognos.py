@@ -617,12 +617,31 @@ def als_idv_registrieren(bericht_id: int):
     if dev_row:
         entwickler_id = dev_row["id"]
 
+    # OE vorbelegen (analog zu eigenentwicklung.new_idv, #454):
+    # Entwickler-OE > OE des eingeloggten Erfassers > NULL.
+    org_unit_id = None
+    if entwickler_id:
+        oe_row = db.execute(
+            "SELECT org_unit_id FROM persons WHERE id=?", (entwickler_id,)
+        ).fetchone()
+        if oe_row and oe_row["org_unit_id"]:
+            org_unit_id = oe_row["org_unit_id"]
+    if org_unit_id is None:
+        my_pid = current_person_id()
+        if my_pid:
+            me_row = db.execute(
+                "SELECT org_unit_id FROM persons WHERE id=?", (my_pid,)
+            ).fetchone()
+            if me_row and me_row["org_unit_id"]:
+                org_unit_id = me_row["org_unit_id"]
+
     insert_params = (
         idv_id,
         bericht["berichtsname"],
         bericht["suchpfad"],
         naechste_pruefung,
         entwickler_id,
+        org_unit_id,
         now, now,
     )
 
@@ -646,12 +665,12 @@ def als_idv_registrieren(bericht_id: int):
                 INSERT INTO idv_register (
                     idv_id, bezeichnung, kurzbeschreibung, idv_typ,
                     pruefintervall_monate, naechste_pruefung,
-                    idv_entwickler_id,
+                    idv_entwickler_id, org_unit_id,
                     status, erstellt_am, aktualisiert_am, teststatus
                 ) VALUES (
                     ?, ?, ?, 'Cognos-Report',
                     12, ?,
-                    ?,
+                    ?, ?,
                     'Entwurf', ?, ?, 'Wertung ausstehend'
                 )
             """, insert_params)
