@@ -429,13 +429,18 @@ def list_berichte():
         if len(parts) > 1:
             common_prefix = parts[0]
 
-    # Eigentuemer → Person-Lookup (siehe _resolve_person_by_eigentuemer)
+    # Eigentuemer → Person-Lookup (siehe _resolve_person_by_eigentuemer).
+    # Die Tabelle zeigt den kurzen ``user_id``; den vollen Klarnamen
+    # (Lastname, Firstname (login)) hängen wir nur als Tooltip an.
     eigentuemer_vals = {b["eigentuemer"] for b in berichte if b["eigentuemer"]}
-    eigentuemer_map: dict[str, str] = {}
+    eigentuemer_map: dict[str, dict[str, str]] = {}
     for ev in eigentuemer_vals:
         row = _resolve_person_by_eigentuemer(db, ev)
         if row:
-            eigentuemer_map[ev] = f"{row['nachname']}, {row['vorname']} ({row['user_id']})"
+            eigentuemer_map[ev] = {
+                "display": row["user_id"],
+                "title":   f"{row['nachname']}, {row['vorname']} ({row['user_id']})",
+            }
 
     return render_template(
         "cognos/list.html",
