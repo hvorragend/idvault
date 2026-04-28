@@ -306,7 +306,6 @@
             {{ sort_th('summe_ausdruckslaenge', 'Ausdr.-Lg.', 'text-end d-none d-xl-table-cell', 'Summe Ausdruckslänge')
             }}
             {{ sort_th('komplexitaet', 'Kompl.', 'text-end d-none d-lg-table-cell') }}
-            {{ sort_th('status', 'Status') }}
             {% if can_write %}<th></th>{% endif %}
           </tr>
         </thead>
@@ -320,8 +319,21 @@
             </td>
             {% endif %}
 
-            <!-- Berichtsname -->
-            <td><span class="fw-500">{{ b.berichtsname }}</span></td>
+            <!-- Berichtsname mit Status-Mini-Pill (analog Funde-Liste) -->
+            <td>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="fw-500">{{ b.berichtsname }}</span>
+                {% if b.bearbeitungsstatus == 'Registriert' %}
+                <span class="mini-pill mini-pill-reg"><i class="bi bi-check2"></i>Registriert</span>
+                {% elif b.bearbeitungsstatus == 'Zur Registrierung' %}
+                <span class="mini-pill mini-pill-zur-reg"><i class="bi bi-pencil-square"></i>Zur Registrierung</span>
+                {% elif b.bearbeitungsstatus == 'Ignoriert' %}
+                <span class="mini-pill mini-pill-ignored"><i class="bi bi-eye-slash"></i>Ignoriert</span>
+                {% else %}
+                <span class="neu-dot" title="Neu"></span>
+                {% endif %}
+              </div>
+            </td>
 
             <!-- Suchpfad als klickbare Breadcrumbs (gemeinsamer Präfix ausgeblendet) -->
             <td style="max-width:320px" title="{{ b.suchpfad or '' }}">
@@ -401,23 +413,6 @@
               {% else %}–{% endif %}
             </td>
 
-            <!-- Bearbeitungsstatus -->
-            <td>
-              {% if b.bearbeitungsstatus == 'Registriert' %}
-              <span class="badge bg-success">
-                <i class="bi bi-check-circle me-1"></i>Eigenentwicklung
-                {% if b.idv_id_str %}
-                <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=b.idv_register_id) }}"
-                  class="text-white text-decoration-none ms-1">{{ b.idv_id_str }}</a>
-                {% endif %}
-              </span>
-              {% elif b.bearbeitungsstatus == 'Ignoriert' %}
-              <span class="badge bg-secondary">Ignoriert</span>
-              {% else %}
-              <span class="badge bg-warning text-dark">Neu</span>
-              {% endif %}
-            </td>
-
             <!-- Aktionen -->
             {% if can_write %}
             <td class="text-end text-nowrap">
@@ -437,8 +432,8 @@
               </button>
               {% elif b.bearbeitungsstatus == 'Registriert' and b.idv_register_id %}
               <a href="{{ url_for('eigenentwicklung.detail_idv', idv_db_id=b.idv_register_id) }}"
-                class="btn btn-outline-success btn-xs" title="Eigenentwicklung öffnen">
-                <i class="bi bi-box-arrow-up-right"></i>
+                class="btn btn-outline-secondary btn-xs" title="Eigenentwicklung öffnen">
+                <i class="bi bi-eye"></i>
               </a>
               {% endif %}
               <button type="submit" formaction="{{ url_for('cognos.loeschen', bericht_id=b.id) }}" formmethod="post"
@@ -451,7 +446,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="13" class="text-center text-muted py-4">
+            <td colspan="12" class="text-center text-muted py-4">
               <i class="bi bi-inbox fs-3 d-block mb-2"></i>
               Keine Berichte gefunden.
               {% if can_write %}
