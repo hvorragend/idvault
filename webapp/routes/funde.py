@@ -74,7 +74,7 @@ _DIR_PATH_EXPR_PLAIN = """CASE WHEN file_name IS NOT NULL AND full_path IS NOT N
                           ELSE share_root END"""
 
 
-_VALID_PER_PAGE = (25, 50, 100, 200, 500)
+_VALID_PER_PAGE = (25, 50, 100, 200, 500, 1000, 2500)
 
 # Excel-Dateiformate, für die der Scanner Blatt-/Arbeitsmappenschutz auslesen kann
 # (OOXML-Container; .xls bleibt außen vor, weil der Scanner dort keine Protection-

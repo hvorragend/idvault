@@ -6,7 +6,7 @@
     total_pages   – Gesamtanzahl Seiten (int)
     total         – Gesamtanzahl Einträge (int)
     per_page      – Einträge pro Seite (int)
-    valid_per_page – Tuple erlaubter Werte, z.B. (25, 50, 100, 200, 500)
+    valid_per_page – Tuple erlaubter Werte, z.B. (25, 50, 100, 200, 500, 1000, 2500)
     endpoint      – Flask-Endpunkt (str), z.B. 'funde.list_funde'
     url_extra     – dict mit zusätzlichen URL-Parametern (optional)
 
@@ -93,7 +93,7 @@
     <label class="text-muted mb-0" style="white-space:nowrap">Pro Seite:</label>
     <select name="per_page" class="form-select form-select-sm" style="width:auto"
             data-action-change="submitOwnForm">
-      {% for n in (valid_per_page or (25, 50, 100, 200, 500)) %}
+      {% for n in (valid_per_page or (25, 50, 100, 200, 500, 1000, 2500)) %}
       <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
       {% endfor %}
     </select>
