@@ -417,6 +417,155 @@
     </div>
     {% endif %}
 
+    {# ── Cognos-Bericht: Daten aus dem Berichtsabzug-Import (Issue #456) ── #}
+    {% if cognos_berichte %}
+    <div class="form-section">
+      <div class="form-section-title">
+        <i class="bi bi-file-earmark-bar-graph fst-icon fst-violet"></i>Cognos-Bericht
+        {% if cognos_berichte|length > 1 %}
+        <span class="badge bg-secondary ms-1">{{ cognos_berichte|length }} Berichte</span>
+        {% endif %}
+      </div>
+
+      {% for cb in cognos_berichte %}
+      <div class="border rounded p-2 mb-2 {% if loop.first %}bg-light{% endif %}">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            {% if cognos_berichte|length > 1 %}
+            <span class="badge bg-{{ 'primary' if loop.first else 'secondary' }} me-1">
+              {{ 'Hauptbericht' if loop.first else 'Weiterer Bericht' }}
+            </span>
+            {% endif %}
+            <span class="fw-500">{{ cb.berichtsname }}</span>
+          </div>
+          {% if cb.bearbeitungsstatus %}
+          <span class="badge bg-light text-dark border fs-9">{{ cb.bearbeitungsstatus }}</span>
+          {% endif %}
+        </div>
+
+        <div class="row g-2 small">
+          {# ── Identifikation ── #}
+          <div class="col-sm-3">
+            <div class="detail-label">Umfeld</div>
+            <div>{{ cb.umfeld or '–' }}</div>
+          </div>
+          <div class="col-sm-3">
+            <div class="detail-label">Bank-ID</div>
+            <div class="font-monospace">{{ cb.bank_id or '–' }}</div>
+          </div>
+          <div class="col-sm-3">
+            <div class="detail-label">Anwendung</div>
+            <div>{{ cb.anwendung or '–' }}</div>
+          </div>
+          <div class="col-sm-3">
+            <div class="detail-label">Package</div>
+            <div>{{ cb.package or '–' }}</div>
+          </div>
+
+          <div class="col-12">
+            <div class="detail-label">Suchpfad</div>
+            <div class="hash-mono small" title="{{ cb.suchpfad or '' }}">{{ cb.suchpfad or '–' }}</div>
+          </div>
+
+          <div class="col-sm-6">
+            <div class="detail-label">Eigentümer</div>
+            <div>{{ cb.eigentuemer or '–' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <div class="detail-label">Datum Berichtsabzug</div>
+            <div>{{ cb.datum_berichtsabzug|datefmt }}</div>
+          </div>
+
+          {% if cb.berichtsbeschreibung %}
+          <div class="col-12">
+            <div class="detail-label">Berichtsbeschreibung</div>
+            <div>{{ cb.berichtsbeschreibung }}</div>
+          </div>
+          {% endif %}
+
+          {# ── Zeiten ── #}
+          <div class="col-12"><hr class="my-1"></div>
+          <div class="col-sm-4">
+            <div class="detail-label">Erstelldatum</div>
+            <div>{{ cb.erstelldatum|datefmt }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Änderungsdatum</div>
+            <div>{{ cb.aenderungsdatum|datefmt }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="detail-label">Letzte Ausführung</div>
+            <div>
+              {{ cb.letztes_ausfuehrungsdatum|datefmt }}
+              {% if cb.letzter_ausfuehrungsstatus %}
+              <span class="badge bg-light text-dark border ms-1 fs-9">
+                {{ cb.letzter_ausfuehrungsstatus }}
+              </span>
+              {% endif %}
+            </div>
+          </div>
+
+          {# ── Kennzahlen aus dem Berichtsabzug ── #}
+          <div class="col-12"><hr class="my-1"></div>
+          <div class="col-sm-2">
+            <div class="detail-label">Abfragen</div>
+            <div class="detail-value">
+              {{ cb.anz_abfragen if cb.anz_abfragen is not none else '–' }}
+            </div>
+          </div>
+          <div class="col-sm-2">
+            <div class="detail-label">Datenelemente</div>
+            <div class="detail-value">
+              {{ cb.anz_datenelemente if cb.anz_datenelemente is not none else '–' }}
+            </div>
+          </div>
+          <div class="col-sm-2">
+            <div class="detail-label">Felder/Klarnamen</div>
+            <div class="detail-value">
+              {{ cb.anz_felder_klarnamen if cb.anz_felder_klarnamen is not none else '–' }}
+            </div>
+          </div>
+          <div class="col-sm-2">
+            <div class="detail-label">Filter</div>
+            <div class="detail-value">
+              {{ cb.anz_filter if cb.anz_filter is not none else '–' }}
+            </div>
+          </div>
+          <div class="col-sm-2">
+            <div class="detail-label">Σ Ausdruckslänge</div>
+            <div class="detail-value">
+              {{ cb.summe_ausdruckslaenge if cb.summe_ausdruckslaenge is not none else '–' }}
+            </div>
+          </div>
+          <div class="col-sm-2">
+            <div class="detail-label">Komplexität [0–10]</div>
+            <div class="detail-value">
+              {% if cb.komplexitaet is not none %}
+                {{ ('%.1f' % cb.komplexitaet)|replace('.', ',') }}
+              {% else %}–{% endif %}
+            </div>
+          </div>
+
+          {# ── Import-Metadaten ── #}
+          <div class="col-12"><hr class="my-1"></div>
+          <div class="col-sm-6">
+            <div class="detail-label">Importdatei</div>
+            <div class="text-muted small">{{ cb.import_datei_name or '–' }}</div>
+          </div>
+          <div class="col-sm-3">
+            <div class="detail-label">Importiert am</div>
+            <div class="text-muted small">{{ cb.importiert_am|datetimefmt }}</div>
+          </div>
+          <div class="col-sm-3">
+            <div class="detail-label">Importiert von</div>
+            <div class="text-muted small">{{ cb.importiert_von_name or '–' }}</div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% if not (file or extra_files) and idv.vorgaenger_idv_id %}
     <div class="form-section">
       <div class="form-section-title">

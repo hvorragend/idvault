@@ -690,6 +690,20 @@ def detail_idv(idv_db_id):
     except Exception:
         extra_files = []
 
+    # Verknüpfte Cognos-Berichte (Issue #456): Berichtsabzug-Daten
+    # (Suchpfad, Eigentümer, Kennzahlen, Komplexität …) im Detail anzeigen.
+    try:
+        cognos_berichte = db.execute("""
+            SELECT cb.*,
+                   p_imp.nachname || ', ' || p_imp.vorname AS importiert_von_name
+            FROM cognos_berichte cb
+            LEFT JOIN persons p_imp ON cb.importiert_von_id = p_imp.id
+            WHERE cb.idv_register_id = ?
+            ORDER BY cb.berichtsname
+        """, (idv_db_id,)).fetchall()
+    except Exception:
+        cognos_berichte = []
+
     _raw_history = db.execute("""
         SELECT h.*,
                COALESCE(p.nachname || ', ' || p.vorname, h.bearbeiter_name) AS person
@@ -881,7 +895,9 @@ def detail_idv(idv_db_id):
     )
 
     return render_template("eigenentwicklung/detail.html",
-        idv=idv, file=file, extra_files=extra_files, history=history, massnahmen=massnahmen,
+        idv=idv, file=file, extra_files=extra_files,
+        cognos_berichte=cognos_berichte,
+        history=history, massnahmen=massnahmen,
         wesentlichkeit=wesentlichkeit,
         vorgaenger=vorgaenger, nachfolger=nachfolger,
         freigaben=freigaben, ist_wesentlich=ist_wesentlich,
