@@ -46,6 +46,7 @@ from urllib.parse import urlparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from network_scanner import (
     analyze_ooxml,
+    lookup_analysis_cache,
     upsert_file,
     mark_deleted_files,
     setup_logging,
@@ -353,11 +354,17 @@ def _archive_deleted_item(
 def build_file_metadata(
     item: dict, drive_id: str, site_url: str,
     client: GraphClient, config: dict, logger: logging.Logger,
+    conn: Optional[sqlite3.Connection] = None,
 ) -> Optional[dict]:
     """
     Wandelt ein Graph-API-DriveItem in ein idv_files-kompatibles Metadaten-Dict um.
     Lädt die Datei bei Bedarf für OOXML-Analyse (Makros, Formeln, Blattschutz) herunter.
     Gibt None zurück, wenn die Datei keine konfigurierte Erweiterung hat.
+
+    Wenn ``conn`` übergeben wird und für den Graph-SHA-256 schon ein
+    analysierter Eintrag existiert (Network- oder Teams-Scan), entfällt
+    der Download komplett – die OOXML-Felder kommen aus dem Cache
+    (Issue #471).
     """
     name = item.get("name", "")
     ext  = Path(name).suffix.lower()
@@ -397,10 +404,24 @@ def build_file_metadata(
     file_hash    = sha256_from_graph or "HASH_ERROR"
     ooxml_result = {}
 
-    # OOXML-Analyse via Download (nur für Office-Dateien unterhalb des Größenlimits)
+    # Cache-Treffer? Dann Download komplett vermeiden – Datei ist
+    # byte-identisch zu einem bereits analysierten Eintrag.
+    cached = lookup_analysis_cache(conn, sha256_from_graph)
+    if cached is not None:
+        logger.debug(
+            f"Analyse-Cache-Treffer (Hash {file_hash[:12]}…), kein Download: {name}"
+        )
+        ooxml_result = {
+            k: cached[k] for k in cached
+            if not k.startswith("cognos_") and k != "ist_cognos_report"
+        }
+
+    # OOXML-Analyse via Download (nur für Office-Dateien unterhalb des Größenlimits
+    # und ohne Cache-Treffer)
     hash_limit_bytes = config.get("hash_size_limit_mb", 100) * 1024 * 1024
     if (
-        ext in OOXML_EXTENSIONS
+        cached is None
+        and ext in OOXML_EXTENSIONS
         and config.get("download_for_ooxml", True)
         and size_bytes <= hash_limit_bytes
         and item_id
@@ -540,7 +561,8 @@ def scan_drive(
 
             try:
                 meta = build_file_metadata(
-                    item, drive_id, site_url, client, config, logger
+                    item, drive_id, site_url, client, config, logger,
+                    conn=conn,
                 )
                 if meta is None:
                     continue
