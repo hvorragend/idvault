@@ -29,7 +29,18 @@ depends_on = None
 
 
 def _schema_sql_path() -> Path:
-    """Liefert den Pfad zu schema.sql – auch im PyInstaller-Bundle."""
+    """Liefert den Pfad zu schema.sql – auch im PyInstaller-Bundle.
+
+    Sidecar-Overlay hat Vorrang: liegt eine ``schema.sql`` im
+    ``updates/``-Verzeichnis neben der EXE bzw. neben ``run.py``,
+    wird sie statt der gebundelten Version verwendet. So kann eine
+    neue Schema-Definition ohne EXE-Rebuild ausgerollt werden.
+    """
+    base = (Path(sys.executable).parent if getattr(sys, "frozen", False)
+            else Path(__file__).resolve().parents[2])
+    overlay = base / "updates" / "schema.sql"
+    if overlay.is_file():
+        return overlay
     if hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS) / "schema.sql"
     # alembic/versions/<datei>.py → zwei Ebenen hoch zur Projektwurzel

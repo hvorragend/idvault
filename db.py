@@ -22,11 +22,26 @@ from db_pragmas import apply_pragmas
 from db_write_tx import write_tx
 
 
+import os as _os
+import logging as _logging
+
+
 def _resource_path(relative: str) -> Path:
     """Gibt den korrekten Pfad zurück – auch im PyInstaller-Bundle."""
     if hasattr(sys, '_MEIPASS'):
         return Path(sys._MEIPASS) / relative
     return Path(__file__).parent / relative
+
+
+def _updates_dir() -> Optional[Path]:
+    """Liefert das ``updates/``-Verzeichnis neben der EXE bzw. neben
+    ``run.py``, sofern vorhanden – sonst ``None``. Genutzt vom Sidecar-
+    Overlay fuer Migrations- und Schema-Updates ohne EXE-Rebuild.
+    """
+    base = (Path(sys.executable).parent if getattr(sys, 'frozen', False)
+            else Path(__file__).resolve().parent)
+    candidate = base / 'updates'
+    return candidate if candidate.is_dir() else None
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +74,24 @@ def _alembic_config(db_path: str):
     # nicht ``alembic/`` – der Projektroot steht beim direkten Start von
     # run.py in sys.path[0], ein gleichnamiger lokaler Ordner würde das
     # installierte alembic-Package überschatten.
-    cfg.set_main_option("script_location", str(_resource_path("migrations")))
+    bundled_migrations = _resource_path("migrations")
+    cfg.set_main_option("script_location", str(bundled_migrations))
+
+    # Sidecar-Versions-Overlay: zusaetzliche Migrationen, die nach dem
+    # EXE-Build veroeffentlicht werden, koennen unter
+    # ``updates/migrations/versions/`` abgelegt werden. Alembic merged
+    # sie in dieselbe lineare Historie, solange die Revision-IDs
+    # eindeutig sind und ``down_revision`` korrekt verlinkt.
+    locations = [str(bundled_migrations / "versions")]
+    upd = _updates_dir()
+    overlay_versions = (upd / "migrations" / "versions") if upd else None
+    if overlay_versions and overlay_versions.is_dir():
+        locations.append(str(overlay_versions))
+        _logging.getLogger(__name__).info(
+            "[alembic] Sidecar-Versionen aktiv: %s", overlay_versions
+        )
+    cfg.set_main_option("version_locations", _os.pathsep.join(locations))
+
     # SQLite-URL für den aktuellen DB-Pfad – der alembic.ini-Default
     # (instance/idvault.db) ist nur ein Platzhalter für Offline-Aufrufe.
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
