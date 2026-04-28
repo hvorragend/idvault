@@ -923,11 +923,12 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
     if not bericht_rows:
         return False
     if not _is_notify_enabled(db, "bewertung"):
+        log.warning("Bewertungsanforderung nicht gesendet: notify_enabled_bewertung ist deaktiviert.")
         return False
 
     eigentuemer = "–"
     for b in bericht_rows:
-        val = (b.get("eigentuemer") or "") if hasattr(b, "__getitem__") else ""
+        val = (b["eigentuemer"] or "") if hasattr(b, "__getitem__") else ""
         if val:
             eigentuemer = val
             break
@@ -949,7 +950,7 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
 
         link_td = ""
         if with_links and bericht_id:
-            link = f"{base_url}/cognos/"
+            link = f"{base_url}/cognos/?highlight={bericht_id}"
             link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In idvault öffnen</a></td>'
 
         rows_html += f"""

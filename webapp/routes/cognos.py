@@ -3,6 +3,7 @@
 import calendar
 import io
 import os
+import re
 import sys
 from datetime import datetime, date, timezone
 
@@ -216,6 +217,62 @@ def _parse_file(file_bytes: bytes, filename: str) -> tuple:
 
 
 # ---------------------------------------------------------------------------
+# Eigentümer-Auflösung
+# ---------------------------------------------------------------------------
+
+def _resolve_person_by_eigentuemer(db, eigentuemer: str):
+    """Sucht eine Person in ``persons`` zu einem Cognos-``Eigentümer``-Wert.
+
+    Cognos-Exporte liefern „Eigentümer" in unterschiedlichen Schreibweisen
+    (``DOMAIN\\login``, reines ``login``, ``Lastname, Firstname``,
+    ``Firstname Lastname``, ``Lastname, Firstname (login)``,
+    ``login (Firstname Lastname)`` …). Die Funktion bildet daraus eine Menge
+    plausibler Login-/Namenskandidaten und vergleicht case-insensitiv gegen
+    ``user_id``, ``ad_name`` und Namens-Permutationen.
+
+    Liefert ein ``sqlite3.Row`` mit ``id, user_id, vorname, nachname, email``
+    oder ``None``.
+    """
+    if not eigentuemer:
+        return None
+    raw = eigentuemer.strip()
+    if not raw:
+        return None
+
+    candidates: set[str] = {raw}
+    if "\\" in raw:
+        candidates.add(raw.split("\\")[-1].strip())
+
+    m = re.search(r"\(([^()]+)\)", raw)
+    if m:
+        inner = m.group(1).strip()
+        outer = (raw[:m.start()] + raw[m.end():]).strip()
+        if inner:
+            candidates.add(inner)
+        if outer:
+            candidates.add(outer)
+
+    candidates = {c for c in candidates if c}
+    if not candidates:
+        return None
+
+    placeholders = ",".join("?" * len(candidates))
+    cand_list = list(candidates)
+    sql = f"""
+        SELECT id, user_id, vorname, nachname, email FROM persons
+        WHERE aktiv=1 AND (
+            user_id COLLATE NOCASE IN ({placeholders})
+            OR ad_name COLLATE NOCASE IN ({placeholders})
+            OR (vorname || ' ' || nachname) COLLATE NOCASE IN ({placeholders})
+            OR (nachname || ', ' || vorname) COLLATE NOCASE IN ({placeholders})
+            OR (nachname || ' ' || vorname) COLLATE NOCASE IN ({placeholders})
+        )
+        LIMIT 1
+    """
+    return db.execute(sql, cand_list * 5).fetchone()
+
+
+# ---------------------------------------------------------------------------
 # Routen
 # ---------------------------------------------------------------------------
 
@@ -250,6 +307,12 @@ def list_berichte():
     q                 = request.args.get("q",             "").strip()
     sort              = request.args.get("sort",  "berichtsname").strip()
     order             = request.args.get("order", "asc").strip()
+
+    highlight_raw = request.args.get("highlight", "").strip()
+    try:
+        highlight_id = int(highlight_raw) if highlight_raw else None
+    except ValueError:
+        highlight_id = None
 
     try:
         page = max(1, int(request.args.get("page", 1) or 1))
@@ -317,6 +380,18 @@ def list_berichte():
         params + [per_page, offset]
     ).fetchall()
 
+    # Wenn highlight gesetzt und Bericht nicht auf aktueller Seite: zur richtigen Seite weiterleiten
+    if highlight_id and not any(b["id"] == highlight_id for b in berichte):
+        all_ids = [r[0] for r in db.execute(
+            f"SELECT cb.id FROM cognos_berichte cb {where_sql} ORDER BY {sort_col} {sort_dir}",
+            params
+        ).fetchall()]
+        if highlight_id in all_ids:
+            target_page = all_ids.index(highlight_id) // per_page + 1
+            args = request.args.to_dict()
+            args["page"] = str(target_page)
+            return redirect(url_for("cognos.list_berichte", **args))
+
     total_pages = max(1, (total + per_page - 1) // per_page)
 
     stats = db.execute("""
@@ -354,21 +429,11 @@ def list_berichte():
         if len(parts) > 1:
             common_prefix = parts[0]
 
-    # Eigentuemer → Person-Lookup (user_id, ad_name, oder "vorname nachname")
+    # Eigentuemer → Person-Lookup (siehe _resolve_person_by_eigentuemer)
     eigentuemer_vals = {b["eigentuemer"] for b in berichte if b["eigentuemer"]}
     eigentuemer_map: dict[str, str] = {}
     for ev in eigentuemer_vals:
-        ad_login = ev.split("\\")[-1] if "\\" in ev else ev
-        row = db.execute(
-            """SELECT vorname, nachname, user_id FROM persons
-               WHERE aktiv=1 AND (
-                   user_id=? OR ad_name=?
-                   OR (vorname || ' ' || nachname)=?
-                   OR (nachname || ', ' || vorname)=?
-                   OR (nachname || ' ' || vorname)=?
-               ) LIMIT 1""",
-            (ad_login, ad_login, ev, ev, ev)
-        ).fetchone()
+        row = _resolve_person_by_eigentuemer(db, ev)
         if row:
             eigentuemer_map[ev] = f"{row['nachname']}, {row['vorname']} ({row['user_id']})"
 
@@ -392,6 +457,7 @@ def list_berichte():
         persons=persons,
         eigentuemer_map=eigentuemer_map,
         common_prefix=common_prefix,
+        highlight_id=highlight_id,
     )
 
 
@@ -547,20 +613,9 @@ def als_idv_registrieren(bericht_id: int):
 
     # Eigentümer als Entwickler vorbelegen
     entwickler_id = None
-    eigentuemer = bericht["eigentuemer"] or ""
-    if eigentuemer:
-        ad_login = eigentuemer.split("\\")[-1] if "\\" in eigentuemer else eigentuemer
-        dev_row = db.execute(
-            """SELECT id FROM persons WHERE aktiv=1 AND (
-                user_id=? OR ad_name=?
-                OR (vorname || ' ' || nachname)=?
-                OR (nachname || ', ' || vorname)=?
-                OR (nachname || ' ' || vorname)=?
-            ) LIMIT 1""",
-            (ad_login, ad_login, eigentuemer, eigentuemer, eigentuemer)
-        ).fetchone()
-        if dev_row:
-            entwickler_id = dev_row["id"]
+    dev_row = _resolve_person_by_eigentuemer(db, bericht["eigentuemer"] or "")
+    if dev_row:
+        entwickler_id = dev_row["id"]
 
     insert_params = (
         idv_id,
@@ -849,16 +904,8 @@ def bulk_aktion():
         grouped: dict[str, list] = {}
         kein_empfaenger = 0
         for bericht in berichte:
-            owner = bericht["eigentuemer"] or ""
-            email = None
-            if owner:
-                ad_login = owner.split("\\")[-1] if "\\" in owner else owner
-                person = db.execute(
-                    "SELECT email FROM persons WHERE (user_id=? OR ad_name=?) AND aktiv=1 AND email IS NOT NULL",
-                    (ad_login, ad_login)
-                ).fetchone()
-                if person:
-                    email = person["email"]
+            person = _resolve_person_by_eigentuemer(db, bericht["eigentuemer"] or "")
+            email = person["email"] if person and person["email"] else None
             if not email:
                 kein_empfaenger += 1
                 continue
@@ -874,6 +921,9 @@ def bulk_aktion():
                 else:
                     fehler += 1
             except Exception:
+                current_app.logger.exception(
+                    "Cognos-Bewertungsanforderung an %s fehlgeschlagen", email
+                )
                 fehler += 1
 
         msg_parts = []
