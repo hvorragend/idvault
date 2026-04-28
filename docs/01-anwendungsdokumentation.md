@@ -39,10 +39,10 @@ verbundenen IKT-Abhängigkeiten ab.
 
 ### 3.1 Rollen
 
-idvault kennt sechs Rollen. Die Rollenzuweisung erfolgt entweder manuell
+idvault kennt fünf Rollen. Die Rollenzuweisung erfolgt entweder manuell
 durch den IDV-Administrator oder automatisiert über das
-LDAP-Gruppen-Rollen-Mapping. Jede Person erhält **genau eine** Rolle; die
-IDV-spezifische Zuweisung als Entwickler, Fachverantwortlicher,
+LDAP-Gruppen-Rollen-Mapping. Jede Person erhält **maximal eine** Rolle;
+die IDV-spezifische Zuweisung als Entwickler, Fachverantwortlicher,
 Koordinator oder Stellvertreter erfolgt zusätzlich pro IDV im
 Erfassungsformular (siehe 3.3).
 
@@ -51,14 +51,21 @@ Erfassungsformular (siehe 3.3).
 | **IDV-Administrator** | Systemadministration | Vollzugriff, alle Module |
 | **IDV-Koordinator** | Zentrale Registerführung | Schreibzugriff auf alle IDVs |
 | **Fachverantwortlicher** | Pflege eigener IDVs | Schreibzugriff auf IDVs, bei denen die Person als Fachverantwortlicher, Entwickler, Koordinator oder Stellvertreter eingetragen ist |
-| **IDV-Entwickler** | Technische Umsetzung einer IDV | Wie Fachverantwortlicher, jedoch im Freigabeverfahren der betroffenen IDV von Abschluss-/Ablehnungshandlungen ausgeschlossen (Funktionstrennung, siehe 3.4) |
 | **Revision** | Prüferischer Lese-Zugriff | Lesezugriff auf alle IDVs |
 | **IT-Sicherheit** | IT-Risikobewertung | Lesezugriff auf alle IDVs |
 
-> Hinweis: Die Rolle `IDV-Entwickler` (als Session-Rolle) existiert zusätzlich
-> zur IDV-bezogenen Zuweisung `idv_entwickler_id`. Die Funktionstrennung
-> (3.4) wertet ausschließlich `idv_entwickler_id` auf dem betroffenen IDV
-> aus, nicht die Session-Rolle.
+Eine Anmelde-Rolle ist nicht zwingend. Jeder erfolgreich
+authentifizierte AD-Benutzer (oder lokale Account ohne Rolle) darf
+eigene Erfassungen anlegen und sieht nur die IDVs, an denen er als
+Fachverantwortlicher, Entwickler, Koordinator oder Stellvertreter
+eingetragen ist — analog zum „Fachverantwortlicher" in der obigen
+Tabelle. Wer den Schreibzugriff auf alle IDVs braucht, bekommt
+explizit die Rolle `IDV-Koordinator` oder `IDV-Administrator`.
+
+> Hinweis: Die Funktionstrennung (3.4) wertet ausschließlich
+> `idv_entwickler_id` auf dem betroffenen IDV aus, nie eine Session-
+> Rolle. „Entwickler einer IDV" bezeichnet im Folgenden immer die
+> Person, die in `idv_register.idv_entwickler_id` eingetragen ist.
 
 ### 3.2 Berechtigungsmatrix
 
@@ -68,54 +75,59 @@ Stellvertreter eingetragen ist · (zugewiesen) = nur für die im
 Freigabeschritt zugewiesene Person, deren aktiven Stellvertreter oder
 Mitglieder des zugewiesenen Pools (Admin jederzeit).
 
-| Funktion | Admin | Koordinator | Fachverantw. | Entwickler | Revision | IT-Sicherheit |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| Dashboard anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| IDV-Liste anzeigen (alle IDVs) | ✓ | ✓ | — | — | ✓ | ✓ |
-| IDV-Liste anzeigen (eigene IDVs) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| IDV-Detail anzeigen | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | ✓ | ✓ |
-| IDV anlegen | ✓ | ✓ | ✓ | ✓ | — | — |
-| IDV bearbeiten | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
-| Neue IDV-Version anlegen | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
-| IDV-Status ändern (Entwurf → In Prüfung → Genehmigt) | ✓ | ✓ | — | — | — | — |
-| Teststatus ändern | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
-| Bulk-Status ändern | ✓ | ✓ | — | — | — | — |
-| IDV löschen (Bulk) | ✓ | — | — | — | — | — |
-| Prüfungen anlegen | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
-| Prüfungen bearbeiten / löschen | ✓ | — | — | — | — | — |
-| Prüfungen anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Maßnahmen anlegen / als erledigt markieren | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
-| Maßnahmen bearbeiten / löschen | ✓ | — | — | — | — | — |
-| Maßnahmen anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Testfälle / Technische Tests anlegen/bearbeiten | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
-| Freigabeverfahren Phase 1 starten | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
-| Freigabeverfahren Phase 2 starten | ✓ | ✓ | ✓ (eigene) | ✓ (eigene) | — | — |
-| Freigabe-Schritt abschließen / ablehnen | ✓ | ✓ (zugewiesen) | ✓ (zugewiesen) | ✓ (zugewiesen, nicht als Entwickler der IDV) | — | — |
-| Archivierungs-Schritt (Phase 3) durchführen | ✓ | ✓ (zugewiesen) | ✓ (zugewiesen) | ✓ (zugewiesen, nicht als Entwickler der IDV) | — | — |
-| Freigabe-Schritt wieder öffnen | ✓ | — | — | — | — | — |
-| Freigabeverfahren abbrechen | ✓ | — | — | — | — | — |
-| Scanner-Funde anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Scanner-Funde zuordnen (Quick-Assign / Bulk) | ✓ | ✓ | ✓ | ✓ | — | — |
-| Scanner-Funde ignorieren / reaktivieren | ✓ | ✓ | — | — | — | — |
-| Scanner-Funde löschen | ✓ | — | — | — | — | — |
-| Scan starten | ✓ | — | — | — | — | — |
-| IDV aus Scannerfund registrieren | ✓ | ✓ | — | — | — | — |
-| Cognos-Berichte importieren / als IDV registrieren | ✓ | ✓ | — | — | — | — |
-| Excel-Export | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Administration (Stammdaten anlegen/bearbeiten) | ✓ | — | — | — | — | — |
-| Stammdaten löschen | ✓ | — | — | — | — | — |
-| Freigabe-Pools verwalten | ✓ | — | — | — | — | — |
-| E-Mail-Einstellungen (SMTP) | ✓ | — | — | — | — | — |
-| Mitarbeiter-Import (CSV / LDAP) | ✓ | — | — | — | — | — |
-| LDAP konfigurieren / Gruppen-Mapping | ✓ | — | — | — | — | — |
-| Software-Update einspielen | ✓ | — | — | — | — | — |
-| Notfall-Zugang aktivieren | ✓ | — | — | — | — | — |
+Spalte „Eingeloggt" steht für jeden authentifizierten Benutzer ohne
+spezielle Rolle (oder mit der Rolle `Fachverantwortlicher`). Der
+Schreibzugriff ist in jedem Fall durch die Beteiligung am IDV
+ownership-geprüft (siehe 3.3).
+
+| Funktion | Admin | Koordinator | Eingeloggt | Revision | IT-Sicherheit |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Dashboard anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ |
+| IDV-Liste anzeigen (alle IDVs) | ✓ | ✓ | — | ✓ | ✓ |
+| IDV-Liste anzeigen (eigene IDVs) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| IDV-Detail anzeigen | ✓ | ✓ | ✓ (eigene) | ✓ | ✓ |
+| IDV anlegen | ✓ | ✓ | ✓ | — | — |
+| IDV bearbeiten | ✓ | ✓ | ✓ (eigene) | — | — |
+| Neue IDV-Version anlegen | ✓ | ✓ | ✓ (eigene) | — | — |
+| IDV-Status ändern (Entwurf → In Prüfung → Genehmigt) | ✓ | ✓ | — | — | — |
+| Teststatus ändern | ✓ | ✓ | ✓ (eigene) | — | — |
+| Bulk-Status ändern | ✓ | ✓ | — | — | — |
+| IDV löschen (Bulk) | ✓ | — | — | — | — |
+| Prüfungen anlegen | ✓ | ✓ | ✓ (eigene) | — | — |
+| Prüfungen bearbeiten / löschen | ✓ | — | — | — | — |
+| Prüfungen anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Maßnahmen anlegen / als erledigt markieren | ✓ | ✓ | ✓ (eigene) | — | — |
+| Maßnahmen bearbeiten / löschen | ✓ | — | — | — | — |
+| Maßnahmen anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Testfälle / Technische Tests anlegen/bearbeiten | ✓ | ✓ | ✓ (eigene) | — | — |
+| Freigabeverfahren Phase 1 starten | ✓ | ✓ | ✓ (eigene) | — | — |
+| Freigabeverfahren Phase 2 starten | ✓ | ✓ | ✓ (eigene) | — | — |
+| Freigabe-Schritt abschließen / ablehnen | ✓ | ✓ (zugewiesen) | ✓ (zugewiesen, nicht als Entwickler der IDV) | — | — |
+| Archivierungs-Schritt (Phase 3) durchführen | ✓ | ✓ (zugewiesen) | ✓ (zugewiesen, nicht als Entwickler der IDV) | — | — |
+| Freigabe-Schritt wieder öffnen | ✓ | — | — | — | — |
+| Freigabeverfahren abbrechen | ✓ | — | — | — | — |
+| Scanner-Funde anzeigen | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Scanner-Funde zuordnen (Quick-Assign / Bulk) | ✓ | ✓ | ✓ | — | — |
+| Scanner-Funde ignorieren / reaktivieren | ✓ | ✓ | — | — | — |
+| Scanner-Funde löschen | ✓ | — | — | — | — |
+| Scan starten | ✓ | — | — | — | — |
+| IDV aus Scannerfund registrieren | ✓ | ✓ | — | — | — |
+| Cognos-Berichte importieren / als IDV registrieren | ✓ | ✓ | — | — | — |
+| Excel-Export | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Administration (Stammdaten anlegen/bearbeiten) | ✓ | — | — | — | — |
+| Stammdaten löschen | ✓ | — | — | — | — |
+| Freigabe-Pools verwalten | ✓ | — | — | — | — |
+| E-Mail-Einstellungen (SMTP) | ✓ | — | — | — | — |
+| Mitarbeiter-Import (CSV / LDAP) | ✓ | — | — | — | — |
+| LDAP konfigurieren / Gruppen-Mapping | ✓ | — | — | — | — |
+| Software-Update einspielen | ✓ | — | — | — | — |
+| Notfall-Zugang aktivieren | ✓ | — | — | — | — |
 
 Durchgesetzt wird die Matrix durch die Decorator-Funktionen
 `login_required`, `admin_required`, `write_access_required` (nur Admin +
-Koordinator) und `own_write_required` (Admin, Koordinator,
-Fachverantwortlicher, Entwickler) in `webapp/routes/__init__.py` sowie die
-Row-Level-Guards `user_can_read_idv` / `user_can_write_idv` in
+Koordinator) und `own_write_required` (jeder eingeloggte Benutzer mit
+Person-Binding) in `webapp/routes/__init__.py` sowie die Row-Level-
+Guards `user_can_read_idv` / `user_can_write_idv` in
 `webapp/security.py`.
 
 ### 3.3 Sichtbarkeit von IDVs und Schreibzugriff (Row-Level Security)
@@ -127,7 +139,8 @@ Row-Level-Guards `user_can_read_idv` / `user_can_write_idv` in
 Admin · Koordinator · Revision · IT-Sicherheit
     → sehen ALLE IDVs des Registers
 
-Fachverantwortlicher · IDV-Entwickler
+Alle anderen eingeloggten Benutzer (Fachverantwortlicher
+oder Anmelde-Konto ohne Rolle)
     → sehen nur IDVs, bei denen die eigene Person-ID in mindestens
       einem der folgenden Felder eingetragen ist:
           fachverantwortlicher_id
@@ -145,7 +158,7 @@ Der Listen-Filter wird in `webapp/routes/eigenentwicklung.py`
 ```
 Admin · Koordinator                                → dürfen jede IDV bearbeiten
 
-Fachverantwortlicher · IDV-Entwickler              → dürfen nur IDVs bearbeiten,
+Alle anderen eingeloggten Benutzer                 → dürfen nur IDVs bearbeiten,
                                                      bei denen die eigene Person-ID
                                                      in mindestens einem der Felder
                                                      steht:
@@ -173,7 +186,7 @@ oder abgelehnt werden:
 ### 3.4 Funktionstrennung (Segregation of Duties)
 
 Im Test- und Freigabeverfahren (Phasen 1–3) darf eine Person, die auf der
-betroffenen IDV als **IDV-Entwickler** (`idv_entwickler_id`) eingetragen
+betroffenen IDV als **Entwickler** (`idv_entwickler_id`) eingetragen
 ist, keinen Freigabeschritt abschließen oder ablehnen (Vier-Augen-Prinzip).
 Die Prüfung erfolgt vor jedem Abschluss in
 `webapp/routes/freigaben.py:_funktionstrennung_ok()`. Der Schutz greift
@@ -680,7 +693,7 @@ werden aus der Personen-Tabelle abgeleitet.
 | Neue Datei im Scanner erkannt | IDV-Koordinatoren und Administratoren |
 | Prüfung überfällig | Fachverantwortlicher der IDV |
 | Maßnahme überfällig | Verantwortlicher der Maßnahme |
-| Freigabeverfahren gestartet (Phase 1/2) | Zugewiesene Prüfer + Koordinatoren; bei Pool-Zuweisung zusätzlich alle aktiven Pool-Mitglieder (außer IDV-Entwickler) |
+| Freigabeverfahren gestartet (Phase 1/2) | Zugewiesene Prüfer + Koordinatoren; bei Pool-Zuweisung zusätzlich alle aktiven Pool-Mitglieder (außer dem Entwickler der IDV) |
 | Pool-Schritt wartet auf Claim (täglich) | Aktive Pool-Mitglieder des zugewiesenen Pools, solange kein Claim gesetzt ist und der Schritt nicht älter als `notify_pool_reminder_max_days` Tage ist (Default 14) |
 | Freigabeverfahren vollständig bestanden | Koordinatoren, Administratoren, Entwickler |
 | Datei-Bewertung | Verantwortlicher |

@@ -240,9 +240,9 @@ def user_can_read_idv(db, idv_db_id: int) -> bool:
 
     * Admins, Koordinatoren, Revision, IT-Sicherheit
       (``_READ_ALL_ROLES``): Lesezugriff auf alle IDVs.
-    * Fachverantwortliche und IDV-Entwickler: nur auf IDVs, bei denen
-      die Person als Fachverantwortlicher, Entwickler, Koordinator
-      oder Stellvertreter eingetragen ist.
+    * Alle anderen (Fachverantwortliche, eingeloggte AD-User ohne
+      Rolle): nur auf IDVs, bei denen die Person als Fachverantwortlicher,
+      Entwickler, Koordinator oder Stellvertreter eingetragen ist.
     """
     from flask import session
     from .routes import can_read_all, current_person_id
@@ -264,8 +264,8 @@ def user_can_write_idv(db, idv_db_id: int) -> bool:
     """Darf der aktuelle Benutzer das IDV schreiben?
 
     * Admin / Koordinator: immer.
-    * Fachverantwortlicher / Entwickler: nur, wenn als Beteiligter
-      (Fachverantwortlicher, Entwickler, Koordinator, Stellvertreter) geführt.
+    * Alle anderen: nur, wenn als Beteiligter (Fachverantwortlicher,
+      Entwickler, Koordinator, Stellvertreter) geführt.
     """
     from .routes import can_write, can_create, current_person_id
 

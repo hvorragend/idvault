@@ -97,7 +97,7 @@ def _check_config_user(username: str, password: str):
     return {
         "user_id":   username,
         "user_name": user.get("name") or username,
-        "user_role": user.get("role") or "Fachverantwortlicher",
+        "user_role": user.get("role") or "",
         "person_id": user.get("person_id"),
     }
 
@@ -141,7 +141,7 @@ def _do_local_login(db, username: str, password: str):
                 return {
                     "user_id":   username,
                     "user_name": f"{row['vorname']} {row['nachname']}".strip() or username,
-                    "user_role": row["rolle"] or "Fachverantwortlicher",
+                    "user_role": row["rolle"] or "",
                     "person_id": row["id"],
                 }
         except sqlite3.DatabaseError as e:
@@ -185,28 +185,20 @@ def login():
                     secret_key  = current_app.config.get("SECRET_KEY", "")
                     person_data = ldap_authenticate(db, username, password, secret_key)
                     if person_data is not None:
-                        if person_data.get("rolle") is None:
-                            log_attempt(username, ip, "LDAP", False,
-                                        "Authentifizierung OK – keine idvault-Berechtigung zugewiesen")
-                            flash(
-                                "Anmeldung erfolgreich, aber Ihr AD-Konto hat noch keine "
-                                "idvault-Berechtigung. Bitte wenden Sie sich an den Administrator.",
-                                "error",
-                            )
-                            return render_template("auth/login.html", ldap_active=True)
                         person_id = ldap_sync_person(db, person_data)
                         db_person = db.execute(
                             "SELECT user_id FROM persons WHERE id = ?", (person_id,)
                         ).fetchone()
                         uid = db_person["user_id"] if db_person and db_person["user_id"] else username
+                        rolle = person_data.get("rolle") or ""
                         session.clear()
                         session["user_id"]   = uid
                         session["user_name"] = f"{person_data['vorname']} {person_data['nachname']}".strip() or username
-                        session["user_role"] = person_data["rolle"]
+                        session["user_role"] = rolle
                         session["person_id"] = person_id
                         session["ldap_auth"] = True
                         log_attempt(username, ip, "LDAP", True,
-                                    f"Rolle: {person_data['rolle']}  User-ID: {uid}")
+                                    f"Rolle: {rolle or '(ohne)'}  User-ID: {uid}")
                         _next = _safe_next(session.pop("_quick_next", None))
                         return redirect(_next or url_for("dashboard.index"))
                     # LDAP aktiv, aber Credentials passen nicht → lokalen Login versuchen

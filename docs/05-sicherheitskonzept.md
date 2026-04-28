@@ -59,8 +59,8 @@ idvault kennt drei Authentifizierungspfade:
 |---|---|---|---|
 | IDV-Administrator | alle IDVs | alle IDVs | alle |
 | IDV-Koordinator | alle IDVs | alle IDVs | Stammdaten (außer Löschen), Scanner-Funde ignorieren/reaktivieren |
-| Fachverantwortlicher | IDVs mit eigener Beteiligung (FV, Entwickler, Koordinator oder Stellvertreter) | alle IDVs | — |
-| IDV-Entwickler | IDVs mit eigener Beteiligung (wie Fachverantwortlicher); im Freigabeverfahren der betroffenen IDV von Abschluss-/Ablehnungshandlungen ausgeschlossen | alle IDVs | — |
+| Fachverantwortlicher | IDVs mit eigener Beteiligung (FV, Entwickler, Koordinator oder Stellvertreter) | IDVs mit eigener Beteiligung | — |
+| _ohne Rolle (eingeloggter AD-User)_ | wie Fachverantwortlicher | wie Fachverantwortlicher | — |
 | Revision | — | alle IDVs | — |
 | IT-Sicherheit | — | alle IDVs | — |
 
@@ -73,7 +73,7 @@ Die vollständige Funktions-/Rollen-Matrix findet sich in
 
 ### 2.3 Funktionstrennung
 
-Als **IDV-Entwickler** eingetragene Personen (`idv_register.idv_entwickler_id`)
+Als **Entwickler einer IDV** eingetragene Personen (`idv_register.idv_entwickler_id`)
 dürfen auf der betroffenen IDV keine Freigabeschritte abschließen oder
 ablehnen (4-Augen-Prinzip). Implementiert in
 `webapp/routes/freigaben.py::_funktionstrennung_ok` und bei jedem

@@ -217,14 +217,19 @@ def list_idv():
 
     # Rollenbasierte Sichtbarkeit
     person_id = current_person_id()
-    if not can_read_all() and person_id:
-        where_parts.append("""(
-            r.fachverantwortlicher_id = ?
-            OR r.idv_entwickler_id   = ?
-            OR r.idv_koordinator_id  = ?
-            OR r.stellvertreter_id   = ?
-        )""")
-        params += [person_id, person_id, person_id, person_id]
+    if not can_read_all():
+        if person_id:
+            where_parts.append("""(
+                r.fachverantwortlicher_id = ?
+                OR r.idv_entwickler_id   = ?
+                OR r.idv_koordinator_id  = ?
+                OR r.stellvertreter_id   = ?
+            )""")
+            params += [person_id, person_id, person_id, person_id]
+        else:
+            # Kein Person-Binding und keine Read-All-Rolle → keine Treffer.
+            # Verhindert, dass Sonder-Konten ohne persons-Zeile alle IDVs sehen.
+            where_parts.append("0")
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
@@ -289,6 +294,7 @@ def list_idv():
     from . import ROLE_ADMIN
     is_admin = (session.get("user_role") == ROLE_ADMIN)
     return render_template("eigenentwicklung/list.html", idvs=idvs, can_write=can_write(),
+                           can_create=can_create(),
                            is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
                            share_roots=share_roots,
@@ -376,14 +382,17 @@ def wesentliche_idvs():
         params.append(entwicklungsart)
 
     person_id = current_person_id()
-    if not can_read_all() and person_id:
-        where_parts.append("""(
-            r.fachverantwortlicher_id = ?
-            OR r.idv_entwickler_id   = ?
-            OR r.idv_koordinator_id  = ?
-            OR r.stellvertreter_id   = ?
-        )""")
-        params += [person_id, person_id, person_id, person_id]
+    if not can_read_all():
+        if person_id:
+            where_parts.append("""(
+                r.fachverantwortlicher_id = ?
+                OR r.idv_entwickler_id   = ?
+                OR r.idv_koordinator_id  = ?
+                OR r.stellvertreter_id   = ?
+            )""")
+            params += [person_id, person_id, person_id, person_id]
+        else:
+            where_parts.append("0")
 
     where_sql = "WHERE " + " AND ".join(where_parts)
 
@@ -446,6 +455,7 @@ def wesentliche_idvs():
     from . import ROLE_ADMIN
     is_admin = (session.get("user_role") == ROLE_ADMIN)
     return render_template("eigenentwicklung/list.html", idvs=idvs, can_write=can_write(),
+                           can_create=can_create(),
                            is_admin=is_admin,
                            org_units=org_units, persons_fv=persons_fv,
                            share_roots=share_roots,
@@ -984,6 +994,11 @@ def new_idv():
             data["file_id"] = file_id
         person_id  = session.get("person_id")
         user_name  = session.get("user_name", "")
+        # Ohne Entwickler-Eintrag würde der Ersteller nach dem Speichern den
+        # Schreibzugriff verlieren (Ownership-Check in security.py). Daher als
+        # Fallback den eingeloggten User als Entwickler eintragen.
+        if not data.get("idv_entwickler_id") and person_id:
+            data["idv_entwickler_id"] = person_id
         try:
             antworten = _build_wesentlichkeit_answers(db, request.form)
             extra_raw = request.form.get("extra_file_ids", "")
@@ -1138,6 +1153,14 @@ def new_idv():
                 extra_fonds = list(extra_fonds) + list(siblings)
                 prefill["extra_file_ids"] = ",".join(str(s["id"]) for s in siblings)
 
+    # Entwickler-Default: wenn keiner aus dem Scanner-Owner ableitbar ist,
+    # den eingeloggten User vorbelegen — er behält damit Schreibrechte
+    # (Ownership-Check in security.py).
+    if not prefill.get("idv_entwickler_id"):
+        my_pid = current_person_id()
+        if my_pid:
+            prefill["idv_entwickler_id"] = my_pid
+
     # OE-Default vorschlagen: Entwickler-OE (aus Stammdaten) bevorzugen,
     # ansonsten OE des eingeloggten Benutzers (U-C3-Fallback).
     if not prefill.get("org_unit_id"):
@@ -1190,10 +1213,15 @@ def new_idv_quick():
             flash("Bitte Bezeichnung und Verantwortlichen angeben.", "error")
             return redirect(url_for("eigenentwicklung.new_idv_quick"))
 
+        person_id = session.get("person_id")
+        user_name = session.get("user_name", "")
         data = {
             "bezeichnung":             bezeichnung,
             "fachverantwortlicher_id": fv_id,
             "idv_typ":                 idv_typ,
+            # Ersteller ist Entwickler, sonst greift der Ownership-Check beim
+            # späteren Edit nicht.
+            "idv_entwickler_id":       person_id,
             # Sinnvolle Defaults für die Zwei-Phasen-Anlage; Entwicklungsart
             # und Prüfintervall werden aus dem Typ-Default übernommen, falls
             # vorhanden, sonst greifen die Fallbacks in create_idv().
@@ -1204,8 +1232,6 @@ def new_idv_quick():
                 idv_typ, {}
             ).get("pruefintervall_monate", 12),
         }
-        person_id = session.get("person_id")
-        user_name = session.get("user_name", "")
 
         def _do(c):
             with write_tx(c):
@@ -1287,7 +1313,9 @@ def bulk_neu():
                 "file_id":           fid,
                 "bezeichnung":       bez,
                 "idv_typ":           typ,
-                "idv_entwickler_id": entw,
+                # Fallback: Ersteller wird Entwickler, falls in der Zeile
+                # nichts ausgewählt — sonst greift der Ownership-Check nicht.
+                "idv_entwickler_id": entw or person_id,
             })
 
         created = []

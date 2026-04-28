@@ -10,7 +10,7 @@ from . import bp, _upload_rate_limit, _hash_pw, _now, _KLASSIFIZIERUNGS_BEREICHE
 from .. import (
     login_required, admin_required, get_db,
     ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC,
-    ROLE_FACHVERW, ROLE_ENTWICKLER,
+    ROLE_FACHVERW,
 )
 from ...security import in_clause
 from ...db_writer import get_writer
@@ -24,7 +24,7 @@ from db_write_tx import write_tx
 # in die DB gelangen. Leerer Wert ist zulässig (Person ohne Anmelderolle).
 _ALLOWED_PERSON_ROLES = frozenset({
     ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC,
-    ROLE_FACHVERW, ROLE_ENTWICKLER,
+    ROLE_FACHVERW,
 })
 
 

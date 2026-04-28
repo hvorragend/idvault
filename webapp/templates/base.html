@@ -30,7 +30,9 @@
   {% set _role = session.get('user_role', '') %}
   {% set _is_admin = _role == 'IDV-Administrator' %}
   {% set _is_koord = _role == 'IDV-Koordinator' %}
-  {% set _can_create = _role in ('IDV-Administrator','IDV-Koordinator','Fachverantwortlicher') %}
+  {# Anlegen darf jeder eingeloggte User mit Person-Binding — Rolle ist
+     nicht relevant. Edit ist zusätzlich durch Ownership-Check geschützt. #}
+  {% set _can_create = session.get('user_id') and session.get('person_id') %}
   <nav id="sidebar">
     <a href="{{ url_for('dashboard.index') }}" class="brand">idv<span>ault</span></a>
 

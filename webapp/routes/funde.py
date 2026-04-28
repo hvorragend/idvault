@@ -2013,7 +2013,7 @@ def notify_file(file_id):
         r["email"] for r in db.execute("""
             SELECT email FROM persons
             WHERE aktiv=1 AND email IS NOT NULL
-              AND rolle IN ('IDV-Koordinator','IDV-Administrator','IDV-Entwickler')
+              AND rolle IN ('IDV-Koordinator','IDV-Administrator')
         """).fetchall()
         if r["email"]
     ]

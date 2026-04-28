@@ -41,6 +41,14 @@ class NormalizeRolleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._fn("idv-administrator")  # case-sensitive
 
+    def test_idv_entwickler_no_longer_a_role(self):
+        # Die alte Anmelde-Rolle ist entfernt; wer als idv_entwickler_id
+        # eingetragen ist, behält Beteiligten-Rechte über den Ownership-
+        # Check und braucht keine separate Rolle mehr.
+        self.assertNotIn("IDV-Entwickler", self._allowed)
+        with self.assertRaises(ValueError):
+            self._fn("IDV-Entwickler")
+
 
 class PathWithinScanRootsTests(unittest.TestCase):
     """#398 – Nachweis-Download: Scan-Root-Whitelist."""

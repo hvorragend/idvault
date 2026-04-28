@@ -2342,7 +2342,7 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
 
     ``pool_map`` ordnet jedem Schritt eine pool_id (oder None) zu. Ist ein
     Schritt einem Pool mit ≥ 1 aktiven Mitgliedern zugewiesen, werden alle
-    Pool-Mitglieder benachrichtigt (außer dem IDV-Entwickler). Für 0-Mitglied-
+    Pool-Mitglieder benachrichtigt (außer dem Entwickler der IDV). Für 0-Mitglied-
     Pools bleibt es bei den Koordinatoren, für 1-Mitglied-Pools entspricht
     der Versand einer persönlichen Zuweisung.
     """
@@ -2442,18 +2442,30 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
 def _notify_freigabe_erteilt(db, idv_db_id: int) -> None:
     try:
         idv = db.execute(
-            "SELECT idv_id, bezeichnung FROM idv_register WHERE id=?", (idv_db_id,)
+            "SELECT idv_id, bezeichnung, idv_entwickler_id, fachverantwortlicher_id "
+            "FROM idv_register WHERE id=?", (idv_db_id,)
         ).fetchone()
         if not idv:
             return
-        recipients = [
-            r["email"] for r in db.execute("""
-                SELECT email FROM persons
-                WHERE aktiv=1 AND email IS NOT NULL
-                  AND rolle IN ('IDV-Koordinator','IDV-Administrator','IDV-Entwickler')
-            """).fetchall()
-            if r["email"]
-        ]
+        # Koordinatoren/Admins als Gruppe sowie die direkt am IDV
+        # eingetragenen Entwickler-/Fachverantwortlichen-Personen.
+        recipient_set: set[str] = set()
+        for r in db.execute("""
+            SELECT email FROM persons
+            WHERE aktiv=1 AND email IS NOT NULL AND email != ''
+              AND rolle IN ('IDV-Koordinator','IDV-Administrator')
+        """).fetchall():
+            recipient_set.add(r["email"])
+        for pid in (idv["idv_entwickler_id"], idv["fachverantwortlicher_id"]):
+            if not pid:
+                continue
+            row = db.execute(
+                "SELECT email FROM persons WHERE id=? AND aktiv=1 "
+                "AND email IS NOT NULL AND email != ''", (pid,)
+            ).fetchone()
+            if row:
+                recipient_set.add(row["email"])
+        recipients = sorted(recipient_set)
         if recipients:
             from ..email_service import notify_freigabe_abgeschlossen
             notify_freigabe_abgeschlossen(db, idv, recipients)

@@ -1496,7 +1496,7 @@ def insert_demo_data(conn: sqlite3.Connection):
             ("fv-ris",  "Berger",     "Tobias",  "t.berger@volksbank.de",     "Fachverantwortlicher","Risikocontrolling"),
             ("it-si",   "Winter",     "Sabine",  "s.winter@volksbank.de",     "IT-Sicherheit",       "IT & IT-Sicherheit"),
             ("rev",     "Krüger",     "Hans",    "h.krueger@volksbank.de",    "Revision",            "Revision"),
-            ("idv-ent", "Keller",     "Julia",   "j.keller@volksbank.de",     "IDV-Entwickler",      "IT & IT-Sicherheit"),
+            ("idv-ent", "Keller",     "Julia",   "j.keller@volksbank.de",     None,                  "IT & IT-Sicherheit"),
         ],
     )
 
