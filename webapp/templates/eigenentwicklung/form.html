@@ -674,13 +674,19 @@
             <i class="bi bi-plus-circle me-1"></i>Neu
           </button>
         </div>
-        <div class="position-relative person-ac" id="ac-entwickler" data-person-ac>
+        <div class="position-relative person-ac" id="ac-entwickler" data-person-ac
+             {% if not idv %}data-on-pick="suggestOuFromDeveloper"{% endif %}>
           <input type="hidden" name="idv_entwickler_id" value="{{ _ent_id or '' }}">
           <input type="text" class="form-control person-ac-input"
                  data-initial-label="{{ (_ent.nachname ~ ', ' ~ _ent.vorname ~ ' (' ~ _ent.user_id ~ ')') if _ent else '' }}"
                  placeholder="Name oder User-ID …" autocomplete="off">
           <div class="person-ac-menu dropdown-menu w-100"></div>
         </div>
+        {% if not idv %}
+        <div class="form-text" id="ou-suggest-hint" style="display:none">
+          <i class="bi bi-magic me-1 text-primary"></i>OE des Entwicklers aus den Stammdaten übernommen – ggf. anpassen.
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -712,6 +718,36 @@
   </button>
   {% endif %}
 </div>
+
+{# OE-Vorschlag aus Entwickler-Stammdaten: Wird ein Entwickler im
+   Autocomplete gewählt und hat dieser in der Administration eine OE
+   hinterlegt, schlagen wir die OE im Formular vor – sofern der Benutzer
+   die OE nicht bereits manuell geändert hat. #}
+{% if not idv %}
+<script>
+  (function () {
+    var ouSel  = document.getElementById('select-org-unit');
+    var hint   = document.getElementById('ou-suggest-hint');
+    if (!ouSel) return;
+
+    var ouTouched = false;
+    ouSel.addEventListener('change', function () { ouTouched = true; });
+
+    window.suggestOuFromDeveloper = function (item) {
+      if (ouTouched) return;
+      if (!item || !item.org_unit_id) return;
+      var target = String(item.org_unit_id);
+      var match = Array.prototype.find.call(ouSel.options, function (o) {
+        return o.value === target;
+      });
+      if (match && ouSel.value !== target) {
+        ouSel.value = target;
+        if (hint) hint.style.display = '';
+      }
+    };
+  })();
+</script>
+{% endif %}
 
 {# U-C3: Smart-Default-Inferenz. Beim Typ-Wechsel werden Entwicklungsart
    und Prüfintervall automatisch vorgeschlagen – aber nur, wenn der Benutzer

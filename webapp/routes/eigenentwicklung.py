@@ -1017,15 +1017,6 @@ def new_idv():
     file_id       = _int_or_none(request.args.get("file_id"))
     extra_file_ids = request.args.get("extra_file_ids", "")
 
-    # U-C3: OE des eingeloggten Benutzers als Default vorschlagen.
-    my_pid = current_person_id()
-    if my_pid:
-        me = db.execute(
-            "SELECT org_unit_id FROM persons WHERE id = ?", (my_pid,)
-        ).fetchone()
-        if me and me["org_unit_id"]:
-            prefill["org_unit_id"] = me["org_unit_id"]
-
     # U-D1: Gespeicherten Entwurf laden (nur wenn kein Scanner-Fund-Kontext).
     if not file_id:
         uid = _draft_user_id()
@@ -1130,6 +1121,25 @@ def new_idv():
             if siblings:
                 extra_fonds = list(extra_fonds) + list(siblings)
                 prefill["extra_file_ids"] = ",".join(str(s["id"]) for s in siblings)
+
+    # OE-Default vorschlagen: Entwickler-OE (aus Stammdaten) bevorzugen,
+    # ansonsten OE des eingeloggten Benutzers (U-C3-Fallback).
+    if not prefill.get("org_unit_id"):
+        dev_pid = _int_or_none(prefill.get("idv_entwickler_id"))
+        if dev_pid:
+            dev_row = db.execute(
+                "SELECT org_unit_id FROM persons WHERE id = ?", (dev_pid,)
+            ).fetchone()
+            if dev_row and dev_row["org_unit_id"]:
+                prefill["org_unit_id"] = dev_row["org_unit_id"]
+    if not prefill.get("org_unit_id"):
+        my_pid = current_person_id()
+        if my_pid:
+            me = db.execute(
+                "SELECT org_unit_id FROM persons WHERE id = ?", (my_pid,)
+            ).fetchone()
+            if me and me["org_unit_id"]:
+                prefill["org_unit_id"] = me["org_unit_id"]
 
     cancel_url = _safe_referer_url(request, url_for("eigenentwicklung.list_idv"))
 
