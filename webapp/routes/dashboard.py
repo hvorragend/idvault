@@ -129,6 +129,38 @@ def index():
           AND id NOT IN (SELECT COALESCE(file_id, -1) FROM idv_register WHERE file_id IS NOT NULL)
     """).fetchone()[0]
 
+    # Issue #467: „Meine Funde" und „Meine Cognos-Berichte" als Einstieg
+    # auf der Hauptseite. Wir ermitteln die Counts über dieselben Helper,
+    # die auch die ``?mine=1``-Filter der Listen verwenden.
+    meine_funde_count = 0
+    meine_cognos_count = 0
+    if my_person_id:
+        from .funde  import _me_owner_aliases, _mine_where
+        from .cognos import _eigentuemer_mine_where
+        me_aliases = _me_owner_aliases(db)
+        mine_sql, mine_params = _mine_where(me_aliases)
+        if mine_sql:
+            # Spiegelt die Filter aus funde.eingang_funde: aktive,
+            # noch nicht zugeordnete Funde (weder als IDV-Hauptdatei
+            # noch über idv_file_links).
+            meine_funde_count = db.execute(
+                f"""SELECT COUNT(*) FROM idv_files f
+                     WHERE f.status = 'active'
+                       AND f.bearbeitungsstatus = 'Neu'
+                       AND NOT EXISTS (SELECT 1 FROM idv_register   r WHERE r.file_id = f.id)
+                       AND NOT EXISTS (SELECT 1 FROM idv_file_links l WHERE l.file_id = f.id)
+                       AND {mine_sql}""",
+                mine_params,
+            ).fetchone()[0]
+        eig_sql, eig_params = _eigentuemer_mine_where(db, my_person_id)
+        if eig_sql != "0":
+            meine_cognos_count = db.execute(
+                f"""SELECT COUNT(*) FROM cognos_berichte
+                     WHERE bearbeitungsstatus = 'Neu'
+                       AND {eig_sql}""",
+                eig_params,
+            ).fetchone()[0]
+
     # Offene Zuordnungs-Vorschläge aus der Auto-Zuordnung (mittlere Konfidenz).
     # Die Tabelle existiert erst nach dem Runtime-Schema-Upgrade; ein defensives
     # try schützt frische Setups vor einem 500er, falls die Ausführung vor
@@ -181,4 +213,6 @@ def index():
         meine_schritte=meine_schritte,
         unvollstaendig_pro_verantwortlicher=unvollstaendig_pro_verantwortlicher,
         idvs_pflicht_offen=idvs_pflicht_offen,
+        meine_funde_count=meine_funde_count,
+        meine_cognos_count=meine_cognos_count,
     )

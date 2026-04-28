@@ -272,6 +272,49 @@ def _resolve_person_by_eigentuemer(db, eigentuemer: str):
     return db.execute(sql, cand_list * 5).fetchone()
 
 
+def _eigentuemer_mine_where(db, person_id: int) -> tuple[str, list[str]]:
+    """SQL-Fragment + Parameter für den ``mine``-Filter auf Cognos-Berichten.
+
+    Symmetrisch zu :func:`_resolve_person_by_eigentuemer`: matcht
+    ``cognos_berichte.eigentuemer`` (case-insensitiv) gegen die ``user_id``,
+    den ``ad_name`` sowie Vor-/Nachname-Permutationen der gegebenen Person.
+    Liefert `("0", [])` wenn die Person nicht existiert oder keinen
+    vergleichbaren Identifikator hat — ergibt ein always-false-Prädikat.
+    Spaltenname unqualifiziert, damit das Fragment in Queries mit oder
+    ohne Alias auf ``cognos_berichte`` einsetzbar ist.
+    """
+    if not person_id:
+        return "0", []
+    row = db.execute(
+        "SELECT user_id, ad_name, vorname, nachname FROM persons WHERE id = ?",
+        (person_id,),
+    ).fetchone()
+    if row is None:
+        return "0", []
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    def _add(value):
+        v = (value or "").strip()
+        if not v or v.lower() in seen:
+            return
+        seen.add(v.lower())
+        candidates.append(v)
+
+    _add(row["user_id"])
+    _add(row["ad_name"])
+    vorname  = (row["vorname"]  or "").strip()
+    nachname = (row["nachname"] or "").strip()
+    if vorname and nachname:
+        _add(f"{vorname} {nachname}")
+        _add(f"{nachname}, {vorname}")
+        _add(f"{nachname} {vorname}")
+    if not candidates:
+        return "0", []
+    placeholders = ",".join(["LOWER(?)"] * len(candidates))
+    return f"LOWER(eigentuemer) IN ({placeholders})", candidates
+
+
 # ---------------------------------------------------------------------------
 # Routen
 # ---------------------------------------------------------------------------
@@ -305,6 +348,7 @@ def list_berichte():
     abfragen_filt     = request.args.get("abfragen",     "").strip()
     pfad_prefix       = request.args.get("pfad_prefix",  "").strip()
     q                 = request.args.get("q",             "").strip()
+    mine_filt         = request.args.get("mine",          "").strip() in ("1", "true", "on")
     sort              = request.args.get("sort",  "berichtsname").strip()
     order             = request.args.get("order", "asc").strip()
 
@@ -361,6 +405,16 @@ def list_berichte():
     if q:
         where_parts.append("(berichtsname LIKE ? OR suchpfad LIKE ? OR eigentuemer LIKE ?)")
         params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
+
+    if mine_filt:
+        _mine_sql, _mine_params = _eigentuemer_mine_where(db, current_person_id())
+        if _mine_sql == "0":
+            # Kein Person-Binding oder keine Identifikatoren → Filter
+            # silent fallen lassen, statt eine leere Liste zu zwingen.
+            mine_filt = False
+        else:
+            where_parts.append(_mine_sql)
+            params.extend(_mine_params)
 
     where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
@@ -455,6 +509,7 @@ def list_berichte():
         abfragen_filt=abfragen_filt,
         pfad_prefix=pfad_prefix,
         q=q,
+        mine_filt=mine_filt,
         sort=sort,
         order=order,
         stats=stats,
