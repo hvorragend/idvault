@@ -359,7 +359,7 @@
               {% if b.eigentuemer %}
               {% set resolved = eigentuemer_map.get(b.eigentuemer) %}
               {% if resolved %}
-              <span title="{{ b.eigentuemer }}">{{ resolved }}</span>
+              <span title="{{ resolved.title }}">{{ resolved.display }}</span>
               {% else %}
               <span class="text-muted" title="Kein Eintrag in Personentabelle gefunden">{{ b.eigentuemer }}</span>
               {% endif %}
