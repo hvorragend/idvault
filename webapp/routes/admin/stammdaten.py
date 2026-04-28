@@ -1126,7 +1126,7 @@ def api_persons_search():
     pat = f"%{q}%"
     prefix = f"{q}%"
     rows = get_db().execute("""
-        SELECT id, user_id, nachname, vorname, email, aktiv
+        SELECT id, user_id, nachname, vorname, email, aktiv, org_unit_id
           FROM persons
          WHERE user_id LIKE ?
             OR nachname LIKE ?
@@ -1141,12 +1141,13 @@ def api_persons_search():
 
     return jsonify([
         {
-            "id":      r["id"],
-            "user_id": r["user_id"],
-            "name":    f"{r['nachname']}, {r['vorname']}".strip(", "),
-            "email":   r["email"] or "",
-            "aktiv":   bool(r["aktiv"]),
-            "label":   f"{r['nachname']}, {r['vorname']} ({r['user_id']})",
+            "id":          r["id"],
+            "user_id":     r["user_id"],
+            "name":        f"{r['nachname']}, {r['vorname']}".strip(", "),
+            "email":       r["email"] or "",
+            "aktiv":       bool(r["aktiv"]),
+            "org_unit_id": r["org_unit_id"],
+            "label":       f"{r['nachname']}, {r['vorname']} ({r['user_id']})",
         }
         for r in rows
     ])
