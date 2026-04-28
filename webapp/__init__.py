@@ -193,6 +193,8 @@ def _load_local_users_from_config() -> dict:
         username = str(entry.get("username") or "").strip()
         if not username:
             continue
+        if not entry.get("active", True):
+            continue
 
         pw_hash = str(entry.get("password_hash") or "").strip()
         if pw_hash and ":" not in pw_hash:

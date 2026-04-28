@@ -143,9 +143,29 @@ def mitarbeiter():
         FROM persons p LEFT JOIN org_units o ON p.org_unit_id=o.id
         ORDER BY p.nachname
     """).fetchall()
+
+    from ... import config_store as _cs
+    raw_local = _cs.get_bootstrap("IDV_LOCAL_USERS", [])
+    local_users = []
+    if isinstance(raw_local, list):
+        for entry in raw_local:
+            if not isinstance(entry, dict):
+                continue
+            username = str(entry.get("username") or "").strip()
+            if not username:
+                continue
+            has_pw = bool(entry.get("password_hash") or entry.get("password"))
+            local_users.append({
+                "username": username,
+                "name":     str(entry.get("name") or username),
+                "role":     str(entry.get("role") or "–"),
+                "active":   bool(entry.get("active", True)) and has_pw,
+            })
+
     return render_template("admin/mitarbeiter.html",
         org_units=org_units,
-        persons=persons)
+        persons=persons,
+        local_users=local_users)
 
 # ── UI-Einstellungen ───────────────────────────────────────────────────────
 

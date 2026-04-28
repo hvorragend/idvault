@@ -31,16 +31,18 @@
       "password_hash": "pbkdf2:sha256:600000$REPLACE$REPLACE",
       "name": "Administrator",
       "role": "IDV-Administrator",
-      "person_id": null
+      "person_id": null,
+      "active": true
     },
     {
-      "_hinweis": "Variante B (bequem) – Klartext-Passwort. Wird beim Start automatisch gehasht, das Klartext-Feld wird NICHT für den Login wiederverwendet. Schütze config.json mit Dateisystemrechten (NTFS-ACL bzw. Unix 0640).",
+      "_hinweis": "Variante B – Konto vorübergehend deaktiviert. Der Eintrag bleibt in config.json erhalten (z. B. Break-Glass-Account), der Login ist aber gesperrt.",
       "username": "notfall-admin",
-      "password": "bitte-aendern",
+      "password_hash": "pbkdf2:sha256:600000$REPLACE$REPLACE",
       "name": "Notfall-Administrator",
       "role": "IDV-Administrator",
-      "person_id": null
+      "person_id": null,
+      "active": false
     }
   ],
-  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. Reihenfolge beim Login: LDAP (falls aktiv) → config.json → persons-Tabelle. Ein hier gepflegter Eintrag überschreibt damit bewusst einen gleichnamigen DB-Benutzer (z. B. für Break-Glass-Admin trotz vorhandener persons-Zeile); der Konflikt wird in idvault.log protokolliert. Leere Liste = kein lokaler Login."
+  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, IDV-Entwickler, Fachverantwortlicher, Revision, IT-Sicherheit. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. 'active': true/false – fehlt das Feld, gilt true. Mit 'active': false bleibt der Eintrag konfiguriert, aber der Login ist gesperrt (z. B. für ruhende Break-Glass-Konten). Reihenfolge beim Login: LDAP (falls aktiv) → config.json → persons-Tabelle. Ein hier gepflegter Eintrag überschreibt damit bewusst einen gleichnamigen DB-Benutzer (z. B. für Break-Glass-Admin trotz vorhandener persons-Zeile); der Konflikt wird in idvault.log protokolliert. Leere Liste = kein lokaler Login."
 }
