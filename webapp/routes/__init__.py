@@ -16,16 +16,13 @@ ROLE_KOORDINATOR = "IDV-Koordinator"
 ROLE_REVISION    = "Revision"
 ROLE_IT_SEC      = "IT-Sicherheit"
 ROLE_FACHVERW    = "Fachverantwortlicher"
-ROLE_ENTWICKLER  = "IDV-Entwickler"
 
 # Rollen mit vollständigem Schreibzugriff auf alle IDVs
 _FULL_ACCESS_ROLES = {ROLE_ADMIN, ROLE_KOORDINATOR}
-# Rollen, die eigene IDVs anlegen/bearbeiten dürfen
-_OWN_WRITE_ROLES   = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_FACHVERW, ROLE_ENTWICKLER}
-# Rollen mit Lesezugriff auf alle IDVs. Fachverantwortliche und
-# Entwickler sind bewusst NICHT enthalten – sie sehen nur IDVs, an
-# denen sie als Fachverantwortlicher, Entwickler, Koordinator oder
-# Stellvertreter eingetragen sind (Row-Level-Filter in
+# Rollen mit Lesezugriff auf alle IDVs. Wer hier nicht aufgeführt ist
+# (Fachverantwortliche, eingeloggte AD-User ohne Rolle) sieht nur IDVs,
+# an denen die Person als Fachverantwortlicher, Entwickler, Koordinator
+# oder Stellvertreter eingetragen ist (Row-Level-Filter in
 # webapp/security.py::user_can_read_idv sowie im IDV-Listen-SQL).
 _READ_ALL_ROLES    = {ROLE_ADMIN, ROLE_KOORDINATOR, ROLE_REVISION, ROLE_IT_SEC}
 
@@ -75,14 +72,15 @@ def current_person_id():
 
 
 def own_write_required(f):
-    """Admin, Koordinator und Fachverantwortliche dürfen IDVs anlegen/eigene bearbeiten."""
+    """Jeder eingeloggte Benutzer mit Person-Binding darf IDVs anlegen/eigene
+    bearbeiten. Edit/Abschluss eines bestehenden IDV ist zusätzlich durch
+    ``ensure_can_write_idv()`` (Ownership-Check) abgesichert."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("user_id"):
             return redirect(url_for("auth.login"))
-        role = session.get("user_role", "")
-        if role not in _OWN_WRITE_ROLES:
-            flash("Zugriff verweigert – keine Schreibberechtigung.", "error")
+        if not session.get("person_id"):
+            flash("Zugriff verweigert – Ihrem Konto ist keine Person zugeordnet.", "error")
             abort(403)
         return f(*args, **kwargs)
     return decorated
@@ -94,8 +92,12 @@ def can_write() -> bool:
 
 
 def can_create() -> bool:
-    """True wenn der Benutzer eigene IDVs anlegen darf."""
-    return current_user_role() in _OWN_WRITE_ROLES
+    """True wenn der Benutzer eigene IDVs anlegen darf.
+
+    Voraussetzung ist ein Person-Binding (für Ownership-Eintrag); die
+    Rolle ist nicht mehr relevant — jeder eingeloggte AD-User darf
+    seine eigenen Erfassungen anlegen."""
+    return bool(session.get("user_id") and session.get("person_id"))
 
 
 def can_read_all() -> bool:
