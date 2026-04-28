@@ -39,7 +39,11 @@ def mail():
             keys.append(f"email_tpl_{tpl_key}_subject")
             keys.append(f"email_tpl_{tpl_key}_body")
             keys.append(f"email_tpl_{tpl_key}_mode")
-        kv = [(k, request.form.get(k, "")) for k in keys]
+        kv = [
+            (k, request.form.get(k, "").replace("\r\n", "\n").replace("\r", "\n")
+                if k.endswith("_body") else request.form.get(k, ""))
+            for k in keys
+        ]
         if smtp_pw_enc is not None:
             kv.append(("smtp_password", smtp_pw_enc))
         def _do(c):
@@ -51,7 +55,13 @@ def mail():
         flash("Einstellungen gespeichert.", "success")
         return redirect(url_for("admin.mail") + "#email-vorlagen")
 
-    settings = {r["key"]: r["value"] for r in db.execute("SELECT key, value FROM app_settings").fetchall()}
+    settings = {
+        k: v.replace("\r\n", "\n").replace("\r", "\n") if k.endswith("_body") else v
+        for k, v in (
+            (r["key"], r["value"])
+            for r in db.execute("SELECT key, value FROM app_settings").fetchall()
+        )
+    }
     smtp_log  = db.execute(
         "SELECT sent_at, recipients, subject, success, error_msg "
         "FROM smtp_log ORDER BY id DESC LIMIT 50"
