@@ -48,6 +48,63 @@
   </div>
 </div>
 
+<!-- ── Datensicherung der Admin-Konfiguration ─────────────────────── -->
+<div class="card border-0 shadow-sm mb-4" id="datensicherung">
+  <div class="card-header bg-white fw-600">
+    <i class="bi bi-shield-check me-2"></i>Datensicherung &amp; Wiederherstellung der Admin-Konfiguration
+  </div>
+  <div class="card-body">
+    <div class="alert-hinweis small mb-3">
+      <div class="hinweis-title"><i class="bi bi-info-circle me-1"></i>Hinweis</div>
+      Sichert sämtliche administrativen Stammdaten (OEs, Plattformen, Geschäftsprozesse,
+      Klassifizierungen, Wesentlichkeitskriterien, Freigabe-Pools, LDAP-Konfiguration und
+      Gruppen-Rollen-Mapping, Testfall-Vorlagen, Pfad-Profile, Glossar, App-Einstellungen).
+      <strong>Mitarbeiter und das IDV-Register sind nicht enthalten.</strong>
+      Verschlüsselte Geheimnisse (SMTP-Passwort, Teams-Client-Secret, LDAP-Bind-Passwort)
+      sind nur lesbar, wenn die Zielinstallation denselben <code>IDV_SECRET</code>-Schlüssel
+      in der <code>config.json</code> verwendet.
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-600 mb-2"><i class="bi bi-download me-1"></i>Sicherung erstellen</div>
+          <p class="text-muted small mb-2">
+            Lädt eine ZIP-Datei mit JSON-Exporten aller Admin-Tabellen herunter.
+          </p>
+          <a href="{{ url_for('admin.backup_export') }}" class="btn btn-sm btn-primary">
+            <i class="bi bi-download me-1"></i>Backup-ZIP herunterladen
+          </a>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-600 mb-2"><i class="bi bi-upload me-1"></i>Sicherung zurückspielen</div>
+          <p class="text-muted small mb-2">
+            Ersetzt alle Konfigurations-Datensätze in der Datenbank durch den Inhalt
+            des Backups. Operationale Daten (IDV-Register, Prüfungen, Maßnahmen,
+            Mitarbeiter, Scanner-Funde) bleiben unverändert.
+          </p>
+          <form method="post" action="{{ url_for('admin.backup_restore') }}"
+                enctype="multipart/form-data" class="row g-2"
+                data-confirm="Vorhandene Admin-Konfiguration wirklich überschreiben? Diese Aktion lässt sich nicht rückgängig machen.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-8">
+              <input type="file" name="backup_zip" accept=".zip"
+                     class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-4">
+              <button type="submit" class="btn btn-sm btn-warning w-100">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Wiederherstellen
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row g-4">
 
   <!-- ── Organisationseinheiten ────────────────────────────────── -->
