@@ -256,11 +256,14 @@ Der Teams-Scanner durchsucht über die Microsoft Graph API:
 ### 3.2 Voraussetzungen
 
 - Azure-AD-App-Registrierung mit folgenden Berechtigungen:
-  - `Files.Read.All`
-  - `Sites.Read.All`
-  - `Team.ReadBasic.All`
-  - `ChannelMessage.Read.All` (optional)
+  - `Files.Read.All` – Dateien in SharePoint-Sites lesen (Inhalt + Delta)
+  - `Sites.Read.All` – Site-Metadaten und Drive-Auflistung
 - Client-Credentials-Flow (Application Permissions)
+
+> Hinweis: Channel-Nachrichten oder Teams-Stammdaten werden nicht
+> gescannt. `Team.ReadBasic.All` und `ChannelMessage.Read.All` sind
+> daher **nicht** erforderlich und sollten aus
+> Least-Privilege-Gründen auch nicht vergeben werden.
 
 ### 3.3 Konfiguration
 
