@@ -73,5 +73,17 @@
         <i class="bi bi-book me-1"></i>Glossar
       </a>
     </li>
+    <li class="nav-item">
+      <a href="{{ url_for('admin.datensicherung') }}"
+         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.datensicherung' %}active{% endif %}">
+        <i class="bi bi-shield-check me-1"></i>Datensicherung
+      </a>
+    </li>
+    <li class="nav-item">
+      <a href="{{ url_for('admin.update_index') }}"
+         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.update_index' %}active{% endif %}">
+        <i class="bi bi-cloud-arrow-up me-1"></i>Software-Update
+      </a>
+    </li>
   </ul>
 </nav>

@@ -46,8 +46,15 @@ from db_write_tx import write_tx
 
 from ... import limiter
 from ...db_writer import get_writer
-from .. import admin_required, get_db
+from .. import admin_required, get_db, login_required
 from . import bp, _upload_rate_limit
+
+
+@bp.route("/datensicherung")
+@login_required
+def datensicherung():
+    """Eigener Reiter fuer Datensicherung & Wiederherstellung."""
+    return render_template("admin/datensicherung.html")
 
 
 # Reihenfolge ist relevant: Eltern vor Kindern. Beim Restore werden die
@@ -261,11 +268,11 @@ def backup_restore():
     f = request.files.get("backup_zip")
     if not f or not f.filename:
         flash("Keine Datei ausgewählt.", "error")
-        return redirect(url_for("admin.index") + "#datensicherung")
+        return redirect(url_for("admin.datensicherung"))
 
     if not f.filename.lower().endswith(".zip"):
         flash("Nur ZIP-Dateien sind erlaubt.", "error")
-        return redirect(url_for("admin.index") + "#datensicherung")
+        return redirect(url_for("admin.datensicherung"))
 
     tmp_path: str | None = None
     try:
@@ -277,7 +284,7 @@ def backup_restore():
             meta, tables = _read_backup(tmp_path)
         except (zipfile.BadZipFile, ValueError) as exc:
             flash(f"Ungültiges Backup-ZIP: {exc}", "error")
-            return redirect(url_for("admin.index") + "#datensicherung")
+            return redirect(url_for("admin.datensicherung"))
 
         def _do(c: sqlite3.Connection) -> dict:
             return restore_backup(c, tables)
@@ -287,7 +294,7 @@ def backup_restore():
         except Exception as exc:
             current_app.logger.exception("Restore fehlgeschlagen")
             flash(f"Restore fehlgeschlagen: {exc}", "error")
-            return redirect(url_for("admin.index") + "#datensicherung")
+            return redirect(url_for("admin.datensicherung"))
 
         total = sum(stats.values())
         flash(
@@ -304,4 +311,4 @@ def backup_restore():
             except OSError:
                 pass
 
-    return redirect(url_for("admin.index") + "#datensicherung")
+    return redirect(url_for("admin.datensicherung"))
