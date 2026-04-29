@@ -4,7 +4,10 @@ import json
 import logging
 from datetime import datetime
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session, jsonify, send_file
-from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write, can_read_all
+from . import login_required, write_access_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write, can_read_all
+# Sidecar-Override (Issue #474): ``own_write_required`` aus
+# ``webapp/permissions_override.py``.
+from ..permissions_override import own_write_required
 from ..app_settings import get_bool as _get_bool
 from ..db_writer import get_writer
 from db_write_tx import write_tx
