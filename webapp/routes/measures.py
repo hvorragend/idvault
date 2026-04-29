@@ -1,13 +1,14 @@
 """Maßnahmen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from . import login_required, own_write_required, admin_required, get_db
+from . import (login_required, own_write_required, admin_required, get_db,
+               can_read_all, current_person_id)
 from datetime import datetime, timezone
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import get_klassifizierungen
 from db_write_tx import write_tx
 from ..db_writer import get_writer
-from ..security import ensure_can_write_idv
+from ..security import ensure_can_read_idv, ensure_can_write_idv
 
 bp = Blueprint("measures", __name__, url_prefix="/massnahmen")
 
@@ -17,9 +18,28 @@ bp = Blueprint("measures", __name__, url_prefix="/massnahmen")
 def list_measures():
     db   = get_db()
     filt = request.args.get("filter", "")
-    where = "WHERE m.status IN ('Offen','In Bearbeitung')"
+    where_parts = ["m.status IN ('Offen','In Bearbeitung')"]
+    params: list = []
     if filt == "ueberfaellig":
-        where += " AND m.faellig_am < date('now')"
+        where_parts.append("m.faellig_am < date('now')")
+
+    # Row-Level-Sichtbarkeit analog zur IDV-Liste: User ohne Read-All-Rolle
+    # sehen nur Maßnahmen zu IDVs, an denen sie beteiligt sind, plus eigene
+    # Verantwortungs-/Erledigungseinträge.
+    if not can_read_all():
+        pid = current_person_id()
+        if pid:
+            where_parts.append("""(
+                r.fachverantwortlicher_id = ?
+                OR r.idv_entwickler_id   = ?
+                OR r.idv_koordinator_id  = ?
+                OR r.stellvertreter_id   = ?
+                OR m.verantwortlicher_id = ?
+                OR m.erledigt_von_id     = ?
+            )""")
+            params += [pid, pid, pid, pid, pid, pid]
+        else:
+            where_parts.append("0")
 
     massnahmen = db.execute(f"""
         SELECT m.*, r.idv_id, r.bezeichnung AS idv_bezeichnung,
@@ -29,9 +49,9 @@ def list_measures():
         FROM massnahmen m
         JOIN idv_register r ON m.idv_id = r.id
         LEFT JOIN persons p ON m.verantwortlicher_id = p.id
-        {where}
+        WHERE {" AND ".join(where_parts)}
         ORDER BY m.faellig_am ASC
-    """).fetchall()
+    """, params).fetchall()
 
     return render_template("measures/list.html", massnahmen=massnahmen, filt=filt)
 
@@ -100,6 +120,10 @@ def detail_measure(m_id):
     if not m:
         flash("Maßnahme nicht gefunden.", "error")
         return redirect(url_for("measures.list_measures"))
+    # Lesezugriff auf das zugrundeliegende IDV sicherstellen, damit Nutzer
+    # ohne Beteiligung Maßnahmen auch read-only nicht über die Detail-URL
+    # einsehen können (Pendant zu reviews.edit_review).
+    ensure_can_read_idv(db, m["idv_id"])
     idv = db.execute("SELECT * FROM idv_register WHERE id=?", (m["idv_id"],)).fetchone()
     ist_wesentlich = bool(db.execute(
         "SELECT 1 FROM idv_wesentlichkeit WHERE idv_db_id=? AND erfuellt=1 LIMIT 1",

@@ -2314,6 +2314,21 @@ def nicht_wesentliche_idvs():
         )
         params.append(owner_filt)
 
+    # Rollenbasierte Sichtbarkeit (analog list_idv / wesentliche_idvs):
+    # User ohne Read-All-Rolle sehen nur IDVs, an denen sie beteiligt sind.
+    person_id = current_person_id()
+    if not can_read_all():
+        if person_id:
+            where_parts.append("""(
+                r.fachverantwortlicher_id = ?
+                OR r.idv_entwickler_id   = ?
+                OR r.idv_koordinator_id  = ?
+                OR r.stellvertreter_id   = ?
+            )""")
+            params += [person_id, person_id, person_id, person_id]
+        else:
+            where_parts.append("0")
+
     where_sql = "WHERE " + " AND ".join(where_parts)
 
     total = db.execute(

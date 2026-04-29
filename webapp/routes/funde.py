@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, session, jsonify, send_file
-from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write
+from . import login_required, write_access_required, own_write_required, get_db, admin_required, current_user_role, ROLE_ADMIN, can_write, can_read_all
 from ..app_settings import get_bool as _get_bool
 from ..db_writer import get_writer
 from db_write_tx import write_tx
@@ -248,7 +248,12 @@ def list_funde():
     mine_filt   = request.args.get("mine", "").strip() in ("1", "true", "on")
     me_aliases  = _me_owner_aliases(get_db())
     me_user_id  = me_aliases[0] if me_aliases else ""
-    if mine_filt and not me_aliases:
+    # User ohne Read-All-Rolle dürfen nur eigene Funde sehen — ?mine= darf
+    # diese Einschränkung nicht aufheben können.
+    restrict_to_mine = not can_read_all()
+    if restrict_to_mine:
+        mine_filt = True
+    elif mine_filt and not me_aliases:
         mine_filt = False
     highlight_raw = request.args.get("highlight", "").strip()
     try:
@@ -361,6 +366,10 @@ def list_funde():
         if _mine_sql:
             where_parts.append(_mine_sql)
             params.extend(_mine_params)
+        elif restrict_to_mine:
+            # Eingeschränkter User ohne ermittelbaren Owner-Alias darf
+            # nichts sehen, statt unbeabsichtigt alle Funde zu erhalten.
+            where_parts.append("0")
 
     if date_from:
         where_parts.append("f.modified_at >= ?")
@@ -830,7 +839,12 @@ def eingang_funde():
     mine_filt     = request.args.get("mine", "").strip() in ("1", "true", "on")
     me_aliases    = _me_owner_aliases(get_db())
     me_user_id    = me_aliases[0] if me_aliases else ""
-    if mine_filt and not me_aliases:
+    # User ohne Read-All-Rolle dürfen nur eigene Funde sehen — ?mine= darf
+    # diese Einschränkung nicht aufheben können.
+    restrict_to_mine = not can_read_all()
+    if restrict_to_mine:
+        mine_filt = True
+    elif mine_filt and not me_aliases:
         mine_filt = False
     sort          = request.args.get("sort", "prioritaet")
     try:
@@ -883,6 +897,10 @@ def eingang_funde():
         if _mine_sql:
             where_parts.append(_mine_sql)
             params.extend(_mine_params)
+        elif restrict_to_mine:
+            # Eingeschränkter User ohne ermittelbaren Owner-Alias darf
+            # nichts sehen, statt unbeabsichtigt alle Funde zu erhalten.
+            where_parts.append("0")
     if date_from:
         where_parts.append("f.modified_at >= ?")
         params.append(date_from)

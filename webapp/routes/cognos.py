@@ -10,7 +10,7 @@ from datetime import datetime, date, timezone
 from flask import (
     Blueprint, render_template, request, flash, redirect, url_for, current_app
 )
-from . import login_required, write_access_required, get_db, can_write, current_person_id
+from . import login_required, write_access_required, get_db, can_write, current_person_id, can_read_all
 from ..security import in_clause
 from .. import limiter
 
@@ -349,6 +349,11 @@ def list_berichte():
     pfad_prefix       = request.args.get("pfad_prefix",  "").strip()
     q                 = request.args.get("q",             "").strip()
     mine_filt         = request.args.get("mine",          "").strip() in ("1", "true", "on")
+    # User ohne Read-All-Rolle dürfen nur eigene Berichte sehen — ?mine=
+    # darf diese Einschränkung nicht aufheben können.
+    restrict_to_mine  = not can_read_all()
+    if restrict_to_mine:
+        mine_filt = True
     sort              = request.args.get("sort",  "berichtsname").strip()
     order             = request.args.get("order", "asc").strip()
 
@@ -409,9 +414,14 @@ def list_berichte():
     if mine_filt:
         _mine_sql, _mine_params = _eigentuemer_mine_where(db, current_person_id())
         if _mine_sql == "0":
-            # Kein Person-Binding oder keine Identifikatoren → Filter
-            # silent fallen lassen, statt eine leere Liste zu zwingen.
-            mine_filt = False
+            if restrict_to_mine:
+                # Eingeschränkter User ohne Person-Binding darf nichts
+                # sehen, statt unbeabsichtigt alle Berichte zu erhalten.
+                where_parts.append("0")
+            else:
+                # Read-All-User: Filter silent fallen lassen, statt eine
+                # leere Liste zu erzwingen.
+                mine_filt = False
         else:
             where_parts.append(_mine_sql)
             params.extend(_mine_params)
