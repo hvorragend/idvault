@@ -1,6 +1,7 @@
 """Prüfungen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from . import login_required, own_write_required, admin_required, get_db, ROLE_ADMIN
+from . import (login_required, own_write_required, admin_required, get_db,
+               ROLE_ADMIN, can_read_all, current_person_id)
 from datetime import datetime, timezone, date as _date
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -17,9 +18,30 @@ bp = Blueprint("reviews", __name__, url_prefix="/pruefungen")
 def list_reviews():
     db   = get_db()
     filt = request.args.get("filter", "")
-    where = ""
+    where_parts = ["1=1"]
+    params: list = []
     if filt == "ueberfaellig":
-        where = "AND r.naechste_pruefung < date('now') AND r.status NOT IN ('Archiviert','Abgekündigt')"
+        where_parts.append(
+            "r.naechste_pruefung < date('now')"
+            " AND r.status NOT IN ('Archiviert','Abgekündigt')"
+        )
+
+    # Row-Level-Sichtbarkeit analog zur IDV-Liste: User ohne Read-All-Rolle
+    # sehen nur Prüfungen zu IDVs, an denen sie beteiligt sind, plus eigene
+    # Prüfer-Einträge.
+    if not can_read_all():
+        pid = current_person_id()
+        if pid:
+            where_parts.append("""(
+                r.fachverantwortlicher_id = ?
+                OR r.idv_entwickler_id   = ?
+                OR r.idv_koordinator_id  = ?
+                OR r.stellvertreter_id   = ?
+                OR p.pruefer_id          = ?
+            )""")
+            params += [pid, pid, pid, pid, pid]
+        else:
+            where_parts.append("0")
 
     pruefungen = db.execute(f"""
         SELECT p.*, r.idv_id, r.bezeichnung AS idv_bezeichnung,
@@ -27,10 +49,10 @@ def list_reviews():
         FROM pruefungen p
         JOIN idv_register r ON p.idv_id = r.id
         LEFT JOIN persons per ON p.pruefer_id = per.id
-        WHERE 1=1 {where}
+        WHERE {" AND ".join(where_parts)}
         ORDER BY p.pruefungsdatum DESC
         LIMIT 100
-    """).fetchall()
+    """, params).fetchall()
 
     return render_template("reviews/list.html", pruefungen=pruefungen, filt=filt)
 

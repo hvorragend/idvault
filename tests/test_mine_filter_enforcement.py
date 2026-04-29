@@ -39,6 +39,8 @@ class MineFilterEnforcementTests(unittest.TestCase):
     def setUp(self):
         self.funde   = _read("webapp/routes/funde.py")
         self.cognos  = _read("webapp/routes/cognos.py")
+        self.reviews = _read("webapp/routes/reviews.py")
+        self.measures = _read("webapp/routes/measures.py")
 
     def test_funde_imports_can_read_all(self):
         self.assertIn("can_read_all", self.funde.split("\n", 30)[7] + self.funde[:2000])
@@ -79,6 +81,60 @@ class MineFilterEnforcementTests(unittest.TestCase):
     def test_cognos_list_enforces_mine(self):
         self._assert_route_enforces_mine(
             self.cognos, "def list_berichte():"
+        )
+
+
+class ReviewMeasureRowLevelTests(unittest.TestCase):
+    """Listen für Prüfungen und Maßnahmen müssen für eingeschränkte User
+    auf Datensätze beschränkt sein, an denen die Person beteiligt ist
+    (FV/Entwickler/Koordinator/Stellvertreter auf der Parent-IDV bzw.
+    Prüfer/Verantwortlicher/Erlediger). Ohne Person-Binding wird das
+    No-Match-Prädikat ergänzt."""
+
+    def setUp(self):
+        self.reviews  = _read("webapp/routes/reviews.py")
+        self.measures = _read("webapp/routes/measures.py")
+
+    def _assert_row_level(self, src: str, def_signature: str, extra_columns: list[str]):
+        block = _slice_function(src, def_signature)
+        self.assertRegex(
+            block,
+            r"if\s+not\s+can_read_all\(\)\s*:",
+            f"{def_signature}: kein can_read_all()-Gate.",
+        )
+        # Standardspalten der IDV-Beteiligung müssen alle vorkommen.
+        for col in (
+            "fachverantwortlicher_id",
+            "idv_entwickler_id",
+            "idv_koordinator_id",
+            "stellvertreter_id",
+        ):
+            self.assertIn(col, block, f"{def_signature}: {col} fehlt im Filter.")
+        for col in extra_columns:
+            self.assertIn(col, block, f"{def_signature}: {col} fehlt im Filter.")
+        # Fallback ohne person_id.
+        self.assertRegex(
+            block, r'where_parts\.append\("0"\)',
+            f"{def_signature}: kein No-Match-Fallback ohne person_id.",
+        )
+
+    def test_list_reviews_row_level(self):
+        self._assert_row_level(
+            self.reviews, "def list_reviews():",
+            ["pruefer_id"],
+        )
+
+    def test_list_measures_row_level(self):
+        self._assert_row_level(
+            self.measures, "def list_measures():",
+            ["verantwortlicher_id", "erledigt_von_id"],
+        )
+
+    def test_detail_measure_has_read_guard(self):
+        block = _slice_function(self.measures, "def detail_measure(m_id):")
+        self.assertIn(
+            "ensure_can_read_idv(db, m[\"idv_id\"])", block,
+            "detail_measure ohne ensure_can_read_idv-Guard.",
         )
 
 
