@@ -419,6 +419,59 @@ def _safe_open_zip_entry(zf: "zipfile.ZipFile", name: str):
         )
     return zf.open(name)
 
+# Felder, die rein aus dem Datei-Inhalt abgeleitet werden und sich daher
+# bei byte-identischen Dateien nicht unterscheiden. Werden vom
+# ``lookup_analysis_cache``-Helper zurückgeliefert, damit ein zweiter Lauf
+# von ``analyze_ooxml`` / ``analyze_cognos_xml`` für bereits gescannte
+# Hashes entfällt (Issue #471). Über beide Scanner gemeinsam genutzt:
+# Network-Scanner spart CPU + zweiten Disk-Read, Teams-Scanner spart den
+# Graph-Download.
+ANALYSIS_CACHE_FIELDS = (
+    # OOXML-Inhaltsmerkmale
+    "has_macros", "has_external_links",
+    "sheet_count", "named_ranges_count", "formula_count",
+    "has_sheet_protection", "protected_sheets_count",
+    "sheet_protection_has_pw", "workbook_protected",
+    # OOXML-Metadaten (im Datei-Innenleben gespeichert)
+    "office_author", "office_last_author",
+    "office_created", "office_modified",
+    # Cognos-IDA-Analyse (nur Network-Scanner)
+    "ist_cognos_report", "cognos_report_name", "cognos_paket_pfad",
+    "cognos_abfragen_anzahl", "cognos_datenpunkte_anzahl",
+    "cognos_filter_anzahl", "cognos_seiten_anzahl",
+    "cognos_parameter_anzahl", "cognos_namespace_version",
+)
+
+
+def lookup_analysis_cache(conn: Optional[sqlite3.Connection],
+                          file_hash: Optional[str]) -> Optional[dict]:
+    """Sucht einen bereits analysierten ``idv_files``-Eintrag mit demselben
+    SHA-256-Hash. Liefert ein Dict der ``ANALYSIS_CACHE_FIELDS`` zurück,
+    wenn so ein Eintrag existiert, sonst ``None``.
+
+    Bei einem Treffer können die Aufrufer die Werte 1:1 übernehmen, statt
+    ``analyze_ooxml`` bzw. ``analyze_cognos_xml`` ein zweites Mal zu
+    fahren – die Datei ist byte-identisch, also sind die Ergebnisse es
+    auch.
+
+    Diskriminator: ``sheet_count IS NOT NULL`` oder
+    ``ist_cognos_report = 1``. Reine Inventareinträge (z. B. ``.py``,
+    ``.sql``), bei denen weder OOXML- noch Cognos-Analyse lief, gelten
+    nicht als Cache-Treffer – dort gibt es nichts einzusparen.
+    """
+    if conn is None or not file_hash or file_hash == "HASH_ERROR":
+        return None
+    cols = ", ".join(ANALYSIS_CACHE_FIELDS)
+    row = conn.execute(
+        f"SELECT {cols} FROM idv_files "
+        f"WHERE file_hash = ? AND status = 'active' "
+        f"  AND (sheet_count IS NOT NULL OR ist_cognos_report = 1) "
+        f"LIMIT 1",
+        (file_hash,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
 def analyze_ooxml(path: str, ext: str) -> dict:
     """Analysiert OOXML-Dateien (xlsx, xlsm, docm, pptm …) via ZIP-Inspektion."""
     result = {
@@ -727,8 +780,15 @@ def _check_and_handle_signals(signal_dir: Optional[str], logger: logging.Logger)
 # ---------------------------------------------------------------------------
 
 def scan_file(path: str, config: dict, scan_paths: list,
-              logger: logging.Logger = None) -> Optional[dict]:
-    """Analysiert eine einzelne Datei und gibt ein Metadaten-Dict zurück."""
+              logger: logging.Logger = None,
+              conn: Optional[sqlite3.Connection] = None) -> Optional[dict]:
+    """Analysiert eine einzelne Datei und gibt ein Metadaten-Dict zurück.
+
+    Wenn ``conn`` übergeben wird und für den errechneten SHA-256 schon ein
+    analysierter Eintrag existiert (egal ob aus Network- oder Teams-Scan),
+    werden OOXML-/Cognos-Felder aus dem Cache übernommen statt erneut zu
+    analysieren – siehe ``lookup_analysis_cache`` (Issue #471).
+    """
     ext = Path(path).suffix.lower()
     fs  = get_fs_metadata(path, config)
 
@@ -738,17 +798,24 @@ def scan_file(path: str, config: dict, scan_paths: list,
     if fs["size_bytes"] is not None and fs["size_bytes"] <= size_limit:
         file_hash = sha256_file(path, logger=logger)
 
-    # OOXML-Analyse für Office-Dateien
+    # OOXML-/Cognos-Analyse: bei Hash-Treffer aus Cache übernehmen
     ooxml_exts = {".xlsx", ".xlsm", ".xlsb", ".xltm", ".xltx",
                   ".docm", ".dotm", ".pptm", ".pptx", ".docx"}
+    cached = lookup_analysis_cache(conn, file_hash)
     ooxml = {}
-    if ext in ooxml_exts:
-        ooxml = analyze_ooxml(path, ext)
-
-    # Cognos IDA-Report-Analyse
     cognos = {}
-    if ext == ".ida":
-        cognos = analyze_cognos_xml(path)
+    if cached is not None:
+        if logger:
+            logger.debug(
+                f"Analyse-Cache-Treffer (Hash {file_hash[:12]}…): {path}"
+            )
+        ooxml  = {k: cached[k] for k in cached if not k.startswith("cognos_") and k != "ist_cognos_report"}
+        cognos = {k: cached[k] for k in cached if k.startswith("cognos_") or k == "ist_cognos_report"}
+    else:
+        if ext in ooxml_exts:
+            ooxml = analyze_ooxml(path, ext)
+        if ext == ".ida":
+            cognos = analyze_cognos_xml(path)
 
     share_root, rel_path = get_share_root(path, scan_paths)
 
@@ -878,7 +945,8 @@ def safe_walk(top: str, followlinks: bool = False, logger: logging.Logger = None
 
 
 def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
-                  logger: logging.Logger, scan_since_ts: Optional[float] = None):
+                  logger: logging.Logger, scan_since_ts: Optional[float] = None,
+                  conn: Optional[sqlite3.Connection] = None):
     """Generator: liefert Metadaten-Dicts für alle gefundenen Dateien.
 
     scan_since_ts: Unix-Timestamp (float). Dateien, die vor diesem Zeitpunkt
@@ -912,7 +980,8 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
                     pass  # bei Lesefehler: Datei trotzdem verarbeiten
 
             try:
-                data = scan_file(full_path, config, all_scan_paths, logger=logger)
+                data = scan_file(full_path, config, all_scan_paths,
+                                 logger=logger, conn=conn)
                 if data:
                     yield data
             except Exception as e:
@@ -920,7 +989,8 @@ def walk_and_scan(scan_path: str, config: dict, all_scan_paths: list,
 
 
 def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
-                    logger: logging.Logger, scan_since_ts: Optional[float] = None):
+                    logger: logging.Logger, scan_since_ts: Optional[float] = None,
+                    conn: Optional[sqlite3.Connection] = None):
     """Generator: liefert Metadaten-Dicts für Dateien direkt im scan_path (keine Rekursion)."""
     extensions = set(e.lower() for e in config["extensions"])
     blacklist  = config.get("blacklist_paths", [])
@@ -953,7 +1023,8 @@ def walk_root_files(scan_path: str, config: dict, all_scan_paths: list,
             except OSError:
                 pass
         try:
-            data = scan_file(full_path, config, all_scan_paths, logger=logger)
+            data = scan_file(full_path, config, all_scan_paths,
+                             logger=logger, conn=conn)
             if data:
                 yield data
         except Exception as e:
@@ -1573,7 +1644,8 @@ def run_scan(config: dict, logger: logging.Logger,
                 if root_chunk not in completed_dirs:
                     _check_and_handle_signals(signal_dir, logger)
                     _process_chunk(
-                        walk_root_files(scan_path, config, scan_paths, logger, scan_since_ts),
+                        walk_root_files(scan_path, config, scan_paths, logger,
+                                        scan_since_ts, conn=local_conn),
                         local_conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
                         auto_ignore=runtime_auto_ignore,
                         discard_no_formula=runtime_discard,
@@ -1596,7 +1668,8 @@ def run_scan(config: dict, logger: logging.Logger,
                     _check_and_handle_signals(signal_dir, logger)
                     logger.info(f"  Unterverzeichnis: {subdir}")
                     _process_chunk(
-                        walk_and_scan(subdir, config, scan_paths, logger, scan_since_ts),
+                        walk_and_scan(subdir, config, scan_paths, logger,
+                                      scan_since_ts, conn=local_conn),
                         local_conn, scan_run_id, now, logger, move_mode, stats, signal_dir,
                         auto_ignore=runtime_auto_ignore,
                         discard_no_formula=runtime_discard,
