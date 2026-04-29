@@ -1023,6 +1023,36 @@ def scanner_einstellungen():
     path_mappings = _load_path_mappings()
 
     if request.method == "POST":
+        # Separates Formular nur für die allgemeinen Funde-Toggles?
+        # Wirken auf alle Scanner (Netzwerk + Teams), gehoeren deshalb
+        # nicht in die Netzwerk-Scanner-Konfiguration und werden in einem
+        # eigenen Card mit eigenem Submit gespeichert.
+        if request.form.get("_only_general") == "1":
+            val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
+            val_dc = "1" if request.form.get("discard_no_formula") == "1" else "0"
+            val_cf = "1" if request.form.get("auto_classify_by_filename") == "1" else "0"
+            val_ms = "1" if request.form.get("match_suggestions_enabled") == "1" else "0"
+            val_sd = "1" if request.form.get("smart_defaults_enabled") == "1" else "0"
+            _settings = [
+                ("auto_ignore_no_formula",    val_ai),
+                ("discard_no_formula",        val_dc),
+                ("auto_classify_by_filename", val_cf),
+                ("match_suggestions_enabled", val_ms),
+                ("smart_defaults_enabled",    val_sd),
+            ]
+            try:
+                def _do(c):
+                    with write_tx(c):
+                        for _key, _val in _settings:
+                            c.execute(
+                                "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)",
+                                (_key, _val))
+                get_writer().submit(_do, wait=True)
+                flash("Allgemeine Funde-Einstellungen gespeichert.", "success")
+            except Exception as exc:
+                flash(f"Fehler beim Speichern: {exc}", "error")
+            return redirect(url_for("admin.scanner_einstellungen") + "#allgemein")
+
         # Separates Formular nur für Pfad-Mappings?
         if request.form.get("_only_path_mappings") == "1":
             try:
@@ -1138,17 +1168,7 @@ def scanner_einstellungen():
 
         try:
             _save_scanner_config(cfg)
-            val_ai = "1" if request.form.get("auto_ignore_no_formula") == "1" else "0"
-            val_dc = "1" if request.form.get("discard_no_formula") == "1" else "0"
-            val_cf = "1" if request.form.get("auto_classify_by_filename") == "1" else "0"
-            val_ms = "1" if request.form.get("match_suggestions_enabled") == "1" else "0"
-            val_sd = "1" if request.form.get("smart_defaults_enabled") == "1" else "0"
             _settings = [
-                ("auto_ignore_no_formula",       val_ai),
-                ("discard_no_formula",           val_dc),
-                ("auto_classify_by_filename",    val_cf),
-                ("match_suggestions_enabled",    val_ms),
-                ("smart_defaults_enabled",       val_sd),
                 ("scan_schedule_enabled",     sched_enabled),
                 ("scan_schedule_type",        sched_type),
                 ("scan_schedule_time",        sched_time),

@@ -1,4 +1,19 @@
 <!-- Admin-Sekundärnavigation -->
+{# Endpoint-Listen pro Gruppe – einmal definiert, sowohl fuer den
+   Gruppen-Aktiv-Zustand als auch fuer den Eintrag-Aktiv-Zustand
+   verwendet. So bleibt die Pflege an einer Stelle. #}
+{%- set ep_freigaben = ['admin.list_pools','admin.edit_pool',
+                        'admin.freigabe_patch',
+                        'admin.list_pfad_profile','admin.new_pfad_profil','admin.edit_pfad_profil',
+                        'admin.list_testfall_vorlagen','admin.new_testfall_vorlage',
+                        'admin.edit_testfall_vorlage','admin.delete_testfall_vorlage'] -%}
+{%- set ep_scanner   = ['admin.scanner_einstellungen','admin.teams_einstellungen',
+                        'admin.similarity_settings'] -%}
+{%- set ep_system    = ['admin.mail','admin.rate_limits',
+                        'admin.scanner_log','admin.login_log'] -%}
+{%- set ep_wartung   = ['admin.datensicherung','admin.update_index',
+                        'admin.glossar_overview','admin.new_glossar',
+                        'admin.edit_glossar','admin.glossar_erklaerung'] -%}
 <nav class="mb-4">
   <ul class="nav nav-pills flex-wrap gap-1 small">
     <li class="nav-item">
@@ -13,77 +28,80 @@
         <i class="bi bi-people me-1"></i>Mitarbeiter &amp; LDAP
       </a>
     </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.list_pools') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.list_pools','admin.edit_pool') %}active{% endif %}">
-        <i class="bi bi-people-fill me-1"></i>Freigabe-Pools
+
+    <li class="nav-item dropdown">
+      <a href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+         class="nav-link py-1 px-3 dropdown-toggle {% if request.endpoint in ep_freigaben %}active{% endif %}">
+        <i class="bi bi-diagram-3 me-1"></i>Freigaben &amp; Prüfung
       </a>
+      <ul class="dropdown-menu small">
+        <li><a class="dropdown-item {% if request.endpoint in ('admin.list_pools','admin.edit_pool') %}active{% endif %}"
+               href="{{ url_for('admin.list_pools') }}">
+            <i class="bi bi-people-fill me-1"></i>Freigabe-Pools</a></li>
+        <li><a class="dropdown-item {% if request.endpoint == 'admin.freigabe_patch' %}active{% endif %}"
+               href="{{ url_for('admin.freigabe_patch') }}">
+            <i class="bi bi-diagram-3 me-1"></i>Patch-Workflow</a></li>
+        <li><a class="dropdown-item {% if request.endpoint in ('admin.list_pfad_profile','admin.new_pfad_profil','admin.edit_pfad_profil') %}active{% endif %}"
+               href="{{ url_for('admin.list_pfad_profile') }}">
+            <i class="bi bi-bookmark-star me-1"></i>Pfad-Profile</a></li>
+        <li><a class="dropdown-item {% if request.endpoint in ('admin.list_testfall_vorlagen','admin.new_testfall_vorlage','admin.edit_testfall_vorlage','admin.delete_testfall_vorlage') %}active{% endif %}"
+               href="{{ url_for('admin.list_testfall_vorlagen') }}">
+            <i class="bi bi-clipboard2-data me-1"></i>Testfall-Vorlagen</a></li>
+      </ul>
     </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.freigabe_patch') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.freigabe_patch' %}active{% endif %}">
-        <i class="bi bi-diagram-3 me-1"></i>Patch-Workflow
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.scanner_einstellungen') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.scanner_einstellungen','admin.teams_einstellungen') %}active{% endif %}">
+
+    <li class="nav-item dropdown">
+      <a href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+         class="nav-link py-1 px-3 dropdown-toggle {% if request.endpoint in ep_scanner %}active{% endif %}">
         <i class="bi bi-search me-1"></i>Scanner
       </a>
+      <ul class="dropdown-menu small">
+        <li><a class="dropdown-item {% if request.endpoint == 'admin.scanner_einstellungen' %}active{% endif %}"
+               href="{{ url_for('admin.scanner_einstellungen') }}">
+            <i class="bi bi-hdd-network me-1"></i>Netzwerk-Scanner</a></li>
+        <li><a class="dropdown-item {% if request.endpoint == 'admin.teams_einstellungen' %}active{% endif %}"
+               href="{{ url_for('admin.teams_einstellungen') }}">
+            <i class="bi bi-microsoft-teams me-1"></i>Teams-Scanner</a></li>
+        <li><a class="dropdown-item {% if request.endpoint == 'admin.similarity_settings' %}active{% endif %}"
+               href="{{ url_for('admin.similarity_settings') }}">
+            <i class="bi bi-stars me-1"></i>Ähnlichkeit</a></li>
+      </ul>
     </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.similarity_settings') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.similarity_settings' %}active{% endif %}">
-        <i class="bi bi-stars me-1"></i>Ähnlichkeit
+
+    <li class="nav-item dropdown">
+      <a href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+         class="nav-link py-1 px-3 dropdown-toggle {% if request.endpoint in ep_system %}active{% endif %}">
+        <i class="bi bi-sliders me-1"></i>System
       </a>
+      <ul class="dropdown-menu small">
+        <li><a class="dropdown-item {% if request.endpoint == 'admin.mail' %}active{% endif %}"
+               href="{{ url_for('admin.mail') }}">
+            <i class="bi bi-envelope-at me-1"></i>E-Mail</a></li>
+        <li><a class="dropdown-item {% if request.endpoint == 'admin.rate_limits' %}active{% endif %}"
+               href="{{ url_for('admin.rate_limits') }}">
+            <i class="bi bi-speedometer2 me-1"></i>Rate-Limits</a></li>
+        <li><a class="dropdown-item {% if request.endpoint in ('admin.scanner_log','admin.login_log') %}active{% endif %}"
+               href="{{ url_for('admin.scanner_log') }}">
+            <i class="bi bi-journal-code me-1"></i>Log-Viewer</a></li>
+      </ul>
     </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.list_pfad_profile') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.list_pfad_profile','admin.new_pfad_profil','admin.edit_pfad_profil') %}active{% endif %}">
-        <i class="bi bi-bookmark-star me-1"></i>Pfad-Profile
+
+    <li class="nav-item dropdown">
+      <a href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+         class="nav-link py-1 px-3 dropdown-toggle {% if request.endpoint in ep_wartung %}active{% endif %}">
+        <i class="bi bi-tools me-1"></i>Wartung
       </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.list_testfall_vorlagen') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.list_testfall_vorlagen','admin.new_testfall_vorlage','admin.edit_testfall_vorlage','admin.delete_testfall_vorlage') %}active{% endif %}">
-        <i class="bi bi-clipboard2-data me-1"></i>Testfall-Vorlagen
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.scanner_log') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.scanner_log','admin.login_log') %}active{% endif %}">
-        <i class="bi bi-journal-code me-1"></i>Log-Viewer
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.mail') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.mail' %}active{% endif %}">
-        <i class="bi bi-envelope-at me-1"></i>E-Mail
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.rate_limits') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.rate_limits' %}active{% endif %}">
-        <i class="bi bi-speedometer2 me-1"></i>Rate-Limits
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.glossar_overview') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint in ('admin.glossar_overview','admin.new_glossar','admin.edit_glossar','admin.glossar_erklaerung') %}active{% endif %}">
-        <i class="bi bi-book me-1"></i>Glossar
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.datensicherung') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.datensicherung' %}active{% endif %}">
-        <i class="bi bi-shield-check me-1"></i>Datensicherung
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="{{ url_for('admin.update_index') }}"
-         class="nav-link py-1 px-3 {% if request.endpoint == 'admin.update_index' %}active{% endif %}">
-        <i class="bi bi-cloud-arrow-up me-1"></i>Software-Update
-      </a>
+      <ul class="dropdown-menu small">
+        <li><a class="dropdown-item {% if request.endpoint == 'admin.datensicherung' %}active{% endif %}"
+               href="{{ url_for('admin.datensicherung') }}">
+            <i class="bi bi-shield-check me-1"></i>Datensicherung</a></li>
+        <li><a class="dropdown-item {% if request.endpoint == 'admin.update_index' %}active{% endif %}"
+               href="{{ url_for('admin.update_index') }}">
+            <i class="bi bi-cloud-arrow-up me-1"></i>Software-Update</a></li>
+        <li><a class="dropdown-item {% if request.endpoint in ('admin.glossar_overview','admin.new_glossar','admin.edit_glossar','admin.glossar_erklaerung') %}active{% endif %}"
+               href="{{ url_for('admin.glossar_overview') }}">
+            <i class="bi bi-book me-1"></i>Glossar</a></li>
+      </ul>
     </li>
   </ul>
 </nav>
