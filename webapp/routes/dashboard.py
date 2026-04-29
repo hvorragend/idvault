@@ -1,5 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, request, session
-from . import login_required, get_db, can_read_all, current_person_id, ROLE_KOORDINATOR
+from . import login_required, get_db, can_read_all, ROLE_KOORDINATOR
+# Sidecar-Override (Issue #474): ``current_person_id`` mit Lazy-Resolve.
+from ..permissions_override import current_person_id
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from db import (get_dashboard_stats, idv_incomplete_owners,

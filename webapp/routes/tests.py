@@ -3,9 +3,9 @@ import os
 from flask import (Blueprint, render_template, request, redirect,
                    url_for, flash, abort, send_from_directory, current_app)
 from . import login_required, get_db
-# Sidecar-Override (Issue #474): ``own_write_required`` / ``can_create``
-# aus ``webapp/permissions_override.py``.
-from ..permissions_override import own_write_required, can_create
+# Sidecar-Override (Issue #474): ``own_write_required`` / ``can_create`` /
+# ``current_person_id`` aus ``webapp/permissions_override.py``.
+from ..permissions_override import own_write_required, can_create, current_person_id
 from werkzeug.utils import secure_filename
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -474,7 +474,6 @@ def new_fachlicher_testfall(idv_db_id):
 
             if data["bewertung"] == "Erledigt":
                 if freigabe_id:
-                    from . import current_person_id
                     from .freigaben import complete_freigabe_schritt
                     abgeschlossen = complete_freigabe_schritt(
                         db, freigabe_id, current_person_id()
@@ -551,7 +550,6 @@ def edit_fachlicher_testfall(testfall_id):
 
             if data["bewertung"] == "Erledigt":
                 if freigabe_id:
-                    from . import current_person_id
                     from .freigaben import complete_freigabe_schritt
                     abgeschlossen = complete_freigabe_schritt(
                         db, freigabe_id, current_person_id()
@@ -659,7 +657,6 @@ def edit_technischer_test(idv_db_id):
                 "warning",
             )
 
-        from . import current_person_id
         person_id = current_person_id()
         bearbeiter_name = (data.get("pruefer") or "").strip()
         total_checks = len(scanner_dateien) * len(PRUEFZEUGNIS_CHECKS)
@@ -681,7 +678,6 @@ def edit_technischer_test(idv_db_id):
 
         if data["ergebnis"] == "Erledigt":
             if freigabe_id:
-                from . import current_person_id
                 from .freigaben import complete_freigabe_schritt
                 abgeschlossen = complete_freigabe_schritt(
                     db, freigabe_id, current_person_id()

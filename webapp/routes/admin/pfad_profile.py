@@ -11,7 +11,9 @@ from datetime import datetime, timezone
 
 from flask import render_template, request, redirect, url_for, flash
 
-from .. import admin_required, get_db, current_person_id
+from .. import admin_required, get_db
+# Sidecar-Override (Issue #474): ``current_person_id`` mit Lazy-Resolve.
+from ...permissions_override import current_person_id
 from ..eigenentwicklung import ENTWICKLUNGSART_LABEL
 from ...db_writer import get_writer
 from db_write_tx import write_tx
