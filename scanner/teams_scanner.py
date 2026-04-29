@@ -119,7 +119,7 @@ DEFAULT_CONFIG = {
     # True: Dateien für Makro-/Formel-Erkennung herunterladen (empfohlen)
     # False: Nur Graph-Metadaten, keine OOXML-Analyse
     "download_for_ooxml":  True,
-    "move_detection":      "name_and_hash",
+    "move_detection":      "hash_only",
     # Strict-Modus für rechenzentrumsbetriebene Tenants: App-Registrierung
     # nutzt nur Sites.Selected statt Files.Read.All + Sites.Read.All. Pro
     # Site muss der Tenant-Admin einmalig POST /sites/{id}/permissions
@@ -549,7 +549,7 @@ def scan_drive(
         "total": 0, "new": 0, "changed": 0, "unchanged": 0,
         "moved": 0, "restored": 0, "errors": 0,
     }
-    move_mode = config.get("move_detection", "name_and_hash")
+    move_mode = config.get("move_detection", "hash_only")
 
     # Delta-Token laden → inkrementeller oder vollständiger Scan?
     saved_token  = load_delta_token(conn, drive_id)
