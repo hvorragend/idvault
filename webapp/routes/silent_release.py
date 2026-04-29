@@ -28,8 +28,10 @@ from datetime import datetime, timezone
 from flask import (Blueprint, render_template, request, redirect, url_for,
                    flash, abort, current_app, session)
 
-from . import (login_required, own_write_required, get_db,
-               current_person_id)
+from . import login_required, get_db
+# Sidecar-Override (Issue #474): ``own_write_required`` /
+# ``current_person_id`` aus ``webapp/permissions_override.py``.
+from ..permissions_override import own_write_required, current_person_id
 from ..db_writer import get_writer
 from ..security import ensure_can_write_idv
 from ..tokens import make_silent_release_token, verify_silent_release_token

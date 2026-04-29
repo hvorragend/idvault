@@ -25,7 +25,10 @@ from flask import (Blueprint, request, flash, redirect, url_for, abort,
                    session, current_app, send_from_directory, send_file, render_template, jsonify)
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
-from . import login_required, own_write_required, admin_required, get_db, current_person_id
+from . import login_required, admin_required, get_db
+# Sidecar-Override (Issue #474): ``own_write_required`` /
+# ``current_person_id`` aus ``webapp/permissions_override.py``.
+from ..permissions_override import own_write_required, current_person_id
 from ..db_writer import get_writer
 from db_write_tx import write_tx
 from db import idv_completeness_score

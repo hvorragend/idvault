@@ -2,7 +2,10 @@
 import os
 from flask import (Blueprint, render_template, request, redirect,
                    url_for, flash, abort, send_from_directory, current_app)
-from . import login_required, own_write_required, get_db, can_create
+from . import login_required, get_db
+# Sidecar-Override (Issue #474): ``own_write_required`` / ``can_create``
+# aus ``webapp/permissions_override.py``.
+from ..permissions_override import own_write_required, can_create
 from werkzeug.utils import secure_filename
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))

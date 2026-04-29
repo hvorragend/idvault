@@ -4,9 +4,12 @@ idvault – Route-Blueprints
 Dashboard, IDV, Prüfungen, Maßnahmen, Auth, Admin.
 """
 
+import logging
 from flask import session, redirect, url_for, flash, abort
 from functools import wraps
 from ..db_flask import get_db  # noqa: re-export für alle Route-Module
+
+_log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Rollen-Konstanten
@@ -92,11 +95,13 @@ def current_person_id():
             "ORDER BY (user_id = ?) DESC LIMIT 1",
             (uid, uid, uid),
         ).fetchone()
-    except Exception:
+    except Exception as exc:
+        _log.warning("current_person_id: persons-Lookup failed for uid=%r: %s", uid, exc)
         return None
     if row:
         session["person_id"] = row["id"]
         return row["id"]
+    _log.info("current_person_id: kein persons-Match für uid=%r (user_id/ad_name, aktiv=1)", uid)
     return None
 
 
@@ -115,6 +120,12 @@ def own_write_required(f):
         if not session.get("user_id"):
             return redirect(url_for("auth.login"))
         if not can_create():
+            _log.warning(
+                "own_write_required: 403 für user_id=%r role=%r person_id=%r",
+                session.get("user_id"),
+                session.get("user_role"),
+                session.get("person_id"),
+            )
             flash("Zugriff verweigert – Ihrem Konto ist keine Person zugeordnet.", "error")
             abort(403)
         return f(*args, **kwargs)

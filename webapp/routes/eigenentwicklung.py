@@ -1,7 +1,12 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, jsonify, abort, g
-from . import (login_required, write_access_required, own_write_required, admin_required,
-               get_db, can_write, can_create, can_read_all, current_person_id,
+from . import (login_required, write_access_required, admin_required,
+               get_db, can_write, can_read_all,
                ROLE_ADMIN)
+# Sidecar-Override: ``own_write_required`` / ``can_create`` /
+# ``current_person_id`` kommen aus ``webapp/permissions_override.py``
+# (freistehendes Modul, daher vom Sidecar-Loader geladen). Hintergrund
+# siehe Modul-Docstring dort.
+from ..permissions_override import own_write_required, can_create, current_person_id
 import sys, os, io, json, re
 from datetime import datetime as _dt, timezone as _tz
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))

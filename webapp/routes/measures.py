@@ -1,7 +1,10 @@
 """Maßnahmen-Blueprint"""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from . import (login_required, own_write_required, admin_required, get_db,
-               can_read_all, current_person_id)
+from . import login_required, admin_required, get_db, can_read_all
+# Sidecar-Override (Issue #474): ``own_write_required`` /
+# ``current_person_id`` (mit Lazy-Resolve) aus
+# ``webapp/permissions_override.py``.
+from ..permissions_override import own_write_required, current_person_id
 from datetime import datetime, timezone
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))

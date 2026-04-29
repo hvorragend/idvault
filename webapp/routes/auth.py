@@ -218,7 +218,7 @@ def login():
                         session["person_id"] = person_id
                         session["ldap_auth"] = True
                         log_attempt(username, ip, "LDAP", True,
-                                    f"Rolle: {rolle or '(ohne)'}  User-ID: {uid}")
+                                    f"Rolle: {rolle or '(ohne)'}  User-ID: {uid}  persons.id={person_id}")
                         _next = _safe_next(session.pop("_quick_next", None))
                         return redirect(_next or url_for("dashboard.index"))
                     # LDAP aktiv, aber Credentials passen nicht → lokalen Login versuchen
