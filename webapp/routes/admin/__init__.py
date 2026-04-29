@@ -144,22 +144,31 @@ def mitarbeiter():
         ORDER BY p.nachname
     """).fetchall()
 
+    from flask import current_app
     from ... import config_store as _cs
-    raw_local = _cs.get_bootstrap("IDV_LOCAL_USERS", [])
     local_users = []
-    if isinstance(raw_local, list):
+    raw_local = _cs.get_bootstrap("IDV_LOCAL_USERS", None)
+    if isinstance(raw_local, list) and raw_local:
         for entry in raw_local:
             if not isinstance(entry, dict):
                 continue
             username = str(entry.get("username") or "").strip()
-            if not username:
+            if not username or not (entry.get("password_hash") or entry.get("password")):
                 continue
-            has_pw = bool(entry.get("password_hash") or entry.get("password"))
             local_users.append({
                 "username": username,
                 "name":     str(entry.get("name") or username),
                 "role":     str(entry.get("role") or "–"),
-                "active":   bool(entry.get("active", True)) and has_pw,
+                "active":   bool(entry.get("active", True)),
+            })
+    else:
+        # Fallback: bereits verarbeitetes Dict aus app.config (nur aktive User)
+        for username, info in (current_app.config.get("IDV_LOCAL_USERS") or {}).items():
+            local_users.append({
+                "username": username,
+                "name":     str(info.get("name") or username),
+                "role":     str(info.get("role") or "–"),
+                "active":   True,
             })
 
     return render_template("admin/mitarbeiter.html",
