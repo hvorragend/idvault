@@ -128,7 +128,7 @@ def _default_scanner_cfg() -> dict:
         "whitelist_paths": [],
         "hash_size_limit_mb": 500,
         "max_workers": 4,
-        "move_detection": "name_and_hash",
+        "move_detection": "hash_only",
         "scan_since": None,
         "read_file_owner": True,
         "parallel_shares": 1,
@@ -1098,7 +1098,7 @@ def scanner_einstellungen():
         except ValueError:
             parallel_shares = 1
 
-        move_det         = request.form.get("move_detection", "name_and_hash")
+        move_det         = request.form.get("move_detection", "hash_only")
         scan_since       = request.form.get("scan_since", "").strip() or None
         read_file_owner  = request.form.get("read_file_owner") == "1"
 
@@ -1905,7 +1905,7 @@ def teams_einstellungen():
         client_id     = request.form.get("client_id",     "").strip()
         client_secret = request.form.get("client_secret", "").strip()
         extensions    = [e.strip().lower() for e in request.form.get("extensions", "").splitlines() if e.strip()]
-        move_det      = request.form.get("move_detection", "name_and_hash")
+        move_det      = request.form.get("move_detection", "hash_only")
 
         try:
             hash_limit = max(1, int(request.form.get("hash_size_limit_mb", 100)))

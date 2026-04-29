@@ -223,8 +223,8 @@
                 <label class="form-label fw-600">Move-Detection</label>
                 <select name="move_detection" class="form-select">
                   {% for val, label in [
-                    ('name_and_hash', 'Name + Hash (Standard)'),
-                    ('hash_only',     'Nur Hash'),
+                    ('hash_only',     'Nur Hash (Standard)'),
+                    ('name_and_hash', 'Name + Hash'),
                     ('disabled',      'Deaktiviert'),
                   ] %}
                   <option value="{{ val }}" {{ 'selected' if cfg.move_detection == val }}>{{ label }}</option>

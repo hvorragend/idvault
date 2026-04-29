@@ -1,31 +1,15 @@
 {#
   Gemeinsame Makros für die Darstellung eines Datei-Eintrags in den
   Funde-Listen. Liefert ein Quell-Badge (Filesystem / SharePoint / Teams)
-  und den Dateinamen als klickbaren Link – sofern aus ``full_path`` eine
-  öffenbare URL ableitbar ist.
+  und den Dateinamen als reinen Text – Datei-Links wurden bewusst entfernt,
+  weil sich die Pfade nur unter exakt passender Browser-/OS-Konfiguration
+  oeffnen lassen und die Click-Through-Erwartung sonst irrefuehrend ist.
 
   Verwendung:
     {% from '_file_link.html' import file_link, source_badge %}
     {{ source_badge(f.source) }}
     {{ file_link(f.file_name, f.source, f.full_path) }}
 #}
-
-{# Erzeugt eine href-taugliche URL aus full_path; gibt None zurück, wenn
-   kein sicheres Schema gebildet werden kann. #}
-{%- macro _file_href(source, full_path) -%}
-{%- if not full_path -%}{%- else -%}
-{%- set _p = full_path | string -%}
-{%- if _p.startswith('https://') or _p.startswith('http://') -%}
-{{ _p }}
-{%- elif _p.startswith('\\\\') -%}
-file:{{ _p | replace('\\', '/') | replace(' ', '%20') }}
-{%- elif _p[1:3] == ':\\' or _p[1:3] == ':/' -%}
-file:///{{ _p | replace('\\', '/') | replace(' ', '%20') }}
-{%- elif _p.startswith('/') -%}
-file://{{ _p | replace(' ', '%20') }}
-{%- endif -%}
-{%- endif -%}
-{%- endmacro -%}
 
 {% macro source_badge(source) -%}
 {%- if source == 'teams' -%}
@@ -38,15 +22,5 @@ file://{{ _p | replace(' ', '%20') }}
 {%- endmacro %}
 
 {% macro file_link(file_name, source, full_path) -%}
-{%- set _href = _file_href(source, full_path) | trim -%}
-{%- if _href -%}
-{%- if source in ('teams', 'sharepoint') -%}
-<a href="{{ _href }}" target="_blank" rel="noopener noreferrer"
-   title="In neuem Tab öffnen: {{ full_path }}">{{ file_name }}<i class="bi bi-box-arrow-up-right ms-1 text-muted fs-8"></i></a>
-{%- else -%}
-<a href="{{ _href }}" title="Datei öffnen: {{ full_path }}">{{ file_name }}</a>
-{%- endif -%}
-{%- else -%}
-{{ file_name }}
-{%- endif -%}
+<span title="{{ full_path }}">{{ file_name }}</span>
 {%- endmacro %}
