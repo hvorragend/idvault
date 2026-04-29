@@ -245,7 +245,9 @@ def user_can_read_idv(db, idv_db_id: int) -> bool:
       Entwickler, Koordinator oder Stellvertreter eingetragen ist.
     """
     from flask import session
-    from .routes import can_read_all, current_person_id
+    from .routes import can_read_all
+    # Sidecar-Override (Issue #474): ``current_person_id`` mit Lazy-Resolve.
+    from .permissions_override import current_person_id
 
     if can_read_all():
         return True
@@ -267,7 +269,10 @@ def user_can_write_idv(db, idv_db_id: int) -> bool:
     * Alle anderen: nur, wenn als Beteiligter (Fachverantwortlicher,
       Entwickler, Koordinator, Stellvertreter) geführt.
     """
-    from .routes import can_write, can_create, current_person_id
+    from .routes import can_write
+    # Sidecar-Override (Issue #474): ``can_create`` / ``current_person_id``
+    # mit Admin/Koord-Shortcut + Lazy-Resolve.
+    from .permissions_override import can_create, current_person_id
 
     if can_write():
         return True

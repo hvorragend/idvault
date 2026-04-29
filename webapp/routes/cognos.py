@@ -10,7 +10,9 @@ from datetime import datetime, date, timezone
 from flask import (
     Blueprint, render_template, request, flash, redirect, url_for, current_app
 )
-from . import login_required, write_access_required, get_db, can_write, current_person_id, can_read_all
+from . import login_required, write_access_required, get_db, can_write, can_read_all
+# Sidecar-Override (Issue #474): ``current_person_id`` mit Lazy-Resolve.
+from ..permissions_override import current_person_id
 from ..security import in_clause
 from .. import limiter
 
