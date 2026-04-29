@@ -170,13 +170,14 @@
   </div>
 
   <!-- ── Lokale Benutzer (config.json) ───────────────────────── -->
-  {% if local_users %}
+  {% set _cfg_users = config.IDV_LOCAL_USERS or {} %}
+  {% if _cfg_users %}
   <div class="col-12">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <span class="fw-600 text-muted">
           <i class="bi bi-file-earmark-lock me-2"></i>Lokale Benutzer
-          <span class="badge bg-secondary fw-normal ms-1">{{ local_users|length }}</span>
+          <span class="badge bg-secondary fw-normal ms-1">{{ _cfg_users|length }}</span>
         </span>
         <span class="text-muted small">Konfiguriert in <code>config.json</code> – nicht in der Datenbank</span>
       </div>
@@ -191,18 +192,12 @@
             </tr>
           </thead>
           <tbody>
-            {% for u in local_users %}
-            <tr class="{{ '' if u.active else 'text-muted' }}">
-              <td><code>{{ u.username }}</code></td>
-              <td>{{ u.name }}</td>
-              <td class="fs-7">{{ u.role }}</td>
-              <td class="text-center">
-                {% if u.active %}
-                  <span class="badge bg-success">Ja</span>
-                {% else %}
-                  <span class="badge bg-secondary">Nein</span>
-                {% endif %}
-              </td>
+            {% for username, info in _cfg_users.items() %}
+            <tr>
+              <td><code>{{ username }}</code></td>
+              <td>{{ info.name or username }}</td>
+              <td class="fs-7">{{ info.role or '–' }}</td>
+              <td class="text-center"><span class="badge bg-success">Ja</span></td>
             </tr>
             {% endfor %}
           </tbody>
@@ -211,8 +206,9 @@
       <div class="card-footer bg-white py-2">
         <span class="text-muted small">
           <i class="bi bi-info-circle me-1"></i>
-          Diese Konten werden direkt aus <code>config.json → IDV_LOCAL_USERS</code> gelesen.
+          Diese Konten werden aus <code>config.json → IDV_LOCAL_USERS</code> gelesen.
           Zum Deaktivieren <code>"active": false</code> setzen und die Anwendung neu starten.
+          Einträge mit <code>"active": false</code> werden hier nicht angezeigt.
         </span>
       </div>
     </div>
