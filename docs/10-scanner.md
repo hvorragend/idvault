@@ -282,13 +282,44 @@ zugreifen darf — standardmäßig hat sie keinen Zugriff.
 **Aktivierung:** In `Administration → Teams-Einstellungen` den Schalter
 „Sites.Selected-Modus" einschalten.
 
-**Azure-AD-App-Registrierung:**
+**Reicht `Sites.Selected` wirklich aus?** Ja. `Sites.Selected` ist
+2021 von Microsoft genau deshalb eingeführt worden, um
+`Files.Read.All` und `Sites.Read.All` für Drittanbieter-Apps
+ablösbar zu machen. Die Permission gewährt von sich aus *null*
+Zugriff — sie ist nur die Voraussetzung dafür, dass der Tenant-Admin
+der App per Site explizit Rollen zuweisen kann. Die `read`-Rolle, die
+über `POST /sites/{id}/permissions` gegrantet wird, umfasst auf der
+betroffenen Site:
 
-- Application-Permission: ausschließlich `Sites.Selected`.
-- `Files.Read.All` und `Sites.Read.All` werden **nicht** benötigt und
-  sollten nicht vergeben werden.
-- `Group.Read.All` ebenfalls nicht (Team-IDs werden in diesem Modus
-  nicht aufgelöst).
+- Site-Metadaten (`GET /sites/{id}`) — vorher `Sites.Read.All`
+- Drives/Lists auflisten (`GET /sites/{id}/drives`,
+  `GET /sites/{id}/lists`) — vorher `Sites.Read.All`
+- DriveItems inkl. Datei-Inhalt und Delta-Query
+  (`GET /drives/{id}/root/delta`, `GET /drives/{id}/items/{id}/content`)
+  — vorher `Files.Read.All`
+
+Beide Tenant-Permissions entfallen damit vollständig.
+
+**Azure-AD-App-Registrierung im Strict-Modus:**
+
+- Application-Permission: **ausschließlich** `Sites.Selected`.
+- **Bitte nicht zusätzlich vergeben:** `Files.Read.All`,
+  `Sites.Read.All`, `Group.Read.All`. Sie sind nicht nur überflüssig,
+  sondern würden den Sinn des Modus (kein tenantweiter Zugriff)
+  aufheben — der Sicherheitsgewinn ginge verloren, weil die App dann
+  doch wieder tenantweit lesen könnte.
+
+**Was Sites.Selected nicht abdeckt (in der Regel irrelevant):**
+
+- **Subsites** einer Site sind nicht im Grant der Parent-Site
+  enthalten. Soll eine Subsite gescannt werden, braucht sie einen
+  eigenen `POST /sites/{subsite-id}/permissions`-Aufruf.
+- **User-OneDrive** (`/users/{id}/drive`, `/me/drive`) ist von
+  `Sites.Selected` nicht abgedeckt. Für den Teams-Scanner ist das
+  egal — gescannt werden Teams- und SharePoint-Sites, nicht
+  persönliche OneDrives.
+- Es muss exakt die `read`-Rolle sein. `write`/`fullcontrol` sind
+  weder nötig noch sinnvoll (idvault liest nur).
 
 **Pro SharePoint-Site einmalig durch den Tenant-Admin:**
 

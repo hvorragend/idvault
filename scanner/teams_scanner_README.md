@@ -54,15 +54,32 @@ Lese-Permissions wie `Files.Read.All`/`Sites.Read.All` gesondert
 bewertet werden. Der Tenant-Admin entscheidet pro Site, ob die App
 zugreifen darf — standardmäßig hat sie keinen Zugriff.
 
+**Reicht `Sites.Selected` wirklich aus?** Ja. Microsoft hat die
+Permission 2021 genau dafür eingeführt, dass Drittanbieter-Apps ohne
+`Files.Read.All` / `Sites.Read.All` auskommen. Die per
+`POST /sites/{id}/permissions` granted `read`-Rolle umfasst auf der
+betroffenen Site sowohl Site-Metadaten als auch Document-Library-
+Inhalt inkl. Delta-Query — beides entfällt damit als tenantweite
+Permission. Ein zusätzliches `Files.Read.All` wäre nicht nur
+überflüssig, sondern würde den Sicherheitsgewinn aufheben.
+
 **Schritt A — einmalig pro Tenant:**
 
 1. App-Registrierung wie oben anlegen.
-2. Application-Permission: ausschließlich `Sites.Selected`.
+2. Application-Permission: **ausschließlich** `Sites.Selected`.
    `Files.Read.All`, `Sites.Read.All` und `Group.Read.All` werden in
-   diesem Modus nicht benötigt und sollten nicht vergeben werden.
+   diesem Modus **nicht** benötigt und dürfen nicht zusätzlich vergeben
+   werden, sonst hat die App wieder tenantweiten Lese-Zugriff.
 3. Admin-Zustimmung erteilen.
 4. Client-ID, Tenant-ID und Client-Secret in idvault hinterlegen.
 5. Schalter „Sites.Selected-Modus" in der Web-UI aktivieren.
+
+**Was Sites.Selected nicht abdeckt:**
+
+- Subsites einer gegrantten Site brauchen einen eigenen
+  `POST /sites/{subsite-id}/permissions`-Aufruf.
+- User-OneDrives (`/me/drive`, `/users/{id}/drive`) sind nicht
+  abgedeckt — für Teams-/SharePoint-Sites ohne Belang.
 
 **Schritt B — einmalig pro SharePoint-Site, die gescannt werden soll:**
 

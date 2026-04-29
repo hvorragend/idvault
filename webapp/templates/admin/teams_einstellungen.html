@@ -26,24 +26,55 @@
       </div>
       <div class="card-body">
         {% if cfg.sites_selected_mode %}
-        <div class="alert alert-light border py-2 mb-3 small">
-          <i class="bi bi-info-circle me-1 text-secondary"></i>
-          <strong>Sites.Selected-Modus aktiv.</strong>
-          Einmalige Einrichtung durch IT-Administrator:
-          Azure Portal → Entra ID → App-Registrierungen → Berechtigungen:
-          ausschließlich <code>Sites.Selected</code> (Anwendungsberechtigung
-          + Admin-Zustimmung). Pro SharePoint-Site muss der Tenant-Admin
-          zusätzlich einmalig Lese-Rechte für die App vergeben:
-          <code>POST /sites/{site-id}/permissions</code> mit
-          <code>roles=["read"]</code>. Details siehe
-          <code>docs/10-scanner.md</code> Abschnitt 3.2.
+        <div class="alert alert-info py-3 mb-3">
+          <div class="fw-600 mb-2">
+            <i class="bi bi-shield-check me-1"></i>
+            Erforderliche Microsoft-Graph-Berechtigungen (Sites.Selected-Modus):
+          </div>
+          <ul class="mb-2 ps-4">
+            <li>
+              <code class="fw-600">Sites.Selected</code> –
+              einzige Application-Permission auf Tenant-Ebene.
+              Gewährt <em>von sich aus</em> keinen Zugriff; der
+              Tenant-Admin grantet pro Site explizit Lese-Rechte.
+            </li>
+          </ul>
+          <div class="small mb-2">
+            <i class="bi bi-x-octagon-fill me-1 text-danger"></i>
+            <strong>Bitte NICHT zusätzlich vergeben:</strong>
+            <code>Files.Read.All</code>, <code>Sites.Read.All</code>,
+            <code>Group.Read.All</code>. Diese tenantweiten Berechtigungen
+            sind in diesem Modus weder nötig noch erwünscht — sie würden
+            den Sinn von Sites.Selected (kein tenantweiter Zugriff)
+            aufheben.
+          </div>
+          <hr class="my-2">
+          <div class="small">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Pro SharePoint-Site einmalig durch den Tenant-Admin:</strong>
+            <code>POST /sites/{site-id}/permissions</code> mit
+            <code>roles=["read"]</code> und der App-Identität als
+            <code>grantedToIdentities</code>. Schritt-für-Schritt-Anleitung
+            inkl. PnP-PowerShell-Variante:
+            <code>docs/10-scanner.md</code> Abschnitt 3.2.
+          </div>
         </div>
         {% else %}
-        <div class="alert alert-light border py-2 mb-3 small">
-          <i class="bi bi-info-circle me-1 text-secondary"></i>
-          Einmalige Einrichtung durch IT-Administrator:
-          Azure Portal → Entra ID → App-Registrierungen → Berechtigungen:
-          <code>Files.Read.All</code>, <code>Sites.Read.All</code> (Anwendungsberechtigungen + Admin-Zustimmung).
+        <div class="alert alert-info py-3 mb-3">
+          <div class="fw-600 mb-2">
+            <i class="bi bi-shield-lock me-1"></i>
+            Erforderliche Microsoft-Graph-Berechtigungen (Standard-Modus):
+          </div>
+          <ul class="mb-2 ps-4">
+            <li><code class="fw-600">Files.Read.All</code> – Dateien in allen SharePoint-Sites lesen</li>
+            <li><code class="fw-600">Sites.Read.All</code> – Site-Metadaten und Drive-Auflistung</li>
+          </ul>
+          <div class="small text-muted">
+            Application-Permissions + Admin-Zustimmung. Beide greifen
+            tenantweit. Für rechenzentrumsbetriebene Tenants, in denen
+            das gesondert bewertet wird, gibt es weiter unten den
+            Sites.Selected-Modus als sparsamere Alternative.
+          </div>
         </div>
         {% endif %}
         <div class="row g-3">
@@ -96,10 +127,11 @@
           </label>
         </div>
         <div class="form-text mt-2">
-          Aktiviert: die App-Registrierung benötigt nur
-          <code>Sites.Selected</code> statt <code>Files.Read.All</code> +
-          <code>Sites.Read.All</code>. Pro SharePoint-Site muss der
-          Tenant-Admin einmalig Lese-Rechte für die App vergeben
+          Aktiviert: die App-Registrierung benötigt
+          <strong>ausschließlich</strong> <code>Sites.Selected</code> —
+          <code>Files.Read.All</code> und <code>Sites.Read.All</code>
+          entfallen vollständig. Pro SharePoint-Site grantet der
+          Tenant-Admin einmalig Lese-Rechte für die App
           (<code>POST /sites/{site-id}/permissions</code> mit
           <code>roles=["read"]</code>). Team-IDs werden in diesem Modus
           übersprungen — bitte stattdessen die SharePoint-Site-URL des
