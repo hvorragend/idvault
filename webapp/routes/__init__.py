@@ -68,7 +68,36 @@ def current_user_role() -> str:
 
 
 def current_person_id():
-    return session.get("person_id")
+    """Liefert die ``persons.id`` des eingeloggten Benutzers.
+
+    Fehlt der Wert in der Session (z. B. weil der Login-Pfad ihn nicht
+    gesetzt hat oder die Session vor Einführung des Person-Bindings
+    erstellt wurde), wird einmalig in ``persons`` per ``user_id`` bzw.
+    ``ad_name`` nachgeschlagen und in die Session zurückgeschrieben.
+    Damit bleibt der Decorator-Check robust gegen abweichende
+    Login-Pfade und alte Sessions."""
+    pid = session.get("person_id")
+    if pid:
+        return pid
+    uid = session.get("user_id")
+    if not uid:
+        return None
+    try:
+        db = get_db()
+    except Exception:
+        return None
+    try:
+        row = db.execute(
+            "SELECT id FROM persons WHERE (user_id = ? OR ad_name = ?) AND aktiv = 1 "
+            "ORDER BY (user_id = ?) DESC LIMIT 1",
+            (uid, uid, uid),
+        ).fetchone()
+    except Exception:
+        return None
+    if row:
+        session["person_id"] = row["id"]
+        return row["id"]
+    return None
 
 
 def own_write_required(f):
@@ -103,12 +132,13 @@ def can_create() -> bool:
     Admin/Koordinator dürfen immer (auch ohne Person-Binding); sonst ist
     ein Person-Binding nötig, damit der Ersteller als Entwickler
     eingetragen werden kann und nach dem Speichern den Schreibzugriff
-    behält."""
+    behält. ``current_person_id()`` löst das Binding bei Bedarf lazy aus
+    ``persons`` auf — auch für Sessions, die ohne ``person_id`` entstanden."""
     if not session.get("user_id"):
         return False
     if can_write():
         return True
-    return bool(session.get("person_id"))
+    return bool(current_person_id())
 
 
 def can_read_all() -> bool:

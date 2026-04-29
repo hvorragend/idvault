@@ -750,6 +750,18 @@ def create_app(db_path: str = None) -> Flask:
     def inject_copyright_year():
         return {"copyright_year": datetime.now().year}
 
+    # Context Processor: Erfass-/Schreibrechte für Templates.
+    # ``can_create`` triggert nebenher den Lazy-Resolve von ``person_id``
+    # in der Session — Sidebar-Sichtbarkeit hängt damit nicht mehr nur an
+    # einem ggf. fehlenden ``session['person_id']``.
+    @app.context_processor
+    def inject_permissions():
+        from flask import has_request_context
+        if not has_request_context():
+            return {}
+        from .routes import can_create as _can_create, can_write as _can_write
+        return {"can_create_now": _can_create(), "can_write_now": _can_write()}
+
     # Context Processor: Scanner-Eingang Badge-Count für alle Templates
     @app.context_processor
     def inject_scanner_badge():
