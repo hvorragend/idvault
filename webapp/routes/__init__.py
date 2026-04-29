@@ -72,14 +72,20 @@ def current_person_id():
 
 
 def own_write_required(f):
-    """Jeder eingeloggte Benutzer mit Person-Binding darf IDVs anlegen/eigene
-    bearbeiten. Edit/Abschluss eines bestehenden IDV ist zusätzlich durch
+    """Wer IDVs anlegen/eigene bearbeiten darf:
+
+    * Admin/Koordinator (volle Schreibrechte) — auch ohne Person-Binding,
+      damit technische Service-Accounts aus ``IDV_LOCAL_USERS`` nicht aus
+      dem Erfass-Pfad fallen.
+    * Sonstige eingeloggte User nur mit ``person_id`` (für Ownership).
+
+    Edit/Abschluss eines bestehenden IDV ist zusätzlich durch
     ``ensure_can_write_idv()`` (Ownership-Check) abgesichert."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("user_id"):
             return redirect(url_for("auth.login"))
-        if not session.get("person_id"):
+        if not can_create():
             flash("Zugriff verweigert – Ihrem Konto ist keine Person zugeordnet.", "error")
             abort(403)
         return f(*args, **kwargs)
@@ -94,10 +100,15 @@ def can_write() -> bool:
 def can_create() -> bool:
     """True wenn der Benutzer eigene IDVs anlegen darf.
 
-    Voraussetzung ist ein Person-Binding (für Ownership-Eintrag); die
-    Rolle ist nicht mehr relevant — jeder eingeloggte AD-User darf
-    seine eigenen Erfassungen anlegen."""
-    return bool(session.get("user_id") and session.get("person_id"))
+    Admin/Koordinator dürfen immer (auch ohne Person-Binding); sonst ist
+    ein Person-Binding nötig, damit der Ersteller als Entwickler
+    eingetragen werden kann und nach dem Speichern den Schreibzugriff
+    behält."""
+    if not session.get("user_id"):
+        return False
+    if can_write():
+        return True
+    return bool(session.get("person_id"))
 
 
 def can_read_all() -> bool:

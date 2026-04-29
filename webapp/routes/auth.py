@@ -83,10 +83,16 @@ def _check_person_login(db, username: str, password: str):
     return row
 
 
-def _check_config_user(username: str, password: str):
+def _check_config_user(username: str, password: str, db=None):
     """Prüft Benutzer aus ``config.json``-Sektion ``IDV_LOCAL_USERS`` (VULN-F).
 
     Gibt Session-Dict zurück oder ``None``.
+
+    Ist im Config-Eintrag kein ``person_id`` gepflegt, wird in ``persons``
+    nach einem aktiven Datensatz mit passendem ``user_id`` gesucht und das
+    Binding daraus übernommen. Damit erbt jeder lokal konfigurierte User
+    automatisch sein Person-Binding und behält Ownership-Schreibrechte
+    auf eigene IDVs (LDAP-Login löst dies bereits via ``ldap_sync_person``).
     """
     users = current_app.config.get("IDV_LOCAL_USERS") or {}
     user  = users.get(username)
@@ -94,11 +100,25 @@ def _check_config_user(username: str, password: str):
         return None
     if not _verify_password(user.get("password_hash", ""), password):
         return None
+    person_id = user.get("person_id")
+    if person_id is None and db is not None:
+        try:
+            row = db.execute(
+                "SELECT id FROM persons WHERE user_id = ? AND aktiv = 1",
+                (username,),
+            ).fetchone()
+            if row:
+                person_id = row["id"]
+        except sqlite3.DatabaseError as e:
+            logging.getLogger(__name__).warning(
+                "persons-Lookup für Config-User '%s' fehlgeschlagen: %s",
+                username, e,
+            )
     return {
         "user_id":   username,
         "user_name": user.get("name") or username,
         "user_role": user.get("role") or "",
-        "person_id": user.get("person_id"),
+        "person_id": person_id,
     }
 
 
@@ -114,7 +134,7 @@ def _do_local_login(db, username: str, password: str):
       2. ``persons``-Tabelle (LDAP-provisionierte oder manuell angelegte
          Benutzer) als Fallback.
     """
-    cfg_result = _check_config_user(username, password)
+    cfg_result = _check_config_user(username, password, db)
     if cfg_result is not None:
         if db is not None:
             try:
