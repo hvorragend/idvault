@@ -138,5 +138,31 @@ class ReviewMeasureRowLevelTests(unittest.TestCase):
         )
 
 
+class NichtWesentlichRowLevelTests(unittest.TestCase):
+    """Die Liste der nicht-wesentlichen IDVs muss für eingeschränkte User
+    auf eigene Beteiligungen filtern (analog list_idv / wesentliche_idvs)."""
+
+    def setUp(self):
+        self.eigen = _read("webapp/routes/eigenentwicklung.py")
+
+    def test_nicht_wesentliche_idvs_row_level(self):
+        block = _slice_function(self.eigen, "def nicht_wesentliche_idvs():")
+        self.assertRegex(
+            block, r"if\s+not\s+can_read_all\(\)\s*:",
+            "nicht_wesentliche_idvs ohne can_read_all()-Gate.",
+        )
+        for col in (
+            "fachverantwortlicher_id",
+            "idv_entwickler_id",
+            "idv_koordinator_id",
+            "stellvertreter_id",
+        ):
+            self.assertIn(col, block, f"{col} fehlt im Filter.")
+        self.assertRegex(
+            block, r'where_parts\.append\("0"\)',
+            "Kein No-Match-Fallback ohne person_id.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
