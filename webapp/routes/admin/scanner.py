@@ -1824,6 +1824,7 @@ _TEAMS_CFG_PERSIST_KEYS = frozenset({
     "hash_size_limit_mb", "download_for_ooxml", "move_detection",
     "extensions", "teams",
     "blacklist_paths", "whitelist_paths",
+    "sites_selected_mode",
 })
 
 
@@ -1848,6 +1849,7 @@ def _default_teams_cfg() -> dict:
         "teams":              [],
         "blacklist_paths":    [],
         "whitelist_paths":    [],
+        "sites_selected_mode": False,
     }
 
 
@@ -1911,6 +1913,7 @@ def teams_einstellungen():
             hash_limit = 100
 
         download_ooxml = request.form.get("download_for_ooxml") == "1"
+        sites_selected_mode = request.form.get("sites_selected_mode") == "1"
 
         # Teams-Liste aus JSON-Feld (wird per JS aus der Tabelle serialisiert)
         try:
@@ -1936,6 +1939,7 @@ def teams_einstellungen():
             "teams":              teams,
             "blacklist_paths":    blacklist_paths_t,
             "whitelist_paths":    whitelist_paths_t,
+            "sites_selected_mode": sites_selected_mode,
         })
         try:
             _save_teams_config(cfg)

@@ -25,12 +25,27 @@
         <i class="bi bi-shield-lock me-2"></i>Azure AD App-Registrierung
       </div>
       <div class="card-body">
+        {% if cfg.sites_selected_mode %}
+        <div class="alert alert-light border py-2 mb-3 small">
+          <i class="bi bi-info-circle me-1 text-secondary"></i>
+          <strong>Sites.Selected-Modus aktiv.</strong>
+          Einmalige Einrichtung durch IT-Administrator:
+          Azure Portal → Entra ID → App-Registrierungen → Berechtigungen:
+          ausschließlich <code>Sites.Selected</code> (Anwendungsberechtigung
+          + Admin-Zustimmung). Pro SharePoint-Site muss der Tenant-Admin
+          zusätzlich einmalig Lese-Rechte für die App vergeben:
+          <code>POST /sites/{site-id}/permissions</code> mit
+          <code>roles=["read"]</code>. Details siehe
+          <code>docs/10-scanner.md</code> Abschnitt 3.2.
+        </div>
+        {% else %}
         <div class="alert alert-light border py-2 mb-3 small">
           <i class="bi bi-info-circle me-1 text-secondary"></i>
           Einmalige Einrichtung durch IT-Administrator:
           Azure Portal → Entra ID → App-Registrierungen → Berechtigungen:
           <code>Files.Read.All</code>, <code>Sites.Read.All</code> (Anwendungsberechtigungen + Admin-Zustimmung).
         </div>
+        {% endif %}
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label fw-600">Verzeichnis-ID (tenant_id)</label>
@@ -64,6 +79,37 @@
     </div>
 
     <!-- ══════════════════════════════════════════════════════════
+         Karte 1b: Berechtigungs-Modus (Sites.Selected)
+         ══════════════════════════════════════════════════════════ -->
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-header bg-white fw-600">
+        <i class="bi bi-shield-check me-2"></i>Berechtigungs-Modus
+      </div>
+      <div class="card-body">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 name="sites_selected_mode" id="sites_selected_mode" value="1"
+                 {{ 'checked' if cfg.get('sites_selected_mode') }}>
+          <label class="form-check-label fw-600" for="sites_selected_mode">
+            Sites.Selected-Modus (für rechenzentrumsbetriebene Tenants
+            mit strikter Berechtigungs­bewertung)
+          </label>
+        </div>
+        <div class="form-text mt-2">
+          Aktiviert: die App-Registrierung benötigt nur
+          <code>Sites.Selected</code> statt <code>Files.Read.All</code> +
+          <code>Sites.Read.All</code>. Pro SharePoint-Site muss der
+          Tenant-Admin einmalig Lese-Rechte für die App vergeben
+          (<code>POST /sites/{site-id}/permissions</code> mit
+          <code>roles=["read"]</code>). Team-IDs werden in diesem Modus
+          übersprungen — bitte stattdessen die SharePoint-Site-URL des
+          Teams eintragen. Schritt-für-Schritt-Anleitung:
+          <code>docs/10-scanner.md</code> Abschnitt 3.2.
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
          Karte 2: Teams / SharePoint-Sites
          ══════════════════════════════════════════════════════════ -->
     <div class="card border-0 shadow-sm mt-4">
@@ -76,6 +122,15 @@
           Typ <strong>Team-ID</strong>: Object-ID des Teams (aus Teams Admin Center oder Azure Portal).
           Typ <strong>Site-URL</strong>: vollständige SharePoint-URL, z.&thinsp;B.
           <code>https://contoso.sharepoint.com/sites/Controlling</code>.
+          {% if cfg.sites_selected_mode %}
+          <br>
+          <span class="text-warning">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Im Sites.Selected-Modus sind nur Site-URLs zulässig.
+            Bestehende Team-ID-Einträge werden beim Scan übersprungen
+            und unten als inaktiv markiert.
+          </span>
+          {% endif %}
         </p>
 
         <table class="table table-sm align-middle mb-2" id="teams-table">
@@ -258,6 +313,7 @@
 (function () {
   // ── Teams-Tabelle ──────────────────────────────────────────────────────
   let teams = {{ cfg.teams | tojson }};
+  const sitesSelectedMode = {{ 'true' if cfg.sites_selected_mode else 'false' }};
 
   function renderTeams() {
     const tbody = document.getElementById("teams-tbody");
@@ -266,15 +322,20 @@
       const type  = t.team_id  !== undefined ? "team_id"  : "site_url";
       const value = t.team_id  !== undefined ? t.team_id  : (t.site_url || "");
       const name  = t.display_name || "";
+      const teamIdDisabled = sitesSelectedMode && type !== "team_id";
+      const inactiveBadge = (sitesSelectedMode && type === "team_id")
+        ? '<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Im Sites.Selected-Modus inaktiv – auf Site-URL umstellen</div>'
+        : '';
       // VULN-M: keine inline onclick/onchange/oninput mehr – Event-Delegation
       // nimmt den Index aus dem Zeilen-data-Attribut ``data-idx``.
       tbody.insertAdjacentHTML("beforeend", `
         <tr data-idx="${i}">
           <td>
             <select class="form-select form-select-sm" data-row-field="type">
-              <option value="team_id"  ${type === "team_id"  ? "selected" : ""}>Team-ID</option>
+              <option value="team_id"  ${type === "team_id"  ? "selected" : ""} ${teamIdDisabled ? "disabled" : ""}>Team-ID</option>
               <option value="site_url" ${type === "site_url" ? "selected" : ""}>Site-URL</option>
             </select>
+            ${inactiveBadge}
           </td>
           <td>
             <input type="text" class="form-control form-control-sm font-monospace"
@@ -303,7 +364,11 @@
   }
 
   window.addTeamRow = function () {
-    teams.push({ team_id: "", display_name: "" });
+    if (sitesSelectedMode) {
+      teams.push({ site_url: "", display_name: "" });
+    } else {
+      teams.push({ team_id: "", display_name: "" });
+    }
     renderTeams();
   };
 

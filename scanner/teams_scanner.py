@@ -10,10 +10,17 @@ Voraussetzungen:
 Azure AD App-Registrierung (einmalig durch IT-Administrator):
     1. Azure Portal → Entra ID → App-Registrierungen → Neue Registrierung
     2. API-Berechtigungen → Microsoft Graph → Anwendungsberechtigungen:
-           Files.Read.All    (Dateien in allen Sites lesen)
-           Sites.Read.All    (Site-Metadaten lesen)
+       a) Standard-Modus:
+              Files.Read.All    (Dateien in allen Sites lesen)
+              Sites.Read.All    (Site-Metadaten lesen)
+       b) Sites.Selected-Modus (für strikt verwaltete Tenants):
+              Sites.Selected    (kein Per-se-Zugriff; Tenant-Admin
+                                 grantet pro Site einmalig Lese-Rechte
+                                 via POST /sites/{id}/permissions)
     3. Admin-Zustimmung erteilen
     4. Zertifikate & Geheimnisse → Neuer geheimer Clientschlüssel
+    5. Im Strict-Modus zusätzlich: Schalter "Sites.Selected-Modus" in der
+       Web-UI aktivieren. Nur Site-URL-Einträge werden dann gescannt.
 
 Konfiguration:
     Wird aus der SQLite-Datenbank (``app_settings``) gelesen. Die Webapp
@@ -113,6 +120,11 @@ DEFAULT_CONFIG = {
     # False: Nur Graph-Metadaten, keine OOXML-Analyse
     "download_for_ooxml":  True,
     "move_detection":      "name_and_hash",
+    # Strict-Modus für rechenzentrumsbetriebene Tenants: App-Registrierung
+    # nutzt nur Sites.Selected statt Files.Read.All + Sites.Read.All. Pro
+    # Site muss der Tenant-Admin einmalig POST /sites/{id}/permissions
+    # ausführen. team_id-Einträge werden in diesem Modus übersprungen.
+    "sites_selected_mode": False,
     "teams": [
         # Beispiele (auskommentiert):
         # { "team_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", "display_name": "IDV-Team" },
@@ -165,7 +177,8 @@ def get_access_token(config: dict, logger: logging.Logger) -> str:
 class GraphClient:
     """Schlanker HTTP-Client für die Microsoft Graph API mit Retry-Logik."""
 
-    def __init__(self, token: str, logger: logging.Logger):
+    def __init__(self, token: str, logger: logging.Logger,
+                 sites_selected_mode: bool = False):
         if not HAS_REQUESTS:
             logger.error("requests nicht installiert. Bitte: pip install requests")
             sys.exit(1)
@@ -175,6 +188,7 @@ class GraphClient:
             "Accept":        "application/json",
         })
         self.logger = logger
+        self.sites_selected_mode = sites_selected_mode
 
     def get(self, url: str, params: dict = None, max_retries: int = 4) -> dict:
         """GET-Anfrage mit exponentiellem Backoff bei 429 (Throttling) und 503."""
@@ -194,6 +208,19 @@ class GraphClient:
                 time.sleep(retry_after)
                 delay = min(delay * 2, 60)
                 continue
+
+            if resp.status_code == 403 and self.sites_selected_mode:
+                # Im Sites.Selected-Modus bedeutet 403 typischerweise:
+                # die App ist nicht für diese Site freigegeben. Wir
+                # kapseln den Standard-HTTPError mit einem klaren Hinweis,
+                # damit der Bediener weiß, was zu tun ist.
+                raise RuntimeError(
+                    "HTTP 403: App hat keinen Zugriff auf diese Site. "
+                    "Im Sites.Selected-Modus muss der Tenant-Admin pro "
+                    "Site einmalig Lese-Rechte für die App vergeben: "
+                    "POST /sites/{site-id}/permissions mit "
+                    "roles=[\"read\"]. URL: " + url
+                )
 
             resp.raise_for_status()
 
@@ -243,7 +270,8 @@ def save_delta_token(conn: sqlite3.Connection, drive_id: str,
 # ---------------------------------------------------------------------------
 
 def resolve_drive(
-    client: GraphClient, team_entry: dict, logger: logging.Logger
+    client: GraphClient, team_entry: dict, logger: logging.Logger,
+    config: Optional[dict] = None,
 ) -> Optional[tuple]:
     """
     Ermittelt (drive_id, site_url, display_name) für einen Teams/SharePoint-Eintrag.
@@ -253,10 +281,21 @@ def resolve_drive(
         { "site_url": "https://contoso.sharepoint.com/sites/...", "display_name": "..." }
     """
     display_name = team_entry.get("display_name", "")
+    sites_selected_mode = bool((config or {}).get("sites_selected_mode"))
 
     # ── Variante A: Microsoft Teams-Team ────────────────────────────────────
     if "team_id" in team_entry:
         team_id = team_entry["team_id"]
+        if sites_selected_mode:
+            logger.error(
+                f"Eintrag '{display_name or team_id}' übersprungen: "
+                "Im Sites.Selected-Modus sind Team-IDs nicht zulässig. "
+                "Die Auflösung Team-ID → Drive benötigt tenantweite "
+                "Group-/Sites-Berechtigungen, die in diesem Modus nicht "
+                "vergeben sind. Bitte als SharePoint-Site-URL "
+                "konfigurieren."
+            )
+            return None
         try:
             data     = client.get(f"{GRAPH_BASE}/groups/{team_id}/drive")
             drive_id = data["id"]
@@ -637,7 +676,10 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
     logger.info(f"Teams-Scan-Run #{scan_run_id} gestartet | Quellen: {labels}")
 
     token  = get_access_token(config, logger)
-    client = GraphClient(token, logger)
+    client = GraphClient(
+        token, logger,
+        sites_selected_mode=bool(config.get("sites_selected_mode")),
+    )
 
     total_stats = {
         "total": 0, "new": 0, "changed": 0, "unchanged": 0,
@@ -646,7 +688,7 @@ def run_teams_scan(config: dict, logger: logging.Logger) -> None:
     full_scan_site_urls = []  # Nur für vollständige Scans → mark_deleted_files
 
     for team_entry in teams:
-        result = resolve_drive(client, team_entry, logger)
+        result = resolve_drive(client, team_entry, logger, config=config)
         if not result:
             total_stats["errors"] += 1
             continue
@@ -849,11 +891,14 @@ Beispiele:
     if args.dry_run:
         logger.info("DRY-RUN: Keine Datenbankänderungen.")
         token  = get_access_token(config, logger)
-        client = GraphClient(token, logger)
+        client = GraphClient(
+            token, logger,
+            sites_selected_mode=bool(config.get("sites_selected_mode")),
+        )
         extensions = {e.lower() for e in config.get("extensions", DEFAULT_EXTENSIONS)}
 
         for team_entry in config.get("teams", []):
-            result = resolve_drive(client, team_entry, logger)
+            result = resolve_drive(client, team_entry, logger, config=config)
             if not result:
                 continue
             drive_id, site_url, display_name = result

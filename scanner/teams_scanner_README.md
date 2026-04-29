@@ -15,7 +15,14 @@ SQLite-Datenbank wie der Netzlaufwerk-Scanner (`network_scanner.py`).
 
 ## Voraussetzungen
 
-### 1. Azure AD App-Registrierung (einmalig durch IT-Administrator)
+Es gibt zwei Berechtigungs-Modi. Welcher passt, hängt davon ab, wie
+der Tenant betrieben wird. Beide Modi sind über den Schalter
+*Sites.Selected-Modus* in der Web-UI umschaltbar (siehe
+„Administration → Teams-Einstellungen").
+
+### 1a. Standard-Modus (Default)
+
+Azure-AD-App-Registrierung (einmalig durch IT-Administrator):
 
 1. **Azure Portal** → Entra ID → App-Registrierungen → **Neue Registrierung**
    - Name: z.B. `IDVault-Scanner`
@@ -36,6 +43,66 @@ SQLite-Datenbank wie der Netzlaufwerk-Scanner (`network_scanner.py`).
    - Verzeichnis-ID (tenant_id)
    - Anwendungs-ID (client_id)
    - Geheimer Clientschlüssel (client_secret)
+
+In diesem Modus sind sowohl Microsoft-Teams-Team-IDs als auch
+SharePoint-Site-URLs als Quellen zulässig.
+
+### 1b. Sites.Selected-Modus (für strikt verwaltete Tenants)
+
+Empfohlen für rechenzentrumsbetriebene Tenants, in denen tenantweite
+Lese-Permissions wie `Files.Read.All`/`Sites.Read.All` gesondert
+bewertet werden. Der Tenant-Admin entscheidet pro Site, ob die App
+zugreifen darf — standardmäßig hat sie keinen Zugriff.
+
+**Schritt A — einmalig pro Tenant:**
+
+1. App-Registrierung wie oben anlegen.
+2. Application-Permission: ausschließlich `Sites.Selected`.
+   `Files.Read.All`, `Sites.Read.All` und `Group.Read.All` werden in
+   diesem Modus nicht benötigt und sollten nicht vergeben werden.
+3. Admin-Zustimmung erteilen.
+4. Client-ID, Tenant-ID und Client-Secret in idvault hinterlegen.
+5. Schalter „Sites.Selected-Modus" in der Web-UI aktivieren.
+
+**Schritt B — einmalig pro SharePoint-Site, die gescannt werden soll:**
+
+Der Tenant-Admin gibt der App pro Site explizit Lese-Rechte. Beispiel
+mit `curl` (Token mit `Sites.FullControl.All` oder
+SharePoint-Admin-Account):
+
+```bash
+SITE_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "https://graph.microsoft.com/v1.0/sites/{tenant}.sharepoint.com:/sites/{site-name}" \
+  | jq -r .id)
+
+curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  "https://graph.microsoft.com/v1.0/sites/$SITE_ID/permissions" \
+  -d '{
+        "roles": ["read"],
+        "grantedToIdentities": [
+          { "application": { "id": "<client-id>", "displayName": "idvault" } }
+        ]
+      }'
+```
+
+Alternativ per PnP-PowerShell:
+
+```powershell
+Grant-PnPAzureADAppSitePermission `
+  -AppId      "<client-id>" `
+  -DisplayName "idvault" `
+  -Site       "https://{tenant}.sharepoint.com/sites/{site-name}" `
+  -Permissions Read
+```
+
+Anschließend in idvault die Site-URL als Quelle eintragen. Team-IDs
+werden in diesem Modus übersprungen — ist eine Teams-Site gemeint,
+bitte deren SharePoint-Site-URL eintragen.
+
+**Diagnose:** Fehlt der Site-Grant, antwortet Graph mit HTTP 403; der
+Scanner protokolliert in dem Fall einen klar formulierten Hinweis auf
+den fehlenden `POST /sites/{site-id}/permissions`-Aufruf.
 
 ### 2. Python-Abhängigkeiten
 
@@ -125,6 +192,7 @@ Das Clientgeheimnis liegt getrennt davon verschlüsselt in
 | `move_detection` | String | `"name_and_hash"` | Modus der Verschiebe-Erkennung (identisch zu `network_scanner.py`) |
 | `extensions` | Liste | (s.o.) | Erfasste Dateierweiterungen |
 | `teams` | Liste | `[]` | Zu scannende Teams oder SharePoint-Sites |
+| `sites_selected_mode` | Boolean | `false` | Strict-Modus: App-Registrierung nutzt nur `Sites.Selected` (Lese-Rechte pro Site explizit vom Tenant-Admin gegrantet). Team-IDs werden in diesem Modus übersprungen. |
 
 #### `teams`-Einträge
 
