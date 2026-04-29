@@ -255,15 +255,83 @@ Der Teams-Scanner durchsucht über die Microsoft Graph API:
 
 ### 3.2 Voraussetzungen
 
+Es gibt zwei Modi. Welcher passt, hängt davon ab, wie der Tenant
+betrieben wird:
+
+#### 3.2.1 Standard-Modus (Default)
+
 - Azure-AD-App-Registrierung mit folgenden Berechtigungen:
   - `Files.Read.All` – Dateien in SharePoint-Sites lesen (Inhalt + Delta)
   - `Sites.Read.All` – Site-Metadaten und Drive-Auflistung
 - Client-Credentials-Flow (Application Permissions)
+- Sowohl Microsoft-Teams-Team-IDs als auch SharePoint-Site-URLs als
+  Quellen möglich
 
 > Hinweis: Channel-Nachrichten oder Teams-Stammdaten werden nicht
 > gescannt. `Team.ReadBasic.All` und `ChannelMessage.Read.All` sind
 > daher **nicht** erforderlich und sollten aus
 > Least-Privilege-Gründen auch nicht vergeben werden.
+
+#### 3.2.2 Sites.Selected-Modus (für strikt verwaltete Tenants)
+
+Empfohlen für rechenzentrumsbetriebene Tenants, in denen tenantweite
+Lese-Permissions wie `Files.Read.All`/`Sites.Read.All` gesondert
+bewertet werden. Der Tenant-Admin entscheidet pro Site, ob die App
+zugreifen darf — standardmäßig hat sie keinen Zugriff.
+
+**Aktivierung:** In `Administration → Teams-Einstellungen` den Schalter
+„Sites.Selected-Modus" einschalten.
+
+**Azure-AD-App-Registrierung:**
+
+- Application-Permission: ausschließlich `Sites.Selected`.
+- `Files.Read.All` und `Sites.Read.All` werden **nicht** benötigt und
+  sollten nicht vergeben werden.
+- `Group.Read.All` ebenfalls nicht (Team-IDs werden in diesem Modus
+  nicht aufgelöst).
+
+**Pro SharePoint-Site einmalig durch den Tenant-Admin:**
+
+1. Site-ID nachschlagen (Graph-Explorer oder PowerShell):
+   ```
+   GET https://graph.microsoft.com/v1.0/sites/{hostname}:/sites/{site-name}
+   ```
+   Das Antwort-Feld `id` hat das Format
+   `{hostname},{site-collection-guid},{site-guid}`.
+
+2. Lese-Recht für die idvault-App auf genau dieser Site granten:
+   ```
+   POST https://graph.microsoft.com/v1.0/sites/{site-id}/permissions
+   Content-Type: application/json
+
+   {
+     "roles": ["read"],
+     "grantedToIdentities": [
+       { "application": { "id": "<client-id>", "displayName": "idvault" } }
+     ]
+   }
+   ```
+
+   Alternativ per PnP-PowerShell:
+   ```powershell
+   Grant-PnPAzureADAppSitePermission `
+     -AppId      "<client-id>" `
+     -DisplayName "idvault" `
+     -Site       "https://{tenant}.sharepoint.com/sites/{site-name}" `
+     -Permissions Read
+   ```
+
+   Hinweis: Der Grant-Aufruf selbst benötigt einen Admin-Account oder
+   ein Token mit `Sites.FullControl.All` — nur für diesen einmaligen
+   Setup-Schritt; im laufenden Betrieb nicht.
+
+3. In idvault unter `Administration → Teams-Einstellungen` die
+   Site-URL als Quelle eintragen. Team-IDs werden in diesem Modus
+   übersprungen.
+
+**Diagnose:** Fehlt der Site-Grant, antwortet Graph mit HTTP 403; der
+Scanner protokolliert in dem Fall einen klar formulierten Hinweis auf
+den fehlenden `POST /sites/{site-id}/permissions`-Aufruf.
 
 ### 3.3 Konfiguration
 
