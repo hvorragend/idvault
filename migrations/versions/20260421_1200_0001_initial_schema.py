@@ -110,7 +110,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # Downgrade der Ur-Revision entspräche einem Drop aller Tabellen – das
-    # ist unwiederbringlich und für idvault nicht vorgesehen.
+    # ist unwiederbringlich und für IDVScope nicht vorgesehen.
     raise NotImplementedError(
         "Downgrade der Initial-Revision wird nicht unterstützt."
     )

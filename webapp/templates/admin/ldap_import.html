@@ -109,7 +109,7 @@
         </button>
         <button type="button" class="btn btn-sm btn-warning"
                 data-ldap-action="delete"
-                data-confirm="Ausgewählte Personen in idvault deaktivieren?">
+                data-confirm="Ausgewählte Personen in IDVScope deaktivieren?">
           <i class="bi bi-person-dash me-1"></i>Ausgewählte deaktivieren
         </button>
       </div>
@@ -205,7 +205,7 @@
       <li>Bereits vorhandene Personen (grün / „vorhanden") werden beim Import <strong>aktualisiert</strong> (Name, E-Mail, Telefon, Rolle).</li>
       <li>Neue Personen erhalten <strong>keine Berechtigung</strong> – die Rolle muss der Admin danach in der Mitarbeiterverwaltung vergeben.</li>
       <li>Die Rolle wird automatisch aus dem <a href="{{ url_for('admin.ldap_gruppen') }}">Gruppen-Rollen-Mapping</a> ermittelt, wenn ein Mapping vorhanden ist.</li>
-      <li><strong>Deaktivieren</strong> setzt den Datensatz in idvault auf inaktiv – der AD-Account bleibt unberührt.</li>
+      <li><strong>Deaktivieren</strong> setzt den Datensatz in IDVScope auf inaktiv – der AD-Account bleibt unberührt.</li>
     </ul>
   </div>
 </div>

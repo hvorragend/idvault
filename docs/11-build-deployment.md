@@ -4,7 +4,7 @@
 
 ## 1 Quellcodebezug
 
-- Repository: `hvorragend/idvault` (GitHub)
+- Repository: `hvorragend/idvscope` (GitHub)
 - Entwicklungszweig: `main`
 - Ausliefer-Tags: `vX.Y.Z` (semantic versioning)
 - Lizenzierung: intern
@@ -12,7 +12,7 @@
 ## 2 Build-Artefakt
 
 Das primäre Auslieferartefakt ist ein **Single-File-Executable** für
-Windows (`idvault.exe`), erstellt mit **PyInstaller**. Alternative
+Windows (`idvscope.exe`), erstellt mit **PyInstaller**. Alternative
 Ausliefervariante ist die Quell-Installation.
 
 ### 2.1 Voraussetzungen für den Build
@@ -28,17 +28,17 @@ Ausliefervariante ist die Quell-Installation.
 
 ```cmd
 REM Ins Projektverzeichnis wechseln
-cd C:\idvault
+cd C:\idvscope
 
 REM Abhängigkeiten installieren
 pip install -r requirements.txt
 pip install -r requirements-build.txt
 
 REM EXE bauen
-python -m PyInstaller idvault.spec --clean --noconfirm
+python -m PyInstaller idvscope.spec --clean --noconfirm
 
 REM Ergebnis
-dist\idvault.exe
+dist\idvscope.exe
 ```
 
 Der Build dauert typischerweise 1–3 Minuten. Die erzeugte EXE ist
@@ -46,7 +46,7 @@ eigenständig lauffähig und benötigt keine lokale Python-Installation.
 
 ### 2.3 PyInstaller-Spec
 
-`idvault.spec` steuert den Build-Prozess:
+`idvscope.spec` steuert den Build-Prozess:
 
 - Einstiegspunkt: `run.py`
 - Zu bündelnde Ressourcen: `schema.sql`, `alembic.ini`, `migrations/` (Alembic-Revisions), `webapp/templates/`, `webapp/static/`, `version.json`, `scanner/`
@@ -84,7 +84,7 @@ signiert werden (zur Vermeidung von SmartScreen-/AppLocker-
 Warnungen):
 
 ```cmd
-signtool sign /f bank-codesign.pfx /p <password> /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist\idvault.exe
+signtool sign /f bank-codesign.pfx /p <password> /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist\idvscope.exe
 ```
 
 ### 2.6 Prüfsummen
@@ -92,7 +92,7 @@ signtool sign /f bank-codesign.pfx /p <password> /tr http://timestamp.digicert.c
 Nach jedem Build:
 
 ```cmd
-certutil -hashfile dist\idvault.exe SHA256
+certutil -hashfile dist\idvscope.exe SHA256
 ```
 
 Die Prüfsumme ist im Release-Dokument zu hinterlegen. AppLocker-Regeln
@@ -104,15 +104,15 @@ werden gegen genau diesen Hash erstellt.
 
 In Umgebungen mit AppLocker oder strengen Whitelisting-Regeln darf die
 EXE-Binärdatei nicht ersetzt werden, da dies die Hash-Ausnahme ungültig
-macht. idvault umgeht dies, indem Updates **neben** der EXE abgelegt
+macht. IDVScope umgeht dies, indem Updates **neben** der EXE abgelegt
 werden und beim Start bevorzugt geladen werden.
 
 ### 3.2 Funktionsweise
 
 ```
-idvault.exe          ← unveränderlich, AppLocker-Hash bleibt gültig
+idvscope.exe          ← unveränderlich, AppLocker-Hash bleibt gültig
 instance/
-  idvault.db         ← Laufzeit-Datenbank
+  idvscope.db         ← Laufzeit-Datenbank
 updates/             ← wird beim Update-Import angelegt
   version.json       ← aktive Versionsinformation
   webapp/
@@ -148,10 +148,10 @@ update-v0.2.0.zip
 ### 3.4 GitHub-ZIP direkt verwendbar
 
 ```
-https://github.com/hvorragend/idvault/archive/refs/heads/main.zip
+https://github.com/hvorragend/idvscope/archive/refs/heads/main.zip
 ```
 
-Die Anwendung erkennt das `idvault-main/`-Präfix automatisch, überspringt
+Die Anwendung erkennt das `idvscope-main/`-Präfix automatisch, überspringt
 irrelevante Dateien (`.md`, `.gitignore`, `.spec`) und mappt
 `webapp/templates/` korrekt auf `templates/`.
 
@@ -181,9 +181,9 @@ Start wird die gebündelte Version aus der EXE geladen.
 
 ### 4.1 Szenario A – Standalone-Windows-Server
 
-1. `idvault.exe` auf Server kopieren (z. B. `C:\idvault\`)
+1. `idvscope.exe` auf Server kopieren (z. B. `C:\idvscope\`)
 2. Umgebungsvariablen setzen (`SECRET_KEY`, `IDV_HTTPS=1`)
-3. `idvault.exe` starten (manuell oder als Scheduled Task beim Systemstart)
+3. `idvscope.exe` starten (manuell oder als Scheduled Task beim Systemstart)
 4. Firewall-Regel für Port 5443 (HTTPS) bereitstellen
 5. Scheduled Task für Scanner einrichten
 
@@ -193,27 +193,27 @@ Empfehlung: Einsatz von `nssm` (Non-Sucking Service Manager) oder
 ähnlichem Dienst-Wrapper:
 
 ```cmd
-nssm install idvault C:\idvault\idvault.exe
-nssm set idvault AppEnvironmentExtra SECRET_KEY=<...>
-nssm set idvault AppEnvironmentExtra IDV_HTTPS=1
-nssm start idvault
+nssm install IDVScope C:\idvscope\idvscope.exe
+nssm set IDVScope AppEnvironmentExtra SECRET_KEY=<...>
+nssm set IDVScope AppEnvironmentExtra IDV_HTTPS=1
+nssm start IDVScope
 ```
 
 ### 4.3 Szenario C – Linux / Reverse-Proxy
 
 ```bash
 # Systemd-Service
-/etc/systemd/system/idvault.service
+/etc/systemd/system/idvscope.service
 ---
 [Unit]
-Description=idvault IDV-Register
+Description=IDVScope IDV-Register
 After=network.target
 
 [Service]
-User=idvault
-WorkingDirectory=/opt/idvault
+User=IDVScope
+WorkingDirectory=/opt/idvscope
 Environment=SECRET_KEY=<...>
-ExecStart=/opt/idvault/.venv/bin/gunicorn -w 4 -b 127.0.0.1:8000 "webapp:create_app()"
+ExecStart=/opt/idvscope/.venv/bin/gunicorn -w 4 -b 127.0.0.1:8000 "webapp:create_app()"
 Restart=on-failure
 
 [Install]
@@ -224,10 +224,10 @@ WantedBy=multi-user.target
 # nginx
 server {
     listen 443 ssl http2;
-    server_name idvault.intern;
+    server_name idvscope.intern;
 
-    ssl_certificate     /etc/ssl/idvault/fullchain.pem;
-    ssl_certificate_key /etc/ssl/idvault/privkey.pem;
+    ssl_certificate     /etc/ssl/idvscope/fullchain.pem;
+    ssl_certificate_key /etc/ssl/idvscope/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -235,7 +235,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # Security-Header (ergänzt die in idvault fehlenden)
+        # Security-Header (ergänzt die in IDVScope fehlenden)
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         add_header X-Frame-Options "DENY" always;
         add_header X-Content-Type-Options "nosniff" always;
@@ -255,7 +255,7 @@ server {
 | Static Security | `bandit -r .` |
 | Dependency Audit | `pip-audit -r requirements.txt` |
 | Unit-Tests | `pytest` (nach Einführung) |
-| Build EXE | `pyinstaller idvault.spec --clean --noconfirm` (Windows-Runner) |
+| Build EXE | `pyinstaller idvscope.spec --clean --noconfirm` (Windows-Runner) |
 | Hash veröffentlichen | SHA-256 des Artefakts dokumentieren |
 | Signieren | `signtool` mit Code-Signing-Zertifikat |
 
@@ -305,7 +305,7 @@ Die Webapp zeigt die aktive Version im Footer und unter
 - [ ] HTTPS-Zertifikat aus interner CA erzeugt
 - [ ] LDAP-Service-Account angelegt und AD-Gruppen erstellt
 - [ ] Scanner-Dienstkonto angelegt, Leserechte auf Shares
-- [ ] SMTP-Postfach `idvault@...` angelegt
+- [ ] SMTP-Postfach `idvscope@...` angelegt
 - [ ] Backup-Job eingerichtet und getestet
 - [ ] Scheduled Task für Scanner eingerichtet
 - [ ] Demo-Zugangsdaten deaktiviert

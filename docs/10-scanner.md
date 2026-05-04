@@ -4,7 +4,7 @@
 
 ## 1 Überblick
 
-idvault umfasst zwei unabhängige Scanner-Komponenten zur Identifikation
+IDVScope umfasst zwei unabhängige Scanner-Komponenten zur Identifikation
 von IDV-Kandidaten:
 
 1. **Dateisystem-Scanner** (`scanner/network_scanner.py`) – für
@@ -41,7 +41,7 @@ Die Scanner-Einstellungen liegen im `"scanner"`-Abschnitt der gemeinsamen
 {
   "scanner": {
     "scan_paths": ["\\\\server01\\freigabe"],
-    "db_path": "instance/idvault.db"
+    "db_path": "instance/idvscope.db"
   }
 }
 ```
@@ -62,7 +62,7 @@ Die Scanner-Einstellungen liegen im `"scanner"`-Abschnitt der gemeinsamen
 - ` - Kopie[\s.(]`, ` - Copy[\s.(]`, `[\\/]Kopie von `, `[\\/]Copy of ` – Windows-Explorer-Dubletten
 - `_alt\.`, `_backup\.`, `_bak\.`, `_old\.` – Alt-/Backup-Suffixe am Dateinamen
 
-| `db_path` | String | `"instance/idvault.db"` | Pfad zur SQLite-Datenbank |
+| `db_path` | String | `"instance/idvscope.db"` | Pfad zur SQLite-Datenbank |
 | `log_path` | String | `"scanner/network_scanner.log"` | Pfad zur Logdatei |
 | `hash_size_limit_mb` | Integer | `500` | Dateien größer als dieser Wert werden nicht gehasht |
 | `max_workers` | Integer | `4` | Derzeit ohne Wirkung – Scanner läuft single-threaded (für künftige Parallelisierung reserviert) |
@@ -203,7 +203,7 @@ Jeder Rechner scannt in eine eigene lokale `.db`. Ergebnisse werden
 
 ```
 Rechner A: config_A.json → scan_A.db ─┐
-Rechner B: config_B.json → scan_B.db ─┼→ idvault.db (Import via Webapp)
+Rechner B: config_B.json → scan_B.db ─┼→ idvscope.db (Import via Webapp)
 Rechner C: config_C.json → scan_C.db ─┘
 ```
 
@@ -213,8 +213,8 @@ Import: `Admin → Scanner-Einstellungen → Scanner-Datenbank importieren`
 
 ```
 Aufgabenplanung → Neue Aufgabe
-  Programm:  C:\idvault\idvault.exe
-  Argumente: --scan --config C:\idvault\config.json
+  Programm:  C:\idvscope\idvscope.exe
+  Argumente: --scan --config C:\idvscope\config.json
   Trigger:   Wöchentlich, Montag 06:00
   Konto:     Dienstkonto mit Leserechten auf Shares
 ```
@@ -319,7 +319,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
   egal — gescannt werden Teams- und SharePoint-Sites, nicht
   persönliche OneDrives.
 - Es muss exakt die `read`-Rolle sein. `write`/`fullcontrol` sind
-  weder nötig noch sinnvoll (idvault liest nur).
+  weder nötig noch sinnvoll (IDVScope liest nur).
 
 **Pro SharePoint-Site einmalig durch den Tenant-Admin:**
 
@@ -330,7 +330,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
    Das Antwort-Feld `id` hat das Format
    `{hostname},{site-collection-guid},{site-guid}`.
 
-2. Lese-Recht für die idvault-App auf genau dieser Site granten:
+2. Lese-Recht für die IDVScope-App auf genau dieser Site granten:
    ```
    POST https://graph.microsoft.com/v1.0/sites/{site-id}/permissions
    Content-Type: application/json
@@ -338,7 +338,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
    {
      "roles": ["read"],
      "grantedToIdentities": [
-       { "application": { "id": "<client-id>", "displayName": "idvault" } }
+       { "application": { "id": "<client-id>", "displayName": "IDVScope" } }
      ]
    }
    ```
@@ -347,7 +347,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
    ```powershell
    Grant-PnPAzureADAppSitePermission `
      -AppId      "<client-id>" `
-     -DisplayName "idvault" `
+     -DisplayName "IDVScope" `
      -Site       "https://{tenant}.sharepoint.com/sites/{site-name}" `
      -Permissions Read
    ```
@@ -356,7 +356,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
    ein Token mit `Sites.FullControl.All` — nur für diesen einmaligen
    Setup-Schritt; im laufenden Betrieb nicht.
 
-3. In idvault unter `Administration → Teams-Einstellungen` die
+3. In IDVScope unter `Administration → Teams-Einstellungen` die
    Site-URL als Quelle eintragen. Team-IDs werden in diesem Modus
    übersprungen.
 
@@ -378,7 +378,7 @@ Administration → Teams-Einstellungen
 ### 3.4 Delta-Modus
 
 Die Graph-API unterstützt Delta-Tokens, mit denen nur Änderungen seit
-dem letzten Scan abgerufen werden. idvault speichert das Delta-Token
+dem letzten Scan abgerufen werden. IDVScope speichert das Delta-Token
 und setzt bei jedem Scan genau dort auf.
 
 ## 4 Betriebsempfehlungen

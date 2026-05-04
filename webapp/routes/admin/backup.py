@@ -135,7 +135,7 @@ def build_backup_bytes(conn: sqlite3.Connection) -> bytes:
 def backup_export():
     """Lädt die Admin-Konfiguration als ZIP herunter."""
     payload = build_backup_bytes(get_db())
-    fname = f"idvault-config-backup-{datetime.now().strftime('%Y%m%d-%H%M')}.zip"
+    fname = f"idvscope-config-backup-{datetime.now().strftime('%Y%m%d-%H%M')}.zip"
     return send_file(
         io.BytesIO(payload),
         mimetype="application/zip",

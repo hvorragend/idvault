@@ -113,7 +113,7 @@ def _build_alembic_versions_dir(bundled_versions: Path,
     overlay_count = _absorb(overlay_versions, "overlay") if overlay_versions else 0
     duplicates = bundled_count + overlay_count - len(seen)
 
-    merged = Path(tempfile.mkdtemp(prefix="idvault_alembic_versions_"))
+    merged = Path(tempfile.mkdtemp(prefix="idvscope_alembic_versions_"))
     for rev, src in seen.items():
         shutil.copy2(src, merged / src.name)
 
@@ -165,7 +165,7 @@ def _alembic_config(db_path: str):
         cfg.set_main_option("version_locations", str(bundled_versions))
 
     # SQLite-URL für den aktuellen DB-Pfad – der alembic.ini-Default
-    # (instance/idvault.db) ist nur ein Platzhalter für Offline-Aufrufe.
+    # (instance/idvscope.db) ist nur ein Platzhalter für Offline-Aufrufe.
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
     return cfg
 

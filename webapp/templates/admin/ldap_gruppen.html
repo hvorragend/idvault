@@ -7,7 +7,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <span class="text-muted">
-    Zuordnung von Active-Directory-Gruppen zu idvault-Rollen
+    Zuordnung von Active-Directory-Gruppen zu IDVScope-Rollen
   </span>
   <div class="d-flex gap-2">
     <a href="{{ url_for('admin.ldap_import') }}" class="btn btn-sm btn-outline-primary">
@@ -45,7 +45,7 @@
               <th style="width:3rem">#</th>
               <th>Gruppen-DN</th>
               <th>Bezeichnung</th>
-              <th>idvault-Rolle</th>
+              <th>IDVScope-Rolle</th>
               <th style="width:5rem">Reihenf.</th>
               <th style="width:8rem"></th>
             </tr>
@@ -111,7 +111,7 @@
                                placeholder="z. B. IDV-Administratoren">
                       </div>
                       <div class="mb-3">
-                        <label class="form-label fw-600">idvault-Rolle</label>
+                        <label class="form-label fw-600">IDVScope-Rolle</label>
                         <select name="rolle" class="form-select" required>
                           {% for r in rollen %}
                           <option value="{{ r }}" {{ 'selected' if m.rolle == r else '' }}>{{ r }}</option>
@@ -169,7 +169,7 @@
             </div>
 
             <div class="col-md-5">
-              <label class="form-label fw-600">idvault-Rolle <span class="text-danger">*</span></label>
+              <label class="form-label fw-600">IDVScope-Rolle <span class="text-danger">*</span></label>
               <select name="rolle" class="form-select" required>
                 <option value="">– Rolle wählen –</option>
                 {% for r in rollen %}

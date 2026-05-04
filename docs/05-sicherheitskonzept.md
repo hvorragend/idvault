@@ -5,7 +5,7 @@
 ## 1 Zielsetzung und Schutzbedarf
 
 Dieses Sicherheitskonzept dokumentiert die Maßnahmen, mit denen
-**Vertraulichkeit, Integrität und Verfügbarkeit (CIA)** der in idvault
+**Vertraulichkeit, Integrität und Verfügbarkeit (CIA)** der in IDVScope
 verarbeiteten Daten sichergestellt werden. Grundlage sind die
 Anforderungen aus **MaRisk AT 7.2**, **BAIT Kapitel 4 und 6**, **DORA**
 sowie **ISO/IEC 27001**.
@@ -22,7 +22,7 @@ sowie **ISO/IEC 27001**.
 
 ### 1.2 Betriebsumfeld
 
-idvault wird **ausschließlich im bankeigenen Intranet** betrieben; die
+IDVScope wird **ausschließlich im bankeigenen Intranet** betrieben; die
 Anwendung ist **nicht aus dem Internet erreichbar** und nicht über eine
 DMZ exponiert. Diese Randbedingung ist Teil des Angreifermodells und
 beeinflusst die Bewertung aller in diesem Dokument genannten Maßnahmen.
@@ -36,12 +36,12 @@ Zero-Trust-Grundsatz auch im internen Netz).
 
 ### 2.1 Authentifizierungsverfahren
 
-idvault kennt drei Authentifizierungspfade:
+IDVScope kennt drei Authentifizierungspfade:
 
 1. **Primär: LDAP/Active Directory (LDAPS)**
    - Protokoll: LDAPS (Port 636, TLS)
    - Implementierung: `webapp/ldap_auth.py`
-   - Passwort des Benutzers verlässt idvault nie im Klartext
+   - Passwort des Benutzers verlässt IDVScope nie im Klartext
    - Service-Account-Passwort: **Fernet-verschlüsselt** (AES-128-CBC + HMAC-SHA256)
 
 2. **Fallback: Lokale Authentifizierung**
@@ -97,7 +97,7 @@ aktualisieren Stammdaten (Name, E-Mail, Rolle).
 
 ### 2.5 Login-freier Self-Service (Owner-Mail-Digest)
 
-Zur Entlastung des IDV-Koordinators kann idvault offene Scanner-Funde
+Zur Entlastung des IDV-Koordinators kann IDVScope offene Scanner-Funde
 gruppiert an den jeweiligen Dateieigentümer mailen. Der Empfänger erhält
 einen Magic-Link auf eine Minimalansicht („Meine Funde"), in der
 ausschließlich zwei Aktionen möglich sind: **Ignorieren** oder **Zur
@@ -113,7 +113,7 @@ Schutzmaßnahmen (Implementierung in `webapp/routes/self_service.py`,
   und es werden keine Digest-Mails versendet. Default: aus.
 - **Magic-Link-Token**: HMAC-SHA256-signiert via
   `itsdangerous.URLSafeTimedSerializer` mit dediziertem Salt
-  (`idvault-self-service-v1`, isoliert von Quick-Actions). TTL: 7 Tage.
+  (`idvscope-self-service-v1`, isoliert von Quick-Actions). TTL: 7 Tage.
 - **Einmaleintritt & Revoke**: Jeder Token trägt einen serverseitigen jti
   in `self_service_tokens`. Der erste Klick markiert `first_used_at`; ein
   expliziter „Fertig"-Klick oder ein Fehlversand setzt `revoked_at` und
@@ -220,13 +220,13 @@ Schlüsselableitungen. Anforderungen:
 - Rotation: 2 MB × 10 Segmente
 - Abrufbar über Admin-UI (`/admin/login-log`)
 
-### 6.2 Anwendungs-Log (`instance/idvault.log`)
+### 6.2 Anwendungs-Log (`instance/idvscope.log`)
 
 - Level WARNING und höher
 - Rotation: 1 MB × 7 Segmente
 - Inhalt: Anwendungsereignisse, Fehler, Warnungen
 
-### 6.3 Crash-Log (`instance/idvault_crash.log`)
+### 6.3 Crash-Log (`instance/idvscope_crash.log`)
 
 - Python-Tracebacks bei Startfehlern (insbesondere PyInstaller-EXE)
 - Rotation bei > 2 MB
@@ -300,7 +300,7 @@ dokumentiert. Status der Top-Punkte:
 ### 10.1 Vorgehen bei Verdacht auf Kompromittierung
 
 1. Anwendungsinstanz stoppen
-2. `instance/login.log` und `instance/idvault.log` sichern
+2. `instance/login.log` und `instance/idvscope.log` sichern
 3. Datenbank-Sicherung anfertigen (`.backup`)
 4. Ursachenanalyse gemeinsam mit IT-Sicherheit
 5. `SECRET_KEY` rotieren; LDAP-Bind-Passwort neu eingeben

@@ -1,5 +1,5 @@
 """
-Flask-SQLite Datenbankschicht für idvault.
+Flask-SQLite Datenbankschicht für idvscope.
 Wrapped die db.py Funktionen für den Flask-Request-Context.
 """
 

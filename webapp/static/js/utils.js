@@ -1,5 +1,5 @@
 /* ============================================================================
- * idvault — clientseitige Utility-Funktionen (Issue #416)
+ * IDVScope — clientseitige Utility-Funktionen (Issue #416)
  *
  * Stellt einen `window.idv`-Namespace bereit:
  *   idv.toast(message, kind, opts)   – nicht-blockierende Rueckmeldung

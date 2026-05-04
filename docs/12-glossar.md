@@ -6,18 +6,18 @@
 
 **Active Directory (AD)** – Verzeichnisdienst von Microsoft zur
 zentralen Verwaltung von Benutzern, Gruppen und Computern in
-Windows-Netzen. In idvault zur Authentifizierung genutzt.
+Windows-Netzen. In IDVScope zur Authentifizierung genutzt.
 
 **AppLocker** – Windows-Mechanismus zur Ausführungskontrolle.
 Beschränkt die Ausführung von Anwendungen anhand von Pfaden, Publishern
 oder Datei-Hashes.
 
-**Archiviert** – In idvault: Zustand einer Datei (`idv_files.status`),
+**Archiviert** – In idvscope: Zustand einer Datei (`idv_files.status`),
 die beim letzten Scan nicht mehr gefunden wurde; oder: Zustand einer
 IDV (`idv_register.status`), die dauerhaft außer Betrieb genommen wurde.
 
 **Audit-Trail** – Lückenlose, nachträglich unveränderbare Protokollierung
-aller relevanten Änderungen (in idvault: `idv_history`, `login.log`).
+aller relevanten Änderungen (in idvscope: `idv_history`, `login.log`).
 
 **Auto-Escaping** – Automatische Umwandlung potenziell gefährlicher
 Zeichen in HTML-Entities durch die Template-Engine (Jinja2) zum
@@ -36,10 +36,10 @@ Bearbeitungsprozess (`Neu`, `Zur Registrierung`, `Registriert`,
 `Ignoriert`).
 
 **Blueprint** – Flask-Konzept zur modularen Aufteilung einer Webanwendung.
-In idvault: je ein Blueprint pro Funktionsbereich (auth, idv, admin, …).
+In idvscope: je ein Blueprint pro Funktionsbereich (auth, idv, admin, …).
 
 **Break-Glass** – Notfall-Zugangsmechanismus, der reguläre
-Sicherheitsmaßnahmen umgeht, in idvault als "Notfall-Zugang" im
+Sicherheitsmaßnahmen umgeht, in IDVScope als "Notfall-Zugang" im
 Admin-Bereich aktivierbar.
 
 ## C
@@ -70,11 +70,11 @@ zur IKT-Resilienz von Finanzunternehmen.
 
 ## F
 
-**Fachverantwortlicher** – In idvault: Rolle der fachlich für eine
+**Fachverantwortlicher** – In idvscope: Rolle der fachlich für eine
 IDV verantwortlichen Person.
 
 **Fernet** – Verschlüsselungsverfahren der Python-`cryptography`-
-Bibliothek (AES-128-CBC + HMAC-SHA256). In idvault zur Verschlüsselung
+Bibliothek (AES-128-CBC + HMAC-SHA256). In IDVScope zur Verschlüsselung
 des LDAP-Service-Account-Passworts.
 
 **Funktionstrennung** – Organisatorisches Prinzip, wonach sich
@@ -87,7 +87,7 @@ verteilen (auch "Segregation of Duties").
 welche die Abhängigkeit eines Geschäftsprozesses von einer IDV
 bemisst.
 
-**Genehmigung** – In idvault: Zweistufiger Freigabeprozess
+**Genehmigung** – In idvscope: Zweistufiger Freigabeprozess
 (Koordinator, optional IT-Sicherheit/Revision).
 
 ## H
@@ -101,16 +101,16 @@ anweist, ausschließlich über HTTPS zu kommunizieren.
 entwickelte und betriebene IT-Lösungen (Excel-Arbeitsmappen,
 Skripte, Power-BI-Berichte u. a.).
 
-**IDV-Koordinator** – In idvault: Rolle der zentral für das IDV-Register
+**IDV-Koordinator** – In idvscope: Rolle der zentral für das IDV-Register
 verantwortlichen Person.
 
 **IDV-Register** – Zentrale Datenbank aller erfassten IDVs der
-Bank; in idvault Tabelle `idv_register`.
+Bank; in IDVScope Tabelle `idv_register`.
 
 **ISB** – Informationssicherheitsbeauftragter.
 
 **ISO 8601** – Internationaler Standard für Datums- und Zeitangaben.
-In idvault für alle Zeitstempel in der Datenbank verwendet.
+In IDVScope für alle Zeitstempel in der Datenbank verwendet.
 
 **ISO/IEC 27001** – Standard für Informationssicherheits-
 Managementsysteme.
@@ -169,14 +169,14 @@ geprüft werden soll (Standard: 12).
 
 ## R
 
-**Revision** – In idvault: Rolle der interne Revision, ausschließlich
+**Revision** – In idvscope: Rolle der interne Revision, ausschließlich
 lesender Zugriff.
 
-**Rollen (idvault)** – IDV-Administrator, IDV-Koordinator,
+**Rollen (IDVScope)** – IDV-Administrator, IDV-Koordinator,
 Fachverantwortlicher, Revision, IT-Sicherheit.
 
 **Row-Level Security** – Sichtbarkeitsbeschränkung auf Datensatzebene;
-in idvault abhängig von der Rolle und der Zuordnung des Benutzers
+in IDVScope abhängig von der Rolle und der Zuordnung des Benutzers
 zur IDV.
 
 ## S
@@ -184,10 +184,10 @@ zur IDV.
 **SAN** – Subject Alternative Name. Feld in X.509-Zertifikaten, das
 zusätzliche gültige Hostnamen/IPs enthält.
 
-**Scanner** – In idvault: Modul zur automatisierten Identifikation
+**Scanner** – In idvscope: Modul zur automatisierten Identifikation
 von IDV-Kandidaten im Dateisystem oder in Microsoft Teams.
 
-**SHA-256** – Kryptografische Hashfunktion. In idvault zur Hash-
+**SHA-256** – Kryptografische Hashfunktion. In IDVScope zur Hash-
 Berechnung von Dateien (Scanner) und – als bekannter Schwachpunkt –
 zur Speicherung lokaler Passwörter genutzt (Ziel: Migration auf Argon2id).
 
@@ -199,14 +199,14 @@ bevorzugt geladen werden.
 E-Mails.
 
 **SQLite** – Serverlose SQL-Datenbank als eingebettete Bibliothek.
-In idvault als Datenbank-Backend verwendet.
+In IDVScope als Datenbank-Backend verwendet.
 
 **STARTTLS** – Mechanismus, um eine bestehende Klartextverbindung
 (z. B. SMTP auf Port 587) auf TLS zu upgraden.
 
 ## T
 
-**Teams-Scanner** – Optionaler idvault-Scanner für Microsoft Teams /
+**Teams-Scanner** – Optionaler IDVScope-Scanner für Microsoft Teams /
 SharePoint über die Microsoft Graph API.
 
 **Teststatus** – Parallel zum IDV-Status geführtes Feld, das den
@@ -225,7 +225,7 @@ Form `\\server\freigabe\ordner`.
 **VBA** – Visual Basic for Applications. Makro-Sprache in Microsoft-
 Office-Anwendungen.
 
-**Versionierung** – In idvault: Anlegen einer neuen IDV-Version mit
+**Versionierung** – In idvscope: Anlegen einer neuen IDV-Version mit
 Rückverweis auf die Vorgängerversion; ggf. Auslösen eines neuen
 Freigabeverfahrens.
 

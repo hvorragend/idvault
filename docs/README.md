@@ -1,6 +1,6 @@
-# idvault – Dokumentation
+# IDVScope – Dokumentation
 
-Vollständige Dokumentation der idvault-Anwendung zur Erfassung,
+Vollständige Dokumentation der IDVScope-Anwendung zur Erfassung,
 Klassifizierung und Überwachung von **Eigenentwicklungen** (einschließlich
 **Individueller Datenverarbeitungen (IDV)** nach **MaRisk AT 7.2**),
 **DORA (Art. 28, 30)** und **BAIT**.
@@ -70,7 +70,7 @@ IT-Anwendungen.
 
 ## Geltungsbereich
 
-Diese Dokumentation gilt für **idvault Version 0.1.0** und nachfolgende
+Diese Dokumentation gilt für **IDVScope Version 0.1.0** und nachfolgende
 Patch-Versionen innerhalb der Hauptversion 0.x, soweit nicht ausdrücklich
 abweichende Angaben erfolgen. Die aktuell ausgelieferte Version ist in
 `version.json` dokumentiert.

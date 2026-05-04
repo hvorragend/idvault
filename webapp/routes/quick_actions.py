@@ -30,7 +30,7 @@ from ..db_flask import get_db
 from ..db_writer import get_writer
 from db_write_tx import write_tx
 
-log = logging.getLogger("idvault.quick_actions")
+log = logging.getLogger("idvscope.quick_actions")
 
 bp = Blueprint("quick_actions", __name__, url_prefix="/quick")
 

@@ -1,4 +1,4 @@
-# idvault – Standalone-Executable erstellen
+# IDVScope – Standalone-Executable erstellen
 
 > Copyright &copy; 2026 Volksbank Gronau-Ahaus eG und Carsten Volmer.
 > Alle Rechte vorbehalten. Siehe [`LICENSE`](LICENSE).
@@ -7,7 +7,7 @@
 > siehe [docs/11-build-deployment.md](docs/11-build-deployment.md). Diese
 > Datei dient als Schnell-Anleitung für Entwickler.
 
-Diese Anleitung beschreibt, wie aus dem idvault-Quellcode eine eigenständige
+Diese Anleitung beschreibt, wie aus dem IDVScope-Quellcode eine eigenständige
 `.exe` erstellt wird, die ohne Python-Installation auf anderen Rechnern läuft.
 
 ---
@@ -69,7 +69,7 @@ von GitHub und dem npm-Registry nachgeladen.
 ## Schritt 3: Executable bauen
 
 ```cmd
-python -m PyInstaller idvault.spec --clean --noconfirm
+python -m PyInstaller idvscope.spec --clean --noconfirm
 ```
 
 Der Build dauert ca. 1–3 Minuten. Am Ende erscheint:
@@ -85,7 +85,7 @@ Building EXE from EXE-00.toc completed successfully.
 Die fertige Datei liegt unter:
 
 ```
-dist\idvault.exe
+dist\idvscope.exe
 ```
 
 Diese einzelne Datei kann auf andere Windows-Rechner kopiert und dort direkt
@@ -96,23 +96,23 @@ ausgeführt werden – ohne Python-Installation.
 ## Schritt 5: Starten
 
 ```cmd
-dist\idvault.exe
+dist\idvscope.exe
 ```
 
 Oder per Doppelklick im Explorer. Es öffnet sich ein Konsolenfenster mit:
 
 ```
 =======================================================
-  idvault – IDV-Register
+  IDVScope – IDV-Register
   http://localhost:5000
   DB: C:\Users\...\AppData\Local\Temp\_MEIxxxxx\...
-  Demo-Login: admin / idvault2026
+  Demo-Login: admin / idvscope2026
 =======================================================
 ```
 
 Anschließend im Browser `http://localhost:5000` aufrufen.
 
-> Die Datenbank (`idvault.db`) wird beim ersten Start automatisch im Ordner
+> Die Datenbank (`idvscope.db`) wird beim ersten Start automatisch im Ordner
 > `instance\` neben der `.exe` angelegt und bleibt beim nächsten Start erhalten.
 
 ### HTTPS aktivieren
@@ -128,7 +128,7 @@ neben der EXE anlegen (oder `config.json.example` kopieren) und
 ```
 
 ```cmd
-dist\idvault.exe
+dist\idvscope.exe
 ```
 
 Beim ersten Start wird ein selbstsigniertes Zertifikat in
@@ -299,7 +299,7 @@ oder Stored-XSS im App-Prozess. Deshalb:
   ist es ein Supply-Chain-Risiko.
 
 Beim Start prüft die App die POSIX-Mode-Bits und schreibt eine WARNING
-nach `instance/logs/idvault.log`, sobald `updates/` (oder eine `.py`-
+nach `instance/logs/idvscope.log`, sobald `updates/` (oder eine `.py`-
 Datei darin) für Group oder Other schreibbar ist
 (`mode & 0o022 != 0`).
 
@@ -309,10 +309,10 @@ Statt eines manuell erstellten Pakets kann der direkte GitHub-Download-Link
 verwendet werden:
 
 ```
-https://github.com/hvorragend/idvault/archive/refs/heads/main.zip
+https://github.com/hvorragend/idvscope/archive/refs/heads/main.zip
 ```
 
-Die Anwendung erkennt das `idvault-main/`-Präfix automatisch, überspringt
+Die Anwendung erkennt das `idvscope-main/`-Präfix automatisch, überspringt
 nicht-relevante Dateien (`.md`, `.gitignore`, `.spec` usw.) und mappt
 `webapp/templates/` korrekt auf `templates/` um.
 

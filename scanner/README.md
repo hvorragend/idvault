@@ -2,7 +2,7 @@
 
 Scannt Netzlaufwerke und lokale Verzeichnisse nach IDV-Eigenentwicklungen
 (Excel, Access, Python, SQL, Power BI u.a.), erhebt Metadaten und speichert
-Ergebnisse in einer SQLite-Datenbank. Integriert sich mit der idvault-Webapp.
+Ergebnisse in einer SQLite-Datenbank. Integriert sich mit der IDVScope-Webapp.
 
 ---
 
@@ -133,7 +133,7 @@ speicherlastige Analysen hin. Die wichtigsten Stellschrauben:
 setzen und die Wirkung messen, dann weitere Hebel einzeln aktivieren.
 
 **Zur Diagnose auf dem Server** helfen:
-- `tasklist /V | findstr idvault` bzw. Taskmanager → Details → Spalte
+- `tasklist /V | findstr IDVScope` bzw. Taskmanager → Details → Spalte
   „Befehlszeile" zeigt den Scanner-Subprozess (Argument `--scan`).
 - Die Log-Datei (`log_path`, Standard `network_scanner.log`) auf Einträge
   wie „Hash-Berechnung unterbrochen" oder „Verzeichnis-Listing
@@ -141,14 +141,14 @@ setzen und die Wirkung messen, dann weitere Hebel einzeln aktivieren.
 
 ---
 
-### Integration mit der idvault-Webapp
+### Integration mit der IDVScope-Webapp
 
 Damit Scanner und Webapp dieselbe Datenbank nutzen, `db_path` auf die
 Instanz-Datenbank der Webapp zeigen lassen:
 
 ```json
 {
-  "db_path": "../instance/idvault.db",
+  "db_path": "../instance/idvscope.db",
   "scan_paths": ["\\\\server01\\freigabe"]
 }
 ```
@@ -286,7 +286,7 @@ Archivierte Dateien werden **nicht gelöscht**. Sie bleiben mit
 
 **Warum das wichtig ist:**
 Ist eine Datei über `idv_register.file_id` mit einem IDV-Eintrag verknüpft,
-bleibt diese Verknüpfung auch nach der Archivierung gültig. Im idvault-Interface
+bleibt diese Verknüpfung auch nach der Archivierung gültig. Im IDVScope-Interface
 unter *Scanner → Scanner-Funde → Archiv* sind alle archivierten Dateien einsehbar,
 inklusive des Datums des letzten Fundes.
 
@@ -353,22 +353,22 @@ Im Scanner-Verzeichnis (Ordner der `config.json`) werden folgende Dateien ausgew
 
 **Pause anlegen:**
 ```cmd
-echo. > C:\idvault\scanner\scanner_pause.signal
+echo. > C:\idvscope\scanner\scanner_pause.signal
 ```
 
 **Pause aufheben (Scan fortsetzen):**
 ```cmd
-del C:\idvault\scanner\scanner_pause.signal
+del C:\idvscope\scanner\scanner_pause.signal
 ```
 
 **Abbrechen:**
 ```cmd
-echo. > C:\idvault\scanner\scanner_cancel.signal
+echo. > C:\idvscope\scanner\scanner_cancel.signal
 ```
 
 **Nach Abbruch fortsetzen:**
 ```cmd
-idvault.exe --scan --config C:\idvault\scanner\config.json --resume
+idvscope.exe --scan --config C:\idvscope\scanner\config.json --resume
 REM oder:
 python network_scanner.py --config config.json --resume
 ```
@@ -389,7 +389,7 @@ Alle Scanner schreiben in dieselbe `.db`-Datei auf dem Server:
 
 ```json
 {
-  "db_path": "\\\\server\\idvault\\instance\\idvault.db",
+  "db_path": "\\\\server\\idvscope\\instance\\idvscope.db",
   "scan_paths": ["\\\\server\\freigabe\\Abteilung_A"]
 }
 ```
@@ -410,7 +410,7 @@ Ergebnisse über die Webapp zusammengeführt.
 
 ```
 Rechner A: config_A.json  →  scan_A.db  ─┐
-Rechner B: config_B.json  →  scan_B.db  ─┼→  idvault.db  (Import via Webapp)
+Rechner B: config_B.json  →  scan_B.db  ─┼→  idvscope.db  (Import via Webapp)
 Rechner C: config_C.json  →  scan_C.db  ─┘
 ```
 
@@ -425,7 +425,7 @@ Rechner C: config_C.json  →  scan_C.db  ─┘
 **Import in die zentrale Datenbank:**
 
 1. `scan_B.db` auf den Server kopieren
-2. In idvault: *Admin → Scanner-Einstellungen → Scanner-Datenbank importieren*
+2. In idvscope: *Admin → Scanner-Einstellungen → Scanner-Datenbank importieren*
 3. Pfad zur kopierten Datei angeben und **Importieren** klicken
 
 **Ergebnis:** Alle Dateien aus `scan_B.db` erscheinen in Scanner-Funde.
@@ -440,15 +440,15 @@ Vorhandene Pfade werden nicht dupliziert – neuere Scan-Daten überschreiben ä
 
 ## Als Scheduled Task (Windows)
 
-**Option A – Standalone-Executable (idvault.exe)**
+**Option A – Standalone-Executable (idvscope.exe)**
 
-Wenn idvault als Standalone-Executable betrieben wird, übernimmt dieselbe
+Wenn IDVScope als Standalone-Executable betrieben wird, übernimmt dieselbe
 Datei auch den Scanner-Modus:
 
 1. Aufgabenplanung öffnen
 2. Neue Aufgabe:
    ```
-   C:\idvault\idvault.exe --scan --config C:\idvault\scanner\config.json
+   C:\idvscope\idvscope.exe --scan --config C:\idvscope\scanner\config.json
    ```
 3. Trigger: wöchentlich (z.B. Montag 06:00 Uhr)
 4. Ausführen als: Dienstkonto mit Lesezugriff auf alle Shares

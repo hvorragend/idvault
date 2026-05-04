@@ -1,4 +1,4 @@
-"""Alembic-Umgebung für idvault.
+"""Alembic-Umgebung für idvscope.
 
 Die Anwendung arbeitet mit raw ``sqlite3`` und pflegt keine SQLAlchemy-
 Modelle; Alembic wird ausschließlich für die Schema-Verwaltung (Revisions,
@@ -8,7 +8,7 @@ aus (siehe z. B. Initial-Revision).
 
 Der DB-Pfad wird vom Aufrufer (``db._alembic_cfg``) per
 ``cfg.set_main_option("sqlalchemy.url", …)`` injiziert, sodass dieselbe
-idvault.db migriert wird, die auch die App anschließend öffnet.
+idvscope.db migriert wird, die auch die App anschließend öffnet.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Online-Modus: direkte Verbindung zur idvault.db."""
+    """Online-Modus: direkte Verbindung zur idvscope.db."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

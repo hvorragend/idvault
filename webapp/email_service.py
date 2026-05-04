@@ -1,5 +1,5 @@
 """
-idvault – E-Mail-Benachrichtigungs-Service
+IDVScope – E-Mail-Benachrichtigungs-Service
 ==========================================
 Sendet transaktionale E-Mails via SMTP (TLS/STARTTLS).
 Konfiguration wird aus der app_settings-Tabelle gelesen.
@@ -20,7 +20,7 @@ from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
 from typing import Optional
 
-log = logging.getLogger("idvault.email")
+log = logging.getLogger("idvscope.email")
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +155,7 @@ def send_mail(db, to: str | list[str], subject: str,
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = formataddr(("idvault", cfg["from"]))
+    msg["From"]    = formataddr(("IDVScope", cfg["from"]))
     msg["To"]      = ", ".join(recipients)
 
     if body_text:
@@ -209,22 +209,22 @@ def send_smtp_test(db, to_email: str, *,
     if not to_email or "@" not in to_email:
         return False, "Ungültige Empfänger-Adresse."
 
-    subject = "[idvault] SMTP-Verbindungstest"
+    subject = "[IDVScope] SMTP-Verbindungstest"
     body_html = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#198754;">idvault – SMTP-Test erfolgreich</h2>
+<h2 style="color:#198754;">IDVScope – SMTP-Test erfolgreich</h2>
 <p>Diese E-Mail wurde automatisch als Verbindungstest gesendet.</p>
 <p>Die SMTP-Konfiguration funktioniert korrekt.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
     recipients = [to_email]
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = formataddr(("idvault", cfg["from"]))
+    msg["From"]    = formataddr(("IDVScope", cfg["from"]))
     msg["To"]      = to_email
-    msg.attach(MIMEText("idvault – SMTP-Test erfolgreich.\n\nDiese E-Mail wurde automatisch als Verbindungstest gesendet.", "plain", "utf-8"))
+    msg.attach(MIMEText("IDVScope – SMTP-Test erfolgreich.\n\nDiese E-Mail wurde automatisch als Verbindungstest gesendet.", "plain", "utf-8"))
     msg.attach(MIMEText(body_html, "html", "utf-8"))
 
     smtp = None
@@ -320,11 +320,11 @@ _DEFAULTS = {}
 
 # ── 1. Neue Datei erkannt ─────────────────────────────────────────────────
 
-_DEFAULTS["neue_datei_subject"] = "[idvault] Neue IDV-Datei erkannt: {dateiname}"
+_DEFAULTS["neue_datei_subject"] = "[IDVScope] Neue IDV-Datei erkannt: {dateiname}"
 _DEFAULTS["neue_datei_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">idvault – Neue Datei erkannt</h2>
-<p>Der idvault-Scanner hat eine neue Datei entdeckt, die noch nicht im IDV-Register
+<h2 style="color:#0d6efd;">IDVScope – Neue Datei erkannt</h2>
+<p>Der IDVScope-Scanner hat eine neue Datei entdeckt, die noch nicht im IDV-Register
    erfasst ist:</p>
 <table style="border-collapse:collapse;width:100%">
   <tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td>
@@ -334,18 +334,18 @@ _DEFAULTS["neue_datei_body"] = """\
   <tr><td style="padding:6px;font-weight:bold;">Erstmals erkannt</td>
       <td style="padding:6px;">{erkannt_am}</td></tr>
 </table>
-<p style="margin-top:20px;">Bitte melden Sie sich in idvault an und erfassen
+<p style="margin-top:20px;">Bitte melden Sie sich in IDVScope an und erfassen
    Sie die Datei im IDV-Register.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
 # ── 2. Prüfung fällig ────────────────────────────────────────────────────
 
-_DEFAULTS["pruefung_faellig_subject"] = "[idvault] Prüfung fällig: {idv_id} – {bezeichnung}"
+_DEFAULTS["pruefung_faellig_subject"] = "[IDVScope] Prüfung fällig: {idv_id} – {bezeichnung}"
 _DEFAULTS["pruefung_faellig_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#fd7e14;">idvault – Prüfung fällig</h2>
+<h2 style="color:#fd7e14;">IDVScope – Prüfung fällig</h2>
 <p>Die Prüfung für folgendes IDV ist fällig oder überfällig:</p>
 <table style="border-collapse:collapse;width:100%">
   <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
@@ -355,18 +355,18 @@ _DEFAULTS["pruefung_faellig_body"] = """\
   <tr><td style="padding:6px;font-weight:bold;">Fällig am</td>
       <td style="padding:6px;">{faellig_am}</td></tr>
 </table>
-<p style="margin-top:16px;">Bitte melden Sie sich in idvault an und führen
+<p style="margin-top:16px;">Bitte melden Sie sich in IDVScope an und führen
    Sie die Prüfung durch.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
 # ── 3. Freigabe-Schritt offen ────────────────────────────────────────────
 
-_DEFAULTS["freigabe_schritt_subject"] = "[idvault] Freigabe-Schritt offen: {schritt} – {idv_id}"
+_DEFAULTS["freigabe_schritt_subject"] = "[IDVScope] Freigabe-Schritt offen: {schritt} – {idv_id}"
 _DEFAULTS["freigabe_schritt_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">idvault – Test &amp; Freigabe</h2>
+<h2 style="color:#0d6efd;">IDVScope – Test &amp; Freigabe</h2>
 <p>Für die folgende IDV steht ein Freigabe-Schritt zur Bearbeitung bereit:</p>
 <table style="border-collapse:collapse;width:100%">
   <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
@@ -379,19 +379,19 @@ _DEFAULTS["freigabe_schritt_body"] = """\
       <td style="padding:6px;font-style:italic;">{versionskommentar}</td></tr>
 </table>
 <p style="margin-top:16px;color:#6c757d;font-size:12px;">
-  Bitte melden Sie sich in idvault an und schließen Sie den Schritt ab.<br>
+  Bitte melden Sie sich in IDVScope an und schließen Sie den Schritt ab.<br>
   Hinweis: Gemäß Funktionstrennung darf der Entwickler der IDV keine
   Freigabe-Schritte abschließen.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:16px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
 # ── 4. IDV freigegeben (alle 4 Schritte erledigt) ────────────────────────
 
-_DEFAULTS["freigabe_abgeschlossen_subject"] = "[idvault] IDV freigegeben: {idv_id} – {bezeichnung}"
+_DEFAULTS["freigabe_abgeschlossen_subject"] = "[IDVScope] IDV freigegeben: {idv_id} – {bezeichnung}"
 _DEFAULTS["freigabe_abgeschlossen_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#198754;">idvault – IDV freigegeben</h2>
+<h2 style="color:#198754;">IDVScope – IDV freigegeben</h2>
 <p>Alle vier Freigabe-Schritte wurden erfolgreich abgeschlossen:</p>
 <table style="border-collapse:collapse;width:100%">
   <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
@@ -408,17 +408,17 @@ _DEFAULTS["freigabe_abgeschlossen_body"] = """\
 <p>Die IDV wurde auf Status <strong>Freigegeben</strong> und Dokumentationsstatus
    <strong>Dokumentiert</strong> gesetzt.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
 # ── 5. Bewertungsanforderung (an Datei-Ersteller) ────────────────────────
 
-_DEFAULTS["bewertung_subject"] = "[idvault] Bitte um Bewertung: {dateiname}"
+_DEFAULTS["bewertung_subject"] = "[IDVScope] Bitte um Bewertung: {dateiname}"
 _DEFAULTS["bewertung_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2>
+<h2 style="color:#0d6efd;">IDVScope – Bewertung angefordert</h2>
 <p>Sehr geehrte/r {ersteller},</p>
-<p>die folgende Datei wurde vom idvault-Scanner erkannt und ist Ihnen als
+<p>die folgende Datei wurde vom IDVScope-Scanner erkannt und ist Ihnen als
    Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Datei als
    <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2
    einzustufen ist.</p>
@@ -432,18 +432,18 @@ _DEFAULTS["bewertung_body"] = """\
   <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Makros</td>
       <td style="padding:6px;">{makros}</td></tr>
 </table>
-<p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen
+<p style="margin-top:20px;">Bitte melden Sie sich in IDVScope an und nehmen
    Sie die Bewertung vor.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
 # ── 7. Pool-Freigabeschritt wartet auf Claim (täglicher Reminder) ───────
 
-_DEFAULTS["freigabe_pool_reminder_subject"] = "[idvault] Freigabeschritt wartet: {schritt} – {idv_id}"
+_DEFAULTS["freigabe_pool_reminder_subject"] = "[IDVScope] Freigabeschritt wartet: {schritt} – {idv_id}"
 _DEFAULTS["freigabe_pool_reminder_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">idvault – Pool-Freigabeschritt wartet</h2>
+<h2 style="color:#0d6efd;">IDVScope – Pool-Freigabeschritt wartet</h2>
 <p>Ein Freigabeschritt, der Ihrem Pool <strong>{pool_name}</strong> zugewiesen
    ist, wartet seit {wartet_seit_tage} Tag(en) auf Bearbeitung und wurde noch
    von niemandem übernommen.</p>
@@ -457,22 +457,22 @@ _DEFAULTS["freigabe_pool_reminder_body"] = """\
   <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pool</td>
       <td style="padding:6px;">{pool_name}</td></tr>
 </table>
-<p style="margin-top:16px;">Bitte melden Sie sich in idvault an und klicken Sie
+<p style="margin-top:16px;">Bitte melden Sie sich in IDVScope an und klicken Sie
    auf <em>„Ich übernehme"</em>, damit die Aufgabe nicht weiter liegen bleibt.
    Sobald ein Pool-Mitglied den Schritt übernimmt, wird dieser Reminder
    für alle anderen Mitglieder eingestellt.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
 # ── 7b. Sammelbenachrichtigung an Owner (Self-Service, Issue #315) ──────
 
-_DEFAULTS["owner_digest_subject"] = "[idvault] Offene Scanner-Funde in Ihrem Bereich ({anzahl})"
+_DEFAULTS["owner_digest_subject"] = "[IDVScope] Offene Scanner-Funde in Ihrem Bereich ({anzahl})"
 _DEFAULTS["owner_digest_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">idvault – Ihre offenen Scanner-Funde</h2>
+<h2 style="color:#0d6efd;">IDVScope – Ihre offenen Scanner-Funde</h2>
 <p>Sehr geehrte/r {empfaenger},</p>
-<p>der idvault-Scanner hat <strong>{anzahl}</strong> Datei(en) in Ihrem Zugriff
+<p>der IDVScope-Scanner hat <strong>{anzahl}</strong> Datei(en) in Ihrem Zugriff
    entdeckt, die noch keiner IDV zugeordnet sind. Bitte entscheiden Sie je
    Datei, ob sie für die Registrierung vorgemerkt oder ignoriert werden soll:</p>
 <p style="margin:20px 0;text-align:center;">
@@ -485,15 +485,15 @@ _DEFAULTS["owner_digest_body"] = """\
   ohne Anmeldung. Die fachliche IDV-Einordnung übernimmt weiterhin der
   IDV-Koordinator.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
 # ── 8. Überfällige Maßnahme ──────────────────────────────────────────────
 
-_DEFAULTS["idv_incomplete_reminder_subject"] = "[idvault] IDV unvollständig: {idv_id} – {bezeichnung}"
+_DEFAULTS["idv_incomplete_reminder_subject"] = "[IDVScope] IDV unvollständig: {idv_id} – {bezeichnung}"
 _DEFAULTS["idv_incomplete_reminder_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#fd7e14;">idvault – Nachpflege erforderlich</h2>
+<h2 style="color:#fd7e14;">IDVScope – Nachpflege erforderlich</h2>
 <p>die folgende Eigenentwicklung ist über die Schnell-Anlage erfasst und
    noch nicht vollständig dokumentiert. Bitte pflegen Sie die fehlenden
    Angaben innerhalb der nächsten 14 Tage nach.</p>
@@ -510,13 +510,13 @@ _DEFAULTS["idv_incomplete_reminder_body"] = """\
 <p style="margin-top:16px;">Der Freigabe-Workflow kann erst gestartet werden,
    sobald der Vollständigkeits-Score 100 % erreicht.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
-_DEFAULTS["massnahme_ueberfaellig_subject"] = "[idvault] Überfällige Maßnahme: {titel}"
+_DEFAULTS["massnahme_ueberfaellig_subject"] = "[IDVScope] Überfällige Maßnahme: {titel}"
 _DEFAULTS["massnahme_ueberfaellig_body"] = """\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#dc3545;">idvault – Überfällige Maßnahme</h2>
+<h2 style="color:#dc3545;">IDVScope – Überfällige Maßnahme</h2>
 <p>Die folgende Maßnahme ist überfällig:</p>
 <table style="border-collapse:collapse;width:100%">
   <tr><td style="padding:6px;font-weight:bold;width:160px;">Titel</td>
@@ -524,10 +524,10 @@ _DEFAULTS["massnahme_ueberfaellig_body"] = """\
   <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Fällig am</td>
       <td style="padding:6px;">{faellig_am}</td></tr>
 </table>
-<p style="margin-top:16px;">Bitte melden Sie sich in idvault an und bearbeiten
+<p style="margin-top:16px;">Bitte melden Sie sich in IDVScope an und bearbeiten
    Sie die Maßnahme.</p>
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
 
@@ -699,7 +699,7 @@ def notify_silent_release_supervisor(db, idv_db_id: int, magic_link: str,
     ).fetchone()
     if not row or not row["email"]:
         return False
-    subject = f"[idvault] Sicht-Freigabe erforderlich – {row['idv_id']}"
+    subject = f"[IDVScope] Sicht-Freigabe erforderlich – {row['idv_id']}"
     html = (
         f"<p>Hallo {row['vorname']} {row['nachname']},</p>"
         f"<p>fuer die nicht-wesentliche Eigenentwicklung "
@@ -733,7 +733,7 @@ def notify_self_service_escalation(db, recipient_email: str, recipient_name: str
     if not recipient_email:
         return False
     if stage == "reminder":
-        subject = "[idvault] Reminder: Sie haben offene Scanner-Funde im Self-Service"
+        subject = "[IDVScope] Reminder: Sie haben offene Scanner-Funde im Self-Service"
         html = (
             f"<p>Hallo {recipient_name},</p>"
             f"<p>seit <strong>{days} Tagen</strong> haben Sie auf den letzten "
@@ -746,7 +746,7 @@ def notify_self_service_escalation(db, recipient_email: str, recipient_name: str
             f"Mail an Ihren OE-Leiter (sofern hinterlegt).</p>"
         )
     elif stage == "oe_lead":
-        subject = (f"[idvault] Eskalation: {owner_name} hat seit {days} Tagen "
+        subject = (f"[IDVScope] Eskalation: {owner_name} hat seit {days} Tagen "
                    f"offene Scanner-Funde nicht bearbeitet")
         html = (
             f"<p>Hallo {recipient_name},</p>"
@@ -839,7 +839,7 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
     """Sendet eine kombinierte Bewertungsanforderung für mehrere Dateien an einen Empfänger.
 
     Fasst alle übergebenen Dateien in einer einzigen E-Mail zusammen.
-    Wenn base_url angegeben ist, wird für jede Datei ein Link in idvault eingefügt.
+    Wenn base_url angegeben ist, wird für jede Datei ein Link in IDVScope eingefügt.
 
     ``recipient_name`` (z.B. ``"Vorname Nachname"`` aus der ``persons``-
     Tabelle) wird, wenn gesetzt, in der Anrede verwendet. Sonst greift
@@ -862,9 +862,9 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
 
     n = len(file_rows)
     if n == 1:
-        subject = f"[idvault] Bitte um Bewertung: {file_rows[0]['file_name']}"
+        subject = f"[IDVScope] Bitte um Bewertung: {file_rows[0]['file_name']}"
     else:
-        subject = f"[idvault] Bitte um Bewertung: {n} Dateien"
+        subject = f"[IDVScope] Bitte um Bewertung: {n} Dateien"
 
     with_links = bool(base_url)
 
@@ -882,7 +882,7 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
         link_td = ""
         if with_links and file_id:
             link = f"{base_url}/funde?highlight={file_id}"
-            link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In idvault öffnen</a></td>'
+            link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In IDVScope öffnen</a></td>'
 
         rows_html += f"""
         <tr{bg}>
@@ -897,15 +897,15 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
     if with_links:
         scanner_link_html = (
             f'<p style="margin-top:12px;">'
-            f'<a href="{base_url}/funde">Zum Scanner-Eingang in idvault</a>'
+            f'<a href="{base_url}/funde">Zum Scanner-Eingang in IDVScope</a>'
             f'</p>'
         )
 
     html = f"""\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2>
+<h2 style="color:#0d6efd;">IDVScope – Bewertung angefordert</h2>
 <p>Sehr geehrte/r {ersteller},</p>
-<p>die folgenden Dateien wurden vom idvault-Scanner erkannt und sind Ihnen als
+<p>die folgenden Dateien wurden vom IDVScope-Scanner erkannt und sind Ihnen als
    Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Dateien als
    <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2
    einzustufen sind.</p>
@@ -922,11 +922,11 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
   <tbody>{rows_html}
   </tbody>
 </table>
-<p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen
+<p style="margin-top:20px;">Bitte melden Sie sich in IDVScope an und nehmen
    Sie die Bewertung vor.</p>
 {scanner_link_html}
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
     text = _strip_html_tags(html)
@@ -959,9 +959,9 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
 
     n = len(bericht_rows)
     if n == 1:
-        subject = f"[idvault] Bitte um Bewertung: {bericht_rows[0]['berichtsname']}"
+        subject = f"[IDVScope] Bitte um Bewertung: {bericht_rows[0]['berichtsname']}"
     else:
-        subject = f"[idvault] Bitte um Bewertung: {n} Cognos-Berichte"
+        subject = f"[IDVScope] Bitte um Bewertung: {n} Cognos-Berichte"
 
     with_links = bool(base_url)
     link_th = '<th style="padding:8px;text-align:left;">Link</th>' if with_links else ""
@@ -975,7 +975,7 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
         link_td = ""
         if with_links and bericht_id:
             link = f"{base_url}/cognos/?highlight={bericht_id}"
-            link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In idvault öffnen</a></td>'
+            link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In IDVScope öffnen</a></td>'
 
         rows_html += f"""
         <tr{bg}>
@@ -988,13 +988,13 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
     if with_links:
         cognos_link_html = (
             f'<p style="margin-top:12px;">'
-            f'<a href="{base_url}/cognos/">Zu den Cognos-Berichten in idvault</a>'
+            f'<a href="{base_url}/cognos/">Zu den Cognos-Berichten in IDVScope</a>'
             f'</p>'
         )
 
     html = f"""\
 <html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">idvault – Bewertung angefordert</h2>
+<h2 style="color:#0d6efd;">IDVScope – Bewertung angefordert</h2>
 <p>Sehr geehrte/r {eigentuemer},</p>
 <p>die folgenden Cognos-Berichte sind Ihnen als Eigentümer zugeordnet. Bitte bewerten Sie,
    ob diese Berichte als <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne
@@ -1010,11 +1010,11 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
   <tbody>{rows_html}
   </tbody>
 </table>
-<p style="margin-top:20px;">Bitte melden Sie sich in idvault an und nehmen
+<p style="margin-top:20px;">Bitte melden Sie sich in IDVScope an und nehmen
    Sie die Bewertung vor.</p>
 {cognos_link_html}
 <p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von idvault gesendet.</p>
+  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
 </body></html>"""
 
     text = _strip_html_tags(html)

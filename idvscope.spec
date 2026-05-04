@@ -1,14 +1,14 @@
-# idvault.spec
+# idvscope.spec
 # PyInstaller-Spec für einen eigenständigen Einzel-Executable.
 #
 # Build-Befehl:
 #   pip install -r requirements-build.txt
-#   pyinstaller idvault.spec --clean --noconfirm
+#   pyinstaller idvscope.spec --clean --noconfirm
 #
 # Optionale Scanner-Pakete (falls gewünscht, vor dem Build installieren):
 #   pip install xxhash pywin32
 #
-# Ergebnis: dist/idvault  (Linux/macOS)  oder  dist/idvault.exe  (Windows)
+# Ergebnis: dist/idvscope  (Linux/macOS)  oder  dist/idvscope.exe  (Windows)
 
 from PyInstaller.utils.hooks import collect_all
 
@@ -114,7 +114,7 @@ hiddenimports = [
     'win32security',
     'ntsecuritycon',
     # pywin32 – Windows-Dienst-Framework. Ohne diese Module schlägt
-    # "idvault.exe install/start/stop/remove" mit ImportError fehl
+    # "idvscope.exe install/start/stop/remove" mit ImportError fehl
     # ("pywin32 nicht verfügbar – Dienst-Modus nicht möglich.").
     'win32service',
     'win32serviceutil',
@@ -173,7 +173,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='idvault',
+    name='IDVScope',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

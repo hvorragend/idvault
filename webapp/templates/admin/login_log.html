@@ -81,18 +81,18 @@
       </div>
       <div class="card-body">
         <p class="text-muted mb-2">
-          idvault rotiert Login- und App-Log bereits intern (Python <code>RotatingFileHandler</code>).
+          IDVScope rotiert Login- und App-Log bereits intern (Python <code>RotatingFileHandler</code>).
           Für zusätzliche <strong>Zeit-basierte Rotation und gzip-Komprimierung</strong>
           kann die folgende Konfiguration unter
-          <code>/etc/logrotate.d/idvault</code> gespeichert werden.
+          <code>/etc/logrotate.d/idvscope</code> gespeichert werden.
           Der <code>copytruncate</code>-Parameter stellt sicher, dass kein Neustart
           der Anwendung erforderlich ist.
         </p>
         <pre class="border rounded p-3 mb-2 fs-7" style="background:#f8f9fa; user-select:all">{{ logrotate_conf }}</pre>
         <div class="text-muted fs-7">
           <i class="bi bi-info-circle me-1"></i>
-          Installation: <code>sudo cp &lt;datei&gt; /etc/logrotate.d/idvault</code>
-          &nbsp;·&nbsp; Test: <code>sudo logrotate -d /etc/logrotate.d/idvault</code>
+          Installation: <code>sudo cp &lt;datei&gt; /etc/logrotate.d/idvscope</code>
+          &nbsp;·&nbsp; Test: <code>sudo logrotate -d /etc/logrotate.d/idvscope</code>
         </div>
       </div>
     </div>

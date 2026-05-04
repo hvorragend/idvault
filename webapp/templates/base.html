@@ -6,14 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="color-scheme" content="light dark">
-  <title>{% block title %}idvault{% endblock %} – idvault</title>
+  <title>{% block title %}IDVScope{% endblock %} – IDVScope</title>
   <!-- Bootstrap 5.3 (lokal, offline-fähig) -->
   <link href="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.min.css') }}" rel="stylesheet">
   <!-- Bootstrap Icons (lokal, offline-fähig) -->
   <link href="{{ url_for('static', filename='vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css') }}"
     rel="stylesheet">
-  <!-- idvault eigene Styles (Tokens, Layout, Utilities) -->
-  <link href="{{ url_for('static', filename='css/idvault.css') }}" rel="stylesheet">
+  <!-- IDVScope eigene Styles (Tokens, Layout, Utilities) -->
+  <link href="{{ url_for('static', filename='css/idvscope.css') }}" rel="stylesheet">
   {# E7 (#416): Theme-Toggle so frueh wie moeglich anwenden, vor dem
      ersten Paint, sonst flackert der Wechsel beim Reload. #}
   <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
@@ -265,7 +265,7 @@
     </main>
 
     <footer class="text-center text-muted py-3 idv-footer">
-      idvault {{ config.APP_VERSION }} &nbsp;·&nbsp; MaRisk AT 7.2 / DORA
+      IDVScope {{ config.APP_VERSION }} &nbsp;·&nbsp; MaRisk AT 7.2 / DORA
       <div class="fs-8 mt-1">
         &copy; {{ copyright_year or 2026 }} Volksbank Gronau-Ahaus eG &amp; Carsten Volmer. Alle Rechte vorbehalten.
       </div>

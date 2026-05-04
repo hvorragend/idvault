@@ -1,5 +1,5 @@
 /* ============================================================================
- * idvault — Sektions-Navigation in langen Formularen (Issue #415)
+ * IDVScope — Sektions-Navigation in langen Formularen (Issue #415)
  *
  * Bindet sich an .idv-form-nav-Tabs und markiert den Tab aktiv, dessen
  * Ziel-Sektion (#href) aktuell sichtbar ist (Intersection Observer).

@@ -30,7 +30,7 @@ from ..tokens import verify_self_service_token
 from db import generate_idv_id
 from db_write_tx import write_tx
 
-log = logging.getLogger("idvault.self_service")
+log = logging.getLogger("idvscope.self_service")
 
 bp = Blueprint("self_service", __name__, url_prefix="/selbst")
 

@@ -15,7 +15,7 @@ from ..security import in_clause
 from ..helpers import _EXT_TO_TYP, _idv_typ_vorschlag
 from .. import similarity as _sim
 
-log = logging.getLogger("idvault.funde")
+log = logging.getLogger("idvscope.funde")
 
 bp = Blueprint("funde", __name__, url_prefix="/funde")
 

@@ -424,7 +424,7 @@ def _write_scanner_notice(log_path: str, lines: list) -> None:
     """Hängt Hinweiszeilen an die stdout/stderr-Log-Datei des Scanners an.
 
     Die Zeilen erscheinen im Admin-Bereich im Scan-Log-Viewer
-    (Dropdown ``stdout/stderr-Mitschnitt``). Präfix ``[IDVAULT-START]``
+    (Dropdown ``stdout/stderr-Mitschnitt``). Präfix ``[IDVSCOPE-START]``
     macht sie leicht von regulären Scanner-Log-Zeilen unterscheidbar.
     """
     try:
@@ -432,7 +432,7 @@ def _write_scanner_notice(log_path: str, lines: list) -> None:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(log_path, "a", encoding="utf-8") as fh:
             for line in lines:
-                fh.write(f"{ts} [IDVAULT-START] {line}\n")
+                fh.write(f"{ts} [IDVSCOPE-START] {line}\n")
     except Exception:
         pass  # Logging-Fehler dürfen den Start nicht blockieren
 
@@ -576,7 +576,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     Credentials vor dem Start via ``WNetAddConnection2`` für jeden
     ``\\\\server\\share`` der konfigurierten Scan-Pfade in der aktuellen
     Logon-Session registriert (Analogon zu ``net use``). Der Scanner
-    läuft weiterhin im Kontext des idvault-Dienstes; UNC-Zugriffe nutzen
+    läuft weiterhin im Kontext des IDVScope-Dienstes; UNC-Zugriffe nutzen
     die registrierten Credentials per NTLM.
 
     Diese Lösung ersetzt den früheren ``LogonUser`` +
@@ -586,7 +586,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     (``SeAssignPrimaryTokenPrivilege``), die nur LOCAL SYSTEM besitzt.
     ``WNetAddConnection2`` benötigt keines von beidem.
 
-    Schreibt bei jedem Start mindestens eine ``[IDVAULT-START]``-Zeile
+    Schreibt bei jedem Start mindestens eine ``[IDVSCOPE-START]``-Zeile
     ins Log, die den gewählten Pfad und – falls Run-As aktiv – die
     registrierten Share-Roots dokumentiert.
 
@@ -615,7 +615,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     if not username_set:
         _write_scanner_notice(log_path, [
             "Run-As nicht konfiguriert – Scanner läuft im Kontext des "
-            "idvault-Prozesses (Dienstkonto)."
+            "IDVScope-Prozesses (Dienstkonto)."
         ])
     elif has_enc_pw and not password_ok:
         # Passwort liegt verschlüsselt vor, ließ sich aber nicht
@@ -627,7 +627,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
             f"Typische Ursache: Der SECRET_KEY der Anwendung hat sich seit "
             f"dem Speichern geändert. Abhilfe: Administration → Scanner-"
             f"Einstellungen → Run-As → Passwort erneut eintragen und "
-            f"speichern. Scanner läuft bis dahin im Kontext des idvault-"
+            f"speichern. Scanner läuft bis dahin im Kontext des idvscope-"
             f"Prozesses (Dienstkonto)."
         )
         current_app.logger.error(msg)
@@ -636,7 +636,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
         _write_scanner_notice(log_path, [
             f"Run-As-Benutzer {runas['domain'] or '.'}\\{runas['username']} "
             f"gespeichert, aber kein Passwort hinterlegt. Scanner läuft im "
-            f"Kontext des idvault-Prozesses (Dienstkonto)."
+            f"Kontext des IDVScope-Prozesses (Dienstkonto)."
         ])
 
     registered_unc: list = []
@@ -688,8 +688,8 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
             current_app.logger.error(msg)
             _write_scanner_notice(log_path, [msg])
 
-    # Scanner im Kontext des idvault-Prozesses (Dienstkonto) starten.
-    # "a" (append) damit die oben geschriebenen [IDVAULT-START]-Zeilen
+    # Scanner im Kontext des IDVScope-Prozesses (Dienstkonto) starten.
+    # "a" (append) damit die oben geschriebenen [IDVSCOPE-START]-Zeilen
     # nicht überschrieben werden. Line-buffering (buffering=1) sorgt dafür,
     # dass Scanner-Output zeitnah sichtbar wird.
     #
@@ -754,7 +754,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
                 scan_run_id = state["scan_run_id"]
                 try:
                     log_fh.write(
-                        f"[IDVAULT-END] Scanner-Prozess endete ohne "
+                        f"[IDVSCOPE-END] Scanner-Prozess endete ohne "
                         f"end_run-Event (Run #{scan_run_id}) – "
                         f"synthetisiere status='killed'.\n"
                     )
@@ -1010,7 +1010,7 @@ def start_scheduler(app) -> None:
         target=_scheduler_loop,
         args=(app,),
         daemon=True,
-        name="idvault-scan-scheduler",
+        name="idvscope-scan-scheduler",
     )
     _scheduler_thread_obj = t
     t.start()
@@ -1812,7 +1812,7 @@ def scanner_db_importieren():
         if skipped:
             msg += (
                 f" {skipped} Datei(en) verworfen (full_path ausserhalb der "
-                "konfigurierten Scan-Roots) – siehe idvault.log."
+                "konfigurierten Scan-Roots) – siehe idvscope.log."
             )
         flash(msg, "success" if not skipped else "warning")
     except Exception as exc:
@@ -2067,8 +2067,8 @@ def _resolve_scanner_output_log_path() -> str:
 
 
 def _resolve_app_log_path() -> str:
-    """Liefert den Pfad zur Haupt-App-Log-Datei (idvault.log)."""
-    return os.path.join(_instance_logs_dir(), "idvault.log")
+    """Liefert den Pfad zur Haupt-App-Log-Datei (idvscope.log)."""
+    return os.path.join(_instance_logs_dir(), "idvscope.log")
 
 
 def _resolve_scanner_crash_log_path() -> str:
@@ -2087,7 +2087,7 @@ def _resolve_app_crash_log_path() -> str:
     Enthält Python-Tracebacks und PyInstaller-Bootloader-Fehler des
     Hauptprozesses; wird nur im gebündelten EXE-Modus geschrieben.
     """
-    return os.path.join(_instance_logs_dir(), "idvault_crash.log")
+    return os.path.join(_instance_logs_dir(), "idvscope_crash.log")
 
 
 def _read_log_tail(path: str, max_lines: int = 1000) -> tuple:

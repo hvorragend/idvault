@@ -75,7 +75,7 @@ ASSETS = [
 
 def fetch(url: str) -> bytes:
     print(f"  · {url}")
-    req = urllib.request.Request(url, headers={"User-Agent": "idvault-asset-fetch"})
+    req = urllib.request.Request(url, headers={"User-Agent": "idvscope-asset-fetch"})
     with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read()
 

@@ -1,5 +1,5 @@
 """
-idvault – Notification-Scheduler (Fristenueberwachung)
+IDVScope – Notification-Scheduler (Fristenueberwachung)
 ======================================================
 
 Daemon-Thread, der einmal taeglich prueft, ob Maßnahmen oder Prüfungen
@@ -877,7 +877,7 @@ def start_notification_scheduler(app) -> None:
         target=_notification_loop,
         args=(app,),
         daemon=True,
-        name="idvault-notification-scheduler",
+        name="idvscope-notification-scheduler",
     )
     _scheduler_thread_obj = t
     t.start()

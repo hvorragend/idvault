@@ -11,7 +11,7 @@
   var D;
   try { D = JSON.parse(dataEl.textContent || "{}"); } catch (e) { return; }
 
-  // idvault-Farbpalette (konsistent zu base.html :root-Variablen)
+  // IDVScope-Farbpalette (konsistent zu base.html :root-Variablen)
   var COLOR_PRIMARY = "#1a3a5c";
   var COLOR_ACCENT  = "#e8650a";
   var PALETTE = ["#1a3a5c", "#e8650a", "#16a34a", "#0891b2", "#7c3aed", "#ca8a04",

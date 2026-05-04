@@ -84,7 +84,7 @@
             <label class="form-label fw-600">Technischer Benutzer (Bind-DN) <span class="text-danger">*</span></label>
             <input type="text" name="bind_dn" class="form-control font-monospace"
                    value="{{ cfg.bind_dn if cfg else '' }}"
-                   placeholder="CN=svc-idvault,OU=ServiceAccounts,DC=ihre-bank,DC=de" required>
+                   placeholder="CN=svc-idvscope,OU=ServiceAccounts,DC=ihre-bank,DC=de" required>
             <div class="form-text">Service-Account für LDAP-Suche (nur Leserechte benötigt)</div>
           </div>
 
@@ -147,11 +147,11 @@
       </div>
       <div class="card-body small">
         <ol class="ps-3 mb-0">
-          <li class="mb-2">Benutzer gibt <strong>Anmeldename + Passwort</strong> in idvault ein</li>
-          <li class="mb-2">idvault verbindet via <strong>LDAPS</strong> mit dem Server</li>
+          <li class="mb-2">Benutzer gibt <strong>Anmeldename + Passwort</strong> in IDVScope ein</li>
+          <li class="mb-2">IDVScope verbindet via <strong>LDAPS</strong> mit dem Server</li>
           <li class="mb-2">Suche nach Benutzerkonto per <code>sAMAccountName</code></li>
           <li class="mb-2"><strong>LDAP-Bind</strong> mit User-DN + eingegebenem Passwort</li>
-          <li class="mb-2">Gruppen-Mitgliedschaft → <strong>idvault-Rolle</strong></li>
+          <li class="mb-2">Gruppen-Mitgliedschaft → <strong>IDVScope-Rolle</strong></li>
           <li>Person wird automatisch angelegt/aktualisiert</li>
         </ol>
       </div>

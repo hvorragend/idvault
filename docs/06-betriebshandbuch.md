@@ -27,39 +27,39 @@
 ### 2.1 Variante A – Standalone-Executable (empfohlen)
 
 ```cmd
-REM 1. idvault.exe in Zielverzeichnis kopieren
-C:\idvault\idvault.exe
+REM 1. idvscope.exe in Zielverzeichnis kopieren
+C:\idvscope\idvscope.exe
 
 REM 2. Start
-idvault.exe
+idvscope.exe
 
 REM 3. Browser öffnen
 http://localhost:5000
 ```
 
-Beim ersten Start wird `instance/idvault.db` angelegt, die
-Demo-Zugangsdaten (`admin / idvault2026`) aktiviert und — falls noch
+Beim ersten Start wird `instance/idvscope.db` angelegt, die
+Demo-Zugangsdaten (`admin / idvscope2026`) aktiviert und — falls noch
 keine `config.json` vorhanden ist — automatisch eine `config.json` mit
 einem zufälligen `SECRET_KEY` neben der EXE erzeugt.
 
 ### 2.2 Variante B – Quellinstallation
 
 ```bash
-git clone https://github.com/hvorragend/idvault.git
-cd idvault
+git clone https://github.com/hvorragend/idvscope.git
+cd idvscope
 pip install -r requirements.txt
 python run.py
 ```
 
 ### 2.3 Variante C – Windows-Dienst (empfohlen für Produktivbetrieb)
 
-idvault.exe bringt ein natives Windows-Service-Framework mit und kann
+idvscope.exe bringt ein natives Windows-Service-Framework mit und kann
 direkt beim Service Control Manager (SCM) registriert werden –
 ohne externen Wrapper wie NSSM oder winsw.
 
 **Voraussetzungen**
 
-- `idvault.exe` liegt im Zielverzeichnis (z. B. `C:\idvault\`)
+- `idvscope.exe` liegt im Zielverzeichnis (z. B. `C:\idvscope\`)
 - `config.json` mit `SECRET_KEY` vorhanden (siehe Abschnitt 3)
 - PowerShell / CMD **als Administrator**
 
@@ -67,32 +67,32 @@ ohne externen Wrapper wie NSSM oder winsw.
 
 ```powershell
 # 1. Dienstnamen in config.json festlegen (empfohlen)
-#    "IDV_SERVICE_NAME": "idvault"
+#    "IDV_SERVICE_NAME": "IDVScope"
 
-# 2. Dienst registrieren (Dienstname aus IDV_SERVICE_NAME oder Default "idvault")
-C:\idvault\idvault.exe install
+# 2. Dienst registrieren (Dienstname aus IDV_SERVICE_NAME oder Default "IDVScope")
+C:\idvscope\idvscope.exe install
 
 # 3. Dienstkonto auf LOCAL SYSTEM belassen (Standard) – kein AD-User nötig
 #    Der Scan-User wird separat in der Web-UI konfiguriert (Abschnitt 7.6)
 
 # 4. Dienst starten
-C:\idvault\idvault.exe start
+C:\idvscope\idvscope.exe start
 ```
 
 Weitere Verwaltungsbefehle:
 
 | Befehl | Wirkung |
 |---|---|
-| `idvault.exe install` | Dienst registrieren |
-| `idvault.exe start` | Dienst starten |
-| `idvault.exe stop` | Dienst stoppen |
-| `idvault.exe restart` | Dienst neu starten |
-| `idvault.exe remove` | Dienst entfernen |
+| `idvscope.exe install` | Dienst registrieren |
+| `idvscope.exe start` | Dienst starten |
+| `idvscope.exe stop` | Dienst stoppen |
+| `idvscope.exe restart` | Dienst neu starten |
+| `idvscope.exe remove` | Dienst entfernen |
 
 **Neustart aus der Web-UI**
 
 Administration → Software-Update → „App neu starten" erkennt automatisch,
-ob idvault als Dienst läuft, und führt dann `sc start <name>` aus statt
+ob IDVScope als Dienst läuft, und führt dann `sc start <name>` aus statt
 eine neue EXE-Instanz zu spawnen. Der Dienstname wird per PID-Abgleich
 selbständig ermittelt (funktioniert ohne `IDV_SERVICE_NAME` bei nativer
 Registrierung); bei NSSM/winsw-Wrappern `IDV_SERVICE_NAME` in
@@ -102,13 +102,13 @@ Registrierung); bei NSSM/winsw-Wrappern `IDV_SERVICE_NAME` in
 
 Die Anwendung besteht aus einer einzigen Datei (EXE) bzw. dem Projektordner.
 Keine MSI, keine Registry-Einträge außer dem SCM-Eintrag bei
-`idvault.exe install`.
+`idvscope.exe install`.
 
 ## 3 Erstkonfiguration
 
 ### 3.1 Erstschritte
 
-1. Anmeldung als `admin / idvault2026`
+1. Anmeldung als `admin / idvscope2026`
 2. Administration → Personen → `admin`-Passwort ändern
 3. Administration → Personen: weitere Personen anlegen (oder LDAP-Import)
 4. Administration → LDAP / Active Directory einrichten (falls AD vorhanden)
@@ -137,7 +137,7 @@ Beispiel (`config.json.example` enthält die vollständige Vorlage):
   "SECRET_KEY": "zufaelliger-schluessel-mind-32-zeichen",
   "PORT": 5000,
   "IDV_HTTPS": 0,
-  "IDV_DB_PATH": "instance/idvault.db",
+  "IDV_DB_PATH": "instance/idvscope.db",
   "IDV_INSTANCE_PATH": "instance",
   "IDV_SERVICE_NAME": "",
   "IDV_DEMO_DATA": false,
@@ -198,8 +198,8 @@ In `config.json` eintragen:
 ```json
 {
   "IDV_HTTPS": 1,
-  "IDV_SSL_CERT": "C:\\zertifikate\\idvault-fullchain.pem",
-  "IDV_SSL_KEY": "C:\\zertifikate\\idvault-key.pem"
+  "IDV_SSL_CERT": "C:\\zertifikate\\idvscope-fullchain.pem",
+  "IDV_SSL_KEY": "C:\\zertifikate\\idvscope-key.pem"
 }
 ```
 
@@ -209,7 +209,7 @@ Bei CA-signierten Zertifikaten muss die vollständige Zertifikatskette
 ### 4.3 Reverse-Proxy-Alternative
 
 ```
-[Clients] → [nginx/IIS/Apache] (TLS-Terminierung) → [idvault:5000]
+[Clients] → [nginx/IIS/Apache] (TLS-Terminierung) → [idvscope:5000]
 ```
 
 Vorteile: zentrale Zertifikatsverwaltung, Let's-Encrypt-Automatisierung,
@@ -221,7 +221,7 @@ HSTS/CSP-Header im Proxy konfigurierbar.
 
 - LDAPS-Erreichbarkeit (Port 636)
 - Technischer Benutzer (Service-Account) mit Leserechten
-- AD-Gruppen für jede idvault-Rolle
+- AD-Gruppen für jede IDVScope-Rolle
 
 ### 5.2 Konfiguration
 
@@ -232,14 +232,14 @@ Administration → LDAP / Active Directory → LDAP konfigurieren
 | Server-URL | `ldaps://ldap.bank.de` |
 | Port | `636` |
 | Base-DN | `OU=Benutzer,DC=bank,DC=de` |
-| Bind-DN | `CN=svc-idvault,OU=Service,DC=bank,DC=de` |
+| Bind-DN | `CN=svc-idvscope,OU=Service,DC=bank,DC=de` |
 | Kennwort | (Service-Account-Passwort) |
 | Benutzer-Attribut | `sAMAccountName` |
 | TLS-Zertifikat prüfen | ✓ |
 
 ### 5.3 Gruppen-Rollen-Mapping
 
-| idvault-Rolle | Beispiel-Gruppen-DN |
+| IDVScope-Rolle | Beispiel-Gruppen-DN |
 |---|---|
 | IDV-Administrator | `CN=IDV-Administratoren,OU=Gruppen,DC=bank,DC=de` |
 | IDV-Koordinator | `CN=IDV-Koordinatoren,OU=Gruppen,DC=bank,DC=de` |
@@ -254,10 +254,10 @@ Get-ADGroup -Identity "IDV-Administratoren" | Select DistinguishedName
 
 ### 5.4 Automatischer Fallback
 
-Ist der LDAP-Server nicht erreichbar, wechselt idvault automatisch auf
+Ist der LDAP-Server nicht erreichbar, wechselt IDVScope automatisch auf
 die lokale Authentifizierung. In diesem Fall greifen:
 - Personen mit gesetztem `password_hash`
-- Der Demo-Account `admin / idvault2026` (solange nicht deaktiviert)
+- Der Demo-Account `admin / idvscope2026` (solange nicht deaktiviert)
 
 ### 5.5 Notfall-Zugang (Break-Glass)
 
@@ -285,9 +285,9 @@ Administration → E-Mail-Einstellungen (SMTP)
 |---|---|
 | SMTP-Host | `mail.bank.de` |
 | Port | 587 (STARTTLS) oder 465 (SSL) |
-| Benutzer | `idvault@bank.de` |
+| Benutzer | `idvscope@bank.de` |
 | Passwort | (Postfach-Kennwort) |
-| Absenderadresse | `idvault@bank.de` |
+| Absenderadresse | `idvscope@bank.de` |
 | STARTTLS | ✓ bei Port 587, ✗ bei Port 465 |
 
 ### 6.2 Benachrichtigungstypen
@@ -316,15 +316,15 @@ Administration → Scanner-Einstellungen
 
 **CLI**:
 ```cmd
-idvault.exe --scan --config C:\idvault\config.json
+idvscope.exe --scan --config C:\idvscope\config.json
 ```
 
 ### 7.3 Scheduled Task (Windows)
 
 ```
 Aufgabenplanung → Neue Aufgabe
-  Programm:  C:\idvault\idvault.exe
-  Argumente: --scan --config C:\idvault\config.json
+  Programm:  C:\idvscope\idvscope.exe
+  Argumente: --scan --config C:\idvscope\config.json
   Trigger:   Wöchentlich, Montag 06:00
   Konto:     Dienstkonto mit Leserechten
 ```
@@ -344,7 +344,7 @@ Details siehe [10 – Scanner](10-scanner.md).
 
 ### 7.5 Fehlersuche: „Pfad nicht erreichbar" beim Dienst-Betrieb
 
-Wird idvault als Windows-Dienst betrieben und die Webapp startet den Scanner
+Wird IDVScope als Windows-Dienst betrieben und die Webapp startet den Scanner
 über einen hinterlegten Scan-User (Administration → Scanner-Einstellungen →
 Run-As), kann der Scanner den UNC-Pfad trotz Zugriffsrechten des Scan-Users
 nicht erreichen. Typische Log-Ausgabe:
@@ -363,8 +363,8 @@ Prüfpunkte in dieser Reihenfolge:
    **Computer-Account** des Servers – der Dienst läuft als `LOCAL SYSTEM`
    (oder `NETWORK SERVICE`) und die hinterlegte `Run-As`-Konfiguration
    wurde nicht angewandt. Im *stdout/stderr-Mitschnitt* findest du in
-   dem Fall eine `[IDVAULT-START]`-Zeile mit dem exakten Grund.
-2. **`[IDVAULT-START]`-Zeilen auswerten:**
+   dem Fall eine `[IDVSCOPE-START]`-Zeile mit dem exakten Grund.
+2. **`[IDVSCOPE-START]`-Zeilen auswerten:**
    - `Run-As-Passwort … konnte nicht entschlüsselt werden` – der
      `SECRET_KEY` hat sich seit dem Speichern der Konfiguration geändert.
      Passwort in Administration → Scanner-Einstellungen → Run-As erneut
@@ -372,18 +372,18 @@ Prüfpunkte in dieser Reihenfolge:
    - `Run-As-Benutzer … gespeichert, aber kein Passwort hinterlegt` –
      Password-Feld war beim letzten Speichern leer; erneut eintragen.
    - `pywin32-Module fehlen im EXE-Build: …` – der Build enthält nicht
-     alle benötigten Hidden-Imports. EXE mit der aktuellen `idvault.spec`
+     alle benötigten Hidden-Imports. EXE mit der aktuellen `idvscope.spec`
      (`pywintypes`, `win32api`, `win32con`, `win32event`, `win32file`,
      `win32process`, `win32security`, `ntsecuritycon`, `win32service`,
      `win32serviceutil`, `servicemanager`, `win32timezone`) neu bauen.
      Oder den Dienst direkt als Scan-User betreiben – siehe 7.6.
    - `pywin32 nicht verfügbar – Dienst-Modus nicht möglich: <Modul>` –
-     beim Aufruf von `idvault.exe install/start/stop/remove` fehlt ein
+     beim Aufruf von `idvscope.exe install/start/stop/remove` fehlt ein
      pywin32-Dienstmodul im EXE-Build. Gleiche Abhilfe wie oben: neu
-     bauen mit vollständiger `idvault.spec`.
+     bauen mit vollständiger `idvscope.spec`.
    - **Fehler 1053** („Der Dienst antwortete nicht rechtzeitig auf die
      Start- oder Steuerungsanforderung") beim Starten über
-     `services.msc` / `sc start idvault` – die EXE hat
+     `services.msc` / `sc start IDVScope` – die EXE hat
      `StartServiceCtrlDispatcher()` nicht innerhalb von ~30 s erreicht.
      Ab Version mit Lazy-App-Build sollte das nicht mehr auftreten
      (Flask-App wird erst nach SCM-Connect innerhalb `SvcDoRun` gebaut).
@@ -397,13 +397,13 @@ Prüfpunkte in dieser Reihenfolge:
      Status `SERVICE_STOPPED` nicht an SCM gemeldet, bevor er endete.
      Ab aktueller Version wird der Status explizit gemeldet; wenn 1067
      weiterhin erscheint, liegt ein Crash des Flask-Threads vor.
-     Traceback in `instance/logs/idvault_crash.log` prüfen (siehe
+     Traceback in `instance/logs/idvscope_crash.log` prüfen (siehe
      dort auch den Event-Log-Eintrag mit dem Text „`_run_server()`
      abgebrochen").
    - **Dienst läuft, Website nicht erreichbar** – Flask ist im Daemon-
      Thread abgestürzt, der Dienst-Main-Thread wartet aber weiter auf
      das Stop-Event. Auslöser war typischerweise ein relativer DB-Pfad
-     (`IDV_DB_PATH=instance/idvault.db`) in Kombination mit der
+     (`IDV_DB_PATH=instance/idvscope.db`) in Kombination mit der
      CWD=`C:\Windows\System32`, die SCM beim Dienststart setzt.
      Ab aktueller Version wird CWD im Dienst-Modus auf das
      EXE-Verzeichnis umgeschaltet und relative DB-/Instance-Pfade
@@ -412,32 +412,32 @@ Prüfpunkte in dieser Reihenfolge:
 
 ### 7.X  Logs des Windows-Dienstes
 
-Im Dienst-Modus schreibt idvault an drei Stellen – in dieser Reihenfolge
+Im Dienst-Modus schreibt IDVScope an drei Stellen – in dieser Reihenfolge
 konsultieren:
 
-1. **`instance/logs/idvault.log`** (neben der EXE) – `[startup]`-Zeilen
+1. **`instance/logs/idvscope.log`** (neben der EXE) – `[startup]`-Zeilen
    zeigen beim Dienststart den aufgelösten DB-Pfad, `instance_path`,
    CWD, EXE-Pfad, Schema/Port und das SSL-Failover (falls aktiv).
    Im laufenden Betrieb landen hier WARN/ERROR der Flask-App sowie
    HTTP-Fehlerantworten. Rotiert bei 1 MB, 7 Backups.
-2. **`instance/logs/idvault_crash.log`** (neben der EXE) – Python-
+2. **`instance/logs/idvscope_crash.log`** (neben der EXE) – Python-
    Tracebacks aus dem Dienstprozess (auch Fehler im Werkzeug-Server,
    Init-Abbrüche). Rotiert bei 2 MB, 1 Backup (`.1`). Wird nur
    geschrieben, wenn tatsächlich etwas auf stderr kam.
-3. **Windows-Event-Viewer → Anwendung → Quelle „idvault"** – Lifecycle-
+3. **Windows-Event-Viewer → Anwendung → Quelle „IDVScope"** – Lifecycle-
    Meilensteine vom Dienstframework:
    - `PYS_SERVICE_STARTED` / `PYS_SERVICE_STOPPED` (pywin32-Standard)
-   - `idvault: SvcDoRun gestartet (CWD=…, EXE=…, Crash-Log=…)` –
+   - `idvscope: SvcDoRun gestartet (CWD=…, EXE=…, Crash-Log=…)` –
      der konkrete Crash-Log-Pfad, nützlich bei fremden Installationen
-   - `idvault: Stop-Anforderung empfangen`
-   - `idvault: Stop-Event empfangen – Dienst wird beendet`
-   - `idvault: _run_server() abgebrochen – siehe …idvault_crash.log`
+   - `idvscope: Stop-Anforderung empfangen`
+   - `idvscope: Stop-Event empfangen – Dienst wird beendet`
+   - `idvscope: _run_server() abgebrochen – siehe …idvscope_crash.log`
      (Error-Event; erscheint, wenn Flask im Daemon-Thread crasht)
 
 Wenn der Dienst laut SCM „wird ausgeführt" ist, aber die Website
 unerreichbar bleibt: zuerst im Event-Viewer nach dem Error-Event
 „`_run_server()` abgebrochen" suchen → dann die dort genannte
-`idvault_crash.log` öffnen.
+`idvscope_crash.log` öffnen.
    - `WNetAddConnection2 für \\server\share fehlgeschlagen` – die
      Registrierung der Scan-User-Credentials für einen UNC-Share ist
      gescheitert. Detail-Ursachen im Klammertext:
@@ -446,7 +446,7 @@ unerreichbar bleibt: zuerst im Event-Viewer nach dem Error-Event
        Run-As erneut eintragen.
      - `WinError 1219` (0x4C3, „Es sind nicht genügend Anmelde-
        informationen verfügbar"): Der Dienstkontext hält bereits eine
-       andere Credential-Zuordnung zum selben Share. idvault löst das
+       andere Credential-Zuordnung zum selben Share. IDVScope löst das
        automatisch mit `WNetCancelConnection2` vor dem Eintrag; tritt
        der Fehler dauerhaft auf, manuell im Dienstkontext
        `net use \\server\share /delete` ausführen.
@@ -464,8 +464,8 @@ unerreichbar bleibt: zuerst im Event-Viewer nach dem Error-Event
    NetBIOS-Auflösung scheitert. Vom Server aus
    `ping fileserver.example.local` und `net view \\<server>` prüfen.
 4. **WinError 1326 (Anmeldung fehlgeschlagen)** – Passwort des Scan-Users
-   im idvault falsch / abgelaufen.
-5. **Dienstkonto selbst** – Wenn der idvault-Dienst als Domänen-Account
+   im IDVScope falsch / abgelaufen.
+5. **Dienstkonto selbst** – Wenn der IDVScope-Dienst als Domänen-Account
    eingerichtet ist, muss dieses Konto zumindest `Anmelden als Dienst`
    besitzen; es muss jedoch nicht Zugriff auf das Share haben, solange der
    konfigurierte Scan-User greift.
@@ -485,8 +485,8 @@ Loggers auftreten.
 ```
 config.json               Konfigurationsdatei (SECRET_KEY, scanner, teams, ldap …)
 instance/
-├── idvault.db            SQLite-Datenbank
-├── idvault.log*          Anwendungs-Logs
+├── idvscope.db            SQLite-Datenbank
+├── idvscope.log*          Anwendungs-Logs
 ├── login.log*            Audit-Logs
 ├── uploads/              Hochgeladene Nachweise
 └── certs/                (optional) SSL-Zertifikate
@@ -497,22 +497,22 @@ instance/
 **Methode A – Offline-Kopie** (anwendungsstopp erforderlich)
 
 ```cmd
-net stop "idvault"
-xcopy /E /I instance \\backup\idvault\%date%
-net start "idvault"
+net stop "IDVScope"
+xcopy /E /I instance \\backup\idvscope\%date%
+net start "IDVScope"
 ```
 
 **Methode B – Online-Backup** (Anwendung bleibt aktiv)
 
 ```cmd
-sqlite3 instance\idvault.db ".backup \\backup\idvault\%date%\idvault.db"
+sqlite3 instance\idvscope.db ".backup \\backup\idvscope\%date%\idvscope.db"
 ```
 
 ### 8.3 Wiederherstellung
 
 1. Anwendungsprozess stoppen
-2. `instance/idvault.db` aus Sicherung zurückspielen
-3. Ggf. `idvault.log*`, `login.log*`, `uploads/` ebenfalls zurückspielen
+2. `instance/idvscope.db` aus Sicherung zurückspielen
+3. Ggf. `idvscope.log*`, `login.log*`, `uploads/` ebenfalls zurückspielen
 4. Anwendung starten
 5. Integritätsprüfung: `PRAGMA integrity_check;`
 
@@ -529,7 +529,7 @@ sqlite3 instance\idvault.db ".backup \\backup\idvault\%date%\idvault.db"
 
 ### 9.1 Funktionsprinzip
 
-Die `idvault.exe` wird **nie ersetzt**. Updates werden als Sidecar-Dateien
+Die `idvscope.exe` wird **nie ersetzt**. Updates werden als Sidecar-Dateien
 im `updates/`-Ordner neben der EXE abgelegt und beim Start bevorzugt
 geladen. Das erhält AppLocker-Hash-Regeln dauerhaft.
 
@@ -544,10 +544,10 @@ Anschließend "App neu starten" klicken.
 Der GitHub-Download-Link kann direkt hochgeladen werden:
 
 ```
-https://github.com/hvorragend/idvault/archive/refs/heads/main.zip
+https://github.com/hvorragend/idvscope/archive/refs/heads/main.zip
 ```
 
-- Das `idvault-main/`-Präfix wird automatisch entfernt
+- Das `idvscope-main/`-Präfix wird automatisch entfernt
 - Nicht relevante Dateien (`.md`, `.gitignore`, …) werden ignoriert
 - `webapp/templates/` wird automatisch auf `templates/` gemappt
 
@@ -578,9 +578,9 @@ gebündelte Version der EXE.
 
 | Log | Auf Warnings achten |
 |---|---|
-| `instance/idvault.log` | ERROR, CRITICAL |
+| `instance/idvscope.log` | ERROR, CRITICAL |
 | `instance/login.log` | Brute-Force-Muster (viele FEHLER in kurzer Zeit) |
-| `instance/idvault_crash.log` | Existenz bedeutet ungeplanten Anwendungsfehler |
+| `instance/idvscope_crash.log` | Existenz bedeutet ungeplanten Anwendungsfehler |
 
 ### 10.2 Gesundheitsprüfung
 

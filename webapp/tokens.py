@@ -9,15 +9,15 @@ TTL:  7 Tage (konfigurierbar via MAX_AGE_SECONDS).
 """
 MAX_AGE_SECONDS = 7 * 24 * 3600  # 7 Tage
 
-_SALT = "idvault-quick-action-v1"
+_SALT = "idvscope-quick-action-v1"
 
 # Self-Service-Owner-Digest (Issue #315): eigener Salt, damit Tokens aus
 # verschiedenen Kontexten nicht vertauscht werden können.
-_SALT_SELF_SERVICE = "idvault-self-service-v1"
+_SALT_SELF_SERVICE = "idvscope-self-service-v1"
 
 # Stille Freigabe (Issue #351): eigener Salt fuer den Sicht-Freigabe-Link
 # an den Fachverantwortlichen / Fachbereichsleiter.
-_SALT_SILENT_RELEASE = "idvault-silent-release-v1"
+_SALT_SILENT_RELEASE = "idvscope-silent-release-v1"
 
 
 def _serializer(secret_key: str):

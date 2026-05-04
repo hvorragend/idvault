@@ -1,5 +1,5 @@
 """
-idvault – Startpunkt
+IDVScope – Startpunkt
 ====================
 Entwicklung:  python run.py
 Produktion:   gunicorn "run:app" --workers 1 --bind 0.0.0.0:5000
@@ -74,21 +74,21 @@ os.environ.setdefault('IDV_PROJECT_ROOT', _PROJECT_ROOT)
 
 # ── Fehler-Log: stderr → Datei umleiten (nur als EXE) ───────────────────────
 # Schreibt Python-Tracebacks und PyInstaller-Bootloader-Fehler nach
-# instance/idvault_crash.log (getrennt vom Flask-App-Log, damit der
-# RotatingFileHandler in webapp/__init__.py die idvault.log ohne Windows-
+# instance/idvscope_crash.log (getrennt vom Flask-App-Log, damit der
+# RotatingFileHandler in webapp/__init__.py die idvscope.log ohne Windows-
 # Dateisperren rotieren kann).
 # Einfaches Logrotate: Datei > 2 MB wird vor dem Öffnen zu .1 umbenannt.
 #
 # WICHTIG: Im Scanner-Subprocess (--scan) NICHT umleiten. Der Parent setzt via
 # subprocess.Popen(stdout/stderr=…) bereits scanner_output.log; ein dup2 hier
 # würde das überschreiben und Scanner-Logs (StreamHandler → sys.stderr) landen
-# fälschlich in idvault_crash.log. Der Scanner hat zudem sein eigenes
+# fälschlich in idvscope_crash.log. Der Scanner hat zudem sein eigenes
 # Crash-Log (scanner_crash.log, siehe unten).
 if getattr(sys, 'frozen', False) and '--scan' not in sys.argv:
     _log_dir = os.path.join(_PROJECT_ROOT, 'instance', 'logs')
     os.makedirs(_log_dir, exist_ok=True)
     try:
-        _crash_log_path = os.path.join(_log_dir, 'idvault_crash.log')
+        _crash_log_path = os.path.join(_log_dir, 'idvscope_crash.log')
         _crash_log_bak  = _crash_log_path + '.1'
         _MAX_CRASH_LOG  = 2 * 1024 * 1024  # 2 MB
         if os.path.exists(_crash_log_path) and \
@@ -181,9 +181,9 @@ if not os.path.isfile(_config_file):
         "IDV_SSL_CERT": "instance/certs/cert.pem",
         "IDV_SSL_KEY": "instance/certs/key.pem",
         "IDV_SSL_AUTOGEN": 1,
-        "IDV_DB_PATH": "instance/idvault.db",
+        "IDV_DB_PATH": "instance/idvscope.db",
         "IDV_INSTANCE_PATH": "instance",
-        "IDV_SERVICE_NAME": "idvault",
+        "IDV_SERVICE_NAME": "IDVScope",
         # Demo-Daten beim Erststart: true = einmalig einspielen, false = kein Seeding.
         "IDV_DEMO_DATA": False,
         # VULN-F: Lokale Benutzer. Leere Liste = kein lokaler Login möglich
@@ -381,7 +381,7 @@ def _run_server(service_mode: bool = False):
 
     if not service_mode:
         print("=" * 55)
-        print("  idvault – Register für Eigenentwicklungen")
+        print("  IDVScope – Register für Eigenentwicklungen")
         print(f"  {scheme}://localhost:{port}")
         print(f"  DB: {app.config['DATABASE']}")
         if ssl_context is not None:
@@ -395,13 +395,13 @@ def _run_server(service_mode: bool = False):
             print("  Keine lokalen Benutzer konfiguriert – nur DB-Konten/LDAP.")
         print("=" * 55)
     else:
-        # Im Dienst-Modus: dieselben Informationen nach instance/logs/idvault.log
+        # Im Dienst-Modus: dieselben Informationen nach instance/logs/idvscope.log
         # (Flask-Logger) statt in die Konsole. Spart beim nächsten „Website
         # nicht erreichbar" das manuelle Starten der EXE zur Diagnose.
         # WARNING-Level, weil der File-Handler (webapp/__init__.py) auf
         # WARNING+ konfiguriert ist; für ops-relevante Lifecycle-Events
         # semantisch passend. [startup]-Präfix zum Filtern per grep.
-        app.logger.warning("[startup] idvault Dienst-Modus: %s://0.0.0.0:%s", scheme, port)
+        app.logger.warning("[startup] IDVScope Dienst-Modus: %s://0.0.0.0:%s", scheme, port)
         app.logger.warning("[startup] DATABASE=%s", app.config['DATABASE'])
         app.logger.warning("[startup] instance_path=%s", app.instance_path)
         app.logger.warning("[startup] CWD=%s  EXE=%s", os.getcwd(), sys.executable)
@@ -427,7 +427,7 @@ def _run_server(service_mode: bool = False):
         num_threads = config_store.get_int("IDV_WSGI_THREADS", 16) or 16
         server = CherootWSGI(
             ("0.0.0.0", port), app,
-            numthreads=num_threads, server_name="idvault",
+            numthreads=num_threads, server_name="IDVScope",
         )
         ssl_paths = resolve_ssl_paths(_instance_path) if https_enabled() else None
         if ssl_paths is not None:
@@ -476,12 +476,12 @@ def _run_server(service_mode: bool = False):
 # Voraussetzung: pywin32 (bereits in requirements.txt).
 #
 # Befehle (als Administrator ausführen):
-#   idvault.exe install    → Dienst registrieren (Name aus IDV_SERVICE_NAME
-#                            oder Standard "idvault")
-#   idvault.exe start      → Dienst starten
-#   idvault.exe stop       → Dienst stoppen
-#   idvault.exe restart    → Dienst neu starten
-#   idvault.exe remove     → Dienst entfernen
+#   idvscope.exe install    → Dienst registrieren (Name aus IDV_SERVICE_NAME
+#                            oder Standard "IDVScope")
+#   idvscope.exe start      → Dienst starten
+#   idvscope.exe stop       → Dienst stoppen
+#   idvscope.exe restart    → Dienst neu starten
+#   idvscope.exe remove     → Dienst entfernen
 #
 # Nach "install" startet der SCM die EXE automatisch mit "--service-run".
 # Dienstkonto für Netzlaufwerk-Scans:
@@ -505,12 +505,12 @@ def _make_service_class():
     import win32serviceutil
     from webapp import config_store
 
-    svc_name = (config_store.get_str('IDV_SERVICE_NAME', 'idvault') or '').strip() or 'idvault'
+    svc_name = (config_store.get_str('IDV_SERVICE_NAME', 'IDVScope') or '').strip() or 'IDVScope'
 
-    class _IdvaultService(win32serviceutil.ServiceFramework):
+    class _IDVScopeService(win32serviceutil.ServiceFramework):
         _svc_name_         = svc_name
-        _svc_display_name_ = 'idvault – Register für Eigenentwicklungen'
-        _svc_description_  = 'idvault – Register für Eigenentwicklungen (Web-Anwendung)'
+        _svc_display_name_ = 'IDVScope – Register für Eigenentwicklungen'
+        _svc_description_  = 'IDVScope – Register für Eigenentwicklungen (Web-Anwendung)'
         # Argument, das der SCM beim Start an die EXE übergibt:
         _exe_args_         = '--service-run'
 
@@ -520,7 +520,7 @@ def _make_service_class():
 
         def SvcStop(self):
             try:
-                servicemanager.LogInfoMsg("idvault: Stop-Anforderung empfangen")
+                servicemanager.LogInfoMsg("idvscope: Stop-Anforderung empfangen")
             except Exception:
                 pass
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
@@ -534,7 +534,7 @@ def _make_service_class():
             except Exception:
                 try:
                     servicemanager.LogErrorMsg(
-                        "idvault: db_writer-Drain fehlgeschlagen (siehe Crash-Log)"
+                        "idvscope: db_writer-Drain fehlgeschlagen (siehe Crash-Log)"
                     )
                 except Exception:
                     pass
@@ -561,9 +561,9 @@ def _make_service_class():
 
             try:
                 servicemanager.LogInfoMsg(
-                    f"idvault: SvcDoRun gestartet (CWD={os.getcwd()}, "
+                    f"idvscope: SvcDoRun gestartet (CWD={os.getcwd()}, "
                     f"EXE={sys.executable}, "
-                    f"Crash-Log={os.path.join(_exe_dir, 'instance', 'logs', 'idvault_crash.log')})"
+                    f"Crash-Log={os.path.join(_exe_dir, 'instance', 'logs', 'idvscope_crash.log')})"
                 )
             except Exception:
                 pass
@@ -582,8 +582,8 @@ def _make_service_class():
                     traceback.print_exc()
                     try:
                         servicemanager.LogErrorMsg(
-                            "idvault: _run_server() abgebrochen – "
-                            "siehe instance/logs/idvault_crash.log"
+                            "idvscope: _run_server() abgebrochen – "
+                            "siehe instance/logs/idvscope_crash.log"
                         )
                     except Exception:
                         pass
@@ -594,7 +594,7 @@ def _make_service_class():
             win32event.WaitForSingleObject(self._stop_evt, win32event.INFINITE)
             try:
                 servicemanager.LogInfoMsg(
-                    "idvault: Stop-Event empfangen – Dienst wird beendet"
+                    "idvscope: Stop-Event empfangen – Dienst wird beendet"
                 )
             except Exception:
                 pass
@@ -611,7 +611,7 @@ def _make_service_class():
             self.ReportServiceStatus(win32service.SERVICE_STOPPED)
             os._exit(0)
 
-    return _IdvaultService
+    return _IDVScopeService
 
 
 if __name__ == "__main__":
