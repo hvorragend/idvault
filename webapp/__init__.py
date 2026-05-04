@@ -121,8 +121,8 @@ def _warn_world_writable_updates(app, updates_root: str) -> None:
                 mode & 0o777, updates_root,
             )
         # Pro Overlay-Datei pruefen — abhaengig vom Typ ist der Ueberfall
-        # entweder Code-Execution (.py / Alembic-Versionen) oder Stored-XSS
-        # (Templates, JS, CSS). Beides wollen wir nicht.
+        # entweder Code-Execution (.py-Module) oder Stored-XSS (Templates,
+        # JS, CSS). Beides wollen wir nicht.
         _SKIP_DIRS = {"__pycache__"}
         for _root, _dirs, _files in os.walk(updates_root):
             _dirs[:] = [d for d in _dirs if d not in _SKIP_DIRS]
@@ -560,7 +560,6 @@ def create_app(db_path: str = None) -> Flask:
             ("templates",    os.path.join(_updates_root, 'templates')),
             ("static",       os.path.join(_updates_root, 'webapp', 'static')),
             ("schema.sql",   os.path.join(_updates_root, 'schema.sql')),
-            ("migrations",   os.path.join(_updates_root, 'migrations', 'versions')),
         ):
             if (os.path.isdir(_path) or os.path.isfile(_path)):
                 _overlays_active.append(_label)

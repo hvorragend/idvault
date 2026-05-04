@@ -233,7 +233,7 @@ Anforderungen sind durchnummeriert und referenzierbar. Prioritäten:
 | Nr. | Anforderung | Prio |
 |---|---|:---:|
 | NFA-W-01 | Änderungen an Python-Modulen müssen ohne Neu-Build der EXE einspielbar sein (Sidecar-Updates). | S |
-| NFA-W-02 | Das Datenbankschema muss migrationsfähig sein (idempotente Migrationen). | M |
+| NFA-W-02 | Das Datenbankschema muss vollständig in `schema.sql` definiert sein und durch idempotente Statements bei jedem Start eingespielt werden können. | M |
 | NFA-W-03 | Das System muss ohne destruktive Datenbank-Operationen erneut gestartet werden können. | M |
 | NFA-W-04 | Die Anwendungssprache (Python 3.10+) muss die Langzeitwartung sicherstellen. | M |
 

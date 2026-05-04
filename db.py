@@ -1,12 +1,13 @@
 """
 IDV-Register Datenbankschicht
 =============================
-Initialisierung, Migration und Basisfunktionen für das IDV-Register.
-Wird von Scanner und Web-Frontend gemeinsam genutzt.
+Initialisierung und Basisfunktionen für das IDV-Register. Wird von Scanner
+und Web-Frontend gemeinsam genutzt.
 
-Schema-Änderungen werden über Alembic-Migrationen verwaltet
-(siehe ``alembic/versions/``); ``init_register_db()`` ruft beim Start
-``alembic upgrade head`` auf.
+Das Schema lebt komplett in ``schema.sql``; ``init_register_db()`` spielt
+diese Datei beim Start ein. Sämtliche Statements sind idempotent
+(``CREATE TABLE IF NOT EXISTS`` etc.), so dass der Aufruf bei jedem Start
+gefahrlos läuft.
 """
 
 import sys
@@ -16,13 +17,10 @@ import calendar
 import re
 from datetime import datetime, timezone, date
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 from db_pragmas import apply_pragmas
 from db_write_tx import write_tx
-
-
-import logging as _logging
 
 
 def _resource_path(relative: str) -> Path:
@@ -35,7 +33,7 @@ def _resource_path(relative: str) -> Path:
 def _updates_dir() -> Optional[Path]:
     """Liefert das ``updates/``-Verzeichnis neben der EXE bzw. neben
     ``run.py``, sofern vorhanden – sonst ``None``. Genutzt vom Sidecar-
-    Overlay fuer Migrations- und Schema-Updates ohne EXE-Rebuild.
+    Overlay für Schema-Updates ohne EXE-Rebuild.
     """
     base = (Path(sys.executable).parent if getattr(sys, 'frozen', False)
             else Path(__file__).resolve().parent)
@@ -54,209 +52,93 @@ def get_connection(db_path: str, *, role: str = "reader") -> sqlite3.Connection:
     return conn
 
 
-_ALEMBIC_REVISION_RE = re.compile(
-    r"^\s*revision\s*(?::[^=]*)?\s*=\s*['\"]([^'\"]+)['\"]",
-    re.MULTILINE,
-)
+def _schema_sql_path() -> Path:
+    """Liefert den Pfad zu ``schema.sql`` – auch im PyInstaller-Bundle.
 
-
-def _read_alembic_revision_id(path: Path) -> Optional[str]:
-    """Liest die ``revision = "..."``-Zuweisung aus einer Alembic-Datei.
-
-    Wir parsen die Datei textuell (statt sie zu importieren), weil das
-    Importieren Seiteneffekte hat und Module mehrfach laden wuerde.
-    Bei Lese-/Match-Fehlern liefert die Funktion None — die Datei wird
-    dann beim Mergen ignoriert.
+    Sidecar-Overlay hat Vorrang: liegt eine ``schema.sql`` im
+    ``updates/``-Verzeichnis neben der EXE bzw. neben ``run.py``,
+    wird sie statt der gebundelten Version verwendet.
     """
-    try:
-        with open(path, encoding="utf-8") as fh:
-            head = fh.read(4096)
-    except OSError:
-        return None
-    m = _ALEMBIC_REVISION_RE.search(head)
-    return m.group(1) if m else None
-
-
-def _build_alembic_versions_dir(bundled_versions: Path,
-                                 overlay_versions: Optional[Path]) -> Path:
-    """Konsolidiert Bundle- und Overlay-Versions-Dateien in einem
-    Temp-Verzeichnis. Dedup nach Revision-ID; Overlay schlaegt Bundle.
-
-    Damit kann der Admin den kompletten ``migrations/versions/``-Ordner
-    in den Sidecar copy-pasten, ohne dass alembic ueber Duplikate
-    stolpert (``MultipleHeads``).
-    """
-    import shutil
-    import tempfile
-
-    seen: dict = {}  # revision_id -> Pfad
-
-    def _absorb(directory: Path, source_label: str) -> int:
-        if not directory or not directory.is_dir():
-            return 0
-        added = 0
-        for entry in sorted(directory.iterdir()):
-            if entry.suffix != ".py" or entry.name.startswith("__"):
-                continue
-            rev = _read_alembic_revision_id(entry)
-            if not rev:
-                _logging.getLogger(__name__).warning(
-                    "[alembic] %s: %s ohne erkennbare revision = '...' "
-                    "uebersprungen", source_label, entry.name,
-                )
-                continue
-            seen[rev] = entry
-            added += 1
-        return added
-
-    bundled_count = _absorb(bundled_versions, "bundle")
-    overlay_count = _absorb(overlay_versions, "overlay") if overlay_versions else 0
-    duplicates = bundled_count + overlay_count - len(seen)
-
-    merged = Path(tempfile.mkdtemp(prefix="idvscope_alembic_versions_"))
-    for rev, src in seen.items():
-        shutil.copy2(src, merged / src.name)
-
-    _logging.getLogger(__name__).info(
-        "[alembic] Versionen konsolidiert: %d aus Bundle, %d aus Overlay, "
-        "%d Duplikate per Revision-ID gemerged (Overlay gewinnt). "
-        "Merge-Verzeichnis: %s",
-        bundled_count, overlay_count, duplicates, merged,
-    )
-    return merged
-
-
-def _alembic_config(db_path: str):
-    """Erzeugt eine Alembic-Config, die auf ``db_path`` zeigt.
-
-    Import lokal gehalten, damit Module, die ``db.get_connection`` nutzen
-    (Scanner-Subprozess, Writer-Thread), nicht unnötig alembic/sqlalchemy
-    laden müssen.
-    """
-    from alembic.config import Config
-
-    ini_path = _resource_path("alembic.ini")
-    if not ini_path.exists():
-        raise FileNotFoundError(f"alembic.ini nicht gefunden: {ini_path}")
-
-    cfg = Config(str(ini_path))
-    # script_location absolut setzen: PyInstaller legt migrations/ unter
-    # _MEIPASS/migrations ab, nicht am CWD. Der Ordnername ist bewusst
-    # nicht ``alembic/`` – der Projektroot steht beim direkten Start von
-    # run.py in sys.path[0], ein gleichnamiger lokaler Ordner würde das
-    # installierte alembic-Package überschatten.
-    bundled_migrations = _resource_path("migrations")
-    cfg.set_main_option("script_location", str(bundled_migrations))
-
-    # Sidecar-Versions-Overlay: zusaetzliche oder ueberschreibende
-    # Migrationen koennen unter ``updates/migrations/versions/`` abgelegt
-    # werden. Bundle und Overlay werden in einem Temp-Verzeichnis nach
-    # Revision-ID gemerged (Overlay gewinnt) — damit kann der Admin auch
-    # den kompletten Versions-Ordner spiegeln, ohne dass alembic in
-    # MultipleHeads laeuft.
-    bundled_versions = bundled_migrations / "versions"
     upd = _updates_dir()
-    overlay_versions = (upd / "migrations" / "versions") if upd else None
+    if upd is not None:
+        overlay = upd / "schema.sql"
+        if overlay.is_file():
+            return overlay
+    return _resource_path("schema.sql")
 
-    if overlay_versions and overlay_versions.is_dir():
-        merged_dir = _build_alembic_versions_dir(bundled_versions, overlay_versions)
-        cfg.set_main_option("version_locations", str(merged_dir))
-    else:
-        cfg.set_main_option("version_locations", str(bundled_versions))
 
-    # SQLite-URL für den aktuellen DB-Pfad – der alembic.ini-Default
-    # (instance/idvscope.db) ist nur ein Platzhalter für Offline-Aufrufe.
-    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
-    return cfg
+def _iter_sql_statements(sql: str) -> Iterator[str]:
+    """Zerlegt eine SQL-Skript-Datei in Einzelstatements.
+
+    Respektiert ``'``-Stringliterale (inkl. ``''``-Escape) und
+    ``-- …``-Zeilenkommentare – schema.sql enthält u. a. Texte mit
+    Semikolons (``'5 per minute;30 per hour'``) und innerhalb von Strings
+    den Comment-Marker ``--``. Ein naives ``.split(';')`` würde hier
+    Statements zerreißen.
+    """
+    buf: list[str] = []
+    in_string = False
+    i = 0
+    n = len(sql)
+    while i < n:
+        ch = sql[i]
+        if not in_string and ch == "-" and i + 1 < n and sql[i + 1] == "-":
+            while i < n and sql[i] != "\n":
+                i += 1
+            continue
+        if ch == "'":
+            if in_string and i + 1 < n and sql[i + 1] == "'":
+                buf.append("''")
+                i += 2
+                continue
+            in_string = not in_string
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == ";" and not in_string:
+            stmt = "".join(buf).strip()
+            if stmt:
+                yield stmt
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        yield tail
 
 
 def init_register_db(db_path: str) -> sqlite3.Connection:
-    """Initialisiert die Datenbank über Alembic und liefert eine Connection.
+    """Initialisiert die Datenbank und liefert eine Connection.
 
     - Legt das Verzeichnis für die SQLite-Datei bei Bedarf an.
-    - Fährt ``alembic upgrade head`` (idempotent).
-    - Gleicht Schema-Additionen ohne eigene Migration an (Pre-Release).
+    - Spielt ``schema.sql`` ein (alle Statements idempotent via
+      ``IF NOT EXISTS``).
+    - Setzt einmalige Seed-Daten (Default-Klassifizierungs-Regeln).
     - Gibt eine Anwendungs-Connection (mit den Standard-PRAGMAs) zurück.
     """
-    from alembic import command
-
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    command.upgrade(_alembic_config(db_path), "head")
-    conn = get_connection(db_path)
-    _ensure_runtime_schema(conn)
+
+    schema_path = _schema_sql_path()
+    if not schema_path.exists():
+        raise FileNotFoundError(f"schema.sql nicht gefunden: {schema_path}")
+    sql = schema_path.read_text(encoding="utf-8")
+
+    conn = get_connection(db_path, role="writer")
+    try:
+        with conn:
+            for stmt in _iter_sql_statements(sql):
+                # PRAGMA-Statements werden zentral in db_pragmas.apply_pragmas
+                # gesetzt; in schema.sql tauchen sie nur informativ auf.
+                if stmt.upper().startswith("PRAGMA"):
+                    continue
+                conn.execute(stmt)
+        _seed_default_classify_rules(conn)
+    finally:
+        # Standard-PRAGMAs (Reader-Profil) für die ausgelieferte Connection.
+        apply_pragmas(conn, role="reader")
     return conn
-
-
-_RUNTIME_SCHEMA_DDL = (
-    # Akzeptanz „kein Zell-/Blattschutz" – Fachverantwortlicher bestätigt
-    # bewusst pro (IDV, Datei). Pre-Release ohne eigene Alembic-Revision.
-    """
-    CREATE TABLE IF NOT EXISTS idv_zellschutz_akzeptanz (
-        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-        idv_db_id           INTEGER NOT NULL REFERENCES idv_register(id)  ON DELETE CASCADE,
-        file_id             INTEGER NOT NULL REFERENCES idv_files(id)      ON DELETE CASCADE,
-        freigabe_id         INTEGER          REFERENCES idv_freigaben(id)  ON DELETE SET NULL,
-        akzeptiert_von_id   INTEGER          REFERENCES persons(id),
-        akzeptiert_am       TEXT NOT NULL DEFAULT (datetime('now','utc')),
-        begruendung         TEXT,
-        UNIQUE(idv_db_id, file_id)
-    )
-    """,
-    "CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_idv  ON idv_zellschutz_akzeptanz(idv_db_id)",
-    "CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_file ON idv_zellschutz_akzeptanz(file_id)",
-    # Zuordnungs-Vorschläge aus der Auto-Zuordnung (mittlere Konfidenz):
-    # werden dem Owner im Self-Service zur Bestätigung/Ablehnung angezeigt.
-    """
-    CREATE TABLE IF NOT EXISTS idv_match_suggestions (
-        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-        file_id              INTEGER NOT NULL REFERENCES idv_files(id)    ON DELETE CASCADE,
-        idv_db_id            INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
-        score                INTEGER NOT NULL,
-        created_at           TEXT NOT NULL DEFAULT (datetime('now','utc')),
-        decision             TEXT,           -- NULL=offen, 'confirmed', 'rejected'
-        decided_at           TEXT,
-        decided_by_person_id INTEGER         REFERENCES persons(id),
-        UNIQUE(file_id, idv_db_id)
-    )
-    """,
-    "CREATE INDEX IF NOT EXISTS idx_match_sugg_file ON idv_match_suggestions(file_id)",
-    "CREATE INDEX IF NOT EXISTS idx_match_sugg_idv  ON idv_match_suggestions(idv_db_id)",
-    "CREATE INDEX IF NOT EXISTS idx_match_sugg_open ON idv_match_suggestions(decision) WHERE decision IS NULL",
-    # Konfigurierbare Regeln für die Auto-Klassifizierung nach Dateiname
-    # (Issue #345). Vorher: hartkodierte AH/IDV-Bulks. Jetzt: Prefix/Suffix/
-    # Contains/Regex, optional pro OE, mit Reihenfolge (kleinste sort_order
-    # gewinnt).
-    """
-    CREATE TABLE IF NOT EXISTS auto_classify_rules (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        bezeichnung   TEXT NOT NULL,
-        pattern_type  TEXT NOT NULL CHECK (pattern_type IN ('prefix','suffix','contains','regex')),
-        pattern       TEXT NOT NULL,
-        action        TEXT NOT NULL CHECK (action IN ('Zur Registrierung','Nicht wesentlich','Ignoriert')),
-        oe_id         INTEGER REFERENCES org_units(id) ON DELETE SET NULL,
-        enabled       INTEGER NOT NULL DEFAULT 1,
-        sort_order    INTEGER NOT NULL DEFAULT 100,
-        created_at    TEXT NOT NULL DEFAULT (datetime('now','utc'))
-    )
-    """,
-    "CREATE INDEX IF NOT EXISTS idx_auto_classify_rules_enabled ON auto_classify_rules(enabled, sort_order)",
-    # #401: Einmalige Magic-Links für die Stille Freigabe (Sicht-Freigabe an
-    # den Fachverantwortlichen). Analog zu ``self_service_tokens``: wir
-    # speichern nur den jti, der Token selbst bleibt nur in der gesendeten
-    # E-Mail. Nach Einlösung wird ``revoked_at`` gesetzt – ein zweiter
-    # Aufruf desselben Magic-Links schlägt damit fehl.
-    """
-    CREATE TABLE IF NOT EXISTS silent_release_tokens (
-        jti           TEXT PRIMARY KEY,
-        idv_db_id     INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
-        person_id     INTEGER NOT NULL REFERENCES persons(id),
-        created_at    TEXT NOT NULL DEFAULT (datetime('now','utc')),
-        first_used_at TEXT,
-        revoked_at    TEXT
-    )
-    """,
-    "CREATE INDEX IF NOT EXISTS idx_silent_release_tokens_idv ON silent_release_tokens(idv_db_id)",
-)
 
 
 # Default-Regeln, die bei leerem ``auto_classify_rules``-Inhalt einmalig
@@ -442,60 +324,19 @@ def compute_version_fingerprint(full_path: Optional[str],
     return folder.lower() + "|" + masked.lower()
 
 
-def _ensure_version_fingerprint_column(conn: sqlite3.Connection) -> None:
-    """Legt ``idv_files.version_fingerprint`` + Index runtime an und backfillt
-    Bestandsdateien mit leerem Fingerprint.
+def _seed_default_classify_rules(conn: sqlite3.Connection) -> None:
+    """Seedet ``auto_classify_rules`` einmalig, wenn die Tabelle leer ist.
 
-    SQLite unterstuetzt kein ``ADD COLUMN IF NOT EXISTS`` — die Existenz wird
-    deshalb ueber ``PRAGMA table_info`` geprueft. Der Backfill laeuft einmalig
-    pro App-Start fuer alle Eintraege, deren Fingerprint noch NULL ist (neu
-    angelegte Spalte, importierte DB oder Dateien, deren Fingerprint beim
-    fruehen Scan aus irgendeinem Grund nicht gesetzt wurde).
+    Wer die Regeln bearbeitet oder bewusst entfernt hat, soll nicht beim
+    nächsten Start wieder die Defaults eingespielt bekommen — deshalb der
+    COUNT-Check und kein ``INSERT OR IGNORE``.
     """
-    cols = {r["name"] for r in conn.execute("PRAGMA table_info(idv_files)")}
-    if "version_fingerprint" not in cols:
-        conn.execute("ALTER TABLE idv_files ADD COLUMN version_fingerprint TEXT")
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_files_version_fp "
-        "ON idv_files(version_fingerprint)"
-    )
-    # Backfill: Bestandsdateien mit leerem Fingerprint nachtraeglich befuellen.
-    # Laeuft nur ueber die ohnehin wenigen NULL-Zeilen — nach dem ersten Lauf
-    # bleibt das SELECT leer.
-    rows = conn.execute(
-        "SELECT id, full_path, file_name FROM idv_files "
-        "WHERE version_fingerprint IS NULL"
-    ).fetchall()
-    for r in rows:
-        fp = compute_version_fingerprint(r["full_path"], r["file_name"])
-        if fp is None:
-            continue
-        conn.execute(
-            "UPDATE idv_files SET version_fingerprint = ? WHERE id = ?",
-            (fp, r["id"]),
-        )
-
-
-def _ensure_runtime_schema(conn: sqlite3.Connection) -> None:
-    """Idempotente Schema-Ergänzungen, die nach dem Alembic-Upgrade laufen.
-
-    Nur für Pre-Release-Ergänzungen, bei denen keine eigene Migration
-    geschrieben wird. Jedes Statement muss ``IF NOT EXISTS`` verwenden,
-    damit frische DBs (vom Initial-Schema aufgesetzt) nicht in Konflikt
-    geraten.
-    """
-    for stmt in _RUNTIME_SCHEMA_DDL:
-        conn.execute(stmt)
-
-    _ensure_version_fingerprint_column(conn)
-
-    # Default-Regeln für die Auto-Klassifizierung nachrüsten: nur wenn die
-    # Tabelle noch leer ist (echter Erstlauf); bestehende Installationen,
-    # die die Regeln bereits bearbeitet oder entfernt haben, bleiben unberührt.
     count = conn.execute(
         "SELECT COUNT(*) FROM auto_classify_rules"
     ).fetchone()[0]
-    if count == 0:
+    if count > 0:
+        return
+    with conn:
         for r in _DEFAULT_CLASSIFY_RULES:
             conn.execute(
                 "INSERT INTO auto_classify_rules "
@@ -504,8 +345,6 @@ def _ensure_runtime_schema(conn: sqlite3.Connection) -> None:
                 (r["bezeichnung"], r["pattern_type"], r["pattern"],
                  r["action"], r["sort_order"]),
             )
-
-    conn.commit()
 
 
 # ---------------------------------------------------------------------------

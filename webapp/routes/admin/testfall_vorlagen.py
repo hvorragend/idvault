@@ -1,9 +1,10 @@
 """Admin-Sub-Modul: Testfall-Vorlagen pflegen (#319, Iteration 2).
 
-CRUD-UI für die Vorlagen-Bibliothek ``testfall_vorlagen``. Die Seed-Vorlagen
-aus Migration 0006 decken die häufigsten IDV-Typen bereits ab; über diese
-Oberfläche können Administratoren eigene Vorlagen ergänzen, typ-Filter
-anpassen und nicht mehr benötigte Vorlagen deaktivieren.
+CRUD-UI für die Vorlagen-Bibliothek ``testfall_vorlagen``. Die in
+``schema.sql`` per ``INSERT OR IGNORE`` eingespielten Seed-Vorlagen decken
+die häufigsten IDV-Typen bereits ab; über diese Oberfläche können
+Administratoren eigene Vorlagen ergänzen, Typ-Filter anpassen und nicht
+mehr benötigte Vorlagen deaktivieren.
 
 Rich-Text-Felder (Beschreibung, Parametrisierung, Testdaten, erwartetes
 Ergebnis) werden durch ``sanitize_html`` bereinigt — Vorlagen landen
@@ -37,7 +38,7 @@ def _idv_typen(db) -> list[str]:
     """Liefert die aktiven IDV-Typen aus der Klassifizierungstabelle.
 
     Fällt auf eine Default-Liste zurück, wenn noch keine Typen gepflegt
-    sind — spiegelt die Seed-Vorlagen aus Migration 0006.
+    sind — spiegelt die Seed-Vorlagen aus ``schema.sql``.
     """
     try:
         rows = db.execute(

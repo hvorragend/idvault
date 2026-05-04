@@ -178,13 +178,16 @@ AppLocker-Regeln bleiben gültig.
 |---|:---:|
 | Python-Quellcode (`.py`-Dateien in `webapp/`) | ✓ |
 | Jinja2-Templates (`.html`) | ✓ |
-| Datenbankschema (`schema.sql`) | ✓ (wird nicht automatisch ausgeführt) |
+| Datenbankschema (`schema.sql`) | ✓ (wird beim nächsten Start eingespielt) |
 | Neue Python-Pakete / Abhängigkeiten | — (erfordert neuen Build) |
 | Änderungen an `run.py` | — (wird vor dem Override geladen) |
 | Änderungen an `scanner/` | — (Scanner ist separat gebündelt) |
 
-> Schemaänderungen im ZIP werden nicht automatisch auf die Datenbank angewendet.
-> Falls nötig, muss eine Migration über `db.py` ergänzt und eingespielt werden.
+> Eine im Sidecar abgelegte `updates/schema.sql` wird beim nächsten Start
+> bevorzugt vor der gebundelten Variante geladen. Da alle Statements
+> idempotent sind (`IF NOT EXISTS`), wirken neue Tabellen/Indizes
+> automatisch — bestehende Spalten werden allerdings nicht nachgezogen,
+> hier ist gegebenenfalls eine Neuinstallation erforderlich.
 
 ### ZIP-Struktur
 
@@ -284,10 +287,10 @@ und die Anwendung neu starten.
 
 Der Inhalt von `updates/` wird beim Start vom Sidecar-Loader gezogen
 (Python-Module flach unter `updates/`, Blueprints unter
-`updates/webapp/routes/`, Alembic-Revisionen unter
-`updates/migrations/versions/`, Statics/Templates analog). Wer dort
-Schreibrechte hat, erreicht beim nächsten Neustart Code-Execution
-oder Stored-XSS im App-Prozess. Deshalb:
+`updates/webapp/routes/`, Statics/Templates analog, optional eine
+ausgetauschte `updates/schema.sql`). Wer dort Schreibrechte hat,
+erreicht beim nächsten Neustart Code-Execution oder Stored-XSS im
+App-Prozess. Deshalb:
 
 - **Windows**: NTFS-ACL so setzen, dass nur das Installer-Konto und
   `SYSTEM` schreiben dürfen. Beispiel:

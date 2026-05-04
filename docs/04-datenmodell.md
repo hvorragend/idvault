@@ -398,24 +398,15 @@ Performance-relevante Indizes auf häufig gefilterte Spalten:
 - **Referenzintegrität bei Soft-Delete**: Deaktivierte Stammdaten bleiben
   erhalten; historische Referenzen werden nicht gebrochen.
 
-## 11 Migrationsstrategie
+## 11 Schema-Strategie
 
-IDVScope nutzt **Alembic** als Migrationsframework (`migrations/versions/`):
-
-- `db.py::init_register_db()` startet beim App-Start `alembic upgrade head`.
-- `0001_initial_schema` liest `schema.sql` und spielt die enthaltenen
-  idempotenten Statements (`CREATE TABLE IF NOT EXISTS`,
-  `CREATE INDEX IF NOT EXISTS`, `INSERT OR IGNORE`) als einzelne
-  SQL-Anweisungen ein. `schema.sql` dient damit gleichzeitig als Quelle
-  der Initial-Revision und als menschenlesbare Gesamtübersicht des
-  Zielschemas.
-- **Neue Schemaänderungen** werden als nummerierte Alembic-Revisions in
-  `migrations/versions/` gepflegt; `schema.sql` wird dabei im gleichen
-  Commit aktualisiert, damit es den aktuellen Zielzustand für neue
-  Installationen beschreibt.
-- Der Ordner heißt bewusst `migrations/` (nicht `alembic/`): sonst würde
-  er beim direkten Start von `run.py` (Projektroot in `sys.path[0]`) das
-  installierte `alembic`-Package überschatten.
+`schema.sql` ist die einzige Quelle der Schemawahrheit. `db.py::
+init_register_db()` spielt die Datei beim App-Start ein; sämtliche
+Statements (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`,
+`INSERT OR IGNORE`) sind idempotent, der Aufruf läuft also bei jedem
+Start gefahrlos durch. Eine separate Migrationsverwaltung wird derzeit
+nicht eingesetzt — Schema-Änderungen werden direkt in `schema.sql`
+eingepflegt und durch eine Neuinstallation der EXE ausgerollt.
 
 ## 12 Datenklassifikation
 
