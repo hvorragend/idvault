@@ -1,4 +1,4 @@
-# idvault – Python-Abhängigkeiten
+# idvscope – Python-Abhängigkeiten
 # pip install -r requirements.txt
 
 # Web-Framework

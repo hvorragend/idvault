@@ -73,7 +73,7 @@ class DbWriter:
         self._stop_flag.clear()
         self._started.clear()
         self._thread = threading.Thread(
-            target=self._run, name="idvault-db-writer", daemon=True
+            target=self._run, name="idvscope-db-writer", daemon=True
         )
         self._thread.start()
         # Bis zur ersten funktionalen Connection warten, damit early submits

@@ -1,5 +1,5 @@
 """
-idvault – SSL/TLS-Hilfsmodul
+idvscope – SSL/TLS-Hilfsmodul
 ============================
 Aktiviert HTTPS-Verbindungen über Zertifikate.
 
@@ -67,7 +67,7 @@ def generate_self_signed(cert_path: str, key_path: str,
 
     subject = issuer = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, hostname),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "idvault"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "idvscope"),
     ])
 
     san_entries = [

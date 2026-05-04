@@ -350,7 +350,7 @@ CREATE TABLE IF NOT EXISTS idv_register (
     -- -------------------------------------------------------------------------
     -- Entwicklungsart (regulatorische Kategorie nach MaRisk / DORA / BAIT)
     -- -------------------------------------------------------------------------
-    -- Grenzt den Datensatz begrifflich von den Notes-IdVault-Einträgen und den
+    -- Grenzt den Datensatz begrifflich von den Notes-IDVScope-Einträgen und den
     -- zentral verwalteten Anwendungen ab. Der Übergang Arbeitshilfe → IDV wird
     -- automatisch aus der Wesentlichkeitsprüfung abgeleitet.
     entwicklungsart         TEXT NOT NULL DEFAULT 'arbeitshilfe'
@@ -994,7 +994,7 @@ CREATE TABLE IF NOT EXISTS ldap_config (
     updated_at      TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );
 
--- Gruppen-DN → idvault-Rolle
+-- Gruppen-DN → idvscope-Rolle
 CREATE TABLE IF NOT EXISTS ldap_group_role_mapping (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     group_dn    TEXT NOT NULL UNIQUE,    -- vollständiger DN der AD-Gruppe

@@ -1,7 +1,7 @@
-idvault – Proprietäre Lizenz
+idvscope – Proprietäre Lizenz
 ============================
 
-SPDX-License-Identifier: LicenseRef-Proprietary-idvault
+SPDX-License-Identifier: LicenseRef-Proprietary-idvscope
 
 Copyright (c) 2026 Volksbank Gronau-Ahaus eG und Carsten Volmer.
 Alle Rechte vorbehalten.
@@ -10,7 +10,7 @@ Alle Rechte vorbehalten.
 1. Urheberrecht und Rechteinhaberschaft
 ---------------------------------------
 
-Die Software "idvault" einschließlich sämtlicher Quell- und
+Die Software "idvscope" einschließlich sämtlicher Quell- und
 Objektcode-Bestandteile, Dokumentation, Datenbankschemata, Skripte,
 Grafiken, Textbausteine und sonstiger zugehöriger Materialien
 (nachfolgend "die Software") ist urheberrechtlich geschützt. Sämtliche
@@ -31,7 +31,7 @@ Rechteinhabern.
 ---------------------------------------
 
 Die öffentliche Verfügbarkeit der Software auf GitHub
-(https://github.com/hvorragend/idvault) dient ausschließlich
+(https://github.com/hvorragend/idvscope) dient ausschließlich
 Hosting-, Versionskontroll- und Nachvollziehbarkeitszwecken. Weder
 das Aufrufen des Repositories noch das Klonen, Herunterladen,
 Forken oder sonstige Abrufen des Quelltextes räumt dem Nutzer

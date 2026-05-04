@@ -4,7 +4,7 @@
 
 ## 1 Überblick
 
-idvault ist eine monolithische Web-Anwendung mit integriertem
+idvscope ist eine monolithische Web-Anwendung mit integriertem
 Dateisystem-Scanner. Die Architektur folgt dem **Drei-Schichten-Modell**
 (Presentation · Application · Persistence) und ist bewusst schlank
 gehalten, um den Betrieb in restriktiven Banknetzen (ohne Internet, ohne
@@ -66,7 +66,7 @@ Container-Infrastruktur) zu ermöglichen.
 ### 3.1 Verzeichnisstruktur
 
 ```
-idvault/
+idvscope/
 ├── run.py                         Startpunkt, Sidecar-Updates, SSL
 ├── db.py                          Datenbank-Schicht (CRUD, Queries)
 ├── ssl_utils.py                   HTTPS/Zertifikats-Management
@@ -74,7 +74,7 @@ idvault/
 ├── version.json                   Aktive Version + Changelog
 ├── requirements.txt               Produktionsabhängigkeiten
 ├── requirements-build.txt         Build-Zeit-Abhängigkeiten
-├── idvault.spec                   PyInstaller-Konfiguration
+├── idvscope.spec                   PyInstaller-Konfiguration
 ├── webapp/
 │   ├── __init__.py                Flask-Applikations-Fabrik (create_app)
 │   ├── db_flask.py                Request-Kontext-Wrapper für db.py
@@ -125,7 +125,7 @@ idvault/
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    idvault.exe                              │
+│                    idvscope.exe                              │
 │  ┌───────────────┐   ┌─────────────────┐                    │
 │  │ Python-Runtime│   │ Flask Dev-Server │                    │
 │  │ (eingebettet) │   │ (Single-Prozess) │                    │
@@ -138,8 +138,8 @@ idvault/
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  instance/idvault.db       (SQLite WAL)                     │
-│  instance/idvault.log      (Application Log)                │
+│  instance/idvscope.db       (SQLite WAL)                     │
+│  instance/idvscope.log      (Application Log)                │
 │  instance/login.log        (Audit Log)                      │
 │  instance/certs/cert.pem   (optional)                       │
 │  instance/uploads/         (Nachweise)                      │
@@ -168,7 +168,7 @@ gunicorn -w 4 -b 0.0.0.0:8000 "webapp:create_app()"
 
 ```
 Windows Task Scheduler (wöchentlich)
-    → idvault.exe --scan --config C:\idvault\scanner\config.json
+    → idvscope.exe --scan --config C:\idvscope\scanner\config.json
         → scanner/network_scanner.py::main()
         → scan_paths durchlaufen, Hashes berechnen
         → Ergebnisse in idv_files/idv_file_history schreiben
@@ -284,7 +284,7 @@ Architekturrelevante Eckpunkte:
 ### 8.2 Netzsegmente
 
 ```
-[Clients] ──HTTPS──→ [idvault-Server] ──LDAPS──→ [AD]
+[Clients] ──HTTPS──→ [idvscope-Server] ──LDAPS──→ [AD]
                            │
                            ├──SMTP──→ [Mailserver]
                            │
@@ -306,9 +306,9 @@ Architekturrelevante Eckpunkte:
 
 | Logger | Datei | Rotation | Zweck |
 |---|---|---|---|
-| `idvault.log` | `instance/` | 1 MB × 7 | Anwendungs-Log (WARNING+) |
+| `idvscope.log` | `instance/` | 1 MB × 7 | Anwendungs-Log (WARNING+) |
 | `login.log` | `instance/` | 2 MB × 10 | Audit-Log für Logins |
-| `idvault_crash.log` | `instance/` | 2 MB × 1 | Python-Traceback bei Start-Fehlern |
+| `idvscope_crash.log` | `instance/` | 2 MB × 1 | Python-Traceback bei Start-Fehlern |
 | `network_scanner.log` | `scanner/` (konfigurierbar) | je Scanner-Run | Scan-Verlauf, Hash-Fehler |
 
 ## 10 Ausfallverhalten
@@ -316,9 +316,9 @@ Architekturrelevante Eckpunkte:
 | Ausfall | Verhalten |
 |---|---|
 | LDAP nicht erreichbar | Automatischer Fallback auf lokale Authentifizierung |
-| SMTP nicht erreichbar | E-Mail-Versand scheitert stumm, Log-Eintrag in `idvault.log` |
+| SMTP nicht erreichbar | E-Mail-Versand scheitert stumm, Log-Eintrag in `idvscope.log` |
 | Netzlaufwerk nicht erreichbar | Scanner überspringt Pfad, `scan_runs.errors` wird inkrementiert |
-| Datenbank-Fehler | 500-Fehler, Stacktrace in `idvault.log` und `idvault_crash.log` |
+| Datenbank-Fehler | 500-Fehler, Stacktrace in `idvscope.log` und `idvscope_crash.log` |
 | Stromausfall | WAL-Journal erlaubt konsistenten Zustand nach Neustart |
 
 ## 11 Build- und Lieferarchitektur

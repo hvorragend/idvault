@@ -1,5 +1,5 @@
 """
-Prozess-Lock für idvault: verhindert, dass mehrere App-Instanzen gleichzeitig
+Prozess-Lock für idvscope: verhindert, dass mehrere App-Instanzen gleichzeitig
 auf dieselbe SQLite-Datenbank schreiben und den Scheduler doppelt starten.
 
 Lock-File: <instance_path>/idv.lock  (JSON: {"pid": …, "started": "…"})
@@ -119,7 +119,7 @@ def acquire(instance_path: str) -> None:
             if existing_pid and existing_pid != os.getpid() and _pid_running(existing_pid):
                 started = data.get("started", "unbekannt")
                 print(
-                    f"\n[idvault] FEHLER: Eine andere idvault-Instanz läuft bereits "
+                    f"\n[idvscope] FEHLER: Eine andere idvscope-Instanz läuft bereits "
                     f"(PID {existing_pid}, gestartet {started}).\n"
                     f"Bitte diese Instanz zuerst beenden oder das Lock-File entfernen:\n"
                     f"  {_lock_path}\n",

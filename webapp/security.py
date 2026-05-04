@@ -1,4 +1,4 @@
-"""Sicherheits-Hilfsfunktionen für idvault.
+"""Sicherheits-Hilfsfunktionen für idvscope.
 
 Zentraler Platz für querschnittliche Security-Helper, damit die
 Blueprint-Module schlank bleiben.

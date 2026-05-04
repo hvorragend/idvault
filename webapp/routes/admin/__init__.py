@@ -314,7 +314,7 @@ def update_index():
 def _zip_strip_prefix(members: list[str]) -> str:
     """
     Erkennt automatisch ein gemeinsames Top-Level-Verzeichnis im ZIP
-    (z.B. 'idvault-main/' bei GitHub-Repository-Downloads) und gibt
+    (z.B. 'idvscope-main/' bei GitHub-Repository-Downloads) und gibt
     es als zu entfernenden Präfix zurück. Gibt '' zurück falls keiner.
     """
     top_dirs = {m.split('/')[0] for m in members if '/' in m}
@@ -327,7 +327,7 @@ def _zip_strip_prefix(members: list[str]) -> str:
 
 
 # Top-Level-Importnamen, die im Bundle aus dem scanner/-Verzeichnis stammen
-# (idvault.spec: pathex=['.', 'scanner']). Sie müssen flach unter updates/
+# (idvscope.spec: pathex=['.', 'scanner']). Sie müssen flach unter updates/
 # abgelegt werden, damit der Sidecar-Finder in run.py sie findet.
 #
 # scanner_protocol/path_utils/teams_scanner werden ebenfalls als Top-Level
@@ -356,7 +356,7 @@ def _zip_remap(rel: str) -> str:
       ``updates/templates/``.
     - Scanner-Module (``network_scanner``, ``excel_export``) werden im
       PyInstaller-Bundle als Top-Level-Module importiert
-      (``pathex=['.', 'scanner']`` in ``idvault.spec``). Damit der
+      (``pathex=['.', 'scanner']`` in ``idvscope.spec``). Damit der
       Sidecar-Finder in ``run.py`` sie überhaupt findet, müssen sie
       flach unter ``updates/`` liegen – nicht unter ``updates/scanner/``.
     """
@@ -481,10 +481,10 @@ def _detect_windows_service_name() -> str:
 
     Durchsucht alle aktiven Win32-Dienste nach einem Eintrag, dessen ProcessId
     mit os.getpid() übereinstimmt. Funktioniert zuverlässig bei nativer
-    Dienst-Registrierung (``sc create binPath=idvault.exe``).
+    Dienst-Registrierung (``sc create binPath=idvscope.exe``).
 
     Bei Service-Wrappern wie NSSM oder winsw meldet der SCM die PID des
-    Wrappers, nicht die von idvault.exe – in diesem Fall liefert die Funktion
+    Wrappers, nicht die von idvscope.exe – in diesem Fall liefert die Funktion
     '' zurück; IDV_SERVICE_NAME muss dann manuell gesetzt werden.
 
     Returns: Dienstname (interner Name) oder '' wenn nicht erkannt.
@@ -557,7 +557,7 @@ def _trigger_restart():
         if getattr(sys, 'frozen', False):
             exe = sys.executable
             service_name, _ = _effective_service_name()
-            bat_path = os.path.join(os.path.dirname(exe), '_idvault_restart.bat')
+            bat_path = os.path.join(os.path.dirname(exe), '_idvscope_restart.bat')
             if service_name:
                 # Dienstmodus: nach dem Exit des Prozesses den Dienst über
                 # sc.exe neu starten. ping dient als portabler sleep-Ersatz.
@@ -654,7 +654,7 @@ def update_rollback():
 def update_log():
     """Gibt die letzten 500 Zeilen des App-Logs als Plaintext zurück."""
     log_path = os.path.join(
-        os.path.dirname(current_app.config['DATABASE']), 'logs', 'idvault.log'
+        os.path.dirname(current_app.config['DATABASE']), 'logs', 'idvscope.log'
     )
     if not os.path.isfile(log_path):
         return Response("Keine Log-Datei vorhanden.", mimetype='text/plain; charset=utf-8')

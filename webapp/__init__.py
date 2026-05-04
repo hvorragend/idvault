@@ -1,5 +1,5 @@
 """
-idvault – Flask Web Application
+idvscope – Flask Web Application
 ================================
 IDV-Register für MaRisk AT 7.2 / DORA-konforme Verwaltung
 von Eigenentwicklungen (Individuelle Datenverarbeitung).
@@ -93,7 +93,7 @@ def _warn_world_writable_updates(app, updates_root: str) -> None:
     """#404: Beim Start prueft die App, ob ``updates/`` und seine
     ``.py``-Module fuer Group/Other schreibbar sind. Treffer werden mit
     WARNING geloggt – der Admin sieht den Eintrag in
-    ``instance/logs/idvault.log`` und kann die Berechtigungen
+    ``instance/logs/idvscope.log`` und kann die Berechtigungen
     nachziehen (Installer setzt typischerweise ``chmod 0700`` / ACL).
 
     Auf Windows liefert ``stat().st_mode & 0o022`` keine sinnvollen Werte
@@ -292,7 +292,7 @@ def create_app(db_path: str = None) -> Flask:
     # Flask verlangt einen absoluten Pfad. ``IDV_INSTANCE_PATH`` in der
     # config.json darf relativ sein – wir lösen relative Werte zum
     # EXE-Verzeichnis (frozen) bzw. zur Projektwurzel (Dev) auf, NICHT zur
-    # CWD. Das ist wichtig, weil ``idvault.exe`` als Dienst oder per
+    # CWD. Das ist wichtig, weil ``idvscope.exe`` als Dienst oder per
     # Doppelklick häufig mit fremder CWD (z.B. ``C:\Windows\System32``)
     # gestartet wird.
     _anchor = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) \
@@ -356,8 +356,8 @@ def create_app(db_path: str = None) -> Flask:
         _secret_key_is_default = True
 
     # IDV_DB_PATH darf (wie IDV_INSTANCE_PATH) relativ angegeben werden —
-    # etwa weil die config.json ab Auslieferung "instance/idvault.db" setzt.
-    # Relative Pfade gegen die CWD aufzulösen ist fatal: idvault.exe wird als
+    # etwa weil die config.json ab Auslieferung "instance/idvscope.db" setzt.
+    # Relative Pfade gegen die CWD aufzulösen ist fatal: idvscope.exe wird als
     # Dienst mit CWD=C:\Windows\System32 gestartet und per Doppelklick aus
     # beliebigen Verzeichnissen — sqlite3.connect schlägt dann mit
     # "unable to open database file" fehl. Deshalb: relative Werte an den
@@ -367,7 +367,7 @@ def create_app(db_path: str = None) -> Flask:
         _db_path = _raw_db if os.path.isabs(_raw_db) \
                    else os.path.normpath(os.path.join(_anchor, _raw_db))
     else:
-        _db_path = os.path.join(_instance_path, "idvault.db")
+        _db_path = os.path.join(_instance_path, "idvscope.db")
 
     _https_enabled = config_store.get_bool("IDV_HTTPS", False)
     # #400: Wenn die App hinter einem TLS-terminierenden Reverse-Proxy
@@ -385,7 +385,7 @@ def create_app(db_path: str = None) -> Flask:
         DATABASE=_db_path,
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
-        APP_NAME="idvault",
+        APP_NAME="idvscope",
         # Optionaler Institutionsname (erscheint im Breadcrumb-Topbar).
         # Wird aus config.json["IDV_INSTITUTION_NAME"] gelesen. Leer = kein
         # Prefix, nur Seitentitel.
@@ -442,16 +442,16 @@ def create_app(db_path: str = None) -> Flask:
     from .login_logger import setup_login_logger
     setup_login_logger(_instance_path)
 
-    # Datei-Logging: WARNING+ → instance/logs/idvault.log
-    # RotatingFileHandler: 1 MB pro Datei, 7 Backups (idvault.log … idvault.log.7)
-    # Die Crash-/stderr-Umleitung in run.py schreibt in idvault_crash.log
+    # Datei-Logging: WARNING+ → instance/logs/idvscope.log
+    # RotatingFileHandler: 1 MB pro Datei, 7 Backups (idvscope.log … idvscope.log.7)
+    # Die Crash-/stderr-Umleitung in run.py schreibt in idvscope_crash.log
     # (separate Datei), damit dieser Handler die Datei sperr-frei rotieren kann.
     import logging
     from logging.handlers import RotatingFileHandler as _RFH
     _fh = _RFH(
-        os.path.join(_instance_path, 'logs', 'idvault.log'),
+        os.path.join(_instance_path, 'logs', 'idvscope.log'),
         maxBytes=1 * 1024 * 1024,   # 1 MB pro Segment
-        backupCount=7,              # idvault.log + .1 … .7
+        backupCount=7,              # idvscope.log + .1 … .7
         encoding='utf-8',
         delay=True,                 # Datei erst anlegen wenn der erste Eintrag kommt
     )
@@ -549,7 +549,7 @@ def create_app(db_path: str = None) -> Flask:
     _updates_root = os.path.join(_project_root, 'updates')
     _warn_world_writable_updates(app, _updates_root)
 
-    # Sidecar-Inventar fuers Diagnoselog: ein Blick in idvault.log zeigt,
+    # Sidecar-Inventar fuers Diagnoselog: ein Blick in idvscope.log zeigt,
     # welche Overlays aktiv sind, ohne dass man dafuer durchs Dateisystem
     # tasten muss. Praktisch, wenn nach einem Update-Drop etwas nicht so
     # wirkt wie erwartet.

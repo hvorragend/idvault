@@ -1,5 +1,5 @@
 /* ============================================================================
- * idvault — Theme-Toggle (Light / Dark) (Issue #416)
+ * idvscope — Theme-Toggle (Light / Dark) (Issue #416)
  *
  * Setzt data-bs-theme auf <html> nach folgender Reihenfolge:
  *   1. localStorage["idv:theme"] (vom Nutzer gesetzt)
@@ -11,7 +11,7 @@
  *
  * Hinweis: Die App startet absichtlich weiterhin standardmaessig im
  * Light-Mode; Dark-Mode ist eine Opt-in-Vorbereitung. Die zugehoerigen
- * CSS-Tokens (Sektion 42 in idvault.css) sind so gewaehlt, dass die
+ * CSS-Tokens (Sektion 42 in idvscope.css) sind so gewaehlt, dass die
  * Bestandsoberflaeche unveraendert bleibt.
  * ========================================================================== */
 (function () {

@@ -25,7 +25,7 @@ der Tenant betrieben wird. Beide Modi sind über den Schalter
 Azure-AD-App-Registrierung (einmalig durch IT-Administrator):
 
 1. **Azure Portal** → Entra ID → App-Registrierungen → **Neue Registrierung**
-   - Name: z.B. `IDVault-Scanner`
+   - Name: z.B. `IDVScope-Scanner`
    - Kontotyp: *Nur Konten in diesem Organisationsverzeichnis*
 
 2. **API-Berechtigungen** → Microsoft Graph → **Anwendungsberechtigungen** (kein Benutzer-Login):
@@ -71,7 +71,7 @@ Permission. Ein zusätzliches `Files.Read.All` wäre nicht nur
    diesem Modus **nicht** benötigt und dürfen nicht zusätzlich vergeben
    werden, sonst hat die App wieder tenantweiten Lese-Zugriff.
 3. Admin-Zustimmung erteilen.
-4. Client-ID, Tenant-ID und Client-Secret in idvault hinterlegen.
+4. Client-ID, Tenant-ID und Client-Secret in idvscope hinterlegen.
 5. Schalter „Sites.Selected-Modus" in der Web-UI aktivieren.
 
 **Was Sites.Selected nicht abdeckt:**
@@ -98,7 +98,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
         "roles": ["read"],
         "grantedToIdentities": [
-          { "application": { "id": "<client-id>", "displayName": "idvault" } }
+          { "application": { "id": "<client-id>", "displayName": "idvscope" } }
         ]
       }'
 ```
@@ -108,12 +108,12 @@ Alternativ per PnP-PowerShell:
 ```powershell
 Grant-PnPAzureADAppSitePermission `
   -AppId      "<client-id>" `
-  -DisplayName "idvault" `
+  -DisplayName "idvscope" `
   -Site       "https://{tenant}.sharepoint.com/sites/{site-name}" `
   -Permissions Read
 ```
 
-Anschließend in idvault die Site-URL als Quelle eintragen. Team-IDs
+Anschließend in idvscope die Site-URL als Quelle eintragen. Team-IDs
 werden in diesem Modus übersprungen — ist eine Teams-Site gemeint,
 bitte deren SharePoint-Site-URL eintragen.
 
@@ -158,9 +158,9 @@ DB.
 ## Standalone-Aufruf (Debug / Scheduled Task)
 
 ```cmd
-python teams_scanner.py --db-path instance\idvault.db
-python teams_scanner.py --db-path instance\idvault.db --dry-run
-python teams_scanner.py --db-path instance\idvault.db --check-config
+python teams_scanner.py --db-path instance\idvscope.db
+python teams_scanner.py --db-path instance\idvscope.db --dry-run
+python teams_scanner.py --db-path instance\idvscope.db --check-config
 ```
 
 Voraussetzung: `teams_config` und `teams_client_secret_enc` wurden zuvor
@@ -222,10 +222,10 @@ Jeder Eintrag hat entweder `team_id` **oder** `site_url`:
 
 ---
 
-## Integration mit der idvault-Webapp
+## Integration mit der idvscope-Webapp
 
 Scanner und Webapp teilen sich dieselbe SQLite-Datenbank. Der Subprocess
-erhält den Pfad via `--db-path`. Im idvault-Interface erscheinen
+erhält den Pfad via `--db-path`. Im idvscope-Interface erscheinen
 Teams/SharePoint-Dateien unter
 **Scanner → Entdeckte Dateien** mit der Quellenangabe `sharepoint` in der
 neuen Spalte `source`.
@@ -347,7 +347,7 @@ Microsoft bereitgestellt), andernfalls als `HASH_ERROR` gesetzt.
 | `source` in DB | `filesystem` | `sharepoint` |
 
 Beide Scanner schreiben in **dieselben Tabellen** (`idv_files`, `idv_file_history`,
-`scan_runs`) — die Ergebnisse sind im idvault-Interface gemeinsam auswertbar.
+`scan_runs`) — die Ergebnisse sind im idvscope-Interface gemeinsam auswertbar.
 
 ---
 
@@ -398,7 +398,7 @@ im Log protokolliert. Der Scan läuft für die übrigen Dateien weiter.
 ```
 1. Aufgabenplanung öffnen
 2. Neue Aufgabe:
-   python C:\IDV-Scanner\teams_scanner.py --db-path C:\IDV-Scanner\instance\idvault.db
+   python C:\IDV-Scanner\teams_scanner.py --db-path C:\IDV-Scanner\instance\idvscope.db
 3. Trigger: wöchentlich (z. B. Dienstag 07:00 Uhr, versetzt zum Netzlaufwerk-Scan)
 4. Ausführen als: Dienstkonto (benötigt nur HTTPS-Internetzugriff auf
    graph.microsoft.com und login.microsoftonline.com). Das Clientgeheimnis

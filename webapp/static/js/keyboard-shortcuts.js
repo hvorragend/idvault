@@ -1,5 +1,5 @@
 /* ============================================================================
- * idvault — keyboard shortcuts (Issue #413)
+ * idvscope — keyboard shortcuts (Issue #413)
  *
  * Erweitert die in base.html bereits vorhandenen Shortcuts (Ctrl+K, N, E,
  * ?, Esc, Ctrl+S) um Power-User-Patterns:

@@ -15,11 +15,11 @@
   "_kommentar_proxy": "1 = Die App läuft hinter einem TLS-terminierenden Reverse-Proxy (nginx/HAProxy/IIS). Aktiviert ProxyFix (vertraut X-Forwarded-Proto/Host/For genau eines vorgelagerten Hops), setzt das Session-Cookie als Secure und sendet HSTS, auch wenn IDV_HTTPS=0 ist. Wenn die App direkt TLS terminiert, bei 0 belassen. Niemals beides ohne Proxy aktivieren – dann würden gefälschte X-Forwarded-Header den Browser auf 'unsicher' verleiten.",
 
 
-  "IDV_DB_PATH": "instance/idvault.db",
+  "IDV_DB_PATH": "instance/idvscope.db",
   "IDV_INSTANCE_PATH": "instance",
 
   "IDV_SERVICE_NAME": "",
-  "_kommentar_service": "Windows-Dienstname (interner Name, wie bei 'sc create' angegeben, z. B. 'idvault'). Wenn gesetzt, löst 'App neu starten' in der Web-UI einen sauberen Dienst-Neustart via 'sc start <name>' aus, statt eine neue EXE-Instanz direkt zu spawnen. Das Dienstkonto benötigt das Recht SERVICE_START für den eigenen Dienst (bei LOCAL SYSTEM standardmäßig vorhanden). Leer lassen = Direktmodus (EXE wird als neues Konsolenfenster gestartet).",
+  "_kommentar_service": "Windows-Dienstname (interner Name, wie bei 'sc create' angegeben, z. B. 'idvscope'). Wenn gesetzt, löst 'App neu starten' in der Web-UI einen sauberen Dienst-Neustart via 'sc start <name>' aus, statt eine neue EXE-Instanz direkt zu spawnen. Das Dienstkonto benötigt das Recht SERVICE_START für den eigenen Dienst (bei LOCAL SYSTEM standardmäßig vorhanden). Leer lassen = Direktmodus (EXE wird als neues Konsolenfenster gestartet).",
 
   "IDV_DEMO_DATA": false,
   "_kommentar_demo": "true = Beim allerersten Start Demo-Stammdaten einspielen (Mitarbeiter, OE, Geschäftsprozesse, Beispiel-IDVs, Prüfungen, Maßnahmen). Einmalig: sobald die Daten eingespielt wurden, wird dieser Schalter ignoriert. false = Keine Demo-Daten (Produktivbetrieb).",
@@ -44,5 +44,5 @@
       "active": false
     }
   ],
-  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, Fachverantwortlicher, Revision, IT-Sicherheit. Eintrag ohne 'role' ist erlaubt — der Benutzer kann sich anmelden, eigene Erfassungen anlegen/bearbeiten und nur die IDVs sehen, an denen er als Beteiligter geführt ist. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. 'active': true/false – fehlt das Feld, gilt true. Mit 'active': false bleibt der Eintrag konfiguriert, aber der Login ist gesperrt (z. B. für ruhende Break-Glass-Konten). Reihenfolge beim Login: LDAP (falls aktiv) → config.json → persons-Tabelle. Ein hier gepflegter Eintrag überschreibt damit bewusst einen gleichnamigen DB-Benutzer (z. B. für Break-Glass-Admin trotz vorhandener persons-Zeile); der Konflikt wird in idvault.log protokolliert. Leere Liste = kein lokaler Login."
+  "_kommentar_users": "Lokale Benutzer werden aus dieser Liste gelesen. Rollen: IDV-Administrator, IDV-Koordinator, Fachverantwortlicher, Revision, IT-Sicherheit. Eintrag ohne 'role' ist erlaubt — der Benutzer kann sich anmelden, eigene Erfassungen anlegen/bearbeiten und nur die IDVs sehen, an denen er als Beteiligter geführt ist. Pro Eintrag entweder 'password_hash' (empfohlen) oder 'password' (Klartext, optional) angeben – liegt beides vor, gewinnt der Hash. 'active': true/false – fehlt das Feld, gilt true. Mit 'active': false bleibt der Eintrag konfiguriert, aber der Login ist gesperrt (z. B. für ruhende Break-Glass-Konten). Reihenfolge beim Login: LDAP (falls aktiv) → config.json → persons-Tabelle. Ein hier gepflegter Eintrag überschreibt damit bewusst einen gleichnamigen DB-Benutzer (z. B. für Break-Glass-Admin trotz vorhandener persons-Zeile); der Konflikt wird in idvscope.log protokolliert. Leere Liste = kein lokaler Login."
 }

@@ -1,4 +1,4 @@
-# idvault
+# idvscope
 
 Register für **Eigenentwicklungen** (inkl. IDVs nach **MaRisk AT 7.2**)
 und **DORA** — entwickelt für Volksbanken, Sparkassen und sonstige
@@ -12,9 +12,9 @@ beaufsichtigte Kreditinstitute.
 
 ---
 
-## Was ist idvault?
+## Was ist idvscope?
 
-idvault ist eine in sich geschlossene Webanwendung zur vollständigen,
+idvscope ist eine in sich geschlossene Webanwendung zur vollständigen,
 aufsichtsrechtlich konformen Erfassung, Klassifizierung, Prüfung und
 Überwachung aller Eigenentwicklungen der Bank:
 
@@ -28,8 +28,8 @@ aufsichtsrechtlich konformen Erfassung, Klassifizierung, Prüfung und
 - **Export** nach Excel für Revision und Aufsicht
 
 Die Anwendung benötigt keine zusätzliche Serverinfrastruktur und kann als
-einzelne ausführbare Datei (`idvault.exe`) betrieben werden – direkt oder
-als nativer Windows-Dienst (`idvault.exe install`).
+einzelne ausführbare Datei (`idvscope.exe`) betrieben werden – direkt oder
+als nativer Windows-Dienst (`idvscope.exe install`).
 
 ## Feature-Überblick
 
@@ -298,7 +298,7 @@ als nativer Windows-Dienst (`idvault.exe install`).
 
 - Einheitliches Layout mit Breadcrumb-Topbar, Avatar-Chip,
   Pill-Badges, KPI-Cards und KPI-Shadow für Scan-Seiten.
-- Tailwind-artige Utility-Klassen in einer zentralen `idvault.css`,
+- Tailwind-artige Utility-Klassen in einer zentralen `idvscope.css`,
   eckiger Look, dedizierte Druck- und Reduced-Motion-Stylesheets.
 - Kollabierbare Filter, Bulk-Action-Bar, sortierbare Tabellen,
   Sidebar mit anklickbarem Logo.
@@ -405,7 +405,7 @@ Siehe [docs/03-architektur.md](docs/03-architektur.md) für Details.
 
 ## Regulatorische Einordnung
 
-idvault unterstützt die Umsetzung folgender Anforderungen:
+idvscope unterstützt die Umsetzung folgender Anforderungen:
 
 - **MaRisk AT 7.2 Tz. 7** – IDV-Register, Klassifizierung, Prüfungen, Freigabeverfahren
 - **DORA Art. 8 / 17** – Identifikation kritischer Funktionen, Incident-Management
@@ -487,4 +487,4 @@ produktiv) ist gestattet. Vollständige Bedingungen: [`LICENSE`](LICENSE).
 
 Lizenzanfragen und Fachsupport: IDV-Koordinator der Volksbank
 Gronau-Ahaus eG. Issue-Tracking:
-[GitHub](https://github.com/hvorragend/idvault).
+[GitHub](https://github.com/hvorragend/idvscope).

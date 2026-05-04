@@ -35,7 +35,7 @@ nach DORA Art. 5 und Art. 8.
 
 ### 1.3 Betriebsumfeld und Angreifermodell
 
-idvault wird **ausschließlich im bankeigenen Intranet** betrieben. Die
+idvscope wird **ausschließlich im bankeigenen Intranet** betrieben. Die
 Anwendung ist **nicht aus dem Internet erreichbar** und auch nicht über
 eine DMZ exponiert. Der Zugriff erfolgt aus dem internen Netz der Bank
 heraus, in der Regel von Arbeitsplätzen mit Active-Directory-Anmeldung
@@ -52,7 +52,7 @@ einzelnen Schwachstelle zu berücksichtigen:
 | **Anonyme Angreifer** | Nicht relevant – jeder Zugriff erfolgt aus einem authentifizierten Banknetz heraus |
 | **Insider-Bedrohung** | **Primäres Szenario** – Mitarbeiter, Dienstleister, Wartungspersonal mit LAN-Zugang |
 | **Kompromittierter Arbeitsplatz** | Relevant – Malware auf einem Client könnte als authentifizierter Nutzer agieren |
-| **Lateral Movement nach Perimeterbruch** | Relevant – idvault darf nicht zum Ausgangspunkt weiterer Angriffe werden |
+| **Lateral Movement nach Perimeterbruch** | Relevant – idvscope darf nicht zum Ausgangspunkt weiterer Angriffe werden |
 | **Netzwerk-Sniffing / MitM** | Relevant nur zwischen Segmenten ohne TLS (→ LDAPS, HTTPS bleiben Pflicht) |
 | **DoS / Brute-Force aus dem Internet** | Nicht relevant – Ratenbegrenzung schützt primär vor internen Fehlern und kompromittierten Clients |
 
@@ -196,7 +196,7 @@ des Tokens beim nächsten GET automatisch.
 ### 3.3 VULN-003 – Hardcodierte Demo-Zugangsdaten ✅ BEHOBEN
 
 **Beschreibung**: Die Anwendung lieferte drei Demo-Zugänge
-(`admin / idvault2026`, `koordinator / demo`, `fachverantwortlicher /
+(`admin / idvscope2026`, `koordinator / demo`, `fachverantwortlicher /
 demo`) als Klartext-Fallback im Quellcode (`webapp/routes/auth.py`
 `_DEMO_USERS`).
 
@@ -244,7 +244,7 @@ Login-Audit zwar erkennbar, aber erst nach erfolgter Kompromittierung.
   Alt-Person-Record (z.B. aus einem früheren LDAP-Sync mit anderer
   Rolle) die in `config.json` konfigurierte Rolle stillschweigend
   überschreiben. Tritt ein solcher Konflikt auf, erscheint ein
-  Info-Eintrag im `idvault.log` („config.json-Eintrag hat Vorrang vor
+  Info-Eintrag im `idvscope.log` („config.json-Eintrag hat Vorrang vor
   persons-Zeile"), damit Betreiber den Zustand bereinigen können.
 
 **Verifikation**: Integrationstest deckt beide Varianten ab:
@@ -287,7 +287,7 @@ Wird die Umgebungsvariable nicht gesetzt, greift dieser Wert.
   korrekten Generierung (openssl/PowerShell/config.json).
 - Im Debug-Modus wird nur eine auffällige Warnung ausgegeben, damit
   lokale Entwicklung weiterhin funktioniert.
-- Ergänzend: Startet idvault erstmalig ohne `config.json` und ohne
+- Ergänzend: Startet idvscope erstmalig ohne `config.json` und ohne
   Umgebungsvariable, wird die Datei automatisch mit einem zufälligen
   32-Byte-`SECRET_KEY` (`secrets.token_hex(32)`) angelegt, sodass der
   Default-Fallback gar nicht erst greift.
@@ -867,7 +867,7 @@ Nach Umsetzung der Roadmap verbleibende Restrisiken:
 | SQLite-Datei auf Windows-Share kompromittierbar | Mittel | Dateisystemrechte, NTFS-ACL, Verschlüsselung der Festplatte |
 | Kein Client-Zertifikats-Auth | Niedrig | LDAP + Session ausreichend |
 | Kein Hardware-Security-Modul | Niedrig | `SECRET_KEY` aus KeyVault in Betriebsumgebung |
-| Keine Mehrfaktor-Authentifizierung | Mittel | MFA auf Windows-Login-Ebene; mittelfristig idvault-seitig umsetzen |
+| Keine Mehrfaktor-Authentifizierung | Mittel | MFA auf Windows-Login-Ebene; mittelfristig idvscope-seitig umsetzen |
 
 ## 11 Verantwortlichkeiten
 

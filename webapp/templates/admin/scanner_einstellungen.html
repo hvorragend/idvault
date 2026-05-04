@@ -198,7 +198,7 @@
         </div>
         <div class="card-body">
           <p class="text-muted mb-3">
-            Standardmäßig läuft der Scanner im Benutzerkontext des idvault-Prozesses.
+            Standardmäßig läuft der Scanner im Benutzerkontext des idvscope-Prozesses.
             Hier kann ein technischer Active-Directory-Benutzer hinterlegt werden,
             dessen Credentials für den Zugriff auf UNC-Netzwerkfreigaben verwendet
             werden (<code>WNetAddConnection2</code>, Windows only –
@@ -240,7 +240,7 @@
             <div class="col-md-4">
               <label class="form-label fw-600">Benutzername</label>
               <input type="text" name="runas_username" class="form-control font-monospace" value="{{ runas.username }}"
-                placeholder="svc-idvault-scan">
+                placeholder="svc-idvscope-scan">
               <div class="form-text">sAMAccountName (ohne Domain-Präfix)</div>
             </div>
             <div class="col-md-5">
@@ -616,7 +616,7 @@
     <p class="text-muted mb-3">
       Wurden Scans auf anderen Rechnern mit einer <strong>eigenen Datenbank</strong>
       durchgeführt (<code>db_path</code> in <code>config.json</code> auf eine lokale Datei
-      gesetzt), können die Ergebnisse hier in die zentrale idvault-Datenbank zusammengeführt
+      gesetzt), können die Ergebnisse hier in die zentrale idvscope-Datenbank zusammengeführt
       werden.<br>
       Vorhandene Pfade werden nicht dupliziert – neuere Scan-Daten überschreiben ältere.
     </p>

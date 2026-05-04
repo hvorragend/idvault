@@ -26,7 +26,7 @@ Konfiguration:
     Wird aus der SQLite-Datenbank (``app_settings``) gelesen. Die Webapp
     pflegt Tenant-/Client-ID, client_secret (Fernet-verschlüsselt) und
     Teams-/Site-Liste über ``/admin/teams-einstellungen``. Der Scanner
-    wird vom Webapp-Prozess als Subprocess mit ``--db-path <idvault.db>``
+    wird vom Webapp-Prozess als Subprocess mit ``--db-path <idvscope.db>``
     aufgerufen.
 
 Autor:  IDV-Register Projekt
@@ -824,8 +824,8 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Beispiele:
-  python teams_scanner.py --db-path instance/idvault.db --dry-run
-  python teams_scanner.py --db-path instance/idvault.db
+  python teams_scanner.py --db-path instance/idvscope.db --dry-run
+  python teams_scanner.py --db-path instance/idvscope.db
         """,
     )
     parser.add_argument(
