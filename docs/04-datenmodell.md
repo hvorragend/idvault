@@ -87,7 +87,7 @@ Die vollständige DDL-Definition liegt in `schema.sql` (~900 Zeilen).
 | `nachname` / `vorname` | TEXT | — | Klarname |
 | `email` | TEXT | — | SMTP-Adresse |
 | `telefon` | TEXT | — | Telefonnummer |
-| `user_id` | TEXT | UNIQUE | Login-Name (idvscope / AD) |
+| `user_id` | TEXT | UNIQUE | Login-Name (IDVScope / AD) |
 | `ad_name` | TEXT | — | AD-Account-Name |
 | `password_hash` | TEXT | — | SHA-256-Hash (aktuell; soll migriert werden auf Argon2id) |
 | `rolle` | TEXT | — | Eine der 5 definierten Rollen |
@@ -358,7 +358,7 @@ Einzeilige Konfigurationstabelle (CHECK(id=1)):
 | Spalte | Zweck |
 |---|---|
 | `group_dn` | AD-Gruppen-DN (UNIQUE) |
-| `role` | idvscope-Rolle |
+| `role` | IDVScope-Rolle |
 | `priority` | Reihenfolge bei mehreren Treffern |
 
 ## 8 Views
@@ -400,7 +400,7 @@ Performance-relevante Indizes auf häufig gefilterte Spalten:
 
 ## 11 Migrationsstrategie
 
-idvscope nutzt **Alembic** als Migrationsframework (`migrations/versions/`):
+IDVScope nutzt **Alembic** als Migrationsframework (`migrations/versions/`):
 
 - `db.py::init_register_db()` startet beim App-Start `alembic upgrade head`.
 - `0001_initial_schema` liest `schema.sql` und spielt die enthaltenen

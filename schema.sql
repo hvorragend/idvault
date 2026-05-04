@@ -994,7 +994,7 @@ CREATE TABLE IF NOT EXISTS ldap_config (
     updated_at      TEXT NOT NULL DEFAULT (datetime('now','utc'))
 );
 
--- Gruppen-DN → idvscope-Rolle
+-- Gruppen-DN → IDVScope-Rolle
 CREATE TABLE IF NOT EXISTS ldap_group_role_mapping (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     group_dn    TEXT NOT NULL UNIQUE,    -- vollständiger DN der AD-Gruppe

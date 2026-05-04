@@ -1,5 +1,5 @@
 """
-idvscope – Startpunkt
+IDVScope – Startpunkt
 ====================
 Entwicklung:  python run.py
 Produktion:   gunicorn "run:app" --workers 1 --bind 0.0.0.0:5000
@@ -183,7 +183,7 @@ if not os.path.isfile(_config_file):
         "IDV_SSL_AUTOGEN": 1,
         "IDV_DB_PATH": "instance/idvscope.db",
         "IDV_INSTANCE_PATH": "instance",
-        "IDV_SERVICE_NAME": "idvscope",
+        "IDV_SERVICE_NAME": "IDVScope",
         # Demo-Daten beim Erststart: true = einmalig einspielen, false = kein Seeding.
         "IDV_DEMO_DATA": False,
         # VULN-F: Lokale Benutzer. Leere Liste = kein lokaler Login möglich
@@ -381,7 +381,7 @@ def _run_server(service_mode: bool = False):
 
     if not service_mode:
         print("=" * 55)
-        print("  idvscope – Register für Eigenentwicklungen")
+        print("  IDVScope – Register für Eigenentwicklungen")
         print(f"  {scheme}://localhost:{port}")
         print(f"  DB: {app.config['DATABASE']}")
         if ssl_context is not None:
@@ -401,7 +401,7 @@ def _run_server(service_mode: bool = False):
         # WARNING-Level, weil der File-Handler (webapp/__init__.py) auf
         # WARNING+ konfiguriert ist; für ops-relevante Lifecycle-Events
         # semantisch passend. [startup]-Präfix zum Filtern per grep.
-        app.logger.warning("[startup] idvscope Dienst-Modus: %s://0.0.0.0:%s", scheme, port)
+        app.logger.warning("[startup] IDVScope Dienst-Modus: %s://0.0.0.0:%s", scheme, port)
         app.logger.warning("[startup] DATABASE=%s", app.config['DATABASE'])
         app.logger.warning("[startup] instance_path=%s", app.instance_path)
         app.logger.warning("[startup] CWD=%s  EXE=%s", os.getcwd(), sys.executable)
@@ -427,7 +427,7 @@ def _run_server(service_mode: bool = False):
         num_threads = config_store.get_int("IDV_WSGI_THREADS", 16) or 16
         server = CherootWSGI(
             ("0.0.0.0", port), app,
-            numthreads=num_threads, server_name="idvscope",
+            numthreads=num_threads, server_name="IDVScope",
         )
         ssl_paths = resolve_ssl_paths(_instance_path) if https_enabled() else None
         if ssl_paths is not None:
@@ -477,7 +477,7 @@ def _run_server(service_mode: bool = False):
 #
 # Befehle (als Administrator ausführen):
 #   idvscope.exe install    → Dienst registrieren (Name aus IDV_SERVICE_NAME
-#                            oder Standard "idvscope")
+#                            oder Standard "IDVScope")
 #   idvscope.exe start      → Dienst starten
 #   idvscope.exe stop       → Dienst stoppen
 #   idvscope.exe restart    → Dienst neu starten
@@ -505,12 +505,12 @@ def _make_service_class():
     import win32serviceutil
     from webapp import config_store
 
-    svc_name = (config_store.get_str('IDV_SERVICE_NAME', 'idvscope') or '').strip() or 'idvscope'
+    svc_name = (config_store.get_str('IDV_SERVICE_NAME', 'IDVScope') or '').strip() or 'IDVScope'
 
     class _IDVScopeService(win32serviceutil.ServiceFramework):
         _svc_name_         = svc_name
-        _svc_display_name_ = 'idvscope – Register für Eigenentwicklungen'
-        _svc_description_  = 'idvscope – Register für Eigenentwicklungen (Web-Anwendung)'
+        _svc_display_name_ = 'IDVScope – Register für Eigenentwicklungen'
+        _svc_description_  = 'IDVScope – Register für Eigenentwicklungen (Web-Anwendung)'
         # Argument, das der SCM beim Start an die EXE übergibt:
         _exe_args_         = '--service-run'
 

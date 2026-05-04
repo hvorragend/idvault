@@ -67,9 +67,9 @@ ohne externen Wrapper wie NSSM oder winsw.
 
 ```powershell
 # 1. Dienstnamen in config.json festlegen (empfohlen)
-#    "IDV_SERVICE_NAME": "idvscope"
+#    "IDV_SERVICE_NAME": "IDVScope"
 
-# 2. Dienst registrieren (Dienstname aus IDV_SERVICE_NAME oder Default "idvscope")
+# 2. Dienst registrieren (Dienstname aus IDV_SERVICE_NAME oder Default "IDVScope")
 C:\idvscope\idvscope.exe install
 
 # 3. Dienstkonto auf LOCAL SYSTEM belassen (Standard) – kein AD-User nötig
@@ -92,7 +92,7 @@ Weitere Verwaltungsbefehle:
 **Neustart aus der Web-UI**
 
 Administration → Software-Update → „App neu starten" erkennt automatisch,
-ob idvscope als Dienst läuft, und führt dann `sc start <name>` aus statt
+ob IDVScope als Dienst läuft, und führt dann `sc start <name>` aus statt
 eine neue EXE-Instanz zu spawnen. Der Dienstname wird per PID-Abgleich
 selbständig ermittelt (funktioniert ohne `IDV_SERVICE_NAME` bei nativer
 Registrierung); bei NSSM/winsw-Wrappern `IDV_SERVICE_NAME` in
@@ -221,7 +221,7 @@ HSTS/CSP-Header im Proxy konfigurierbar.
 
 - LDAPS-Erreichbarkeit (Port 636)
 - Technischer Benutzer (Service-Account) mit Leserechten
-- AD-Gruppen für jede idvscope-Rolle
+- AD-Gruppen für jede IDVScope-Rolle
 
 ### 5.2 Konfiguration
 
@@ -239,7 +239,7 @@ Administration → LDAP / Active Directory → LDAP konfigurieren
 
 ### 5.3 Gruppen-Rollen-Mapping
 
-| idvscope-Rolle | Beispiel-Gruppen-DN |
+| IDVScope-Rolle | Beispiel-Gruppen-DN |
 |---|---|
 | IDV-Administrator | `CN=IDV-Administratoren,OU=Gruppen,DC=bank,DC=de` |
 | IDV-Koordinator | `CN=IDV-Koordinatoren,OU=Gruppen,DC=bank,DC=de` |
@@ -254,7 +254,7 @@ Get-ADGroup -Identity "IDV-Administratoren" | Select DistinguishedName
 
 ### 5.4 Automatischer Fallback
 
-Ist der LDAP-Server nicht erreichbar, wechselt idvscope automatisch auf
+Ist der LDAP-Server nicht erreichbar, wechselt IDVScope automatisch auf
 die lokale Authentifizierung. In diesem Fall greifen:
 - Personen mit gesetztem `password_hash`
 - Der Demo-Account `admin / idvscope2026` (solange nicht deaktiviert)
@@ -344,7 +344,7 @@ Details siehe [10 – Scanner](10-scanner.md).
 
 ### 7.5 Fehlersuche: „Pfad nicht erreichbar" beim Dienst-Betrieb
 
-Wird idvscope als Windows-Dienst betrieben und die Webapp startet den Scanner
+Wird IDVScope als Windows-Dienst betrieben und die Webapp startet den Scanner
 über einen hinterlegten Scan-User (Administration → Scanner-Einstellungen →
 Run-As), kann der Scanner den UNC-Pfad trotz Zugriffsrechten des Scan-Users
 nicht erreichen. Typische Log-Ausgabe:
@@ -383,7 +383,7 @@ Prüfpunkte in dieser Reihenfolge:
      bauen mit vollständiger `idvscope.spec`.
    - **Fehler 1053** („Der Dienst antwortete nicht rechtzeitig auf die
      Start- oder Steuerungsanforderung") beim Starten über
-     `services.msc` / `sc start idvscope` – die EXE hat
+     `services.msc` / `sc start IDVScope` – die EXE hat
      `StartServiceCtrlDispatcher()` nicht innerhalb von ~30 s erreicht.
      Ab Version mit Lazy-App-Build sollte das nicht mehr auftreten
      (Flask-App wird erst nach SCM-Connect innerhalb `SvcDoRun` gebaut).
@@ -412,7 +412,7 @@ Prüfpunkte in dieser Reihenfolge:
 
 ### 7.X  Logs des Windows-Dienstes
 
-Im Dienst-Modus schreibt idvscope an drei Stellen – in dieser Reihenfolge
+Im Dienst-Modus schreibt IDVScope an drei Stellen – in dieser Reihenfolge
 konsultieren:
 
 1. **`instance/logs/idvscope.log`** (neben der EXE) – `[startup]`-Zeilen
@@ -424,7 +424,7 @@ konsultieren:
    Tracebacks aus dem Dienstprozess (auch Fehler im Werkzeug-Server,
    Init-Abbrüche). Rotiert bei 2 MB, 1 Backup (`.1`). Wird nur
    geschrieben, wenn tatsächlich etwas auf stderr kam.
-3. **Windows-Event-Viewer → Anwendung → Quelle „idvscope"** – Lifecycle-
+3. **Windows-Event-Viewer → Anwendung → Quelle „IDVScope"** – Lifecycle-
    Meilensteine vom Dienstframework:
    - `PYS_SERVICE_STARTED` / `PYS_SERVICE_STOPPED` (pywin32-Standard)
    - `idvscope: SvcDoRun gestartet (CWD=…, EXE=…, Crash-Log=…)` –
@@ -446,7 +446,7 @@ unerreichbar bleibt: zuerst im Event-Viewer nach dem Error-Event
        Run-As erneut eintragen.
      - `WinError 1219` (0x4C3, „Es sind nicht genügend Anmelde-
        informationen verfügbar"): Der Dienstkontext hält bereits eine
-       andere Credential-Zuordnung zum selben Share. idvscope löst das
+       andere Credential-Zuordnung zum selben Share. IDVScope löst das
        automatisch mit `WNetCancelConnection2` vor dem Eintrag; tritt
        der Fehler dauerhaft auf, manuell im Dienstkontext
        `net use \\server\share /delete` ausführen.
@@ -464,8 +464,8 @@ unerreichbar bleibt: zuerst im Event-Viewer nach dem Error-Event
    NetBIOS-Auflösung scheitert. Vom Server aus
    `ping fileserver.example.local` und `net view \\<server>` prüfen.
 4. **WinError 1326 (Anmeldung fehlgeschlagen)** – Passwort des Scan-Users
-   im idvscope falsch / abgelaufen.
-5. **Dienstkonto selbst** – Wenn der idvscope-Dienst als Domänen-Account
+   im IDVScope falsch / abgelaufen.
+5. **Dienstkonto selbst** – Wenn der IDVScope-Dienst als Domänen-Account
    eingerichtet ist, muss dieses Konto zumindest `Anmelden als Dienst`
    besitzen; es muss jedoch nicht Zugriff auf das Share haben, solange der
    konfigurierte Scan-User greift.
@@ -497,9 +497,9 @@ instance/
 **Methode A – Offline-Kopie** (anwendungsstopp erforderlich)
 
 ```cmd
-net stop "idvscope"
+net stop "IDVScope"
 xcopy /E /I instance \\backup\idvscope\%date%
-net start "idvscope"
+net start "IDVScope"
 ```
 
 **Methode B – Online-Backup** (Anwendung bleibt aktiv)

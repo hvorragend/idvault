@@ -576,7 +576,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     Credentials vor dem Start via ``WNetAddConnection2`` für jeden
     ``\\\\server\\share`` der konfigurierten Scan-Pfade in der aktuellen
     Logon-Session registriert (Analogon zu ``net use``). Der Scanner
-    läuft weiterhin im Kontext des idvscope-Dienstes; UNC-Zugriffe nutzen
+    läuft weiterhin im Kontext des IDVScope-Dienstes; UNC-Zugriffe nutzen
     die registrierten Credentials per NTLM.
 
     Diese Lösung ersetzt den früheren ``LogonUser`` +
@@ -615,7 +615,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
     if not username_set:
         _write_scanner_notice(log_path, [
             "Run-As nicht konfiguriert – Scanner läuft im Kontext des "
-            "idvscope-Prozesses (Dienstkonto)."
+            "IDVScope-Prozesses (Dienstkonto)."
         ])
     elif has_enc_pw and not password_ok:
         # Passwort liegt verschlüsselt vor, ließ sich aber nicht
@@ -636,7 +636,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
         _write_scanner_notice(log_path, [
             f"Run-As-Benutzer {runas['domain'] or '.'}\\{runas['username']} "
             f"gespeichert, aber kein Passwort hinterlegt. Scanner läuft im "
-            f"Kontext des idvscope-Prozesses (Dienstkonto)."
+            f"Kontext des IDVScope-Prozesses (Dienstkonto)."
         ])
 
     registered_unc: list = []
@@ -688,7 +688,7 @@ def _start_scanner_proc(cmd: list, cwd: str, log_path: str):
             current_app.logger.error(msg)
             _write_scanner_notice(log_path, [msg])
 
-    # Scanner im Kontext des idvscope-Prozesses (Dienstkonto) starten.
+    # Scanner im Kontext des IDVScope-Prozesses (Dienstkonto) starten.
     # "a" (append) damit die oben geschriebenen [IDVSCOPE-START]-Zeilen
     # nicht überschrieben werden. Line-buffering (buffering=1) sorgt dafür,
     # dass Scanner-Output zeitnah sichtbar wird.

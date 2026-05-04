@@ -1,12 +1,12 @@
 # 01 – Anwendungsdokumentation
 
-**idvscope – Register für Individuelle Datenverarbeitungen**
+**IDVScope – Register für Individuelle Datenverarbeitungen**
 
 ---
 
 ## 1 Zweck und fachlicher Kontext
 
-idvscope ist eine bankfachliche Anwendung zur vollständigen, regulatorisch
+IDVScope ist eine bankfachliche Anwendung zur vollständigen, regulatorisch
 konformen Erfassung, Klassifizierung, Dokumentation und Überwachung von
 **Individuellen Datenverarbeitungen (IDV)** im Sinne der
 **MaRisk AT 7.2 Tz. 7** (Bankaufsichtliche Mindestanforderungen an das
@@ -19,7 +19,7 @@ freigegeben und betrieben wird. Typische Beispiele sind Excel-Arbeitsmappen
 mit Makros, Access-Datenbanken, Python- oder R-Skripte, Power-BI-Berichte
 und SQL-Abfragen.
 
-Darüber hinaus bildet idvscope die Anforderungen aus der **Digital
+Darüber hinaus bildet IDVScope die Anforderungen aus der **Digital
 Operational Resilience Act (DORA, Verordnung (EU) 2022/2554)** für die
 Identifikation kritischer oder wichtiger Funktionen und die damit
 verbundenen IKT-Abhängigkeiten ab.
@@ -39,7 +39,7 @@ verbundenen IKT-Abhängigkeiten ab.
 
 ### 3.1 Rollen
 
-idvscope kennt fünf Rollen. Die Rollenzuweisung erfolgt entweder manuell
+IDVScope kennt fünf Rollen. Die Rollenzuweisung erfolgt entweder manuell
 durch den IDV-Administrator oder automatisiert über das
 LDAP-Gruppen-Rollen-Mapping. Jede Person erhält **maximal eine** Rolle;
 die IDV-spezifische Zuweisung als Entwickler, Fachverantwortlicher,
@@ -230,19 +230,19 @@ auffinden, z.B. über
 
 ```
 1. Benutzer gibt AD-Anmeldename + Windows-Passwort ein
-2. idvscope verbindet per LDAPS mit dem konfigurierten Server
+2. IDVScope verbindet per LDAPS mit dem konfigurierten Server
 3. Service-Account sucht den Benutzer per sAMAccountName
 4. LDAP-Bind mit dem gefundenen User-DN + eingegebenem Passwort
-   (das Passwort verlässt idvscope nie im Klartext)
+   (das Passwort verlässt IDVScope nie im Klartext)
 5. Bei Erfolg: Gruppen-Mitgliedschaften auslesen (memberOf)
-6. Gruppen-DNs mit dem Mapping abgleichen → idvscope-Rolle bestimmen
-7. Person in idvscope automatisch anlegen oder aktualisieren (JIT Provisioning)
+6. Gruppen-DNs mit dem Mapping abgleichen → IDVScope-Rolle bestimmen
+7. Person in IDVScope automatisch anlegen oder aktualisieren (JIT Provisioning)
 8. Session setzen, weiterleiten zum Dashboard
 ```
 
 ### 4.3 Automatischer Fallback
 
-Ist der LDAP-Server nicht erreichbar, wechselt idvscope automatisch auf den
+Ist der LDAP-Server nicht erreichbar, wechselt IDVScope automatisch auf den
 lokalen Login. Dieser greift auf in der Datenbank hinterlegte Passwort-Hashes
 zurück. Die Umschaltung erfolgt **ohne Konfigurationsänderung** und wird
 im Login-Log vermerkt.
@@ -576,7 +576,7 @@ Details siehe [10 – Scanner](10-scanner.md).
 
 #### 5.7.1 Self-Service-Owner-Digest (optional, Default aus)
 
-Um den IDV-Koordinator zu entlasten, kann idvscope die offenen Funde
+Um den IDV-Koordinator zu entlasten, kann IDVScope die offenen Funde
 (`bearbeitungsstatus='Neu'`) periodisch gruppiert an den jeweiligen
 Dateieigentümer versenden (Owner-Mail-Digest). Der Empfänger kann per
 Magic-Link eine login-freie Minimalansicht „Meine Funde" öffnen und pro
@@ -685,7 +685,7 @@ Offen → In Bearbeitung → Erledigt
 
 ## 7 Automatische Benachrichtigungen
 
-idvscope versendet ereignisgesteuert E-Mails via SMTP. Empfänger
+IDVScope versendet ereignisgesteuert E-Mails via SMTP. Empfänger
 werden aus der Personen-Tabelle abgeleitet.
 
 | Ereignis | Empfänger |

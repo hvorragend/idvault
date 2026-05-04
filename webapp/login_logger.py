@@ -1,5 +1,5 @@
 """
-Login-Logger für idvscope
+Login-Logger für IDVScope
 ========================
 Schreibt jeden Login-Versuch (Erfolg/Fehlschlag, Methode, IP, Grund)
 in eine rotierende Datei instance/login.log.

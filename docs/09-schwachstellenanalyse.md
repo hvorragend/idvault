@@ -35,7 +35,7 @@ nach DORA Art. 5 und Art. 8.
 
 ### 1.3 Betriebsumfeld und Angreifermodell
 
-idvscope wird **ausschließlich im bankeigenen Intranet** betrieben. Die
+IDVScope wird **ausschließlich im bankeigenen Intranet** betrieben. Die
 Anwendung ist **nicht aus dem Internet erreichbar** und auch nicht über
 eine DMZ exponiert. Der Zugriff erfolgt aus dem internen Netz der Bank
 heraus, in der Regel von Arbeitsplätzen mit Active-Directory-Anmeldung
@@ -52,7 +52,7 @@ einzelnen Schwachstelle zu berücksichtigen:
 | **Anonyme Angreifer** | Nicht relevant – jeder Zugriff erfolgt aus einem authentifizierten Banknetz heraus |
 | **Insider-Bedrohung** | **Primäres Szenario** – Mitarbeiter, Dienstleister, Wartungspersonal mit LAN-Zugang |
 | **Kompromittierter Arbeitsplatz** | Relevant – Malware auf einem Client könnte als authentifizierter Nutzer agieren |
-| **Lateral Movement nach Perimeterbruch** | Relevant – idvscope darf nicht zum Ausgangspunkt weiterer Angriffe werden |
+| **Lateral Movement nach Perimeterbruch** | Relevant – IDVScope darf nicht zum Ausgangspunkt weiterer Angriffe werden |
 | **Netzwerk-Sniffing / MitM** | Relevant nur zwischen Segmenten ohne TLS (→ LDAPS, HTTPS bleiben Pflicht) |
 | **DoS / Brute-Force aus dem Internet** | Nicht relevant – Ratenbegrenzung schützt primär vor internen Fehlern und kompromittierten Clients |
 
@@ -287,7 +287,7 @@ Wird die Umgebungsvariable nicht gesetzt, greift dieser Wert.
   korrekten Generierung (openssl/PowerShell/config.json).
 - Im Debug-Modus wird nur eine auffällige Warnung ausgegeben, damit
   lokale Entwicklung weiterhin funktioniert.
-- Ergänzend: Startet idvscope erstmalig ohne `config.json` und ohne
+- Ergänzend: Startet IDVScope erstmalig ohne `config.json` und ohne
   Umgebungsvariable, wird die Datei automatisch mit einem zufälligen
   32-Byte-`SECRET_KEY` (`secrets.token_hex(32)`) angelegt, sodass der
   Default-Fallback gar nicht erst greift.
@@ -867,7 +867,7 @@ Nach Umsetzung der Roadmap verbleibende Restrisiken:
 | SQLite-Datei auf Windows-Share kompromittierbar | Mittel | Dateisystemrechte, NTFS-ACL, Verschlüsselung der Festplatte |
 | Kein Client-Zertifikats-Auth | Niedrig | LDAP + Session ausreichend |
 | Kein Hardware-Security-Modul | Niedrig | `SECRET_KEY` aus KeyVault in Betriebsumgebung |
-| Keine Mehrfaktor-Authentifizierung | Mittel | MFA auf Windows-Login-Ebene; mittelfristig idvscope-seitig umsetzen |
+| Keine Mehrfaktor-Authentifizierung | Mittel | MFA auf Windows-Login-Ebene; mittelfristig IDVScope-seitig umsetzen |
 
 ## 11 Verantwortlichkeiten
 

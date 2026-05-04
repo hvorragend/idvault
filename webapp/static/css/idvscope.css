@@ -1,5 +1,5 @@
 /* =============================================================================
-   idvscope — zentrale Stildefinitionen
+   IDVScope — zentrale Stildefinitionen
    Ergänzt Bootstrap 5.3. Offline-fähig (keine externen Ressourcen, kein Build).
 
    Aufbau:
@@ -1250,7 +1250,7 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* 27. Tabs (ersetzt Bootstrap .nav-tabs im idvscope-Stil) ──────────────────── */
+/* 27. Tabs (ersetzt Bootstrap .nav-tabs im IDVScope-Stil) ──────────────────── */
 /* Flache Unterstreichungs-Tabs, aktiver Tab in Amber mit 2px-Underline. */
 .idv-tabs {
   display: flex;
@@ -1461,7 +1461,7 @@ table th[data-col-sort]:hover { filter: brightness(1.05); }
 
 /* 36b. Nav-Tabs (Bootstrap) – gleiches Underline-Skin wie .idv-tabs ────── */
 /* Bootstrap JS hängt an `.nav-tabs` – Klasse muss bleiben, aber Optik auf
-   idvscope-Stil: flacher, eine Unterstreichung in Amber für den aktiven Tab. */
+   IDVScope-Stil: flacher, eine Unterstreichung in Amber für den aktiven Tab. */
 .nav.nav-tabs {
   border-bottom: 1px solid var(--idv-border);
   gap: .25rem;

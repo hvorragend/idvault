@@ -6,7 +6,7 @@
 
 **Active Directory (AD)** – Verzeichnisdienst von Microsoft zur
 zentralen Verwaltung von Benutzern, Gruppen und Computern in
-Windows-Netzen. In idvscope zur Authentifizierung genutzt.
+Windows-Netzen. In IDVScope zur Authentifizierung genutzt.
 
 **AppLocker** – Windows-Mechanismus zur Ausführungskontrolle.
 Beschränkt die Ausführung von Anwendungen anhand von Pfaden, Publishern
@@ -39,7 +39,7 @@ Bearbeitungsprozess (`Neu`, `Zur Registrierung`, `Registriert`,
 In idvscope: je ein Blueprint pro Funktionsbereich (auth, idv, admin, …).
 
 **Break-Glass** – Notfall-Zugangsmechanismus, der reguläre
-Sicherheitsmaßnahmen umgeht, in idvscope als "Notfall-Zugang" im
+Sicherheitsmaßnahmen umgeht, in IDVScope als "Notfall-Zugang" im
 Admin-Bereich aktivierbar.
 
 ## C
@@ -74,7 +74,7 @@ zur IKT-Resilienz von Finanzunternehmen.
 IDV verantwortlichen Person.
 
 **Fernet** – Verschlüsselungsverfahren der Python-`cryptography`-
-Bibliothek (AES-128-CBC + HMAC-SHA256). In idvscope zur Verschlüsselung
+Bibliothek (AES-128-CBC + HMAC-SHA256). In IDVScope zur Verschlüsselung
 des LDAP-Service-Account-Passworts.
 
 **Funktionstrennung** – Organisatorisches Prinzip, wonach sich
@@ -105,12 +105,12 @@ Skripte, Power-BI-Berichte u. a.).
 verantwortlichen Person.
 
 **IDV-Register** – Zentrale Datenbank aller erfassten IDVs der
-Bank; in idvscope Tabelle `idv_register`.
+Bank; in IDVScope Tabelle `idv_register`.
 
 **ISB** – Informationssicherheitsbeauftragter.
 
 **ISO 8601** – Internationaler Standard für Datums- und Zeitangaben.
-In idvscope für alle Zeitstempel in der Datenbank verwendet.
+In IDVScope für alle Zeitstempel in der Datenbank verwendet.
 
 **ISO/IEC 27001** – Standard für Informationssicherheits-
 Managementsysteme.
@@ -172,11 +172,11 @@ geprüft werden soll (Standard: 12).
 **Revision** – In idvscope: Rolle der interne Revision, ausschließlich
 lesender Zugriff.
 
-**Rollen (idvscope)** – IDV-Administrator, IDV-Koordinator,
+**Rollen (IDVScope)** – IDV-Administrator, IDV-Koordinator,
 Fachverantwortlicher, Revision, IT-Sicherheit.
 
 **Row-Level Security** – Sichtbarkeitsbeschränkung auf Datensatzebene;
-in idvscope abhängig von der Rolle und der Zuordnung des Benutzers
+in IDVScope abhängig von der Rolle und der Zuordnung des Benutzers
 zur IDV.
 
 ## S
@@ -187,7 +187,7 @@ zusätzliche gültige Hostnamen/IPs enthält.
 **Scanner** – In idvscope: Modul zur automatisierten Identifikation
 von IDV-Kandidaten im Dateisystem oder in Microsoft Teams.
 
-**SHA-256** – Kryptografische Hashfunktion. In idvscope zur Hash-
+**SHA-256** – Kryptografische Hashfunktion. In IDVScope zur Hash-
 Berechnung von Dateien (Scanner) und – als bekannter Schwachpunkt –
 zur Speicherung lokaler Passwörter genutzt (Ziel: Migration auf Argon2id).
 
@@ -199,14 +199,14 @@ bevorzugt geladen werden.
 E-Mails.
 
 **SQLite** – Serverlose SQL-Datenbank als eingebettete Bibliothek.
-In idvscope als Datenbank-Backend verwendet.
+In IDVScope als Datenbank-Backend verwendet.
 
 **STARTTLS** – Mechanismus, um eine bestehende Klartextverbindung
 (z. B. SMTP auf Port 587) auf TLS zu upgraden.
 
 ## T
 
-**Teams-Scanner** – Optionaler idvscope-Scanner für Microsoft Teams /
+**Teams-Scanner** – Optionaler IDVScope-Scanner für Microsoft Teams /
 SharePoint über die Microsoft Graph API.
 
 **Teststatus** – Parallel zum IDV-Status geführtes Feld, das den

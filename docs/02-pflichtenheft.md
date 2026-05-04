@@ -1,6 +1,6 @@
 # 02 – Pflichtenheft
 
-**idvscope – IDV-Register für Kreditinstitute**
+**IDVScope – IDV-Register für Kreditinstitute**
 
 ---
 
@@ -12,7 +12,7 @@
 | Version | 1.0.0 |
 | Stand | 2026-04-15 |
 | Status | Freigegeben |
-| Bezug zur Software-Version | idvscope 0.1.0 |
+| Bezug zur Software-Version | IDVScope 0.1.0 |
 
 ## 2 Einleitung
 
@@ -134,7 +134,7 @@ Anforderungen sind durchnummeriert und referenzierbar. Prioritäten:
 | Nr. | Anforderung | Prio |
 |---|---|:---:|
 | FA-060 | Das System muss LDAP/Active-Directory-Authentifizierung über LDAPS (Port 636) unterstützen. | M |
-| FA-061 | AD-Gruppen müssen auf idvscope-Rollen abbildbar sein (Gruppen-Rollen-Mapping). | M |
+| FA-061 | AD-Gruppen müssen auf IDVScope-Rollen abbildbar sein (Gruppen-Rollen-Mapping). | M |
 | FA-062 | Beim ersten LDAP-Login muss der Benutzer automatisch in der Personen-Tabelle angelegt werden (JIT-Provisioning). | M |
 | FA-063 | Bei LDAP-Serverausfall muss automatisch auf lokale Authentifizierung umgeschaltet werden. | M |
 | FA-064 | Ein manuell aktivierbarer Notfall-Zugang (Break-Glass) muss vorhanden sein. | M |

@@ -1,5 +1,5 @@
 """
-idvscope – Flask Web Application
+IDVScope – Flask Web Application
 ================================
 IDV-Register für MaRisk AT 7.2 / DORA-konforme Verwaltung
 von Eigenentwicklungen (Individuelle Datenverarbeitung).
@@ -385,7 +385,7 @@ def create_app(db_path: str = None) -> Flask:
         DATABASE=_db_path,
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=32 * 1024 * 1024,   # 32 MB max upload
-        APP_NAME="idvscope",
+        APP_NAME="IDVScope",
         # Optionaler Institutionsname (erscheint im Breadcrumb-Topbar).
         # Wird aus config.json["IDV_INSTITUTION_NAME"] gelesen. Leer = kein
         # Prefix, nur Seitentitel.

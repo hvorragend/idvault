@@ -4,7 +4,7 @@
 
 ## 1 Überblick
 
-idvscope ist eine monolithische Web-Anwendung mit integriertem
+IDVScope ist eine monolithische Web-Anwendung mit integriertem
 Dateisystem-Scanner. Die Architektur folgt dem **Drei-Schichten-Modell**
 (Presentation · Application · Persistence) und ist bewusst schlank
 gehalten, um den Betrieb in restriktiven Banknetzen (ohne Internet, ohne
@@ -284,7 +284,7 @@ Architekturrelevante Eckpunkte:
 ### 8.2 Netzsegmente
 
 ```
-[Clients] ──HTTPS──→ [idvscope-Server] ──LDAPS──→ [AD]
+[Clients] ──HTTPS──→ [IDVScope-Server] ──LDAPS──→ [AD]
                            │
                            ├──SMTP──→ [Mailserver]
                            │

@@ -104,7 +104,7 @@ werden gegen genau diesen Hash erstellt.
 
 In Umgebungen mit AppLocker oder strengen Whitelisting-Regeln darf die
 EXE-Binärdatei nicht ersetzt werden, da dies die Hash-Ausnahme ungültig
-macht. idvscope umgeht dies, indem Updates **neben** der EXE abgelegt
+macht. IDVScope umgeht dies, indem Updates **neben** der EXE abgelegt
 werden und beim Start bevorzugt geladen werden.
 
 ### 3.2 Funktionsweise
@@ -193,10 +193,10 @@ Empfehlung: Einsatz von `nssm` (Non-Sucking Service Manager) oder
 ähnlichem Dienst-Wrapper:
 
 ```cmd
-nssm install idvscope C:\idvscope\idvscope.exe
-nssm set idvscope AppEnvironmentExtra SECRET_KEY=<...>
-nssm set idvscope AppEnvironmentExtra IDV_HTTPS=1
-nssm start idvscope
+nssm install IDVScope C:\idvscope\idvscope.exe
+nssm set IDVScope AppEnvironmentExtra SECRET_KEY=<...>
+nssm set IDVScope AppEnvironmentExtra IDV_HTTPS=1
+nssm start IDVScope
 ```
 
 ### 4.3 Szenario C – Linux / Reverse-Proxy
@@ -206,11 +206,11 @@ nssm start idvscope
 /etc/systemd/system/idvscope.service
 ---
 [Unit]
-Description=idvscope IDV-Register
+Description=IDVScope IDV-Register
 After=network.target
 
 [Service]
-User=idvscope
+User=IDVScope
 WorkingDirectory=/opt/idvscope
 Environment=SECRET_KEY=<...>
 ExecStart=/opt/idvscope/.venv/bin/gunicorn -w 4 -b 127.0.0.1:8000 "webapp:create_app()"
@@ -235,7 +235,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # Security-Header (ergänzt die in idvscope fehlenden)
+        # Security-Header (ergänzt die in IDVScope fehlenden)
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         add_header X-Frame-Options "DENY" always;
         add_header X-Content-Type-Options "nosniff" always;

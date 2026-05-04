@@ -1361,7 +1361,7 @@ def mark_deleted_files(conn: sqlite3.Connection, scan_run_id: int, now: str,
 def _log_scanner_identity(logger: logging.Logger) -> None:
     """Loggt, unter welcher Identität der Scanner läuft.
 
-    Hintergrund: Der Scanner läuft im Kontext des idvscope-Dienstes; die
+    Hintergrund: Der Scanner läuft im Kontext des IDVScope-Dienstes; die
     UNC-Credentials eines konfigurierten AD-Benutzers werden vor dem
     Start via WNetAddConnection2 in der Session registriert. Diese Log-
     Zeile hilft bei der Fehlersuche, wenn UNC-Zugriffe scheitern

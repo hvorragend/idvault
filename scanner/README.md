@@ -2,7 +2,7 @@
 
 Scannt Netzlaufwerke und lokale Verzeichnisse nach IDV-Eigenentwicklungen
 (Excel, Access, Python, SQL, Power BI u.a.), erhebt Metadaten und speichert
-Ergebnisse in einer SQLite-Datenbank. Integriert sich mit der idvscope-Webapp.
+Ergebnisse in einer SQLite-Datenbank. Integriert sich mit der IDVScope-Webapp.
 
 ---
 
@@ -133,7 +133,7 @@ speicherlastige Analysen hin. Die wichtigsten Stellschrauben:
 setzen und die Wirkung messen, dann weitere Hebel einzeln aktivieren.
 
 **Zur Diagnose auf dem Server** helfen:
-- `tasklist /V | findstr idvscope` bzw. Taskmanager → Details → Spalte
+- `tasklist /V | findstr IDVScope` bzw. Taskmanager → Details → Spalte
   „Befehlszeile" zeigt den Scanner-Subprozess (Argument `--scan`).
 - Die Log-Datei (`log_path`, Standard `network_scanner.log`) auf Einträge
   wie „Hash-Berechnung unterbrochen" oder „Verzeichnis-Listing
@@ -141,7 +141,7 @@ setzen und die Wirkung messen, dann weitere Hebel einzeln aktivieren.
 
 ---
 
-### Integration mit der idvscope-Webapp
+### Integration mit der IDVScope-Webapp
 
 Damit Scanner und Webapp dieselbe Datenbank nutzen, `db_path` auf die
 Instanz-Datenbank der Webapp zeigen lassen:
@@ -286,7 +286,7 @@ Archivierte Dateien werden **nicht gelöscht**. Sie bleiben mit
 
 **Warum das wichtig ist:**
 Ist eine Datei über `idv_register.file_id` mit einem IDV-Eintrag verknüpft,
-bleibt diese Verknüpfung auch nach der Archivierung gültig. Im idvscope-Interface
+bleibt diese Verknüpfung auch nach der Archivierung gültig. Im IDVScope-Interface
 unter *Scanner → Scanner-Funde → Archiv* sind alle archivierten Dateien einsehbar,
 inklusive des Datums des letzten Fundes.
 
@@ -442,7 +442,7 @@ Vorhandene Pfade werden nicht dupliziert – neuere Scan-Daten überschreiben ä
 
 **Option A – Standalone-Executable (idvscope.exe)**
 
-Wenn idvscope als Standalone-Executable betrieben wird, übernimmt dieselbe
+Wenn IDVScope als Standalone-Executable betrieben wird, übernimmt dieselbe
 Datei auch den Scanner-Modus:
 
 1. Aufgabenplanung öffnen

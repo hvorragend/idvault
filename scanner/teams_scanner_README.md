@@ -71,7 +71,7 @@ Permission. Ein zusätzliches `Files.Read.All` wäre nicht nur
    diesem Modus **nicht** benötigt und dürfen nicht zusätzlich vergeben
    werden, sonst hat die App wieder tenantweiten Lese-Zugriff.
 3. Admin-Zustimmung erteilen.
-4. Client-ID, Tenant-ID und Client-Secret in idvscope hinterlegen.
+4. Client-ID, Tenant-ID und Client-Secret in IDVScope hinterlegen.
 5. Schalter „Sites.Selected-Modus" in der Web-UI aktivieren.
 
 **Was Sites.Selected nicht abdeckt:**
@@ -98,7 +98,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
         "roles": ["read"],
         "grantedToIdentities": [
-          { "application": { "id": "<client-id>", "displayName": "idvscope" } }
+          { "application": { "id": "<client-id>", "displayName": "IDVScope" } }
         ]
       }'
 ```
@@ -108,12 +108,12 @@ Alternativ per PnP-PowerShell:
 ```powershell
 Grant-PnPAzureADAppSitePermission `
   -AppId      "<client-id>" `
-  -DisplayName "idvscope" `
+  -DisplayName "IDVScope" `
   -Site       "https://{tenant}.sharepoint.com/sites/{site-name}" `
   -Permissions Read
 ```
 
-Anschließend in idvscope die Site-URL als Quelle eintragen. Team-IDs
+Anschließend in IDVScope die Site-URL als Quelle eintragen. Team-IDs
 werden in diesem Modus übersprungen — ist eine Teams-Site gemeint,
 bitte deren SharePoint-Site-URL eintragen.
 
@@ -222,10 +222,10 @@ Jeder Eintrag hat entweder `team_id` **oder** `site_url`:
 
 ---
 
-## Integration mit der idvscope-Webapp
+## Integration mit der IDVScope-Webapp
 
 Scanner und Webapp teilen sich dieselbe SQLite-Datenbank. Der Subprocess
-erhält den Pfad via `--db-path`. Im idvscope-Interface erscheinen
+erhält den Pfad via `--db-path`. Im IDVScope-Interface erscheinen
 Teams/SharePoint-Dateien unter
 **Scanner → Entdeckte Dateien** mit der Quellenangabe `sharepoint` in der
 neuen Spalte `source`.
@@ -347,7 +347,7 @@ Microsoft bereitgestellt), andernfalls als `HASH_ERROR` gesetzt.
 | `source` in DB | `filesystem` | `sharepoint` |
 
 Beide Scanner schreiben in **dieselben Tabellen** (`idv_files`, `idv_file_history`,
-`scan_runs`) — die Ergebnisse sind im idvscope-Interface gemeinsam auswertbar.
+`scan_runs`) — die Ergebnisse sind im IDVScope-Interface gemeinsam auswertbar.
 
 ---
 

@@ -4,7 +4,7 @@
 
 ## 1 Geltungsbereich
 
-Dieses Dokument ordnet die Funktionen der Anwendung idvscope den relevanten
+Dieses Dokument ordnet die Funktionen der Anwendung IDVScope den relevanten
 aufsichtsrechtlichen Normen zu. Es dient als Nachweisgrundlage für die
 interne Revision, Wirtschaftsprüfer, die Bundesanstalt für
 Finanzdienstleistungsaufsicht (BaFin) und die Deutsche Bundesbank.
@@ -29,7 +29,7 @@ führen, das eine Risikobewertung, angemessene Kontrollen und eine
 Dokumentation des Entwicklungs-, Test-, Freigabe- und Änderungsprozesses
 umfasst.
 
-| Anforderung MaRisk | Umsetzung in idvscope | Nachweis |
+| Anforderung MaRisk | Umsetzung in IDVScope | Nachweis |
 |---|---|---|
 | Identifikation aller IDVs | Dateisystem-Scanner entdeckt Kandidaten; Erfassung im Register | [10 – Scanner](10-scanner.md), [04 – Datenmodell](04-datenmodell.md) `idv_register` |
 | Vollständigkeit der Grundgesamtheit | Scanner-Eingang (`bearbeitungsstatus=Neu`) + Dashboard-Ansicht "Unvollständig" | `v_unvollstaendige_idvs` View |
@@ -52,7 +52,7 @@ umfasst.
 Für Eigenentwicklungen mit Klassifikation **nicht wesentlich** ist das
 fünfstufige Test-/Freigabeverfahren regulatorisch nicht zwingend
 vorgeschrieben (MaRisk AT 7.2 Tz. 7 fordert das volle Verfahren nur für
-wesentliche IDVs). idvscope stellt deshalb optional die **Stille Freigabe**
+wesentliche IDVs). IDVScope stellt deshalb optional die **Stille Freigabe**
 zur Verfügung — ein verkürztes Verfahren in drei Schritten:
 
 1. **Selbstzertifizierung des Entwicklers** (1 Klick): bestätigt
@@ -78,12 +78,12 @@ in eigener Verantwortung über die Aktivierung.
 ## 3 Mapping BAIT
 
 Die BAIT adressieren die IT-Steuerung, Informationsrisikomanagement,
-Berechtigungen und IT-Projekte. Relevant für idvscope sind insbesondere
+Berechtigungen und IT-Projekte. Relevant für IDVScope sind insbesondere
 Kapitel 4 (Zugriffsrechte) und Kapitel 6 (Informationsrisikomanagement).
 
 | BAIT-Kapitel | Anforderung | Umsetzung |
 |---|---|---|
-| Kapitel 2 (IT-Strategie) | IDV-Management als Bestandteil der IT-Governance | idvscope als zentrales Register |
+| Kapitel 2 (IT-Strategie) | IDV-Management als Bestandteil der IT-Governance | IDVScope als zentrales Register |
 | Kapitel 4 (Benutzerberechtigungsmanagement) | Need-to-know, Funktionstrennung, regelmäßiges Rezertifizieren | Rollenkonzept, LDAP, Deaktivierung |
 | Kapitel 5 (IT-Projekte) | Test- und Freigabeverfahren | `idv_freigaben` |
 | Kapitel 6 (Informationsrisikomanagement) | Schutzbedarf (CIA), Risikoklassifikation | `verfuegbarkeit`, `integritaet`, `vertraulichkeit`, `risikoklasse_id` |
@@ -112,7 +112,7 @@ in vier Stufen:
 | Art. 9 (Schutz und Prävention) | Zugriffskontrolle, Verschlüsselung | LDAP, HTTPS, Fernet |
 | Art. 10 (Erkennung) | Monitoring | Logs, Dashboard |
 | Art. 17 (IKT-Vorfallsmanagement) | Klassifizierung und Meldung | Incident-Response-Prozess in [05 – Sicherheitskonzept](05-sicherheitskonzept.md) |
-| Art. 28 (Drittanbieter) | — | Nicht direkt in idvscope; IDVs können aber Drittanbieter-Leistungen referenzieren |
+| Art. 28 (Drittanbieter) | — | Nicht direkt in IDVScope; IDVs können aber Drittanbieter-Leistungen referenzieren |
 | Art. 30 (Vertragsauflagen) | Nachweise über Betrieb/Abhängigkeiten | Dokumentationsfelder in `idv_register` |
 
 ### 4.1 Kritisch- oder Wichtig-Bewertung
@@ -178,7 +178,7 @@ Regeln:
 | Art. 15 | Auskunftsrecht | Einsehbar über Personenverwaltung |
 | Art. 17 | Löschung | Soft-Delete; Hartlöschung in Abstimmung mit DSB |
 | Art. 25 | Privacy by Design | Minimal-Datenmodell, Rollenkonzept |
-| Art. 30 | Verzeichnis der Verarbeitungstätigkeiten | Bereitgestellt durch DSB (außerhalb idvscope) |
+| Art. 30 | Verzeichnis der Verarbeitungstätigkeiten | Bereitgestellt durch DSB (außerhalb IDVScope) |
 | Art. 32 | Technische/organisatorische Maßnahmen | Gesamtes Sicherheitskonzept |
 | Art. 33/34 | Meldewege bei Datenschutzverletzungen | Incident-Response in [05](05-sicherheitskonzept.md) §10 |
 | Art. 35 | Datenschutz-Folgenabschätzung (DSFA) | Pflicht vor Inbetriebnahme, siehe [02 – Pflichtenheft](02-pflichtenheft.md) NFA-DS-04 |
@@ -220,7 +220,7 @@ Remediation-Plan und Verantwortlichkeiten hinterlegt.
 
 ## 9 Nachweisartefakte für Prüfer
 
-Die folgenden Artefakte können im Rahmen einer Prüfung direkt aus idvscope
+Die folgenden Artefakte können im Rahmen einer Prüfung direkt aus IDVScope
 bereitgestellt werden:
 
 | Artefakt | Bezugsquelle | Format |

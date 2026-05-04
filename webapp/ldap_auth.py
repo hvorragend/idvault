@@ -1,5 +1,5 @@
 """
-LDAP-Authentifizierung für idvscope
+LDAP-Authentifizierung für IDVScope
 ====================================
 Authentifiziert Benutzer per LDAP-Bind (LDAPS, Port 636) gegen ein
 Active Directory über LDAPS.
@@ -7,7 +7,7 @@ Active Directory über LDAPS.
 Ablauf:
   1. Verbindung mit Service-Account → User-DN per sAMAccountName suchen
   2. LDAP-Bind mit User-DN + eingegebenem Passwort → Credentials prüfen
-  3. memberOf-Attribute → Gruppen-Rollen-Mapping → idvscope-Rolle bestimmen
+  3. memberOf-Attribute → Gruppen-Rollen-Mapping → IDVScope-Rolle bestimmen
   4. Person in persons-Tabelle anlegen oder aktualisieren (JIT Provisioning)
 """
 
@@ -90,7 +90,7 @@ def ldap_is_enabled(db) -> bool:
 # ---------------------------------------------------------------------------
 
 def _get_role_from_groups(db, member_of: list) -> Optional[str]:
-    """Findet die erste passende idvscope-Rolle anhand der LDAP-Gruppen-DNs."""
+    """Findet die erste passende IDVScope-Rolle anhand der LDAP-Gruppen-DNs."""
     if not member_of:
         return None
     try:

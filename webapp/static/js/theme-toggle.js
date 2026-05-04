@@ -1,5 +1,5 @@
 /* ============================================================================
- * idvscope — Theme-Toggle (Light / Dark) (Issue #416)
+ * IDVScope — Theme-Toggle (Light / Dark) (Issue #416)
  *
  * Setzt data-bs-theme auf <html> nach folgender Reihenfolge:
  *   1. localStorage["idv:theme"] (vom Nutzer gesetzt)

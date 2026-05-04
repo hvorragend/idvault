@@ -5,7 +5,7 @@
 ## 1 Zielsetzung
 
 Diese Analyse bewertet die Qualität, Wartbarkeit und Prüffähigkeit des
-idvscope-Quellcodes nach den Kriterien ISO/IEC 25010 (Product Quality
+IDVScope-Quellcodes nach den Kriterien ISO/IEC 25010 (Product Quality
 Model). Sie dient als Grundlage für die aufsichtsrechtliche
 Nachweisführung über die **fachliche und handwerkliche Eignung** der
 eingesetzten Software.

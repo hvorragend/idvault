@@ -1,4 +1,4 @@
-# idvscope – Standalone-Executable erstellen
+# IDVScope – Standalone-Executable erstellen
 
 > Copyright &copy; 2026 Volksbank Gronau-Ahaus eG und Carsten Volmer.
 > Alle Rechte vorbehalten. Siehe [`LICENSE`](LICENSE).
@@ -7,7 +7,7 @@
 > siehe [docs/11-build-deployment.md](docs/11-build-deployment.md). Diese
 > Datei dient als Schnell-Anleitung für Entwickler.
 
-Diese Anleitung beschreibt, wie aus dem idvscope-Quellcode eine eigenständige
+Diese Anleitung beschreibt, wie aus dem IDVScope-Quellcode eine eigenständige
 `.exe` erstellt wird, die ohne Python-Installation auf anderen Rechnern läuft.
 
 ---
@@ -103,7 +103,7 @@ Oder per Doppelklick im Explorer. Es öffnet sich ein Konsolenfenster mit:
 
 ```
 =======================================================
-  idvscope – IDV-Register
+  IDVScope – IDV-Register
   http://localhost:5000
   DB: C:\Users\...\AppData\Local\Temp\_MEIxxxxx\...
   Demo-Login: admin / idvscope2026

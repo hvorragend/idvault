@@ -1,4 +1,4 @@
-# idvscope
+# IDVScope
 
 Register für **Eigenentwicklungen** (inkl. IDVs nach **MaRisk AT 7.2**)
 und **DORA** — entwickelt für Volksbanken, Sparkassen und sonstige
@@ -12,9 +12,9 @@ beaufsichtigte Kreditinstitute.
 
 ---
 
-## Was ist idvscope?
+## Was ist IDVScope?
 
-idvscope ist eine in sich geschlossene Webanwendung zur vollständigen,
+IDVScope ist eine in sich geschlossene Webanwendung zur vollständigen,
 aufsichtsrechtlich konformen Erfassung, Klassifizierung, Prüfung und
 Überwachung aller Eigenentwicklungen der Bank:
 
@@ -405,7 +405,7 @@ Siehe [docs/03-architektur.md](docs/03-architektur.md) für Details.
 
 ## Regulatorische Einordnung
 
-idvscope unterstützt die Umsetzung folgender Anforderungen:
+IDVScope unterstützt die Umsetzung folgender Anforderungen:
 
 - **MaRisk AT 7.2 Tz. 7** – IDV-Register, Klassifizierung, Prüfungen, Freigabeverfahren
 - **DORA Art. 8 / 17** – Identifikation kritischer Funktionen, Incident-Management

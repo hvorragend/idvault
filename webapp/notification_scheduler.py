@@ -1,5 +1,5 @@
 """
-idvscope – Notification-Scheduler (Fristenueberwachung)
+IDVScope – Notification-Scheduler (Fristenueberwachung)
 ======================================================
 
 Daemon-Thread, der einmal taeglich prueft, ob Maßnahmen oder Prüfungen

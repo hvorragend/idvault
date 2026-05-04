@@ -4,7 +4,7 @@
 
 ## 1 Überblick
 
-idvscope umfasst zwei unabhängige Scanner-Komponenten zur Identifikation
+IDVScope umfasst zwei unabhängige Scanner-Komponenten zur Identifikation
 von IDV-Kandidaten:
 
 1. **Dateisystem-Scanner** (`scanner/network_scanner.py`) – für
@@ -319,7 +319,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
   egal — gescannt werden Teams- und SharePoint-Sites, nicht
   persönliche OneDrives.
 - Es muss exakt die `read`-Rolle sein. `write`/`fullcontrol` sind
-  weder nötig noch sinnvoll (idvscope liest nur).
+  weder nötig noch sinnvoll (IDVScope liest nur).
 
 **Pro SharePoint-Site einmalig durch den Tenant-Admin:**
 
@@ -330,7 +330,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
    Das Antwort-Feld `id` hat das Format
    `{hostname},{site-collection-guid},{site-guid}`.
 
-2. Lese-Recht für die idvscope-App auf genau dieser Site granten:
+2. Lese-Recht für die IDVScope-App auf genau dieser Site granten:
    ```
    POST https://graph.microsoft.com/v1.0/sites/{site-id}/permissions
    Content-Type: application/json
@@ -338,7 +338,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
    {
      "roles": ["read"],
      "grantedToIdentities": [
-       { "application": { "id": "<client-id>", "displayName": "idvscope" } }
+       { "application": { "id": "<client-id>", "displayName": "IDVScope" } }
      ]
    }
    ```
@@ -347,7 +347,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
    ```powershell
    Grant-PnPAzureADAppSitePermission `
      -AppId      "<client-id>" `
-     -DisplayName "idvscope" `
+     -DisplayName "IDVScope" `
      -Site       "https://{tenant}.sharepoint.com/sites/{site-name}" `
      -Permissions Read
    ```
@@ -356,7 +356,7 @@ Beide Tenant-Permissions entfallen damit vollständig.
    ein Token mit `Sites.FullControl.All` — nur für diesen einmaligen
    Setup-Schritt; im laufenden Betrieb nicht.
 
-3. In idvscope unter `Administration → Teams-Einstellungen` die
+3. In IDVScope unter `Administration → Teams-Einstellungen` die
    Site-URL als Quelle eintragen. Team-IDs werden in diesem Modus
    übersprungen.
 
@@ -378,7 +378,7 @@ Administration → Teams-Einstellungen
 ### 3.4 Delta-Modus
 
 Die Graph-API unterstützt Delta-Tokens, mit denen nur Änderungen seit
-dem letzten Scan abgerufen werden. idvscope speichert das Delta-Token
+dem letzten Scan abgerufen werden. IDVScope speichert das Delta-Token
 und setzt bei jedem Scan genau dort auf.
 
 ## 4 Betriebsempfehlungen
