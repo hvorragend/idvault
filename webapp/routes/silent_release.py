@@ -92,9 +92,23 @@ def _file_sha256(db, idv_db_id: int) -> tuple[str | None, str | None]:
         return None, None
     if row["file_hash"]:
         return row["file_hash"], row["file_name"]
-    if row["full_path"] and os.path.isfile(row["full_path"]):
+    # ``full_path`` liegt bereits gemappt vor (apply_path_mappings beim Scan).
+    # Wenn die Webapp den Anzeige-Pfad nicht direkt erreichen kann (Service-
+    # Account ohne Drive-Letter-Mapping), Fallback ueber den zurueckgemappten
+    # Roh-Pfad versuchen.
+    src = row["full_path"]
+    if src and not os.path.isfile(src):
+        try:
+            from scanner.path_utils import reverse_path_mappings
+            mappings = current_app.config.get("PATH_MAPPINGS", []) or []
+            alt = reverse_path_mappings(src, mappings)
+            if alt and alt != src and os.path.isfile(alt):
+                src = alt
+        except ImportError:
+            pass
+    if src and os.path.isfile(src):
         h = hashlib.sha256()
-        with open(row["full_path"], "rb") as fh:
+        with open(src, "rb") as fh:
             for chunk in iter(lambda: fh.read(65536), b""):
                 h.update(chunk)
         return h.hexdigest(), row["file_name"]

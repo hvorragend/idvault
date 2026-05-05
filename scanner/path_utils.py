@@ -48,6 +48,39 @@ def apply_path_mappings(path: str, mappings: List[dict]) -> str:
     return path
 
 
+def reverse_path_mappings(path: str, mappings: List[dict]) -> str:
+    """Macht ein zuvor angewandtes ``apply_path_mappings`` rückgängig.
+
+    Hintergrund: ``idv_files.full_path`` wird vom Scanner bereits gemappt
+    persistiert (UNC → Anzeige-Laufwerk, z.B. ``\\\\srv\\share`` → ``O:``).
+    Greift die Webapp später direkt auf diesen Pfad zu (Archivierung,
+    Hash-Nachberechnung), schlägt das fehl, sobald der Webapp-Prozess das
+    Laufwerk nicht gemountet hat oder unter einem Service-Account ohne die
+    Drive-Letter-Bindung läuft. Für solche Fallback-Fälle rechnet diese
+    Funktion das Mapping zurück, indem ``pattern`` und ``replacement``
+    getauscht werden.
+
+    Reine Präfix-Mappings (``regex=false``) werden zurückgewandelt; bei
+    Regex-Regeln ist die Umkehrung im Allgemeinen nicht eindeutig — solche
+    Regeln werden hier übersprungen, der Pfad bleibt insoweit unverändert.
+    """
+    if not path or not mappings:
+        return path
+
+    # Reihenfolge umdrehen: das zuletzt angewandte Mapping zuerst zurückbauen.
+    for mapping in reversed(list(mappings)):
+        if mapping.get("regex", False):
+            continue
+        pattern = mapping.get("pattern", "")
+        replacement = mapping.get("replacement", "")
+        if not replacement:
+            continue
+        if path.lower().startswith(replacement.lower()):
+            path = pattern + path[len(replacement):]
+
+    return path
+
+
 def _matches_any(path: str, patterns: List[str]) -> bool:
     """Gibt True zurück, wenn der Pfad einem der Muster entspricht.
 
