@@ -2472,7 +2472,7 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
 def _notify_freigabe_erteilt(db, idv_db_id: int) -> None:
     try:
         idv = db.execute(
-            "SELECT idv_id, bezeichnung, idv_entwickler_id, fachverantwortlicher_id "
+            "SELECT id, idv_id, bezeichnung, idv_entwickler_id, fachverantwortlicher_id "
             "FROM idv_register WHERE id=?", (idv_db_id,)
         ).fetchone()
         if not idv:
