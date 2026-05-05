@@ -2058,12 +2058,27 @@ def archivieren(freigabe_id):
             return redirect(url_for("freigaben.erledigt_seite",
                                     freigabe_id=freigabe_id))
 
-        src_path = scanner_row["full_path"]
+        stored_path = scanner_row["full_path"]
         scan_hash = (scanner_row["file_hash"] or "").strip()
+        # ``idv_files.full_path`` wird bereits gemappt persistiert (z.B.
+        # UNC → Anzeige-Laufwerk). Greift die Webapp unter einem anderen
+        # User-/Service-Account auf den Pfad zu, fehlt ggf. das Drive-Letter-
+        # Mapping → ``isfile`` schlägt fehl. Daher zusätzlich den
+        # zurückgemappten (Roh-)Pfad probieren.
+        try:
+            from scanner.path_utils import reverse_path_mappings
+        except ImportError:
+            reverse_path_mappings = None  # type: ignore
+        mappings = current_app.config.get("PATH_MAPPINGS", []) or []
+        src_path = stored_path
+        if not os.path.isfile(src_path) and reverse_path_mappings is not None:
+            alt = reverse_path_mappings(stored_path, mappings)
+            if alt and alt != stored_path and os.path.isfile(alt):
+                src_path = alt
         if not os.path.isfile(src_path):
             flash(
                 "Die gescannte Datei ist am hinterlegten Pfad nicht mehr "
-                f"erreichbar:\n{src_path}", "error",
+                f"erreichbar:\n{stored_path}", "error",
             )
             return redirect(url_for("freigaben.erledigt_seite",
                                     freigabe_id=freigabe_id))
