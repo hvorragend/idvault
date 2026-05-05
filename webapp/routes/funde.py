@@ -2030,17 +2030,25 @@ def notify_file(file_id):
         )
         return redirect(url_for("funde.list_funde"))
 
-    recipients = [
-        r["email"] for r in db.execute("""
-            SELECT email FROM persons
-            WHERE aktiv=1 AND email IS NOT NULL
-              AND rolle IN ('IDV-Koordinator','IDV-Administrator')
-        """).fetchall()
-        if r["email"]
-    ]
+    from ..email_service import filter_emails_by_configured_roles
+
+    def _emails_for_persons_role(role_value: str) -> list[str]:
+        return [r["email"] for r in db.execute(
+            "SELECT email FROM persons "
+            "WHERE aktiv=1 AND email IS NOT NULL AND email != '' "
+            "AND rolle=?", (role_value,),
+        ).fetchall() if r["email"]]
+
+    role_emails = {
+        "idv_administrator": _emails_for_persons_role("IDV-Administrator"),
+        "idv_koordinator":   _emails_for_persons_role("IDV-Koordinator"),
+    }
+    recipients = filter_emails_by_configured_roles(
+        db, "neue_datei", role_emails,
+    )
 
     if not recipients:
-        flash("Keine E-Mail-Empfänger konfiguriert.", "warning")
+        flash("Keine E-Mail-Empfänger konfiguriert (siehe Vorlagen-Einstellungen).", "warning")
         return redirect(url_for("funde.list_funde"))
 
     try:

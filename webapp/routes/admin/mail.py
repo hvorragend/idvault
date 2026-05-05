@@ -44,6 +44,17 @@ def mail():
                 if k.endswith("_body") else request.form.get(k, ""))
             for k in keys
         ]
+        # Pro Vorlage rollenbasierte Empfaenger-Auswahl als komma-separierte
+        # Liste in app_settings ablegen. Die Checkboxen kommen unter
+        # ``email_recipients_{tpl_key}`` als Mehrfach-Wert ins Form-Dict —
+        # request.form.getlist() liefert die markierten Rollen-Keys.
+        for tpl_key, tpl_meta in EMAIL_TEMPLATES.items():
+            allowed = set(tpl_meta.get("recipient_roles", []))
+            chosen = [
+                v for v in request.form.getlist(f"email_recipients_{tpl_key}")
+                if v in allowed
+            ]
+            kv.append((f"email_recipients_{tpl_key}", ",".join(chosen)))
         if smtp_pw_enc is not None:
             kv.append(("smtp_password", smtp_pw_enc))
         def _do(c):
@@ -66,16 +77,30 @@ def mail():
         "SELECT sent_at, recipients, subject, success, error_msg "
         "FROM smtp_log ORDER BY id DESC LIMIT 50"
     ).fetchall()
-    from ...email_service import EMAIL_TEMPLATES as _email_tpls, _DEFAULTS as _email_defaults, _strip_html_tags
+    from ...email_service import (
+        EMAIL_TEMPLATES as _email_tpls,
+        RECIPIENT_ROLES as _recipient_roles,
+        _DEFAULTS as _email_defaults,
+        _strip_html_tags,
+        get_configured_recipient_roles,
+    )
     email_defaults_text = {
         k: (_strip_html_tags(v) if k.endswith("_body") else v)
         for k, v in _email_defaults.items()
+    }
+    # Aktuell konfigurierte Empfaenger-Rollen pro Vorlage — fuer das
+    # Vorbelegen der Checkboxen in der UI.
+    configured_recipients = {
+        tpl_key: get_configured_recipient_roles(db, tpl_key)
+        for tpl_key in _email_tpls
     }
     return render_template("admin/mail.html",
         settings=settings,
         email_templates=_email_tpls,
         email_defaults=_email_defaults,
         email_defaults_text=email_defaults_text,
+        recipient_roles=_recipient_roles,
+        configured_recipients=configured_recipients,
         smtp_log=smtp_log)
 
 

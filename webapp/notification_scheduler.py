@@ -141,9 +141,17 @@ def _effective_email(db, person_id: int, direct_email: str) -> str:
 
 
 def _dispatch_overdue_measures(db, today_iso: str) -> int:
-    """Mailt überfällige Maßnahmen an den Verantwortlichen (oder dessen
-    aktiven Stellvertreter). Gibt Anzahl versandter Mails zurück."""
-    from .email_service import notify_measure_overdue
+    """Mailt überfällige Maßnahmen an die in der Vorlage konfigurierten
+    Empfänger-Rollen (Maßnahmen-Verantwortlicher und/oder
+    Koordinatoren/Admins). Gibt Anzahl versandter Mails zurück."""
+    from .email_service import (
+        notify_measure_overdue,
+        get_configured_recipient_roles,
+    )
+
+    active_roles = set(get_configured_recipient_roles(db, "massnahme_ueberfaellig"))
+    if not active_roles:
+        return 0
 
     rows = db.execute("""
         SELECT m.id AS id, m.titel, m.faellig_am,
@@ -157,13 +165,33 @@ def _dispatch_overdue_measures(db, today_iso: str) -> int:
           AND p.email IS NOT NULL AND p.email <> ''
     """).fetchall()
 
+    cc_emails: set[str] = set()
+    if "idv_administrator" in active_roles or "idv_koordinator" in active_roles:
+        wanted = []
+        if "idv_administrator" in active_roles:
+            wanted.append("IDV-Administrator")
+        if "idv_koordinator" in active_roles:
+            wanted.append("IDV-Koordinator")
+        placeholders = ",".join("?" * len(wanted))
+        for cc in db.execute(
+            f"SELECT email FROM persons WHERE aktiv=1 "
+            f"AND email IS NOT NULL AND email <> '' AND rolle IN ({placeholders})",
+            wanted,
+        ).fetchall():
+            cc_emails.add(cc["email"])
+
     sent = 0
     for r in rows:
         if _recent_sent(db, _MEASURE_KIND, r["id"]):
             continue
-        email = _effective_email(db, r["person_id"], r["email"])
+        emails: set[str] = set(cc_emails)
+        if "massnahme_verantwortlicher" in active_roles:
+            emails.add(_effective_email(db, r["person_id"], r["email"]))
+        emails = {e for e in emails if e and "@" in e}
+        if not emails:
+            continue
         try:
-            ok = notify_measure_overdue(db, r, email)
+            ok = notify_measure_overdue(db, r, sorted(emails))
         except Exception:
             log.exception("Fehler beim Versand Maßnahmen-Erinnerung (id=%s)", r["id"])
             ok = False
@@ -174,13 +202,21 @@ def _dispatch_overdue_measures(db, today_iso: str) -> int:
 
 
 def _dispatch_due_reviews(db, today_iso: str) -> int:
-    """Mailt Prüfungen, deren Fälligkeit überschritten ist, an den
-    Fachverantwortlichen (oder dessen aktiven Stellvertreter).
-    Gibt Anzahl versandter Mails zurück."""
-    from .email_service import notify_review_due
+    """Mailt Prüfungen, deren Fälligkeit überschritten ist, an die in der
+    Vorlage konfigurierten Empfänger-Rollen (Fachverantwortlicher und/oder
+    Entwickler/Koordinatoren/Admins). Gibt Anzahl versandter Mails zurück."""
+    from .email_service import (
+        notify_review_due,
+        get_configured_recipient_roles,
+    )
+
+    active_roles = set(get_configured_recipient_roles(db, "pruefung_faellig"))
+    if not active_roles:
+        return 0
 
     rows = db.execute("""
         SELECT r.id AS id, r.idv_id, r.bezeichnung, r.naechste_pruefung,
+               r.idv_entwickler_id, r.fachverantwortlicher_id,
                p.id AS person_id, p.email
         FROM idv_register r
         JOIN persons p ON r.fachverantwortlicher_id = p.id
@@ -191,13 +227,41 @@ def _dispatch_due_reviews(db, today_iso: str) -> int:
           AND p.email IS NOT NULL AND p.email <> ''
     """).fetchall()
 
+    cc_emails: set[str] = set()
+    if "idv_administrator" in active_roles or "idv_koordinator" in active_roles:
+        wanted = []
+        if "idv_administrator" in active_roles:
+            wanted.append("IDV-Administrator")
+        if "idv_koordinator" in active_roles:
+            wanted.append("IDV-Koordinator")
+        placeholders = ",".join("?" * len(wanted))
+        for cc in db.execute(
+            f"SELECT email FROM persons WHERE aktiv=1 "
+            f"AND email IS NOT NULL AND email <> '' AND rolle IN ({placeholders})",
+            wanted,
+        ).fetchall():
+            cc_emails.add(cc["email"])
+
     sent = 0
     for r in rows:
         if _recent_sent(db, _REVIEW_KIND, r["id"]):
             continue
-        email = _effective_email(db, r["person_id"], r["email"])
+        emails: set[str] = set(cc_emails)
+        if "fachverantwortlicher" in active_roles:
+            emails.add(_effective_email(db, r["person_id"], r["email"]))
+        if "idv_entwickler" in active_roles and r["idv_entwickler_id"]:
+            ent = db.execute(
+                "SELECT id, email FROM persons WHERE id=? AND aktiv=1 "
+                "AND email IS NOT NULL AND email <> ''",
+                (r["idv_entwickler_id"],),
+            ).fetchone()
+            if ent:
+                emails.add(_effective_email(db, ent["id"], ent["email"]))
+        emails = {e for e in emails if e and "@" in e}
+        if not emails:
+            continue
         try:
-            ok = notify_review_due(db, r, email)
+            ok = notify_review_due(db, r, sorted(emails))
         except Exception:
             log.exception("Fehler beim Versand Prüfungs-Erinnerung (id=%s)", r["id"])
             ok = False
@@ -221,9 +285,18 @@ def _dispatch_pool_claim_reminders(db, today_iso: str) -> int:
     - Sobald ein Mitglied claimed, entfällt der Reminder für alle anderen —
       direkt durch das ``bearbeitet_von_id IS NULL``-Filter.
     """
-    from .email_service import notify_freigabe_pool_reminder, get_app_base_url
+    from .email_service import (
+        notify_freigabe_pool_reminder,
+        get_app_base_url,
+        get_configured_recipient_roles,
+    )
     from .tokens import make_freigabe_token
     from flask import current_app
+
+    if "freigabe_pool" not in set(
+        get_configured_recipient_roles(db, "freigabe_pool_reminder")
+    ):
+        return 0
 
     max_days_row = db.execute(
         "SELECT value FROM app_settings WHERE key='notify_pool_reminder_max_days'"
@@ -352,7 +425,17 @@ def _dispatch_owner_digest(
     if not test_mode and not _self_service_master_enabled(db):
         return {"sent": 0, "candidates": [], "skipped_test_limit": 0}
 
-    from .email_service import notify_owner_digest, get_app_base_url
+    from .email_service import (
+        notify_owner_digest, get_app_base_url,
+        get_configured_recipient_roles,
+    )
+
+    # Self-Service-Empfaenger als Rolle konfigurierbar — wenn deaktiviert,
+    # geht trotz Master-Switch keine Owner-Mail raus.
+    if "self_service_owner" not in set(
+        get_configured_recipient_roles(db, "owner_digest")
+    ):
+        return {"sent": 0, "candidates": [], "skipped_test_limit": 0}
     from .tokens import make_self_service_token
     from flask import current_app
     import secrets as _secrets
@@ -598,7 +681,14 @@ def _dispatch_idv_incomplete_reminders(db, today_iso: str) -> int:
     - Mail geht an den Fachverantwortlichen (bzw. dessen aktiven
       Stellvertreter via ``_effective_email``).
     """
-    from .email_service import notify_idv_incomplete
+    from .email_service import (
+        notify_idv_incomplete,
+        get_configured_recipient_roles,
+    )
+
+    active_roles = set(get_configured_recipient_roles(db, "idv_incomplete_reminder"))
+    if not active_roles:
+        return 0
 
     # Vollständigkeits-Score lokal berechnen, um keine zweite DB-Runde
     # pro IDV zu brauchen. Nutzt dieselbe Funktion wie die Detailansicht.
@@ -607,17 +697,33 @@ def _dispatch_idv_incomplete_reminders(db, today_iso: str) -> int:
     from db import idv_completeness_score
 
     rows = db.execute("""
-        SELECT r.id           AS idv_db_id,
-               r.idv_id       AS idv_id,
-               r.bezeichnung  AS bezeichnung,
-               p.id           AS person_id,
-               p.email        AS email
+        SELECT r.id                       AS idv_db_id,
+               r.idv_id                   AS idv_id,
+               r.bezeichnung              AS bezeichnung,
+               r.idv_entwickler_id        AS idv_entwickler_id,
+               p.id                       AS person_id,
+               p.email                    AS email
           FROM v_unvollstaendige_idvs v
           JOIN idv_register r ON r.idv_id = v.idv_id
           JOIN persons p      ON p.id     = r.fachverantwortlicher_id
          WHERE p.aktiv = 1
            AND p.email IS NOT NULL AND p.email <> ''
     """).fetchall()
+
+    cc_emails: set[str] = set()
+    if "idv_administrator" in active_roles or "idv_koordinator" in active_roles:
+        wanted = []
+        if "idv_administrator" in active_roles:
+            wanted.append("IDV-Administrator")
+        if "idv_koordinator" in active_roles:
+            wanted.append("IDV-Koordinator")
+        placeholders = ",".join("?" * len(wanted))
+        for cc in db.execute(
+            f"SELECT email FROM persons WHERE aktiv=1 "
+            f"AND email IS NOT NULL AND email <> '' AND rolle IN ({placeholders})",
+            wanted,
+        ).fetchall():
+            cc_emails.add(cc["email"])
 
     sent = 0
     for r in rows:
@@ -634,10 +740,23 @@ def _dispatch_idv_incomplete_reminders(db, today_iso: str) -> int:
             continue
 
         score_info = idv_completeness_score(db, r["idv_db_id"])
-        email = _effective_email(db, r["person_id"], r["email"])
+        emails: set[str] = set(cc_emails)
+        if "fachverantwortlicher" in active_roles:
+            emails.add(_effective_email(db, r["person_id"], r["email"]))
+        if "idv_entwickler" in active_roles and r["idv_entwickler_id"]:
+            ent = db.execute(
+                "SELECT id, email FROM persons WHERE id=? AND aktiv=1 "
+                "AND email IS NOT NULL AND email <> ''",
+                (r["idv_entwickler_id"],),
+            ).fetchone()
+            if ent:
+                emails.add(_effective_email(db, ent["id"], ent["email"]))
+        emails = {e for e in emails if e and "@" in e}
+        if not emails:
+            continue
         try:
             ok = notify_idv_incomplete(
-                db, r, score_info["score"], score_info["missing"], email,
+                db, r, score_info["score"], score_info["missing"], sorted(emails),
             )
         except Exception:
             log.exception(
