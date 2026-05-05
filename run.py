@@ -166,12 +166,23 @@ def _read_version_json(path: str) -> dict:
         return {}
 
 
-# ── config.json laden / beim ersten Start automatisch anlegen ────────────────
+# ── config.json: Auto-Anlage in _build_app() (NICHT auf Modul-Ebene) ─────────
 # config.json liegt neben run.py bzw. neben der EXE und enthält NUR Bootstrap-
 # Werte. Alle anderen Einstellungen werden über die Web-UI in der Datenbank
 # (Tabelle app_settings bzw. ldap_config) gepflegt.
+#
+# Die Anlage geschieht bewusst erst in _build_app(), nachdem das webapp-Paket
+# erfolgreich importiert werden konnte. Auf diese Weise hinterlässt ein
+# fehlgeschlagener Start (z. B. fehlende Abhängigkeit wie Flask) keine
+# halbinitialisierte config.json mit frisch generiertem SECRET_KEY auf der
+# Platte — der Folgelauf würde diese Datei stillschweigend weiterverwenden.
 _config_file = os.path.join(_PROJECT_ROOT, 'config.json')
-if not os.path.isfile(_config_file):
+
+
+def _ensure_config_file():
+    """Legt config.json mit Bootstrap-Defaults an, falls sie fehlt."""
+    if os.path.isfile(_config_file):
+        return
     import secrets as _secrets
     _auto_cfg = {
         "SECRET_KEY": _secrets.token_hex(32),
@@ -261,6 +272,10 @@ def _build_app():
     if app is not None:
         return app
     from webapp import create_app
+    # config.json erst nach erfolgreichem webapp-Import anlegen, damit ein
+    # fehlgeschlagener Import (z. B. Flask nicht installiert) keine
+    # halbinitialisierte Datei zurücklässt.
+    _ensure_config_file()
     app = create_app()
 
     # ── Template-Loader in run.py verankern ──
