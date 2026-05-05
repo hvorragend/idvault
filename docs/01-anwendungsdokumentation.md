@@ -515,7 +515,7 @@ der IDV und zeigt zusätzlich alle typ-unabhängigen Vorlagen an.
 
 **Pflege:** `Administration → Testfall-Vorlagen` — CRUD-Oberfläche mit
 Rich-Text-Editor pro Feld, Aktiv/Inaktiv-Schalter, Löschen. Seed-Bestand
-aus Migration 0006 deckt Excel-Makro, Excel-Tabelle, Access-Datenbank,
+aus `schema.sql` deckt Excel-Makro, Excel-Tabelle, Access-Datenbank,
 SQL-Skript, Python-Skript, Power-BI-Bericht, Cognos-Report (fachlich) und
 zwei typ-unabhängige technische Basischecks ab. Bestehende Tests sind
 Snapshots der Vorlage zum Zeitpunkt der Übernahme — spätere Änderungen

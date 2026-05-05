@@ -398,24 +398,60 @@ Performance-relevante Indizes auf häufig gefilterte Spalten:
 - **Referenzintegrität bei Soft-Delete**: Deaktivierte Stammdaten bleiben
   erhalten; historische Referenzen werden nicht gebrochen.
 
-## 11 Migrationsstrategie
+## 11 Schema-Strategie
 
-IDVScope nutzt **Alembic** als Migrationsframework (`migrations/versions/`):
+### 11.1 Vor Release (aktuell)
 
-- `db.py::init_register_db()` startet beim App-Start `alembic upgrade head`.
-- `0001_initial_schema` liest `schema.sql` und spielt die enthaltenen
-  idempotenten Statements (`CREATE TABLE IF NOT EXISTS`,
-  `CREATE INDEX IF NOT EXISTS`, `INSERT OR IGNORE`) als einzelne
-  SQL-Anweisungen ein. `schema.sql` dient damit gleichzeitig als Quelle
-  der Initial-Revision und als menschenlesbare Gesamtübersicht des
-  Zielschemas.
-- **Neue Schemaänderungen** werden als nummerierte Alembic-Revisions in
-  `migrations/versions/` gepflegt; `schema.sql` wird dabei im gleichen
-  Commit aktualisiert, damit es den aktuellen Zielzustand für neue
-  Installationen beschreibt.
-- Der Ordner heißt bewusst `migrations/` (nicht `alembic/`): sonst würde
-  er beim direkten Start von `run.py` (Projektroot in `sys.path[0]`) das
-  installierte `alembic`-Package überschatten.
+`schema.sql` ist die einzige Quelle der Schemawahrheit. `db.py::
+init_register_db()` spielt die Datei beim App-Start ein; sämtliche
+Statements (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`,
+`INSERT OR IGNORE`) sind idempotent, der Aufruf läuft also bei jedem
+Start gefahrlos durch. Eine separate Migrationsverwaltung wird in dieser
+Phase nicht eingesetzt — Schema-Änderungen werden direkt in `schema.sql`
+eingepflegt; Datenverlust durch Neuaufsetzen der DB ist akzeptabel,
+solange noch keine Produktivinstanz existiert.
+
+Sidecar-Updates können bereits jetzt eine `updates/schema.sql` mitliefern
+(wird beim nächsten Start vor der gebundelten Variante geladen), aber
+nur **additive** Statements wirken zuverlässig: `CREATE TABLE IF NOT
+EXISTS`, neue Indizes, neue Trigger, `INSERT OR IGNORE`-Seeds. Neue
+Spalten an bestehenden Tabellen oder Constraint-Änderungen erreichen so
+**keine** bereits initialisierte DB — dafür braucht es das Migrations-
+Framework (siehe 11.2).
+
+### 11.2 Ab Release: Alembic-Wiedereinführung
+
+Sobald die erste Produktiv-DB existiert, wird Alembic wieder eingezogen.
+Plan:
+
+1. **Initial-Revision = Stand `schema.sql` zum Release-Zeitpunkt.**
+   Implementierung wie zuvor: die Revision liest `schema.sql` und führt
+   die Statements einzeln über `op.get_bind().exec_driver_sql(...)` aus.
+   Dadurch bleibt `schema.sql` die menschenlesbare Gesamtübersicht, und
+   neue Installationen kommen ohne Alembic-Replay aus dem ersten Lauf.
+2. **Bestehende Produktiv-DB stempeln.** Beim ersten Start nach dem
+   Release-Update prüft `init_register_db()`, ob die `alembic_version`-
+   Tabelle existiert. Wenn nicht, wird `alembic stamp head` ausgeführt
+   (statt `upgrade head`), weil das Schema bereits live ist. Erst danach
+   wird auf den regulären `upgrade head`-Pfad umgestellt.
+3. **Folge-Revisionen pro Schema-Änderung.** Jede Änderung läuft
+   ausschließlich über eine neue Alembic-Revision; `schema.sql` wird im
+   gleichen Commit nachgezogen, damit Neuinstallationen den Zielzustand
+   in einem Schritt einspielen.
+4. **Sidecar-fähige Migrationen.** Das Sidecar-Overlay
+   (`updates/migrations/versions/`) wird wieder aktiviert (war vor der
+   Bereinigung schon implementiert: Bundle und Overlay werden per
+   Revision-ID gemerged, Overlay gewinnt). Damit lassen sich kleinere
+   Schema-Änderungen ohne EXE-Rebuild ausrollen — Pflicht, weil
+   regelmäßige Sidecar-Updates der angedachte Wartungspfad sind.
+5. **Rollback nicht vorgesehen.** Downgrade-Funktionen werden bewusst
+   nicht implementiert (vgl. Initial-Revision); im Fehlerfall wird das
+   letzte Backup eingespielt.
+
+Dependencies (`alembic`, `sqlalchemy`), die `migrations/`-Struktur,
+`alembic.ini`, der Sidecar-Overlay-Code und die PyInstaller-Hooks werden
+zum Release-Zeitpunkt wieder aufgenommen — die Git-Historie vor der
+Bereinigung dient als Vorlage.
 
 ## 12 Datenklassifikation
 

@@ -49,8 +49,8 @@ eigenständig lauffähig und benötigt keine lokale Python-Installation.
 `idvscope.spec` steuert den Build-Prozess:
 
 - Einstiegspunkt: `run.py`
-- Zu bündelnde Ressourcen: `schema.sql`, `alembic.ini`, `migrations/` (Alembic-Revisions), `webapp/templates/`, `webapp/static/`, `version.json`, `scanner/`
-- Zu bündelnde Bibliotheken: `flask`, `alembic`, `sqlalchemy`, `openpyxl`, `ldap3`, `cryptography`, `msal`, `requests`, ggf. `pywin32`
+- Zu bündelnde Ressourcen: `schema.sql`, `webapp/templates/`, `webapp/static/`, `version.json`, `scanner/`
+- Zu bündelnde Bibliotheken: `flask`, `openpyxl`, `ldap3`, `cryptography`, `msal`, `requests`, ggf. `pywin32`
 - `debug=False` (keine Debug-Symbole in der EXE)
 
 ### 2.4 Frontend-Assets (offline-fähig)

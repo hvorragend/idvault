@@ -109,7 +109,7 @@ idvscope/
 | **Applikationsfabrik** | Flask-Instanz erzeugen, Blueprints registrieren, Logging konfigurieren | `webapp/__init__.py` |
 | **Startpunkt** | Prozessstart, Umgebungsvariablen auswerten, SSL-Kontext, Sidecar-Loader | `run.py` |
 | **Sidecar-Loader** | Lädt Python-Module aus `updates/` bevorzugt vor dem Bundle | `run.py:28-151` |
-| **Datenbank-Schicht** | Verbindungsaufbau, PRAGMAs, Migrationen, Queries | `db.py` |
+| **Datenbank-Schicht** | Verbindungsaufbau, PRAGMAs, Schema-Initialisierung, Queries | `db.py` |
 | **SSL-Utility** | Zertifikats-Generierung, SSL-Context-Bau | `ssl_utils.py` |
 | **Authentifizierung** | LDAP-Bind, JIT-Provisioning, Rollenauflösung | `webapp/ldap_auth.py` |
 | **Login-Audit** | Protokollierung aller Anmeldeversuche | `webapp/login_logger.py` |
