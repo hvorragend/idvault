@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class ProxyFixWiringTests(unittest.TestCase):
     """Liest die Logik in webapp/__init__.py via Quelltext-Inspektion, damit
-    der Test ohne vollstaendigen App-Bootstrap (DB-Setup etc.) auskommt.
+    der Test ohne vollstaendigen App-Bootstrap (DB, Alembic etc.) auskommt.
     Das ist genug, um die Anwesenheit der drei Schluesselzeilen zu verankern.
     """
 

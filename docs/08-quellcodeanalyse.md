@@ -72,7 +72,7 @@ eingesetzten Software.
 | Ausgereiftheit | ✅ Gut | SQLite WAL-Modus, Foreign Keys, CHECK-Constraints |
 | Verfügbarkeit | ✅ Gut | LDAP-Fallback, ziellaufbeständige Scanner-Checkpoints |
 | Fehlertoleranz | ⚠️ Mittel | Teilweise generische `except Exception`-Klauseln |
-| Wiederherstellbarkeit | ✅ Gut | Idempotentes `schema.sql`, backup-freundliches Schema |
+| Wiederherstellbarkeit | ✅ Gut | Idempotente Migrationen, backup-freundliches Schema |
 
 ### 4.3 Benutzbarkeit (Usability)
 
@@ -122,7 +122,7 @@ Detaillierte Analyse in [09 – Schwachstellenanalyse](09-schwachstellenanalyse.
 - **Parametrisierte Queries**: Kein dynamisches SQL mit Nutzereingaben
 - **Auto-Escaping in Jinja2**: Systemweit aktiv, keine `|safe`-Umgehungen
 - **Path-Traversal-Schutz im Update-Mechanismus**: mehrschichtig (Whitelist, `..`-Detection)
-- **Idempotentes Schema**: `schema.sql` nutzt durchgehend `IF NOT EXISTS` und kann gefahrlos bei jedem Start eingespielt werden
+- **Idempotente Migrationen**: Neue Spalten werden rückwärtskompatibel ergänzt
 - **Funktionstrennung**: Logik im Code durchgesetzt (nicht nur organisatorisch)
 
 ### 5.2 Verbesserungspotenzial
@@ -232,7 +232,7 @@ Maßnahmen vor Go-Live umgesetzt werden.
 | Datei | Zeilen | Funktion |
 |---|---:|---|
 | `run.py` | 234 | Startpunkt, Sidecar-Loader, SSL-Kontext |
-| `db.py` | 846 | Datenbank-Schicht, Schema-Initialisierung, CRUD |
+| `db.py` | 846 | Datenbank-Schicht, Migrationen, CRUD |
 | `ssl_utils.py` | 150 | TLS-Zertifikatsverwaltung |
 | `schema.sql` | ~900 | DDL: Tabellen, Views, Indizes, Trigger |
 | `webapp/__init__.py` | 178 | Applikations-Fabrik |
