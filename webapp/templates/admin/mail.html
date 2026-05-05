@@ -749,9 +749,20 @@ document.addEventListener('click', function (ev) {
   if (!btn) return;
   _quillTarget = document.getElementById('body-' + btn.dataset.tpl);
 
-  // Quill-Container zurücksetzen und neu erstellen
-  var container = document.getElementById('quill-editor');
-  container.innerHTML = '';
+  // Quill-Container zurücksetzen und neu erstellen.
+  // Quill (Snow) hängt die Toolbar als Geschwister vor den Container in den
+  // .modal-body ein und besitzt in 1.x keine destroy()-Methode. Beim erneuten
+  // `new Quill()` würde sich daher mit jedem Aufruf eine weitere .ql-toolbar
+  // davor stapeln. Deshalb alte Toolbars entfernen und den Container durch
+  // einen frischen <div> ersetzen, damit Quill-Klassen/Handler weg sind.
+  var oldContainer = document.getElementById('quill-editor');
+  var parent = oldContainer.parentNode;
+  parent.querySelectorAll('.ql-toolbar').forEach(function (el) { el.remove(); });
+  var container = document.createElement('div');
+  container.id = 'quill-editor';
+  container.style.minHeight = '320px';
+  container.style.fontSize = '14px';
+  parent.replaceChild(container, oldContainer);
   _quill = new Quill(container, {
     theme: 'snow',
     modules: {
