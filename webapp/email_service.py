@@ -210,14 +210,15 @@ def send_smtp_test(db, to_email: str, *,
         return False, "Ungültige Empfänger-Adresse."
 
     subject = "[IDVScope] SMTP-Verbindungstest"
-    body_html = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#198754;">IDVScope – SMTP-Test erfolgreich</h2>
-<p>Diese E-Mail wurde automatisch als Verbindungstest gesendet.</p>
-<p>Die SMTP-Konfiguration funktioniert korrekt.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+    body_html = _render_email(
+        accent="success",
+        kind_label="SMTP-Test",
+        headline="SMTP-Test erfolgreich",
+        intro_html=(
+            "<p>Diese E-Mail wurde automatisch als Verbindungstest gesendet.</p>"
+            "<p>Die SMTP-Konfiguration funktioniert korrekt.</p>"
+        ),
+    )
 
     recipients = [to_email]
     msg = MIMEMultipart("alternative")
@@ -313,6 +314,180 @@ def _strip_html_tags(html: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Einheitlicher Look (Volksbank-CI-nah, deckt sich mit dem Web-UI)
+# ---------------------------------------------------------------------------
+#
+# Alle E-Mails verwenden ein gemeinsames HTML-Gerüst:
+#   - dunkler Header (Navy) mit gelbem Akzentstreifen analog zur Sidebar
+#   - weisse Inhaltsbox, Slate-Typografie, einheitliche Tabellen
+#   - farbiger Status-Bar links neben der Headline (info/success/warning/danger)
+#   - optionaler primärer CTA-Button (Navy mit gelbem Unterstrich)
+#   - Footer-Hinweis "automatisch von IDVScope gesendet"
+#
+# Die Funktion erzeugt komplettes HTML inklusive Platzhalter wie {idv_id};
+# Platzhalter werden später durch ``_load_template`` ersetzt. Dadurch bleibt
+# das Admin-UI (Override pro Vorlage) unverändert nutzbar.
+
+_BRAND = {
+    "navy_900":  "#152342",
+    "navy_800":  "#1b2a4e",
+    "navy_950":  "#0f1b34",
+    "amber":     "#f59e0b",
+    "slate_50":  "#f8fafc",
+    "slate_100": "#f1f5f9",
+    "slate_200": "#e2e8f0",
+    "slate_300": "#cbd5e1",
+    "slate_500": "#64748b",
+    "slate_700": "#334155",
+    "slate_900": "#0f172a",
+}
+
+_ACCENTS = {
+    "info":    {"bar": "#1d4ed8"},
+    "success": {"bar": "#15803d"},
+    "warning": {"bar": "#b45309"},
+    "danger":  {"bar": "#b91c1c"},
+}
+
+
+def _render_email(*, accent: str, kind_label: str, headline: str,
+                  intro_html: str = "",
+                  rows: list | None = None,
+                  extra_html: str = "",
+                  cta_label: str = "", cta_url: str = "") -> str:
+    """Rendert eine E-Mail im einheitlichen IDVScope-Layout.
+
+    ``accent``     – ``info`` | ``success`` | ``warning`` | ``danger``
+    ``kind_label`` – kurzer Text oben rechts im Header (z.B. "Freigabe")
+    ``headline``   – Hauptüberschrift
+    ``intro_html`` – Einleitender Absatz (HTML erlaubt; Platzhalter zulässig)
+    ``rows``       – Liste von ``(label, value)`` für die Datentabelle
+    ``extra_html`` – Zusätzlicher Inhalt unterhalb der Tabelle (z.B. Listen)
+    ``cta_label`` / ``cta_url`` – primärer CTA-Button
+    """
+    a = _ACCENTS.get(accent, _ACCENTS["info"])
+    rows_html = ""
+    if rows:
+        cells = ""
+        for i, (label, value) in enumerate(rows):
+            bg = _BRAND["slate_50"] if i % 2 else "#ffffff"
+            cells += (
+                f'<tr>'
+                f'<td style="padding:8px 12px;font-weight:600;color:{_BRAND["slate_700"]};'
+                f'width:170px;background:{bg};border-bottom:1px solid {_BRAND["slate_200"]};">'
+                f'{label}</td>'
+                f'<td style="padding:8px 12px;color:{_BRAND["slate_900"]};'
+                f'background:{bg};border-bottom:1px solid {_BRAND["slate_200"]};">'
+                f'{value}</td>'
+                f'</tr>'
+            )
+        rows_html = (
+            '<table role="presentation" cellspacing="0" cellpadding="0" '
+            'style="border-collapse:collapse;width:100%;'
+            f'border:1px solid {_BRAND["slate_200"]};border-radius:6px;'
+            'font-size:14px;margin:18px 0;overflow:hidden;">'
+            f'{cells}</table>'
+        )
+
+    cta_html = ""
+    if cta_label and cta_url:
+        cta_html = (
+            f'<p style="margin:24px 0 4px 0;text-align:center;">'
+            f'<a href="{cta_url}" '
+            f'style="background:{_BRAND["navy_900"]};color:#ffffff;'
+            f'padding:12px 28px;border-radius:6px;text-decoration:none;'
+            f'font-weight:600;font-size:15px;display:inline-block;'
+            f'border-bottom:3px solid {_BRAND["amber"]};">'
+            f'{cta_label}</a></p>'
+        )
+
+    intro_block = (
+        f'<div style="font-size:14px;line-height:1.55;color:{_BRAND["slate_900"]};">'
+        f'{intro_html}</div>'
+    ) if intro_html else ""
+
+    return f"""\
+<html><body style="margin:0;padding:0;background:{_BRAND["slate_100"]};\
+font-family:Arial,Helvetica,sans-serif;color:{_BRAND["slate_900"]};">
+<table role="presentation" cellspacing="0" cellpadding="0" align="center" \
+style="border-collapse:collapse;background:#ffffff;width:100%;max-width:640px;\
+margin:24px auto;border:1px solid {_BRAND["slate_200"]};border-radius:8px;\
+overflow:hidden;">
+  <tr><td style="background:{_BRAND["navy_900"]};\
+background-image:linear-gradient(180deg,{_BRAND["navy_800"]} 0%,{_BRAND["navy_950"]} 100%);\
+padding:18px 24px;border-bottom:3px solid {_BRAND["amber"]};">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        <td style="font-size:13px;font-weight:700;letter-spacing:0.08em;\
+color:{_BRAND["amber"]};text-transform:uppercase;">IDVScope</td>
+        <td style="text-align:right;font-size:12px;color:#dbe4f0;\
+text-transform:uppercase;letter-spacing:0.05em;">{kind_label}</td>
+      </tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:24px;">
+    <div style="border-left:4px solid {a['bar']};padding:2px 0 2px 14px;margin-bottom:18px;">
+      <h2 style="margin:0;font-size:20px;color:{_BRAND["slate_900"]};font-weight:700;">\
+{headline}</h2>
+    </div>
+    {intro_block}
+    {rows_html}
+    {extra_html}
+    {cta_html}
+  </td></tr>
+  <tr><td style="background:{_BRAND["slate_50"]};padding:14px 24px;\
+border-top:1px solid {_BRAND["slate_200"]};font-size:12px;\
+color:{_BRAND["slate_500"]};text-align:center;">
+    Diese Nachricht wurde automatisch von IDVScope gesendet.
+  </td></tr>
+</table>
+</body></html>"""
+
+
+def _row_get(row, key, default=None):
+    """Sicherer Zugriff auf ein Feld eines ``sqlite3.Row`` oder Dicts.
+
+    Gibt ``default`` zurück, wenn die Spalte nicht existiert oder der
+    Zugriff fehlschlägt (etwa weil das Test-Mock kein Mapping ist).
+    """
+    try:
+        value = row[key]
+    except (KeyError, IndexError, TypeError):
+        return default
+    return value if value is not None else default
+
+
+def _idv_link(base_url: str, idv_db_id) -> str:
+    """Baut die URL zur IDV-Detailseite. Leerer String, wenn nicht möglich."""
+    if not base_url or not idv_db_id:
+        return ""
+    return f"{base_url.rstrip('/')}/eigenentwicklung/{int(idv_db_id)}"
+
+
+def _inject_cta(html: str, label: str, url: str) -> str:
+    """Hängt einen CTA-Button vor das schließende </body> an.
+
+    Wird genutzt, wenn die Vorlage selbst keinen CTA enthält (z.B. weil sie
+    aus dem Admin-UI als Klartext oder als Override gesetzt wurde) — der
+    Empfänger soll trotzdem direkt zur IDV-Doku springen können.
+    """
+    if not label or not url:
+        return html
+    cta = (
+        f'<p style="margin:24px 0 4px 0;text-align:center;">'
+        f'<a href="{url}" '
+        f'style="background:{_BRAND["navy_900"]};color:#ffffff;'
+        f'padding:12px 28px;border-radius:6px;text-decoration:none;'
+        f'font-weight:600;font-size:15px;display:inline-block;'
+        f'border-bottom:3px solid {_BRAND["amber"]};">'
+        f'{label}</a></p>'
+    )
+    if "</body>" in html:
+        return html.replace("</body>", cta + "</body>")
+    return html + cta
+
+
+# ---------------------------------------------------------------------------
 # Default-Templates (Fallback, wenn nichts in app_settings konfiguriert)
 # ---------------------------------------------------------------------------
 
@@ -321,214 +496,216 @@ _DEFAULTS = {}
 # ── 1. Neue Datei erkannt ─────────────────────────────────────────────────
 
 _DEFAULTS["neue_datei_subject"] = "[IDVScope] Neue IDV-Datei erkannt: {dateiname}"
-_DEFAULTS["neue_datei_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">IDVScope – Neue Datei erkannt</h2>
-<p>Der IDVScope-Scanner hat eine neue Datei entdeckt, die noch nicht im IDV-Register
-   erfasst ist:</p>
-<table style="border-collapse:collapse;width:100%">
-  <tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td>
-      <td style="padding:6px;">{dateiname}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pfad</td>
-      <td style="padding:6px;font-family:monospace;font-size:12px;">{pfad}</td></tr>
-  <tr><td style="padding:6px;font-weight:bold;">Erstmals erkannt</td>
-      <td style="padding:6px;">{erkannt_am}</td></tr>
-</table>
-<p style="margin-top:20px;">Bitte melden Sie sich in IDVScope an und erfassen
-   Sie die Datei im IDV-Register.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["neue_datei_body"] = _render_email(
+    accent="info",
+    kind_label="Scanner",
+    headline="Neue Datei erkannt",
+    intro_html=(
+        "<p>Der IDVScope-Scanner hat eine neue Datei entdeckt, die noch "
+        "nicht im IDV-Register erfasst ist.</p>"
+    ),
+    rows=[
+        ("Dateiname", "{dateiname}"),
+        ("Pfad", '<span style="font-family:monospace;font-size:12px;">{pfad}</span>'),
+        ("Erstmals erkannt", "{erkannt_am}"),
+    ],
+    extra_html=(
+        "<p style=\"margin-top:6px;\">Bitte melden Sie sich in IDVScope an und "
+        "erfassen Sie die Datei im IDV-Register.</p>"
+    ),
+)
 
 # ── 2. Prüfung fällig ────────────────────────────────────────────────────
 
 _DEFAULTS["pruefung_faellig_subject"] = "[IDVScope] Prüfung fällig: {idv_id} – {bezeichnung}"
-_DEFAULTS["pruefung_faellig_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#fd7e14;">IDVScope – Prüfung fällig</h2>
-<p>Die Prüfung für folgendes IDV ist fällig oder überfällig:</p>
-<table style="border-collapse:collapse;width:100%">
-  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
-      <td style="padding:6px;">{idv_id}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
-      <td style="padding:6px;">{bezeichnung}</td></tr>
-  <tr><td style="padding:6px;font-weight:bold;">Fällig am</td>
-      <td style="padding:6px;">{faellig_am}</td></tr>
-</table>
-<p style="margin-top:16px;">Bitte melden Sie sich in IDVScope an und führen
-   Sie die Prüfung durch.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["pruefung_faellig_body"] = _render_email(
+    accent="warning",
+    kind_label="Prüfung",
+    headline="Prüfung fällig",
+    intro_html="<p>Die Prüfung für folgendes IDV ist fällig oder überfällig:</p>",
+    rows=[
+        ("IDV-ID", "{idv_id}"),
+        ("Bezeichnung", "{bezeichnung}"),
+        ("Fällig am", "{faellig_am}"),
+    ],
+    extra_html=(
+        "<p style=\"margin-top:6px;\">Bitte melden Sie sich in IDVScope an und "
+        "führen Sie die Prüfung durch.</p>"
+    ),
+)
 
 # ── 3. Freigabe-Schritt offen ────────────────────────────────────────────
 
 _DEFAULTS["freigabe_schritt_subject"] = "[IDVScope] Freigabe-Schritt offen: {schritt} – {idv_id}"
-_DEFAULTS["freigabe_schritt_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">IDVScope – Test &amp; Freigabe</h2>
-<p>Für die folgende IDV steht ein Freigabe-Schritt zur Bearbeitung bereit:</p>
-<table style="border-collapse:collapse;width:100%">
-  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
-      <td style="padding:6px;">{idv_id}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
-      <td style="padding:6px;">{bezeichnung}</td></tr>
-  <tr><td style="padding:6px;font-weight:bold;">Schritt</td>
-      <td style="padding:6px;font-weight:bold;color:#0d6efd;">{schritt}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Versionskommentar</td>
-      <td style="padding:6px;font-style:italic;">{versionskommentar}</td></tr>
-</table>
-<p style="margin-top:16px;color:#6c757d;font-size:12px;">
-  Bitte melden Sie sich in IDVScope an und schließen Sie den Schritt ab.<br>
-  Hinweis: Gemäß Funktionstrennung darf der Entwickler der IDV keine
-  Freigabe-Schritte abschließen.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:16px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["freigabe_schritt_body"] = _render_email(
+    accent="info",
+    kind_label="Test & Freigabe",
+    headline="Freigabe-Schritt zur Bearbeitung",
+    intro_html=(
+        "<p>Für die folgende IDV steht ein Freigabe-Schritt zur Bearbeitung "
+        "bereit:</p>"
+    ),
+    rows=[
+        ("IDV-ID", "{idv_id}"),
+        ("Bezeichnung", "{bezeichnung}"),
+        ("Schritt", '<strong style="color:#1d4ed8;">{schritt}</strong>'),
+        ("Versionskommentar", "<em>{versionskommentar}</em>"),
+    ],
+    extra_html=(
+        '<p style="font-size:12px;color:#64748b;margin-top:6px;">'
+        "Bitte melden Sie sich in IDVScope an und schließen Sie den Schritt "
+        "ab. Hinweis: Gemäß Funktionstrennung darf der Entwickler der IDV "
+        "keine Freigabe-Schritte abschließen.</p>"
+    ),
+)
 
 # ── 4. IDV freigegeben (alle 4 Schritte erledigt) ────────────────────────
 
 _DEFAULTS["freigabe_abgeschlossen_subject"] = "[IDVScope] IDV freigegeben: {idv_id} – {bezeichnung}"
-_DEFAULTS["freigabe_abgeschlossen_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#198754;">IDVScope – IDV freigegeben</h2>
-<p>Alle vier Freigabe-Schritte wurden erfolgreich abgeschlossen:</p>
-<table style="border-collapse:collapse;width:100%">
-  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
-      <td style="padding:6px;">{idv_id}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
-      <td style="padding:6px;">{bezeichnung}</td></tr>
-</table>
-<ul style="margin-top:12px;">
-  <li>Fachlicher Test – erledigt</li>
-  <li>Technischer Test – erledigt</li>
-  <li>Fachliche Abnahme – erledigt</li>
-  <li>Technische Abnahme – erledigt</li>
-</ul>
-<p>Die IDV wurde auf Status <strong>Freigegeben</strong> und Dokumentationsstatus
-   <strong>Dokumentiert</strong> gesetzt.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["freigabe_abgeschlossen_body"] = _render_email(
+    accent="success",
+    kind_label="Freigabe",
+    headline="IDV freigegeben",
+    intro_html=(
+        "<p>Alle vier Freigabe-Schritte wurden erfolgreich abgeschlossen:</p>"
+    ),
+    rows=[
+        ("IDV-ID", "{idv_id}"),
+        ("Bezeichnung", "{bezeichnung}"),
+    ],
+    extra_html=(
+        '<ul style="margin:12px 0 0 0;padding-left:20px;font-size:14px;'
+        'line-height:1.6;">'
+        "<li>Fachlicher Test – erledigt</li>"
+        "<li>Technischer Test – erledigt</li>"
+        "<li>Fachliche Abnahme – erledigt</li>"
+        "<li>Technische Abnahme – erledigt</li>"
+        "</ul>"
+        '<p style="margin-top:16px;">Die IDV wurde auf Status '
+        "<strong>Freigegeben</strong> und Dokumentationsstatus "
+        "<strong>Dokumentiert</strong> gesetzt.</p>"
+    ),
+)
 
 # ── 5. Bewertungsanforderung (an Datei-Ersteller) ────────────────────────
 
 _DEFAULTS["bewertung_subject"] = "[IDVScope] Bitte um Bewertung: {dateiname}"
-_DEFAULTS["bewertung_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">IDVScope – Bewertung angefordert</h2>
-<p>Sehr geehrte/r {ersteller},</p>
-<p>die folgende Datei wurde vom IDVScope-Scanner erkannt und ist Ihnen als
-   Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Datei als
-   <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2
-   einzustufen ist.</p>
-<table style="border-collapse:collapse;width:100%">
-  <tr><td style="padding:6px;font-weight:bold;width:160px;">Dateiname</td>
-      <td style="padding:6px;">{dateiname}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pfad</td>
-      <td style="padding:6px;font-family:monospace;font-size:12px;">{pfad}</td></tr>
-  <tr><td style="padding:6px;font-weight:bold;">Formeln</td>
-      <td style="padding:6px;">{formelanzahl}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Makros</td>
-      <td style="padding:6px;">{makros}</td></tr>
-</table>
-<p style="margin-top:20px;">Bitte melden Sie sich in IDVScope an und nehmen
-   Sie die Bewertung vor.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["bewertung_body"] = _render_email(
+    accent="info",
+    kind_label="Bewertung",
+    headline="Bewertung angefordert",
+    intro_html=(
+        "<p>Sehr geehrte/r {ersteller},</p>"
+        "<p>die folgende Datei wurde vom IDVScope-Scanner erkannt und ist "
+        "Ihnen als Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob "
+        "diese Datei als <strong>Individuelle Datenverarbeitung (IDV)</strong> "
+        "im Sinne von MaRisk AT 7.2 einzustufen ist.</p>"
+    ),
+    rows=[
+        ("Dateiname", "{dateiname}"),
+        ("Pfad", '<span style="font-family:monospace;font-size:12px;">{pfad}</span>'),
+        ("Formeln", "{formelanzahl}"),
+        ("Makros", "{makros}"),
+    ],
+    extra_html=(
+        "<p style=\"margin-top:6px;\">Bitte melden Sie sich in IDVScope an und "
+        "nehmen Sie die Bewertung vor.</p>"
+    ),
+)
 
 # ── 7. Pool-Freigabeschritt wartet auf Claim (täglicher Reminder) ───────
 
 _DEFAULTS["freigabe_pool_reminder_subject"] = "[IDVScope] Freigabeschritt wartet: {schritt} – {idv_id}"
-_DEFAULTS["freigabe_pool_reminder_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">IDVScope – Pool-Freigabeschritt wartet</h2>
-<p>Ein Freigabeschritt, der Ihrem Pool <strong>{pool_name}</strong> zugewiesen
-   ist, wartet seit {wartet_seit_tage} Tag(en) auf Bearbeitung und wurde noch
-   von niemandem übernommen.</p>
-<table style="border-collapse:collapse;width:100%">
-  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
-      <td style="padding:6px;">{idv_id}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
-      <td style="padding:6px;">{bezeichnung}</td></tr>
-  <tr><td style="padding:6px;font-weight:bold;">Schritt</td>
-      <td style="padding:6px;font-weight:bold;color:#0d6efd;">{schritt}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Pool</td>
-      <td style="padding:6px;">{pool_name}</td></tr>
-</table>
-<p style="margin-top:16px;">Bitte melden Sie sich in IDVScope an und klicken Sie
-   auf <em>„Ich übernehme"</em>, damit die Aufgabe nicht weiter liegen bleibt.
-   Sobald ein Pool-Mitglied den Schritt übernimmt, wird dieser Reminder
-   für alle anderen Mitglieder eingestellt.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["freigabe_pool_reminder_body"] = _render_email(
+    accent="info",
+    kind_label="Pool-Schritt",
+    headline="Pool-Freigabeschritt wartet auf Übernahme",
+    intro_html=(
+        "<p>Ein Freigabeschritt, der Ihrem Pool <strong>{pool_name}</strong> "
+        "zugewiesen ist, wartet seit {wartet_seit_tage} Tag(en) auf "
+        "Bearbeitung und wurde noch von niemandem übernommen.</p>"
+    ),
+    rows=[
+        ("IDV-ID", "{idv_id}"),
+        ("Bezeichnung", "{bezeichnung}"),
+        ("Schritt", '<strong style="color:#1d4ed8;">{schritt}</strong>'),
+        ("Pool", "{pool_name}"),
+    ],
+    extra_html=(
+        "<p style=\"margin-top:6px;\">Bitte melden Sie sich in IDVScope an und "
+        "klicken Sie auf <em>„Ich übernehme\"</em>, damit die Aufgabe nicht "
+        "weiter liegen bleibt. Sobald ein Pool-Mitglied den Schritt "
+        "übernimmt, wird dieser Reminder für alle anderen Mitglieder "
+        "eingestellt.</p>"
+    ),
+)
 
-# ── 7b. Sammelbenachrichtigung an Owner (Self-Service, Issue #315) ──────
+# ── 7b. Sammelbenachrichtigung an Owner (Self-Service) ──────────────────
 
 _DEFAULTS["owner_digest_subject"] = "[IDVScope] Offene Scanner-Funde in Ihrem Bereich ({anzahl})"
-_DEFAULTS["owner_digest_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">IDVScope – Ihre offenen Scanner-Funde</h2>
-<p>Sehr geehrte/r {empfaenger},</p>
-<p>der IDVScope-Scanner hat <strong>{anzahl}</strong> Datei(en) in Ihrem Zugriff
-   entdeckt, die noch keiner IDV zugeordnet sind. Bitte entscheiden Sie je
-   Datei, ob sie für die Registrierung vorgemerkt oder ignoriert werden soll:</p>
-<p style="margin:20px 0;text-align:center;">
-  <a href="{link}" style="background:#0d6efd;color:#ffffff;padding:12px 32px;
-     border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;
-     display:inline-block;">Meine Funde öffnen →</a>
-</p>
-<p style="color:#6c757d;font-size:12px;">
-  Der Link ist <strong>7 Tage</strong> gültig und öffnet eine Minimalansicht
-  ohne Anmeldung. Die fachliche IDV-Einordnung übernimmt weiterhin der
-  IDV-Koordinator.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["owner_digest_body"] = _render_email(
+    accent="info",
+    kind_label="Self-Service",
+    headline="Ihre offenen Scanner-Funde",
+    intro_html=(
+        "<p>Sehr geehrte/r {empfaenger},</p>"
+        "<p>der IDVScope-Scanner hat <strong>{anzahl}</strong> Datei(en) in "
+        "Ihrem Zugriff entdeckt, die noch keiner IDV zugeordnet sind. Bitte "
+        "entscheiden Sie je Datei, ob sie für die Registrierung vorgemerkt "
+        "oder ignoriert werden soll.</p>"
+    ),
+    cta_label="Meine Funde öffnen →",
+    cta_url="{link}",
+    extra_html=(
+        '<p style="color:#64748b;font-size:12px;margin-top:8px;text-align:center;">'
+        "Der Link ist <strong>7 Tage</strong> gültig und öffnet eine "
+        "Minimalansicht ohne Anmeldung. Die fachliche IDV-Einordnung "
+        "übernimmt weiterhin der IDV-Koordinator.</p>"
+    ),
+)
 
-# ── 8. Überfällige Maßnahme ──────────────────────────────────────────────
+# ── 8. IDV unvollständig ─────────────────────────────────────────────────
 
 _DEFAULTS["idv_incomplete_reminder_subject"] = "[IDVScope] IDV unvollständig: {idv_id} – {bezeichnung}"
-_DEFAULTS["idv_incomplete_reminder_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#fd7e14;">IDVScope – Nachpflege erforderlich</h2>
-<p>die folgende Eigenentwicklung ist über die Schnell-Anlage erfasst und
-   noch nicht vollständig dokumentiert. Bitte pflegen Sie die fehlenden
-   Angaben innerhalb der nächsten 14 Tage nach.</p>
-<table style="border-collapse:collapse;width:100%">
-  <tr><td style="padding:6px;font-weight:bold;width:160px;">IDV-ID</td>
-      <td style="padding:6px;">{idv_id}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Bezeichnung</td>
-      <td style="padding:6px;">{bezeichnung}</td></tr>
-  <tr><td style="padding:6px;font-weight:bold;">Vollständigkeit</td>
-      <td style="padding:6px;font-weight:bold;color:#fd7e14;">{score} %</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;vertical-align:top;">Noch offen</td>
-      <td style="padding:6px;">{missing}</td></tr>
-</table>
-<p style="margin-top:16px;">Der Freigabe-Workflow kann erst gestartet werden,
-   sobald der Vollständigkeits-Score 100 % erreicht.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["idv_incomplete_reminder_body"] = _render_email(
+    accent="warning",
+    kind_label="Nachpflege",
+    headline="Nachpflege erforderlich",
+    intro_html=(
+        "<p>die folgende Eigenentwicklung ist über die Schnell-Anlage erfasst "
+        "und noch nicht vollständig dokumentiert. Bitte pflegen Sie die "
+        "fehlenden Angaben innerhalb der nächsten 14 Tage nach.</p>"
+    ),
+    rows=[
+        ("IDV-ID", "{idv_id}"),
+        ("Bezeichnung", "{bezeichnung}"),
+        ("Vollständigkeit", '<strong style="color:#b45309;">{score} %</strong>'),
+        ("Noch offen", "{missing}"),
+    ],
+    extra_html=(
+        "<p style=\"margin-top:6px;\">Der Freigabe-Workflow kann erst gestartet "
+        "werden, sobald der Vollständigkeits-Score 100 % erreicht.</p>"
+    ),
+)
+
+# ── 9. Überfällige Maßnahme ──────────────────────────────────────────────
 
 _DEFAULTS["massnahme_ueberfaellig_subject"] = "[IDVScope] Überfällige Maßnahme: {titel}"
-_DEFAULTS["massnahme_ueberfaellig_body"] = """\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#dc3545;">IDVScope – Überfällige Maßnahme</h2>
-<p>Die folgende Maßnahme ist überfällig:</p>
-<table style="border-collapse:collapse;width:100%">
-  <tr><td style="padding:6px;font-weight:bold;width:160px;">Titel</td>
-      <td style="padding:6px;">{titel}</td></tr>
-  <tr style="background:#f8f9fa"><td style="padding:6px;font-weight:bold;">Fällig am</td>
-      <td style="padding:6px;">{faellig_am}</td></tr>
-</table>
-<p style="margin-top:16px;">Bitte melden Sie sich in IDVScope an und bearbeiten
-   Sie die Maßnahme.</p>
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+_DEFAULTS["massnahme_ueberfaellig_body"] = _render_email(
+    accent="danger",
+    kind_label="Maßnahme",
+    headline="Überfällige Maßnahme",
+    intro_html="<p>Die folgende Maßnahme ist überfällig:</p>",
+    rows=[
+        ("Titel", "{titel}"),
+        ("IDV", "{idv_id} – {bezeichnung}"),
+        ("Fällig am", "{faellig_am}"),
+    ],
+    extra_html=(
+        "<p style=\"margin-top:6px;\">Bitte melden Sie sich in IDVScope an und "
+        "bearbeiten Sie die Maßnahme.</p>"
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -637,7 +814,7 @@ EMAIL_TEMPLATES = {
     },
     "massnahme_ueberfaellig": {
         "label": "Überfällige Maßnahme",
-        "placeholders": ["titel", "faellig_am"],
+        "placeholders": ["titel", "faellig_am", "idv_id", "bezeichnung"],
         "recipient_roles": [
             "massnahme_verantwortlicher",
             "idv_koordinator", "idv_administrator",
@@ -771,6 +948,7 @@ def notify_review_due(db, idv_row, recipient_emails) -> bool:
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
     datum  = idv_row["naechste_pruefung"] if hasattr(idv_row, "__getitem__") else ""
+    idv_db_id = _row_get(idv_row, "id")
 
     placeholders = {
         "idv_id":      idv_id,
@@ -784,6 +962,12 @@ def notify_review_due(db, idv_row, recipient_emails) -> bool:
         _DEFAULTS["pruefung_faellig_body"],
         placeholders,
     )
+
+    link = _idv_link(get_app_base_url(db), idv_db_id)
+    if link:
+        html = _inject_cta(html, "Zur IDV-Doku öffnen →", link)
+        text = _strip_html_tags(html)
+
     return send_mail(db, recipient_emails, subject, html, text)
 
 
@@ -812,14 +996,7 @@ def notify_freigabe_schritt(db, idv_row, schritt: str,
     )
 
     if action_url:
-        cta = (
-            '<p style="margin-top:24px;text-align:center;">'
-            f'<a href="{action_url}" style="background:#0d6efd;color:#ffffff;'
-            'padding:12px 32px;border-radius:6px;text-decoration:none;'
-            'font-weight:bold;font-size:15px;display:inline-block;">'
-            f'Schritt „{schritt}" öffnen →</a></p>'
-        )
-        html = html.replace("</body>", cta + "</body>")
+        html = _inject_cta(html, f'Schritt „{schritt}" öffnen →', action_url)
 
     text = _strip_html_tags(html)
     return send_mail(db, recipient_emails, subject, html, text)
@@ -843,19 +1020,24 @@ def notify_silent_release_supervisor(db, idv_db_id: int, magic_link: str,
     if not row or not row["email"]:
         return False
     subject = f"[IDVScope] Sicht-Freigabe erforderlich – {row['idv_id']}"
-    html = (
-        f"<p>Hallo {row['vorname']} {row['nachname']},</p>"
-        f"<p>fuer die nicht-wesentliche Eigenentwicklung "
-        f"<strong>{row['bezeichnung']}</strong> ({row['idv_id']}) liegt eine "
-        f"Selbstzertifizierung des Entwicklers"
-        + (f" ({entwickler_name})" if entwickler_name else "") +
-        f" vor. Bitte bestaetigen Sie die Sicht-Freigabe per Klick:</p>"
-        f'<p style="margin:24px 0;text-align:center;">'
-        f'<a href="{magic_link}" style="background:#0d6efd;color:#fff;'
-        f'padding:12px 28px;border-radius:6px;text-decoration:none;'
-        f'font-weight:bold;display:inline-block;">Sicht-Freigabe oeffnen</a>'
-        f"</p>"
-        f"<p style=\"font-size:12px;color:#777;\">Der Link ist 7 Tage gueltig.</p>"
+    entwickler_suffix = f" ({entwickler_name})" if entwickler_name else ""
+    html = _render_email(
+        accent="info",
+        kind_label="Sicht-Freigabe",
+        headline="Sicht-Freigabe erforderlich",
+        intro_html=(
+            f"<p>Hallo {row['vorname']} {row['nachname']},</p>"
+            f"<p>für die nicht-wesentliche Eigenentwicklung "
+            f"<strong>{row['bezeichnung']}</strong> ({row['idv_id']}) liegt eine "
+            f"Selbstzertifizierung des Entwicklers{entwickler_suffix} vor. "
+            f"Bitte bestätigen Sie die Sicht-Freigabe per Klick.</p>"
+        ),
+        cta_label="Sicht-Freigabe öffnen",
+        cta_url=magic_link,
+        extra_html=(
+            '<p style="font-size:12px;color:#64748b;text-align:center;margin-top:8px;">'
+            "Der Link ist 7 Tage gültig.</p>"
+        ),
     )
     text = _strip_html_tags(html)
     return send_mail(db, row["email"], subject, html, text)
@@ -877,30 +1059,43 @@ def notify_self_service_escalation(db, recipient_email: str, recipient_name: str
         return False
     if stage == "reminder":
         subject = "[IDVScope] Reminder: Sie haben offene Scanner-Funde im Self-Service"
-        html = (
-            f"<p>Hallo {recipient_name},</p>"
-            f"<p>seit <strong>{days} Tagen</strong> haben Sie auf den letzten "
-            f"Self-Service-Magic-Link nicht reagiert. Es liegen noch offene "
-            f"Scanner-Funde zur Bewertung in Ihrem Bereich.</p>"
-            f"<p>Bitte klicken Sie den Link aus der letzten Sammelbenachrichtigung, "
-            f"um die Funde anzunehmen, abzulehnen oder zur Registrierung zu "
-            f"vormerken.</p>"
-            f"<p style=\"font-size:12px;color:#777;\">Naechste Eskalations-Stufe: "
-            f"Mail an Ihren OE-Leiter (sofern hinterlegt).</p>"
+        html = _render_email(
+            accent="warning",
+            kind_label="Self-Service",
+            headline="Offene Scanner-Funde – bitte reagieren",
+            intro_html=(
+                f"<p>Hallo {recipient_name},</p>"
+                f"<p>seit <strong>{days} Tagen</strong> haben Sie auf den "
+                f"letzten Self-Service-Magic-Link nicht reagiert. Es liegen "
+                f"noch offene Scanner-Funde zur Bewertung in Ihrem Bereich.</p>"
+                f"<p>Bitte klicken Sie den Link aus der letzten "
+                f"Sammelbenachrichtigung, um die Funde anzunehmen, abzulehnen "
+                f"oder zur Registrierung vorzumerken.</p>"
+            ),
+            extra_html=(
+                '<p style="font-size:12px;color:#64748b;margin-top:6px;">'
+                "Nächste Eskalations-Stufe: Mail an Ihren OE-Leiter "
+                "(sofern hinterlegt).</p>"
+            ),
         )
     elif stage == "oe_lead":
         subject = (f"[IDVScope] Eskalation: {owner_name} hat seit {days} Tagen "
                    f"offene Scanner-Funde nicht bearbeitet")
-        html = (
-            f"<p>Hallo {recipient_name},</p>"
-            f"<p>als OE-Leiter werden Sie informiert, weil "
-            f"<strong>{owner_name}</strong> ({owner_email}) seit "
-            f"<strong>{days} Tagen</strong> nicht auf die Self-Service-"
-            f"Sammelbenachrichtigung reagiert hat.</p>"
-            f"<p>Bitte stossen Sie die Bearbeitung in Ihrer OE an oder "
-            f"benennen Sie eine Vertretung. Andernfalls erfolgt nach weiteren "
-            f"7 Tagen ein Eintrag im Ausnahmen-Dashboard des "
-            f"IDV-Koordinators.</p>"
+        html = _render_email(
+            accent="danger",
+            kind_label="Eskalation",
+            headline="Offene Scanner-Funde im Verantwortungsbereich",
+            intro_html=(
+                f"<p>Hallo {recipient_name},</p>"
+                f"<p>als OE-Leiter werden Sie informiert, weil "
+                f"<strong>{owner_name}</strong> ({owner_email}) seit "
+                f"<strong>{days} Tagen</strong> nicht auf die "
+                f"Self-Service-Sammelbenachrichtigung reagiert hat.</p>"
+                f"<p>Bitte stoßen Sie die Bearbeitung in Ihrer OE an oder "
+                f"benennen Sie eine Vertretung. Andernfalls erfolgt nach "
+                f"weiteren 7 Tagen ein Eintrag im Ausnahmen-Dashboard des "
+                f"IDV-Koordinators.</p>"
+            ),
         )
     else:
         return False
@@ -909,11 +1104,18 @@ def notify_self_service_escalation(db, recipient_email: str, recipient_name: str
 
 
 def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
-    """Benachrichtigung wenn alle 4 Freigabe-Schritte erledigt wurden."""
+    """Benachrichtigung wenn alle 4 Freigabe-Schritte erledigt wurden.
+
+    Hängt — sofern eine ``app_base_url`` konfiguriert ist und ``idv_row``
+    den Primärschlüssel ``id`` mitführt — einen CTA-Button auf die
+    IDV-Detailseite an, damit der Empfänger direkt zur Doku des
+    Zieldokuments springen kann.
+    """
     if not _is_notify_enabled(db, "freigabe_abgeschlossen"):
         return False
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
     name   = idv_row["bezeichnung"] if hasattr(idv_row, "__getitem__") else ""
+    idv_db_id = _row_get(idv_row, "id")
 
     placeholders = {
         "idv_id":      idv_id,
@@ -926,6 +1128,12 @@ def notify_freigabe_abgeschlossen(db, idv_row, recipient_emails: list) -> bool:
         _DEFAULTS["freigabe_abgeschlossen_body"],
         placeholders,
     )
+
+    link = _idv_link(get_app_base_url(db), idv_db_id)
+    if link:
+        html = _inject_cta(html, "Zur IDV-Doku öffnen →", link)
+        text = _strip_html_tags(html)
+
     return send_mail(db, recipient_emails, subject, html, text)
 
 
@@ -1023,11 +1231,11 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
 
     with_links = bool(base_url)
 
-    # Tabellen-Header
-    link_th = '<th style="padding:8px;text-align:left;">Link</th>' if with_links else ""
+    link_th = (f'<th style="padding:8px;text-align:left;color:#ffffff;">Link</th>'
+               if with_links else "")
     rows_html = ""
     for i, f in enumerate(file_rows):
-        bg = ' style="background:#f8f9fa"' if i % 2 == 0 else ""
+        bg = _BRAND["slate_50"] if i % 2 == 0 else "#ffffff"
         fname = f["file_name"] if hasattr(f, "__getitem__") else str(f)
         fpath = f["full_path"] if hasattr(f, "__getitem__") else ""
         formula_count = f["formula_count"] if hasattr(f, "__getitem__") else 0
@@ -1037,52 +1245,71 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
         link_td = ""
         if with_links and file_id:
             link = f"{base_url}/funde?highlight={file_id}"
-            link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In IDVScope öffnen</a></td>'
+            link_td = (
+                f'<td style="padding:8px;vertical-align:top;background:{bg};'
+                f'border-bottom:1px solid {_BRAND["slate_200"]};">'
+                f'<a href="{link}" style="font-size:12px;color:{_BRAND["navy_900"]};">'
+                f'In IDVScope öffnen</a></td>'
+            )
 
-        rows_html += f"""
-        <tr{bg}>
-          <td style="padding:8px;font-weight:bold;vertical-align:top;">{fname}</td>
-          <td style="padding:8px;font-family:monospace;font-size:11px;vertical-align:top;">{fpath}</td>
-          <td style="padding:8px;text-align:center;vertical-align:top;">{formula_count or 0}</td>
-          <td style="padding:8px;text-align:center;vertical-align:top;">{'Ja' if has_macros else 'Nein'}</td>
-          {link_td}
-        </tr>"""
+        rows_html += (
+            f'<tr>'
+            f'<td style="padding:8px;font-weight:600;vertical-align:top;'
+            f'background:{bg};border-bottom:1px solid {_BRAND["slate_200"]};">{fname}</td>'
+            f'<td style="padding:8px;font-family:monospace;font-size:11px;'
+            f'vertical-align:top;background:{bg};'
+            f'border-bottom:1px solid {_BRAND["slate_200"]};">{fpath}</td>'
+            f'<td style="padding:8px;text-align:center;vertical-align:top;'
+            f'background:{bg};border-bottom:1px solid {_BRAND["slate_200"]};">'
+            f'{formula_count or 0}</td>'
+            f'<td style="padding:8px;text-align:center;vertical-align:top;'
+            f'background:{bg};border-bottom:1px solid {_BRAND["slate_200"]};">'
+            f'{"Ja" if has_macros else "Nein"}</td>'
+            f'{link_td}'
+            f'</tr>'
+        )
+
+    table_html = (
+        f'<table role="presentation" cellspacing="0" cellpadding="0" '
+        f'style="border-collapse:collapse;width:100%;'
+        f'border:1px solid {_BRAND["slate_200"]};border-radius:6px;'
+        f'overflow:hidden;font-size:14px;margin:18px 0;">'
+        f'<thead><tr style="background:{_BRAND["navy_900"]};color:#ffffff;">'
+        f'<th style="padding:8px;text-align:left;color:#ffffff;">Dateiname</th>'
+        f'<th style="padding:8px;text-align:left;color:#ffffff;">Pfad</th>'
+        f'<th style="padding:8px;text-align:center;color:#ffffff;">Formeln</th>'
+        f'<th style="padding:8px;text-align:center;color:#ffffff;">Makros</th>'
+        f'{link_th}'
+        f'</tr></thead><tbody>{rows_html}</tbody></table>'
+    )
 
     scanner_link_html = ""
     if with_links:
         scanner_link_html = (
             f'<p style="margin-top:12px;">'
-            f'<a href="{base_url}/funde">Zum Scanner-Eingang in IDVScope</a>'
-            f'</p>'
+            f'<a href="{base_url}/funde" style="color:{_BRAND["navy_900"]};">'
+            f'Zum Scanner-Eingang in IDVScope</a></p>'
         )
 
-    html = f"""\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">IDVScope – Bewertung angefordert</h2>
-<p>Sehr geehrte/r {ersteller},</p>
-<p>die folgenden Dateien wurden vom IDVScope-Scanner erkannt und sind Ihnen als
-   Ersteller/Eigentümer zugeordnet. Bitte bewerten Sie, ob diese Dateien als
-   <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2
-   einzustufen sind.</p>
-<table style="border-collapse:collapse;width:100%;border:1px solid #dee2e6;">
-  <thead>
-    <tr style="background:#0d6efd;color:#fff;">
-      <th style="padding:8px;text-align:left;">Dateiname</th>
-      <th style="padding:8px;text-align:left;">Pfad</th>
-      <th style="padding:8px;text-align:center;">Formeln</th>
-      <th style="padding:8px;text-align:center;">Makros</th>
-      {link_th}
-    </tr>
-  </thead>
-  <tbody>{rows_html}
-  </tbody>
-</table>
-<p style="margin-top:20px;">Bitte melden Sie sich in IDVScope an und nehmen
-   Sie die Bewertung vor.</p>
-{scanner_link_html}
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+    html = _render_email(
+        accent="info",
+        kind_label="Bewertung",
+        headline="Bewertung angefordert",
+        intro_html=(
+            f"<p>Sehr geehrte/r {ersteller},</p>"
+            f"<p>die folgenden Dateien wurden vom IDVScope-Scanner erkannt "
+            f"und sind Ihnen als Ersteller/Eigentümer zugeordnet. Bitte "
+            f"bewerten Sie, ob diese Dateien als <strong>Individuelle "
+            f"Datenverarbeitung (IDV)</strong> im Sinne von MaRisk AT 7.2 "
+            f"einzustufen sind.</p>"
+        ),
+        extra_html=(
+            f"{table_html}"
+            f'<p style="margin-top:6px;">Bitte melden Sie sich in IDVScope an '
+            f"und nehmen Sie die Bewertung vor.</p>"
+            f"{scanner_link_html}"
+        ),
+    )
 
     text = _strip_html_tags(html)
     return send_mail(db, recipient_email, subject, html, text)
@@ -1127,58 +1354,74 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
         subject = f"[IDVScope] Bitte um Bewertung: {n} Cognos-Berichte"
 
     with_links = bool(base_url)
-    link_th = '<th style="padding:8px;text-align:left;">Link</th>' if with_links else ""
+    link_th = (f'<th style="padding:8px;text-align:left;color:#ffffff;">Link</th>'
+               if with_links else "")
     rows_html = ""
     for i, b in enumerate(bericht_rows):
-        bg = ' style="background:#f8f9fa"' if i % 2 == 0 else ""
-        bname   = b["berichtsname"] if hasattr(b, "__getitem__") else str(b)
+        bg = _BRAND["slate_50"] if i % 2 == 0 else "#ffffff"
+        bname = b["berichtsname"] if hasattr(b, "__getitem__") else str(b)
         suchpfad = b["suchpfad"] if hasattr(b, "__getitem__") else ""
         bericht_id = b["id"] if hasattr(b, "__getitem__") else ""
 
         link_td = ""
         if with_links and bericht_id:
             link = f"{base_url}/cognos/?highlight={bericht_id}"
-            link_td = f'<td style="padding:8px;vertical-align:top;"><a href="{link}" style="font-size:12px;">In IDVScope öffnen</a></td>'
+            link_td = (
+                f'<td style="padding:8px;vertical-align:top;background:{bg};'
+                f'border-bottom:1px solid {_BRAND["slate_200"]};">'
+                f'<a href="{link}" style="font-size:12px;color:{_BRAND["navy_900"]};">'
+                f'In IDVScope öffnen</a></td>'
+            )
 
-        rows_html += f"""
-        <tr{bg}>
-          <td style="padding:8px;font-weight:bold;vertical-align:top;">{bname}</td>
-          <td style="padding:8px;font-family:monospace;font-size:11px;vertical-align:top;">{suchpfad or '–'}</td>
-          {link_td}
-        </tr>"""
+        rows_html += (
+            f'<tr>'
+            f'<td style="padding:8px;font-weight:600;vertical-align:top;'
+            f'background:{bg};border-bottom:1px solid {_BRAND["slate_200"]};">{bname}</td>'
+            f'<td style="padding:8px;font-family:monospace;font-size:11px;'
+            f'vertical-align:top;background:{bg};'
+            f'border-bottom:1px solid {_BRAND["slate_200"]};">{suchpfad or "–"}</td>'
+            f'{link_td}'
+            f'</tr>'
+        )
+
+    table_html = (
+        f'<table role="presentation" cellspacing="0" cellpadding="0" '
+        f'style="border-collapse:collapse;width:100%;'
+        f'border:1px solid {_BRAND["slate_200"]};border-radius:6px;'
+        f'overflow:hidden;font-size:14px;margin:18px 0;">'
+        f'<thead><tr style="background:{_BRAND["navy_900"]};color:#ffffff;">'
+        f'<th style="padding:8px;text-align:left;color:#ffffff;">Berichtsname</th>'
+        f'<th style="padding:8px;text-align:left;color:#ffffff;">Suchpfad</th>'
+        f'{link_th}'
+        f'</tr></thead><tbody>{rows_html}</tbody></table>'
+    )
 
     cognos_link_html = ""
     if with_links:
         cognos_link_html = (
             f'<p style="margin-top:12px;">'
-            f'<a href="{base_url}/cognos/">Zu den Cognos-Berichten in IDVScope</a>'
-            f'</p>'
+            f'<a href="{base_url}/cognos/" style="color:{_BRAND["navy_900"]};">'
+            f'Zu den Cognos-Berichten in IDVScope</a></p>'
         )
 
-    html = f"""\
-<html><body style="font-family:Arial,sans-serif;font-size:14px;">
-<h2 style="color:#0d6efd;">IDVScope – Bewertung angefordert</h2>
-<p>Sehr geehrte/r {eigentuemer},</p>
-<p>die folgenden Cognos-Berichte sind Ihnen als Eigentümer zugeordnet. Bitte bewerten Sie,
-   ob diese Berichte als <strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne
-   von MaRisk AT 7.2 einzustufen sind.</p>
-<table style="border-collapse:collapse;width:100%;border:1px solid #dee2e6;">
-  <thead>
-    <tr style="background:#0d6efd;color:#fff;">
-      <th style="padding:8px;text-align:left;">Berichtsname</th>
-      <th style="padding:8px;text-align:left;">Suchpfad</th>
-      {link_th}
-    </tr>
-  </thead>
-  <tbody>{rows_html}
-  </tbody>
-</table>
-<p style="margin-top:20px;">Bitte melden Sie sich in IDVScope an und nehmen
-   Sie die Bewertung vor.</p>
-{cognos_link_html}
-<p style="color:#6c757d;font-size:12px;margin-top:30px;">
-  Diese Nachricht wurde automatisch von IDVScope gesendet.</p>
-</body></html>"""
+    html = _render_email(
+        accent="info",
+        kind_label="Bewertung",
+        headline="Bewertung angefordert",
+        intro_html=(
+            f"<p>Sehr geehrte/r {eigentuemer},</p>"
+            f"<p>die folgenden Cognos-Berichte sind Ihnen als Eigentümer "
+            f"zugeordnet. Bitte bewerten Sie, ob diese Berichte als "
+            f"<strong>Individuelle Datenverarbeitung (IDV)</strong> im Sinne "
+            f"von MaRisk AT 7.2 einzustufen sind.</p>"
+        ),
+        extra_html=(
+            f"{table_html}"
+            f'<p style="margin-top:6px;">Bitte melden Sie sich in IDVScope an '
+            f"und nehmen Sie die Bewertung vor.</p>"
+            f"{cognos_link_html}"
+        ),
+    )
 
     text = _strip_html_tags(html)
     return send_mail(db, recipient_email, subject, html, text)
@@ -1213,14 +1456,7 @@ def notify_freigabe_pool_reminder(db, idv_row, schritt: str, pool_name: str,
     )
 
     if action_url:
-        cta = (
-            '<p style="margin-top:24px;text-align:center;">'
-            f'<a href="{action_url}" style="background:#0d6efd;color:#ffffff;'
-            'padding:12px 32px;border-radius:6px;text-decoration:none;'
-            'font-weight:bold;font-size:15px;display:inline-block;">'
-            f'Schritt „{schritt}" öffnen →</a></p>'
-        )
-        html = html.replace("</body>", cta + "</body>")
+        html = _inject_cta(html, f'Schritt „{schritt}" öffnen →', action_url)
         text = _strip_html_tags(html)
 
     return send_mail(db, recipient_emails, subject, html, text)
@@ -1274,29 +1510,37 @@ def notify_owner_digest(db, recipient_email: str, recipient_name: str,
     # am Vorwort möglich sind, die Funddaten aber immer aktuell bleiben.
     rows_html = ""
     for i, f in enumerate(file_rows):
-        bg = ' style="background:#f8f9fa"' if i % 2 == 0 else ""
+        bg = _BRAND["slate_50"] if i % 2 == 0 else "#ffffff"
         fname = f["file_name"] if hasattr(f, "__getitem__") else str(f)
         fpath = f["full_path"] if hasattr(f, "__getitem__") else ""
         rows_html += (
-            f'<tr{bg}>'
-            f'<td style="padding:6px;font-weight:bold;vertical-align:top;">{_html.escape(str(fname))}</td>'
-            f'<td style="padding:6px;font-family:monospace;font-size:11px;vertical-align:top;">{_html.escape(str(fpath))}</td>'
+            f'<tr>'
+            f'<td style="padding:8px;font-weight:600;vertical-align:top;'
+            f'background:{bg};border-bottom:1px solid {_BRAND["slate_200"]};">'
+            f'{_html.escape(str(fname))}</td>'
+            f'<td style="padding:8px;font-family:monospace;font-size:11px;'
+            f'vertical-align:top;background:{bg};'
+            f'border-bottom:1px solid {_BRAND["slate_200"]};">'
+            f'{_html.escape(str(fpath))}</td>'
             f'</tr>'
         )
     table_html = (
-        '<table style="border-collapse:collapse;width:100%;border:1px solid #dee2e6;margin-top:12px;">'
-        '<thead><tr style="background:#e9ecef;">'
-        '<th style="padding:6px;text-align:left;">Dateiname</th>'
-        '<th style="padding:6px;text-align:left;">Pfad</th>'
-        '</tr></thead>'
-        f'<tbody>{rows_html}</tbody></table>'
+        f'<table role="presentation" cellspacing="0" cellpadding="0" '
+        f'style="border-collapse:collapse;width:100%;'
+        f'border:1px solid {_BRAND["slate_200"]};border-radius:6px;'
+        f'overflow:hidden;font-size:14px;margin:18px 0;">'
+        f'<thead><tr style="background:{_BRAND["navy_900"]};color:#ffffff;">'
+        f'<th style="padding:8px;text-align:left;color:#ffffff;">Dateiname</th>'
+        f'<th style="padding:8px;text-align:left;color:#ffffff;">Pfad</th>'
+        f'</tr></thead><tbody>{rows_html}</tbody></table>'
     )
     extra_html = table_html
     if test_banner:
         banner_html = (
-            '<div style="border:1px solid #ffc107;background:#fff3cd;color:#664d03;'
-            'padding:8px 12px;margin-top:12px;font-size:13px;">'
-            '<strong>Testversand:</strong> ' + test_banner +
+            f'<div style="border:1px solid {_BRAND["amber"]};background:#fef3c7;'
+            f'color:#92400e;padding:8px 12px;margin-top:12px;font-size:13px;'
+            f'border-radius:4px;">'
+            f'<strong>Testversand:</strong> ' + test_banner +
             '</div>'
         )
         extra_html = banner_html + table_html
@@ -1327,6 +1571,13 @@ def notify_idv_incomplete(db, idv_row, score: int, missing: list,
         _DEFAULTS["idv_incomplete_reminder_body"],
         placeholders,
     )
+
+    idv_db_id = _row_get(idv_row, "idv_db_id") or _row_get(idv_row, "id")
+    link = _idv_link(get_app_base_url(db), idv_db_id)
+    if link:
+        html = _inject_cta(html, "Zur IDV-Doku öffnen →", link)
+        text = _strip_html_tags(html)
+
     return send_mail(db, recipient_emails, subject, html, text)
 
 
@@ -1342,9 +1593,36 @@ def notify_measure_overdue(db, massnahme_row,
     titel   = massnahme_row["titel"] if hasattr(massnahme_row, "__getitem__") else str(massnahme_row)
     faellig = massnahme_row["faellig_am"] if hasattr(massnahme_row, "__getitem__") else ""
 
+    # Verknüpfte IDV nachschlagen, damit IDV-ID/Bezeichnung im Mail-Layout
+    # erscheinen und ein direkter Link zur IDV-Doku angehängt werden kann.
+    # ``massnahme_row`` enthält im Scheduler nur ``id``/``titel``/``faellig_am`` —
+    # die IDV-Verknüpfung wird hier zusätzlich aufgelöst, ohne den Aufrufer
+    # ändern zu müssen.
+    idv_id = "–"
+    bezeichnung = "–"
+    idv_db_id = None
+    massnahme_id = _row_get(massnahme_row, "id")
+    if massnahme_id:
+        try:
+            ref = db.execute(
+                "SELECT r.id AS idv_db_id, r.idv_id, r.bezeichnung "
+                "  FROM massnahmen m "
+                "  JOIN idv_register r ON r.id = m.idv_id "
+                " WHERE m.id = ?",
+                (massnahme_id,),
+            ).fetchone()
+            if ref:
+                idv_id      = ref["idv_id"] or "–"
+                bezeichnung = ref["bezeichnung"] or "–"
+                idv_db_id   = ref["idv_db_id"]
+        except Exception:
+            pass
+
     placeholders = {
-        "titel":      titel,
-        "faellig_am": faellig[:10] if faellig else "–",
+        "titel":       titel,
+        "faellig_am":  faellig[:10] if faellig else "–",
+        "idv_id":      idv_id,
+        "bezeichnung": bezeichnung,
     }
 
     subject, html, text = _load_template(
@@ -1353,4 +1631,10 @@ def notify_measure_overdue(db, massnahme_row,
         _DEFAULTS["massnahme_ueberfaellig_body"],
         placeholders,
     )
+
+    link = _idv_link(get_app_base_url(db), idv_db_id)
+    if link:
+        html = _inject_cta(html, "Zur IDV-Doku öffnen →", link)
+        text = _strip_html_tags(html)
+
     return send_mail(db, recipient_emails, subject, html, text)
