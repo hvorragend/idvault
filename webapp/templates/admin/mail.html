@@ -280,6 +280,39 @@
                         <label class="form-check-label fw-600" for="{{ enabled_key }}">Versand aktiviert</label>
                       </div>
                     </div>
+                    {% set tpl_roles = tpl_meta.get('recipient_roles', []) %}
+                    {% if tpl_roles %}
+                    {% set active_roles = configured_recipients.get(tpl_key, []) %}
+                    <div class="mb-3 p-2 border rounded bg-light">
+                      <div class="d-flex align-items-center mb-1">
+                        <i class="bi bi-people-fill text-primary me-1"></i>
+                        <span class="fw-600 fs-7">Empfänger dieser Mail</span>
+                      </div>
+                      <div class="text-muted fs-8 mb-2">
+                        Pro Rolle einzeln steuerbar — wer die Mail bekommt, ergibt sich aus
+                        den hier angekreuzten Rollen.
+                      </div>
+                      {# Hidden marker damit ein „alles abgewählt"-Zustand auch beim
+                         Speichern als leerer Wert (nicht „Default") ankommt. #}
+                      <input type="hidden" name="email_recipients_{{ tpl_key }}" value="">
+                      {% for role_key in tpl_roles %}
+                      {% set role_meta = recipient_roles.get(role_key, {'label': role_key, 'hint': ''}) %}
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                               name="email_recipients_{{ tpl_key }}"
+                               value="{{ role_key }}"
+                               id="recip_{{ tpl_key }}_{{ role_key }}"
+                               {{ 'checked' if role_key in active_roles else '' }}>
+                        <label class="form-check-label fs-7" for="recip_{{ tpl_key }}_{{ role_key }}">
+                          <span class="fw-600">{{ role_meta.label }}</span>
+                          {% if role_meta.hint %}
+                          <span class="text-muted">— {{ role_meta.hint }}</span>
+                          {% endif %}
+                        </label>
+                      </div>
+                      {% endfor %}
+                    </div>
+                    {% endif %}
                     <div class="mb-2">
                       <span class="text-muted fs-7">Platzhalter:
                         {% for ph in tpl_meta.placeholders %}

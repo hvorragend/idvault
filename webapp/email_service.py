@@ -535,42 +535,135 @@ _DEFAULTS["massnahme_ueberfaellig_body"] = """\
 # Template-Registry (für Admin-UI und Validierung)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Empfänger-Rollen-Katalog
+# ---------------------------------------------------------------------------
+#
+# Pro Mail-Vorlage lässt sich rollenbasiert konfigurieren, wer die Mail
+# bekommt. Der Katalog beschreibt sämtliche bekannten Rollen mit Label und
+# kurzer Erläuterung — das Admin-UI macht damit transparent, welche
+# Personen-Kreise eine Vorlage adressieren kann.
+#
+# Welche Rollen für eine konkrete Vorlage *konfigurierbar* sind, regelt der
+# Eintrag ``recipient_roles`` in ``EMAIL_TEMPLATES``. Default-Auswahl steht
+# in ``default_recipients``. Gespeichert wird die aktive Auswahl als
+# komma-separierte Rollenliste in ``app_settings`` unter
+# ``email_recipients_{tpl_key}``.
+RECIPIENT_ROLES = {
+    "idv_administrator": {
+        "label": "IDV-Administratoren",
+        "hint": "Alle aktiven Personen mit Rolle „IDV-Administrator“.",
+    },
+    "idv_koordinator": {
+        "label": "IDV-Koordinatoren",
+        "hint": "Alle aktiven Personen mit Rolle „IDV-Koordinator“.",
+    },
+    "idv_entwickler": {
+        "label": "IDV-Entwickler",
+        "hint": "Die am betreffenden IDV als Entwickler hinterlegte Person.",
+    },
+    "fachverantwortlicher": {
+        "label": "Fachverantwortlicher",
+        "hint": "Die am betreffenden IDV als Fachverantwortlicher hinterlegte Person.",
+    },
+    "schritt_verantwortlicher": {
+        "label": "Schritt-Verantwortlicher",
+        "hint": "Die für den jeweiligen Freigabe-Schritt zugewiesene Person.",
+    },
+    "freigabe_pool": {
+        "label": "Pool-Mitglieder",
+        "hint": "Aktive Mitglieder des für den Schritt zuständigen Freigabe-Pools.",
+    },
+    "datei_ersteller": {
+        "label": "Datei-Ersteller / -Eigentümer",
+        "hint": "Ersteller/Eigentümer der Datei laut file_owner / office_author.",
+    },
+    "massnahme_verantwortlicher": {
+        "label": "Maßnahmen-Verantwortlicher",
+        "hint": "Die für die Maßnahme verantwortliche Person (oder aktive Vertretung).",
+    },
+    "self_service_owner": {
+        "label": "Self-Service-Empfänger",
+        "hint": "Eigentümer der Funde laut file_owner-Mapping (Self-Service).",
+    },
+}
+
+
 EMAIL_TEMPLATES = {
     "neue_datei": {
         "label": "Neue Datei erkannt",
         "placeholders": ["dateiname", "pfad", "erkannt_am"],
+        "recipient_roles": ["idv_administrator", "idv_koordinator"],
+        "default_recipients": ["idv_administrator", "idv_koordinator"],
     },
     "pruefung_faellig": {
         "label": "Prüfung fällig",
         "placeholders": ["idv_id", "bezeichnung", "faellig_am"],
+        "recipient_roles": [
+            "fachverantwortlicher", "idv_entwickler",
+            "idv_koordinator", "idv_administrator",
+        ],
+        "default_recipients": ["fachverantwortlicher"],
     },
     "freigabe_schritt": {
         "label": "Freigabe-Schritt offen",
         "placeholders": ["idv_id", "bezeichnung", "schritt", "versionskommentar"],
+        "recipient_roles": [
+            "schritt_verantwortlicher", "freigabe_pool",
+            "idv_koordinator", "idv_administrator",
+        ],
+        "default_recipients": [
+            "schritt_verantwortlicher", "freigabe_pool",
+            "idv_koordinator", "idv_administrator",
+        ],
     },
     "freigabe_abgeschlossen": {
         "label": "IDV freigegeben (alle Schritte erledigt)",
         "placeholders": ["idv_id", "bezeichnung"],
+        "recipient_roles": [
+            "idv_entwickler", "fachverantwortlicher",
+            "idv_koordinator", "idv_administrator",
+        ],
+        "default_recipients": [
+            "idv_entwickler", "fachverantwortlicher",
+            "idv_koordinator", "idv_administrator",
+        ],
     },
     "bewertung": {
         "label": "Bewertungsanforderung an Datei-Ersteller",
         "placeholders": ["dateiname", "pfad", "ersteller", "formelanzahl", "makros"],
+        "recipient_roles": ["datei_ersteller"],
+        "default_recipients": ["datei_ersteller"],
     },
     "massnahme_ueberfaellig": {
         "label": "Überfällige Maßnahme",
         "placeholders": ["titel", "faellig_am"],
+        "recipient_roles": [
+            "massnahme_verantwortlicher",
+            "idv_koordinator", "idv_administrator",
+        ],
+        "default_recipients": ["massnahme_verantwortlicher"],
     },
     "freigabe_pool_reminder": {
         "label": "Pool-Freigabeschritt wartet auf Übernahme (täglicher Reminder)",
         "placeholders": ["idv_id", "bezeichnung", "schritt", "pool_name", "wartet_seit_tage"],
+        "recipient_roles": ["freigabe_pool"],
+        "default_recipients": ["freigabe_pool"],
     },
     "owner_digest": {
         "label": "Sammelbenachrichtigung: offene Scanner-Funde (Self-Service)",
         "placeholders": ["empfaenger", "anzahl", "link"],
+        "recipient_roles": ["self_service_owner"],
+        "default_recipients": ["self_service_owner"],
     },
     "idv_incomplete_reminder": {
         "label": "IDV unvollständig – Nachpflege erforderlich (Schnell-Anlage)",
         "placeholders": ["idv_id", "bezeichnung", "score", "missing"],
+        "recipient_roles": [
+            "fachverantwortlicher", "idv_entwickler",
+            "idv_koordinator", "idv_administrator",
+        ],
+        "default_recipients": ["fachverantwortlicher"],
     },
 }
 
@@ -597,6 +690,52 @@ def _is_notify_enabled(db, tpl_key: str) -> bool:
         return True
 
 
+def get_configured_recipient_roles(db, tpl_key: str) -> list[str]:
+    """Liest die für die Vorlage konfigurierten Empfänger-Rollen.
+
+    Speicherort: ``app_settings.email_recipients_{tpl_key}`` als
+    komma-separierte Rollenliste.
+
+    Fehlt der Eintrag komplett, greifen die ``default_recipients`` der
+    Vorlage. Ein vorhandener, aber leerer Wert bedeutet bewusst:
+    *keine* Empfänger (Versand effektiv aus).
+    """
+    try:
+        row = db.execute(
+            "SELECT value FROM app_settings WHERE key=?",
+            (f"email_recipients_{tpl_key}",),
+        ).fetchone()
+    except Exception:
+        row = None
+    if row is None:
+        return list(EMAIL_TEMPLATES.get(tpl_key, {}).get("default_recipients", []))
+    raw = (row["value"] or "").strip()
+    if not raw:
+        return []
+    allowed = set(EMAIL_TEMPLATES.get(tpl_key, {}).get("recipient_roles", []))
+    return [r.strip() for r in raw.split(",")
+            if r.strip() and (not allowed or r.strip() in allowed)]
+
+
+def filter_emails_by_configured_roles(db, tpl_key: str,
+                                      role_emails: dict) -> list[str]:
+    """Reduziert eine ``{role_key: iterable[email]}``-Zuordnung auf jene
+    Rollen, die für diese Vorlage in den Einstellungen aktiviert sind.
+
+    Liefert eine sortierte, deduplizierte Liste echter E-Mail-Adressen
+    (``"@"``-Heuristik analog zu ``send_mail``).
+    """
+    enabled = set(get_configured_recipient_roles(db, tpl_key))
+    out: set[str] = set()
+    for role, emails in (role_emails or {}).items():
+        if role not in enabled:
+            continue
+        for e in emails or []:
+            if e and "@" in e:
+                out.add(e)
+    return sorted(out)
+
+
 def notify_new_scanner_file(db, file_row, responsible_emails: list[str]) -> bool:
     """Benachrichtigt Verantwortliche über eine neu erkannte Datei."""
     if not _is_notify_enabled(db, "neue_datei"):
@@ -621,8 +760,12 @@ def notify_new_scanner_file(db, file_row, responsible_emails: list[str]) -> bool
     return send_mail(db, responsible_emails, subject, html, text)
 
 
-def notify_review_due(db, idv_row, responsible_email: str) -> bool:
-    """Erinnerung an fällige Prüfung."""
+def notify_review_due(db, idv_row, recipient_emails) -> bool:
+    """Erinnerung an fällige Prüfung.
+
+    ``recipient_emails`` darf entweder ein einzelner String oder eine
+    Liste sein — wird durchgereicht an ``send_mail``.
+    """
     if not _is_notify_enabled(db, "pruefung_faellig"):
         return False
     idv_id = idv_row["idv_id"] if hasattr(idv_row, "__getitem__") else str(idv_row)
@@ -641,7 +784,7 @@ def notify_review_due(db, idv_row, responsible_email: str) -> bool:
         _DEFAULTS["pruefung_faellig_body"],
         placeholders,
     )
-    return send_mail(db, responsible_email, subject, html, text)
+    return send_mail(db, recipient_emails, subject, html, text)
 
 
 def notify_freigabe_schritt(db, idv_row, schritt: str,
@@ -808,6 +951,10 @@ def notify_file_bewertung(db, file_row, recipient_email: str,
     """
     if not _is_notify_enabled(db, "bewertung"):
         return False
+    if "datei_ersteller" not in set(
+        get_configured_recipient_roles(db, "bewertung")
+    ):
+        return False
     fname = file_row["file_name"] if hasattr(file_row, "__getitem__") else str(file_row)
     fpath = file_row["full_path"] if hasattr(file_row, "__getitem__") else ""
     formula_count = file_row["formula_count"] if hasattr(file_row, "__getitem__") else 0
@@ -850,6 +997,14 @@ def notify_file_bewertung_batch(db, file_rows: list, recipient_email: str,
         return False
     if not _is_notify_enabled(db, "bewertung"):
         log.warning("Bewertungsanforderung nicht gesendet: notify_enabled_bewertung ist deaktiviert.")
+        return False
+    if "datei_ersteller" not in set(
+        get_configured_recipient_roles(db, "bewertung")
+    ):
+        log.warning(
+            "Bewertungsanforderung nicht gesendet: Empfaenger-Rolle "
+            "'datei_ersteller' ist in den Vorlagen-Einstellungen deaktiviert."
+        )
         return False
 
     ersteller = (recipient_name or "").strip() or "–"
@@ -947,6 +1102,14 @@ def notify_bericht_bewertung_batch(db, bericht_rows: list, recipient_email: str,
         return False
     if not _is_notify_enabled(db, "bewertung"):
         log.warning("Bewertungsanforderung nicht gesendet: notify_enabled_bewertung ist deaktiviert.")
+        return False
+    if "datei_ersteller" not in set(
+        get_configured_recipient_roles(db, "bewertung")
+    ):
+        log.warning(
+            "Bewertungsanforderung nicht gesendet: Empfaenger-Rolle "
+            "'datei_ersteller' ist in den Vorlagen-Einstellungen deaktiviert."
+        )
         return False
 
     eigentuemer = (recipient_name or "").strip() or "–"
@@ -1144,8 +1307,12 @@ def notify_owner_digest(db, recipient_email: str, recipient_name: str,
 
 
 def notify_idv_incomplete(db, idv_row, score: int, missing: list,
-                          responsible_email: str) -> bool:
-    """Erinnerung an unvollständige IDV (Schnell-Anlage, Issue #348)."""
+                          recipient_emails) -> bool:
+    """Erinnerung an unvollständige IDV (Schnell-Anlage, Issue #348).
+
+    ``recipient_emails`` darf entweder ein einzelner String oder eine
+    Liste sein — wird durchgereicht an ``send_mail``.
+    """
     if not _is_notify_enabled(db, "idv_incomplete_reminder"):
         return False
     placeholders = {
@@ -1160,11 +1327,16 @@ def notify_idv_incomplete(db, idv_row, score: int, missing: list,
         _DEFAULTS["idv_incomplete_reminder_body"],
         placeholders,
     )
-    return send_mail(db, responsible_email, subject, html, text)
+    return send_mail(db, recipient_emails, subject, html, text)
 
 
-def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:
-    """Eskalation für überfällige Maßnahme."""
+def notify_measure_overdue(db, massnahme_row,
+                           recipient_emails) -> bool:
+    """Eskalation für überfällige Maßnahme.
+
+    ``recipient_emails`` darf entweder ein einzelner String oder eine
+    Liste sein — wird durchgereicht an ``send_mail``.
+    """
     if not _is_notify_enabled(db, "massnahme_ueberfaellig"):
         return False
     titel   = massnahme_row["titel"] if hasattr(massnahme_row, "__getitem__") else str(massnahme_row)
@@ -1181,4 +1353,4 @@ def notify_measure_overdue(db, massnahme_row, responsible_email: str) -> bool:
         _DEFAULTS["massnahme_ueberfaellig_body"],
         placeholders,
     )
-    return send_mail(db, responsible_email, subject, html, text)
+    return send_mail(db, recipient_emails, subject, html, text)

@@ -208,6 +208,14 @@ def save_settings():
         keys.append(f"email_tpl_{tpl_key}_subject")
         keys.append(f"email_tpl_{tpl_key}_body")
     kv = [(k, request.form.get(k, "")) for k in keys]
+    # Rollenbasierte Empfaenger-Auswahl pro Vorlage uebernehmen.
+    for tpl_key, tpl_meta in EMAIL_TEMPLATES.items():
+        allowed = set(tpl_meta.get("recipient_roles", []))
+        chosen = [
+            v for v in request.form.getlist(f"email_recipients_{tpl_key}")
+            if v in allowed
+        ]
+        kv.append((f"email_recipients_{tpl_key}", ",".join(chosen)))
     if smtp_pw_enc is not None:
         kv.append(("smtp_password", smtp_pw_enc))
     def _do(c):

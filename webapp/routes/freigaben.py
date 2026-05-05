@@ -2373,40 +2373,52 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
         if not idv:
             return
 
-        from ..email_service import notify_freigabe_schritt, get_app_base_url
+        from ..email_service import (
+            notify_freigabe_schritt, get_app_base_url,
+            get_configured_recipient_roles,
+        )
         from ..tokens import make_freigabe_token
 
         secret_key = current_app.config["SECRET_KEY"]
         base_url = get_app_base_url(db)
         entwickler_id = idv["idv_entwickler_id"] or 0
+        active_roles = set(get_configured_recipient_roles(db, "freigabe_schritt"))
 
         for schritt in schritte:
             # Empfängerliste als (email, person_id) aufbauen, damit pro
             # Empfänger ein eigener, person-gebundener Magic-Link erzeugt
-            # werden kann (Issue #352). person_id darf None sein — dann bekommt
-            # der Empfänger einen Login-Magic-Link ohne Quick-Action.
+            # werden kann. person_id darf None sein — dann bekommt der
+            # Empfänger einen Login-Magic-Link ohne Quick-Action.
             entries: dict[str, int | None] = {}
 
             def _add(email: str | None, pid: int | None):
                 if not email:
                     return
-                # Erste Nennung gewinnt; konkrete person_id überschreibt None.
                 if email not in entries or (entries[email] is None and pid is not None):
                     entries[email] = pid
 
-            # Koordinatoren/Admins (außer Entwickler): sind meist mehrere
-            # Personen, aber als Gruppe gemeint → bewusst ohne person-Binding.
-            for r in db.execute("""
-                SELECT DISTINCT p.email FROM persons p
-                WHERE p.aktiv=1 AND p.email IS NOT NULL
-                  AND p.rolle IN ('IDV-Koordinator','IDV-Administrator')
-                  AND p.id != ?
-            """, (entwickler_id,)).fetchall():
-                _add(r["email"], None)
+            # Koordinatoren/Admins (außer Entwickler) — pro Rolle einzeln
+            # toggelbar; bewusst ohne person-Binding (Gruppen-Empfang).
+            if "idv_administrator" in active_roles:
+                for r in db.execute("""
+                    SELECT DISTINCT p.email FROM persons p
+                    WHERE p.aktiv=1 AND p.email IS NOT NULL AND p.email <> ''
+                      AND p.rolle = 'IDV-Administrator'
+                      AND p.id != ?
+                """, (entwickler_id,)).fetchall():
+                    _add(r["email"], None)
+            if "idv_koordinator" in active_roles:
+                for r in db.execute("""
+                    SELECT DISTINCT p.email FROM persons p
+                    WHERE p.aktiv=1 AND p.email IS NOT NULL AND p.email <> ''
+                      AND p.rolle = 'IDV-Koordinator'
+                      AND p.id != ?
+                """, (entwickler_id,)).fetchall():
+                    _add(r["email"], None)
 
             # Zugewiesene Person für diesen Schritt
             zugewiesen_id = zugewiesen_map.get(schritt)
-            if zugewiesen_id:
+            if zugewiesen_id and "schritt_verantwortlicher" in active_roles:
                 p = db.execute(
                     "SELECT id, email FROM persons WHERE id=? AND aktiv=1",
                     (zugewiesen_id,),
@@ -2416,7 +2428,7 @@ def _notify_schritte(db, idv_db_id: int, schritte: list,
 
             # Pool-Mitglieder für diesen Schritt (Sofort-Benachrichtigung)
             pool_id = pool_map.get(schritt)
-            if pool_id:
+            if pool_id and "freigabe_pool" in active_roles:
                 for r in db.execute("""
                     SELECT p.id, p.email FROM freigabe_pool_members m
                     JOIN persons p ON p.id = m.person_id
@@ -2465,27 +2477,37 @@ def _notify_freigabe_erteilt(db, idv_db_id: int) -> None:
         ).fetchone()
         if not idv:
             return
-        # Koordinatoren/Admins als Gruppe sowie die direkt am IDV
-        # eingetragenen Entwickler-/Fachverantwortlichen-Personen.
-        recipient_set: set[str] = set()
-        for r in db.execute("""
-            SELECT email FROM persons
-            WHERE aktiv=1 AND email IS NOT NULL AND email != ''
-              AND rolle IN ('IDV-Koordinator','IDV-Administrator')
-        """).fetchall():
-            recipient_set.add(r["email"])
-        for pid in (idv["idv_entwickler_id"], idv["fachverantwortlicher_id"]):
+        from ..email_service import (
+            notify_freigabe_abgeschlossen,
+            filter_emails_by_configured_roles,
+        )
+
+        def _emails_by_role(role_clause: str) -> list[str]:
+            return [r["email"] for r in db.execute(
+                "SELECT email FROM persons "
+                "WHERE aktiv=1 AND email IS NOT NULL AND email != '' "
+                f"AND {role_clause}"
+            ).fetchall() if r["email"]]
+
+        def _person_email(pid) -> list[str]:
             if not pid:
-                continue
+                return []
             row = db.execute(
                 "SELECT email FROM persons WHERE id=? AND aktiv=1 "
-                "AND email IS NOT NULL AND email != ''", (pid,)
+                "AND email IS NOT NULL AND email != ''", (pid,),
             ).fetchone()
-            if row:
-                recipient_set.add(row["email"])
-        recipients = sorted(recipient_set)
+            return [row["email"]] if row else []
+
+        role_emails = {
+            "idv_administrator":    _emails_by_role("rolle='IDV-Administrator'"),
+            "idv_koordinator":      _emails_by_role("rolle='IDV-Koordinator'"),
+            "idv_entwickler":       _person_email(idv["idv_entwickler_id"]),
+            "fachverantwortlicher": _person_email(idv["fachverantwortlicher_id"]),
+        }
+        recipients = filter_emails_by_configured_roles(
+            db, "freigabe_abgeschlossen", role_emails,
+        )
         if recipients:
-            from ..email_service import notify_freigabe_abgeschlossen
             notify_freigabe_abgeschlossen(db, idv, recipients)
     except Exception as exc:
         # VULN-011: siehe _notify_schritte – Fehler werden protokolliert, der
