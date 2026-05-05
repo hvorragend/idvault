@@ -77,14 +77,10 @@ CREATE TABLE IF NOT EXISTS idv_files (
     bearbeitungsstatus      TEXT NOT NULL DEFAULT 'Neu',
     source                  TEXT NOT NULL DEFAULT 'filesystem', -- 'filesystem' | 'sharepoint' | 'teams'
     sharepoint_item_id      TEXT,                              -- stabile Graph-API-ID (Teams/SharePoint)
-    -- Versions-Serien-Fingerprint (#359): Ordner + maskierter Stem, dient als
-    -- dritter Auto-Link-Pfad neben SHA-256-Hash und Similarity-Score.
-    version_fingerprint     TEXT,
     UNIQUE(full_path)
 );
 
 CREATE INDEX IF NOT EXISTS idx_files_sp_item ON idv_files(sharepoint_item_id);
-CREATE INDEX IF NOT EXISTS idx_files_version_fp ON idv_files(version_fingerprint);
 
 -- Änderungsprotokoll pro Scanner-Fund (jedes Auftauchen/Ändern einer Datei)
 CREATE TABLE IF NOT EXISTS idv_file_history (
@@ -940,50 +936,6 @@ CREATE TABLE IF NOT EXISTS idv_zellschutz_akzeptanz (
 
 CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_idv  ON idv_zellschutz_akzeptanz(idv_db_id);
 CREATE INDEX IF NOT EXISTS idx_zellschutz_akz_file ON idv_zellschutz_akzeptanz(file_id);
-
--- -----------------------------------------------------------------------------
--- 12c. ZUORDNUNGS-VORSCHLÄGE AUS AUTO-ZUORDNUNG
--- -----------------------------------------------------------------------------
--- Mittlere Konfidenz: werden dem Owner im Self-Service zur Bestätigung oder
--- Ablehnung angezeigt.
-
-CREATE TABLE IF NOT EXISTS idv_match_suggestions (
-    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_id              INTEGER NOT NULL REFERENCES idv_files(id)    ON DELETE CASCADE,
-    idv_db_id            INTEGER NOT NULL REFERENCES idv_register(id) ON DELETE CASCADE,
-    score                INTEGER NOT NULL,
-    created_at           TEXT NOT NULL DEFAULT (datetime('now','utc')),
-    decision             TEXT,           -- NULL=offen, 'confirmed', 'rejected'
-    decided_at           TEXT,
-    decided_by_person_id INTEGER         REFERENCES persons(id),
-    UNIQUE(file_id, idv_db_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_match_sugg_file ON idv_match_suggestions(file_id);
-CREATE INDEX IF NOT EXISTS idx_match_sugg_idv  ON idv_match_suggestions(idv_db_id);
-CREATE INDEX IF NOT EXISTS idx_match_sugg_open ON idv_match_suggestions(decision) WHERE decision IS NULL;
-
--- -----------------------------------------------------------------------------
--- 12d. AUTO-KLASSIFIZIERUNGS-REGELN (#345)
--- -----------------------------------------------------------------------------
--- Konfigurierbare Regeln für die Auto-Klassifizierung nach Dateiname.
--- Vorher: hartkodierte AH/IDV-Bulks. Jetzt: Prefix/Suffix/Contains/Regex,
--- optional pro OE, mit Reihenfolge (kleinste sort_order gewinnt).
-
-CREATE TABLE IF NOT EXISTS auto_classify_rules (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    bezeichnung   TEXT NOT NULL,
-    pattern_type  TEXT NOT NULL CHECK (pattern_type IN ('prefix','suffix','contains','regex')),
-    pattern       TEXT NOT NULL,
-    action        TEXT NOT NULL CHECK (action IN ('Zur Registrierung','Nicht wesentlich','Ignoriert')),
-    oe_id         INTEGER REFERENCES org_units(id) ON DELETE SET NULL,
-    enabled       INTEGER NOT NULL DEFAULT 1,
-    sort_order    INTEGER NOT NULL DEFAULT 100,
-    created_at    TEXT NOT NULL DEFAULT (datetime('now','utc'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_auto_classify_rules_enabled
-    ON auto_classify_rules(enabled, sort_order);
 
 -- Performance-Index für Eingang-Ansicht (große Dateimengen)
 CREATE INDEX IF NOT EXISTS idx_files_status_bearb
